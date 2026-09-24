@@ -22,40 +22,43 @@ const (
 
 // Eventos de auditoria.
 const (
-	evLoginOK            = "login_ok"
-	evLoginFail          = "login_fail"
-	evLogout             = "logout"
-	evPasswordChanged    = "password_changed"
-	evUserCreated        = "user_created"
-	evUserRoleChanged    = "user_role_changed"
-	evUserDisabled       = "user_disabled"
-	evUserEnabled        = "user_enabled"
-	evUserPasswordReset  = "user_password_reset"
-	evEnrollTokenCreated = "enroll_token_created" //nolint:gosec // nombre de evento, no una credencial
-	evHostEnrolled       = "host_enrolled"
-	evHostRevoked        = "host_revoked"
-	evGroupCreated       = "group_created"
-	evGroupUpdated       = "group_updated"
-	evGroupDeleted       = "group_deleted"
-	evHostGroupSet       = "host_group_set"
-	evHostTagsSet        = "host_tags_set"
-	evHostsBulk          = "hosts_bulk"
-	evAlertAcked         = "alert_acked"
-	evAlertResolved      = "alert_resolved"
-	evAlertRuleCreated   = "alert_rule_created"
-	evAlertRuleUpdated   = "alert_rule_updated"
-	evAlertRuleDeleted   = "alert_rule_deleted"
-	evChannelCreated     = "channel_created"
-	evChannelUpdated     = "channel_updated"
-	evChannelDeleted     = "channel_deleted"
-	evChannelTested      = "channel_tested"
-	evRuleChannelsSet    = "alert_rule_channels_set"
-	evMaintenanceCreated = "maintenance_created"
-	evMaintenanceUpdated = "maintenance_updated"
-	evMaintenanceDeleted = "maintenance_deleted"
-	evAuthzDenied        = "authz_denied"
-	evAgentAuthFail      = "agent_auth_fail"
-	evEnrollFail         = "enroll_fail"
+	evLoginOK             = "login_ok"
+	evLoginFail           = "login_fail"
+	evLogout              = "logout"
+	evPasswordChanged     = "password_changed"
+	evUserCreated         = "user_created"
+	evUserRoleChanged     = "user_role_changed"
+	evUserDisabled        = "user_disabled"
+	evUserEnabled         = "user_enabled"
+	evUserPasswordReset   = "user_password_reset"
+	evEnrollTokenCreated  = "enroll_token_created" //nolint:gosec // nombre de evento, no una credencial
+	evHostEnrolled        = "host_enrolled"
+	evHostRevoked         = "host_revoked"
+	evGroupCreated        = "group_created"
+	evGroupUpdated        = "group_updated"
+	evGroupDeleted        = "group_deleted"
+	evHostGroupSet        = "host_group_set"
+	evHostTagsSet         = "host_tags_set"
+	evHostsBulk           = "hosts_bulk"
+	evAlertAcked          = "alert_acked"
+	evAlertResolved       = "alert_resolved"
+	evAlertRuleCreated    = "alert_rule_created"
+	evAlertRuleUpdated    = "alert_rule_updated"
+	evAlertRuleDeleted    = "alert_rule_deleted"
+	evChannelCreated      = "channel_created"
+	evChannelUpdated      = "channel_updated"
+	evChannelDeleted      = "channel_deleted"
+	evChannelTested       = "channel_tested"
+	evRuleChannelsSet     = "alert_rule_channels_set"
+	evServiceCheckCreated = "service_check_created"
+	evServiceCheckUpdated = "service_check_updated"
+	evServiceCheckDeleted = "service_check_deleted"
+	evMaintenanceCreated  = "maintenance_created"
+	evMaintenanceUpdated  = "maintenance_updated"
+	evMaintenanceDeleted  = "maintenance_deleted"
+	evAuthzDenied         = "authz_denied"
+	evAgentAuthFail       = "agent_auth_fail"
+	evEnrollFail          = "enroll_fail"
 )
 
 // auditDetailKeys es la lista blanca de claves permitidas en audit_log.detail.
@@ -68,6 +71,8 @@ var auditDetailKeys = map[string]bool{
 	// Alertas, reglas y mantenimiento: nombres y ajustes, nunca secretos.
 	"severity": true, "kind": true, "metric": true, "enabled": true, "scope_type": true,
 	"starts_at": true, "ends_at": true, "fields": true,
+	// Chequeos de servicio: tipo y ajustes, nunca el secreto, la cabecera ni la URL.
+	"type": true, "check_id": true,
 	// Canales: solo el host del destino (nunca la URL completa, que puede llevar un token, ni el secreto HMAC).
 	"host": true,
 }

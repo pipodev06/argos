@@ -144,6 +144,7 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 			HostEvents:    days(cfg.HostEventsRetentionDays),
 			Alerts:        days(cfg.AlertsRetentionDays),
 			Notifications: days(cfg.NotificationsRetentionDays),
+			CheckEvents:   days(cfg.ServiceEventsRetentionDays),
 		})
 	})
 	metricsMaint := retention.New(pool, logger, retention.Config{

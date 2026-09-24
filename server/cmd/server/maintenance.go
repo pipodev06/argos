@@ -27,6 +27,8 @@ type purger interface {
 	PurgeResolvedAlerts(ctx context.Context, before time.Time, batch int) (int, error)
 	PurgeMaintenanceWindows(ctx context.Context, before time.Time, batch int) (int, error)
 	PurgeDeliveries(ctx context.Context, before time.Time, batch int) (int, error)
+	PurgeCheckEvents(ctx context.Context, before time.Time, batch int) (int, error)
+	PurgeStaleCheckState(ctx context.Context, now time.Time, batch int) (int, error)
 }
 
 // retentionPolicy es cuanto se conserva cada tabla que purga el mantenimiento.
@@ -35,6 +37,7 @@ type retentionPolicy struct {
 	HostEvents    time.Duration
 	Alerts        time.Duration // alertas resueltas y ventanas de mantenimiento terminadas
 	Notifications time.Duration // entregas terminadas
+	CheckEvents   time.Duration // transiciones de chequeos de servicio
 }
 
 // runMaintenance corre hasta que ctx se cancele: vuelca cada minuto los fallos de
@@ -75,6 +78,8 @@ func purgeAll(ctx context.Context, logger *slog.Logger, st purger, now time.Time
 		{"alerts", func() (int, error) { return st.PurgeResolvedAlerts(ctx, now.Add(-keep.Alerts), purgeBatch) }},
 		{"maintenance_windows", func() (int, error) { return st.PurgeMaintenanceWindows(ctx, now.Add(-keep.Alerts), purgeBatch) }},
 		{"notification_deliveries", func() (int, error) { return st.PurgeDeliveries(ctx, now.Add(-keep.Notifications), purgeBatch) }},
+		{"service_check_events", func() (int, error) { return st.PurgeCheckEvents(ctx, now.Add(-keep.CheckEvents), purgeBatch) }},
+		{"service_check_state", func() (int, error) { return st.PurgeStaleCheckState(ctx, now, purgeBatch) }},
 	}
 	for _, step := range steps {
 		total, err := purgeInBatches(ctx, step.run)

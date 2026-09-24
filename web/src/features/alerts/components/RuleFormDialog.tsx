@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
+import { CheckSelectField } from '@/features/checks/components/CheckSelectField'
 import { ChannelPicker } from '@/features/channels/components/ChannelPicker'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { createRule, setRuleChannels, updateRule } from '../services/alerts.service'
@@ -73,17 +74,25 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
       let id = rule?.id ?? createdId
       if (rule) await updateRule(rule.id, input)
       else if (!id) {
-        id = (await createRule({ ...input, kind: draft.kind, ...(draft.kind === 'metric' && { metric: draft.metric }) })).id
+        id = (
+          await createRule({
+            ...input,
+            kind: draft.kind,
+            ...(draft.kind === 'metric' && { metric: draft.metric }),
+            ...(draft.kind === 'service_check' && { check_id: draft.checkId }),
+          })
+        ).id
         setCreatedId(id)
       }
       const before = rule?.channel_ids ?? []
       const changed = channelIds.length !== before.length || channelIds.some((c) => !before.includes(c))
       if (id && (changed || !rule)) await setRuleChannels(id, channelIds)
-    })
+    }, (err) => (err.code === 'check_not_found' ? 'El chequeo elegido ya no existe. Elige otro.' : null))
     if (ok) onSaved()
   }
 
   const isMetric = draft.kind === 'metric'
+  const isCheck = draft.kind === 'service_check'
   const thresholdLabel = draft.kind === 'no_data' ? 'Segundos sin reportar' : isLoadMetric(draft.metric) ? 'Umbral' : 'Umbral (%)'
 
   return (
@@ -125,7 +134,26 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
           <SelectField id="rule-op" label="Condición" value={draft.op} onChange={(v) => set('op', v as RuleOp)} options={OP_OPTIONS} />
         </div>
       )}
-      {draft.kind !== 'host_status' && (
+      {isCheck && (
+        <>
+          <CheckSelectField
+            id="rule-check"
+            value={draft.checkId}
+            onChange={(v) => set('checkId', v)}
+            currentName={rule?.check_name}
+            disabled={editing}
+            error={errors.check}
+          />
+          <CheckField
+            id="rule-warn-or-down"
+            label="Alertar también en advertencia"
+            hint="Sin marcar, solo alerta cuando el chequeo está caído. El alcance es el del chequeo."
+            checked={draft.warnOrDown}
+            onChange={(v) => set('warnOrDown', v)}
+          />
+        </>
+      )}
+      {(isMetric || draft.kind === 'no_data') && (
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField
             id="rule-threshold"
@@ -168,7 +196,7 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
           error={errors.resolve}
         />
       </div>
-      <ScopeFields id="rule" value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
+      {!isCheck && <ScopeFields id="rule" value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />}
       <SelectField
         id="rule-severity"
         label="Severidad"
@@ -176,13 +204,15 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
         onChange={(v) => set('severity', v as AlertSeverity)}
         options={SEVERITY_OPTIONS}
       />
-      <CheckField
-        id="rule-offline"
-        label="Incluir equipos sin conexión"
-        hint="Se evalúan con el último valor conocido."
-        checked={draft.includeOffline}
-        onChange={(v) => set('includeOffline', v)}
-      />
+      {!isCheck && (
+        <CheckField
+          id="rule-offline"
+          label="Incluir equipos sin conexión"
+          hint="Se evalúan con el último valor conocido."
+          checked={draft.includeOffline}
+          onChange={(v) => set('includeOffline', v)}
+        />
+      )}
       <CheckField
         id="rule-enabled"
         label="Regla activa"

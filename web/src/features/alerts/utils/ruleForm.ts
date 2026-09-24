@@ -12,6 +12,7 @@ export const KIND_OPTIONS: readonly { value: RuleKind; label: string }[] = [
   { value: 'metric', label: 'Métrica sobre umbral' },
   { value: 'host_status', label: 'Host caído' },
   { value: 'no_data', label: 'Sin reportar (sin datos)' },
+  { value: 'service_check', label: 'Chequeo de servicio' },
 ]
 export const OP_OPTIONS: readonly { value: RuleOp; label: string }[] = [
   { value: 'gt', label: 'Mayor que (>)' },
@@ -28,12 +29,14 @@ export interface RuleDraft {
   durationMin: string
   resolveMin: string
   includeOffline: boolean
+  checkId: string
+  warnOrDown: boolean
   scope: ScopeDraft
   severity: AlertSeverity
   enabled: boolean
 }
 
-export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'resolve' | 'scope', string>>
+export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'resolve' | 'scope' | 'check', string>>
 
 const minutesText = (seconds: number) => String(Math.round((seconds / 60) * 100) / 100)
 
@@ -49,6 +52,8 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
       durationMin: '5',
       resolveMin: '1',
       includeOffline: false,
+      checkId: '',
+      warnOrDown: false,
       scope: ALL_SCOPE,
       severity: 'warn',
       enabled: true,
@@ -64,6 +69,8 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
     durationMin: minutesText(rule.duration_seconds),
     resolveMin: minutesText(rule.resolve_seconds),
     includeOffline: rule.include_offline,
+    checkId: rule.check_id ?? '',
+    warnOrDown: rule.warn_or_down,
     scope: scopeToDraft(rule.scope),
     severity: rule.severity,
     enabled: rule.enabled,
@@ -87,8 +94,11 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
   if ('error' in duration) errors.duration = duration.error
   const resolve = minutes(d.resolveMin, 'Espera de resolución')
   if ('error' in resolve) errors.resolve = resolve.error
-  const scope = draftToScope(d.scope)
-  if ('error' in scope) errors.scope = scope.error
+  // Una regla service_check hereda el alcance del chequeo: no lleva alcance propio.
+  const inheritsScope = d.kind === 'service_check'
+  const scope = inheritsScope ? null : draftToScope(d.scope)
+  if (scope && 'error' in scope) errors.scope = scope.error
+  if (inheritsScope && !d.checkId) errors.check = 'Elige un chequeo.'
 
   let threshold: number | undefined
   let clear: number | null = null
@@ -111,16 +121,19 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
     }
   }
 
-  if (Object.keys(errors).length > 0 || 'error' in duration || 'error' in resolve || 'error' in scope) return { errors }
+  if (Object.keys(errors).length > 0 || 'error' in duration || 'error' in resolve || (scope && 'error' in scope)) return { errors }
   const input: RuleInput = {
     name,
     duration_seconds: duration.seconds,
     resolve_seconds: resolve.seconds,
-    include_offline: d.includeOffline,
-    scope: scope.scope,
     severity: d.severity,
     enabled: d.enabled,
   }
+  if (scope && 'scope' in scope) {
+    input.scope = scope.scope
+    input.include_offline = d.includeOffline
+  }
+  if (d.kind === 'service_check') input.warn_or_down = d.warnOrDown
   if (d.kind === 'no_data') input.threshold = threshold
   if (d.kind === 'metric') {
     input.op = d.op

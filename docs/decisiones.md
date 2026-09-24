@@ -49,3 +49,5 @@
 - [vigente] Fases 2 y 3: pantallas con datos reales e instaladores servidos -> [decisiones/2026-09-24-fases-2-y-3.md](decisiones/2026-09-24-fases-2-y-3.md)
 
 - [vigente] Alertas y notificaciones (diseno aprobado, en revision de seguridad) -> [decisiones/2026-09-24-alertas.md](decisiones/2026-09-24-alertas.md)
+
+- [vigente] Chequeos de servicios: diseno aprobado y tanda 1 (servidor+agente) implementada -> [decisiones/2026-09-24-chequeos-servicios.md](decisiones/2026-09-24-chequeos-servicios.md)

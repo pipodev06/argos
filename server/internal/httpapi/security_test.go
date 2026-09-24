@@ -63,7 +63,7 @@ func newEnv(t *testing.T, opts Options) *env {
 		t.Skip("ARGOS_TEST_DATABASE_URL no definida")
 	}
 	if _, err := testPool.Exec(context.Background(),
-		`TRUNCATE service_checks, metrics, metrics_hourly, maintenance_state, disk_samples, enroll_tokens, hosts, host_groups, alert_rules, notification_channels, maintenance_windows, sessions, audit_log, users CASCADE`); err != nil {
+		`TRUNCATE service_check_defs, service_check_events, service_checks, metrics, metrics_hourly, maintenance_state, disk_samples, enroll_tokens, hosts, host_groups, alert_rules, notification_channels, maintenance_windows, sessions, audit_log, users CASCADE`); err != nil {
 		t.Fatalf("limpiando tablas: %v", err)
 	}
 	logs := &logBuffer{}
@@ -208,7 +208,7 @@ func (e *env) metrics(agentToken string, opts ...reqOpt) *httptest.ResponseRecor
 
 func splitPattern(pattern string) (method, path string) {
 	method, path, _ = strings.Cut(pattern, " ")
-	return method, strings.ReplaceAll(path, "{id}", anyUUID)
+	return method, strings.ReplaceAll(strings.ReplaceAll(path, "{id}", anyUUID), "{check_id}", anyUUID)
 }
 
 func TestEveryDashboardRouteRequiresSession(t *testing.T) {

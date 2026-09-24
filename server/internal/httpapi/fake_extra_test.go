@@ -41,6 +41,11 @@ type fakeExtra struct {
 	disks []store.DiskUsage
 }
 
+// HostChecks: el fake no tiene chequeos asignados (los tests de chequeos usan la BD real).
+func (f *fakeStore) HostChecks(context.Context, string) ([]store.ServiceCheckDef, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) ListHosts(_ context.Context, fl store.HostFilter) (store.HostPage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -2,7 +2,7 @@ import type { HostStatus } from '@/features/hosts/types/host.types'
 
 export type AlertSeverity = 'info' | 'warn' | 'critical'
 export type AlertState = 'open' | 'acknowledged' | 'resolved'
-export type RuleKind = 'metric' | 'host_status' | 'no_data'
+export type RuleKind = 'metric' | 'host_status' | 'no_data' | 'service_check'
 export type RuleMetric = 'cpu_pct' | 'mem_pct' | 'disk_max_pct' | 'battery_pct' | 'load1' | 'load5' | 'load15'
 export type RuleOp = 'gt' | 'lt'
 export type ScopeType = 'all' | 'group' | 'tag'
@@ -94,6 +94,9 @@ export interface AlertRule {
   duration_seconds: number
   resolve_seconds: number
   include_offline: boolean
+  check_id: string | null
+  check_name: string | null
+  warn_or_down: boolean
   scope: Scope
   severity: AlertSeverity
   enabled: boolean
@@ -109,8 +112,11 @@ export interface RuleInput {
   clear_threshold?: number | null
   duration_seconds: number
   resolve_seconds: number
-  include_offline: boolean
-  scope: ScopeInput
+  include_offline?: boolean
+  /** Solo service_check (alertar también en advertencia). */
+  warn_or_down?: boolean
+  /** Una regla service_check hereda el alcance del chequeo: no se envía. */
+  scope?: ScopeInput
   severity: AlertSeverity
   enabled: boolean
 }
@@ -118,6 +124,8 @@ export interface RuleInput {
 export interface CreateRuleInput extends RuleInput {
   kind: RuleKind
   metric?: RuleMetric
+  /** Solo service_check; no se puede cambiar después. */
+  check_id?: string
 }
 
 export interface MaintenanceWindow {

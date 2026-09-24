@@ -50,7 +50,12 @@ type AlertRule struct {
 	DurationSeconds int
 	ResolveSeconds  int
 	IncludeOffline  bool
-	Scope           AlertScope
+	// CheckID (solo kind service_check) es el chequeo que vigila la regla; CheckName es su nombre (solo lectura).
+	CheckID   *string
+	CheckName *string
+	// WarnOrDown (solo service_check): tambien incumple con warn, no solo con down.
+	WarnOrDown bool
+	Scope      AlertScope
 	// GroupName es el nombre del grupo del alcance (solo lectura).
 	GroupName *string
 	Severity  string
@@ -65,17 +70,18 @@ type AlertRule struct {
 
 const alertRuleSelect = `
 SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.duration_seconds, r.resolve_seconds,
-       r.include_offline, r.scope_type, r.scope_group_id, r.scope_tag, g.name,
+       r.include_offline, r.scope_type, r.scope_group_id, r.scope_tag, g.name, r.check_id, cd.name, r.warn_is_breach,
        r.severity, r.enabled, r.created_at, r.updated_at,
        (SELECT count(*)::int FROM alerts a WHERE a.rule_id = r.id AND a.state <> 'resolved'),
        COALESCE((SELECT array_agg(rc.channel_id::text ORDER BY rc.channel_id) FROM rule_channels rc WHERE rc.rule_id = r.id), '{}')
-  FROM alert_rules r LEFT JOIN host_groups g ON g.id = r.scope_group_id`
+  FROM alert_rules r LEFT JOIN host_groups g ON g.id = r.scope_group_id
+  LEFT JOIN service_check_defs cd ON cd.id = r.check_id`
 
 func scanAlertRule(row pgx.Row) (AlertRule, error) {
 	var r AlertRule
 	err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Metric, &r.Op, &r.Threshold, &r.ClearThreshold, &r.DurationSeconds,
 		&r.ResolveSeconds, &r.IncludeOffline, &r.Scope.Type, &r.Scope.GroupID, &r.Scope.Tag,
-		&r.GroupName, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
+		&r.GroupName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
 	return r, err
 }
 
@@ -140,12 +146,12 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		err := tx.QueryRow(ctx,
 			`INSERT INTO alert_rules (name, kind, metric, op, threshold, clear_threshold, duration_seconds, resolve_seconds,
 			                          include_offline, scope_type, scope_group_id, scope_tag,
-			                          severity, enabled, created_by)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NULLIF($15, '')::uuid)
+			                          severity, enabled, created_by, check_id, warn_is_breach)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NULLIF($15, '')::uuid, $16, $17)
 			 RETURNING id`,
 			r.Name, r.Kind, r.Metric, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds,
 			r.IncludeOffline, r.Scope.Type, r.Scope.GroupID, r.Scope.Tag,
-			r.Severity, r.Enabled, createdBy).Scan(&id)
+			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown).Scan(&id)
 		if err != nil {
 			return mapRuleErr(err, "insertando regla de alerta")
 		}
@@ -164,12 +170,14 @@ func mapRuleErr(err error, what string) error {
 		return ErrRuleExists
 	case isFKViolation(err, ruleGroupFKey):
 		return ErrGroupNotFound
+	case isFKViolation(err, ruleCheckFKey):
+		return ErrCheckNotFound
 	}
 	return fmt.Errorf("%s: %w", what, err)
 }
 
 // UpdateAlertRule bloquea la regla, deja que mutate la modifique (validando; su error se devuelve tal cual) y
-// guarda los campos editables (no kind ni metric). ErrNotFound, ErrRuleExists o ErrGroupNotFound segun el caso.
+// guarda los campos editables (no kind, metric ni check_id). ErrNotFound, ErrRuleExists o ErrGroupNotFound segun el caso.
 func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*AlertRule) error) (AlertRule, error) {
 	var out AlertRule
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -183,10 +191,10 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*Ale
 		if _, err := tx.Exec(ctx,
 			`UPDATE alert_rules SET name = $2, op = $3, threshold = $4, clear_threshold = $5, duration_seconds = $6,
 			        resolve_seconds = $7, include_offline = $8, scope_type = $9, scope_group_id = $10,
-			        scope_tag = $11, severity = $12, enabled = $13, updated_at = now()
+			        scope_tag = $11, severity = $12, enabled = $13, warn_is_breach = $14, updated_at = now()
 			  WHERE id = $1`,
 			id, r.Name, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds, r.IncludeOffline,
-			r.Scope.Type, r.Scope.GroupID, r.Scope.Tag, r.Severity, r.Enabled); err != nil {
+			r.Scope.Type, r.Scope.GroupID, r.Scope.Tag, r.Severity, r.Enabled, r.WarnOrDown); err != nil {
 			return mapRuleErr(err, "actualizando regla de alerta")
 		}
 		out, err = alertRuleByID(ctx, tx, id, "")
