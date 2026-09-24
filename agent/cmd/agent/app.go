@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"argos/agent/internal/agent"
+	"argos/agent/internal/checks"
 	"argos/agent/internal/collector"
 	"argos/agent/internal/config"
 	"argos/agent/internal/enroll"
@@ -359,12 +360,15 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 	if err != nil {
 		return creds.AgentToken, fmt.Errorf("cliente http: %w", err)
 	}
+	runner := checks.NewRunner(checks.Options{Policy: cfg.CheckAllow, Logger: a.logger})
+	defer runner.Close()
 	snd, err := sender.New(sender.Options{
 		Endpoint:   serverURL,
 		Token:      creds.AgentToken,
 		Logger:     a.logger,
 		HTTPClient: client,
 		Interval:   cfg.Interval,
+		OnChecks:   runner.Apply,
 	})
 	if err != nil {
 		return creds.AgentToken, fmt.Errorf("creando cliente: %w", err)
@@ -390,6 +394,7 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 		Collector:    col,
 		Disks:        disks,
 		HostInfo:     hostInfo,
+		Checks:       runner,
 		DiskInterval: cfg.DiskInterval,
 		Now:          time.Now,
 		Logger:       a.logger,

@@ -3,6 +3,7 @@ import { Route, Routes, useLocation } from 'react-router'
 import { AppShell } from '@/features/layout/components/AppShell'
 import { AlertDetailPage } from './AlertDetailPage'
 import { AlertsPage } from './AlertsPage'
+import { ChecksPage } from './ChecksPage'
 import { ChannelsPage } from './ChannelsPage'
 import { GroupsPage } from './GroupsPage'
 import { HostDetailPage } from './HostDetailPage'
@@ -29,6 +30,7 @@ export function DashboardPage() {
         <Route path="hosts" element={<HostsPage />} />
         <Route path="hosts/:id" element={<HostDetailPage />} />
         <Route path="grupos" element={<GroupsPage />} />
+        <Route path="chequeos" element={<ChecksPage />} />
         <Route path="alertas" element={<AlertsPage />} />
         <Route path="alertas/reglas" element={<RulesPage />} />
         <Route path="alertas/mantenimiento" element={<MaintenancePage />} />

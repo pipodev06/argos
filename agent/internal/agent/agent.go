@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"argos/agent/internal/checks"
 	"argos/agent/internal/quiet"
 	"argos/agent/internal/sender"
 )
@@ -33,6 +34,12 @@ type HostInfoCollector interface {
 	HostInfo(ctx context.Context) (sender.HostInfo, error)
 }
 
+// CheckRunner ejecuta los chequeos de servicios (lo implementa *checks.Runner).
+type CheckRunner interface {
+	Rev() string
+	Drain() []checks.Result
+}
+
 // Options configura Run. Disks y HostInfo son opcionales: nil = ese dato no se manda.
 type Options struct {
 	Hostname     string
@@ -41,6 +48,7 @@ type Options struct {
 	Collector    Collector
 	Disks        DiskCollector
 	HostInfo     HostInfoCollector
+	Checks       CheckRunner   // opcional: nil = no se reportan chequeos
 	DiskInterval time.Duration // cada cuanto se reportan los discos (tras el primer reporte)
 	Now          func() time.Time
 	Logger       *slog.Logger
@@ -68,6 +76,10 @@ func Run(ctx context.Context, sub Submitter, o Options) error {
 			Metrics:      m,
 		}
 		sched.attach(ctx, &r, o, track)
+		if o.Checks != nil {
+			r.ChecksRev = o.Checks.Rev()
+			r.Services = o.Checks.Drain()
+		}
 		err = sub.Send(ctx, r)
 		switch {
 		case err == nil, ctx.Err() != nil:

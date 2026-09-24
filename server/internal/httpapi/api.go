@@ -71,6 +71,16 @@ type Store interface {
 	DeleteChannel(ctx context.Context, id string) (name, kind string, err error)
 	SetRuleChannels(ctx context.Context, ruleID string, channelIDs []string) error
 
+	// Chequeos de servicio (definiciones, estado por host y eventos).
+	ListServiceChecks(ctx context.Context) ([]store.ServiceCheckDef, error)
+	ServiceCheckByID(ctx context.Context, id string) (store.ServiceCheckDef, error)
+	CreateServiceCheck(ctx context.Context, d store.ServiceCheckDef, createdBy string) (store.ServiceCheckDef, error)
+	UpdateServiceCheck(ctx context.Context, id string, mutate func(*store.ServiceCheckDef) error) (store.ServiceCheckDef, error)
+	DeleteServiceCheck(ctx context.Context, id string) (name, typ string, err error)
+	HostChecks(ctx context.Context, hostID string) ([]store.ServiceCheckDef, error)
+	HostServiceChecks(ctx context.Context, hostID string) ([]store.HostCheck, error)
+	ListCheckEvents(ctx context.Context, hostID, checkID string, after *store.EventCursor, limit int) (store.CheckEventPage, error)
+
 	// Usuarios y sesiones.
 	UserByUsername(ctx context.Context, username string) (store.User, error)
 	UserByID(ctx context.Context, id string) (store.User, error)
@@ -247,6 +257,8 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "PUT /api/v1/hosts/{id}/group", accessAdmin, a.setHostGroup)
 	a.route(mux, "PUT /api/v1/hosts/{id}/tags", accessAdmin, a.setHostTags)
 	a.route(mux, "GET /api/v1/hosts/{id}/events", accessSession, a.hostEvents)
+	a.route(mux, "GET /api/v1/hosts/{id}/service-checks", accessSession, a.hostServiceChecks)
+	a.route(mux, "GET /api/v1/hosts/{id}/service-checks/{check_id}/events", accessSession, a.hostCheckEvents)
 	a.route(mux, "GET /api/v1/tags", accessSession, a.listTags)
 	a.route(mux, "GET /api/v1/summary", accessSession, a.summary)
 	a.route(mux, "GET /api/v1/groups", accessSession, a.listGroups)
@@ -272,6 +284,11 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "PATCH /api/v1/channels/{id}", accessAdmin, a.updateChannel)
 	a.route(mux, "DELETE /api/v1/channels/{id}", accessAdmin, a.deleteChannel)
 	a.route(mux, "POST /api/v1/channels/{id}/test", accessAdmin, a.testChannel)
+	a.route(mux, "GET /api/v1/service-checks", accessSession, a.listServiceChecks)
+	a.route(mux, "GET /api/v1/service-checks/{id}", accessSession, a.getServiceCheck)
+	a.route(mux, "POST /api/v1/service-checks", accessAdmin, a.createServiceCheck)
+	a.route(mux, "PATCH /api/v1/service-checks/{id}", accessAdmin, a.updateServiceCheck)
+	a.route(mux, "DELETE /api/v1/service-checks/{id}", accessAdmin, a.deleteServiceCheck)
 	a.route(mux, "GET /api/v1/maintenance", accessSession, a.listMaintenance)
 	a.route(mux, "GET /api/v1/maintenance/{id}", accessSession, a.getMaintenance)
 	a.route(mux, "POST /api/v1/maintenance", accessAdmin, a.createMaintenance)
@@ -352,6 +369,12 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "channel_not_found", "alguno de los canales indicados no existe")
 	case errors.Is(err, store.ErrTooManyRuleChannels):
 		writeError(w, http.StatusConflict, "too_many_rule_channels", fmt.Sprintf("una regla admite como maximo %d canales", store.MaxChannelsPerRule))
+	case errors.Is(err, store.ErrCheckExists):
+		writeError(w, http.StatusConflict, "check_exists", "ya existe un chequeo con ese nombre")
+	case errors.Is(err, store.ErrTooManyChecks):
+		writeError(w, http.StatusConflict, "too_many_checks", fmt.Sprintf("se alcanzo el maximo de %d chequeos", store.MaxServiceChecks))
+	case errors.Is(err, store.ErrCheckNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "check_not_found", "el chequeo indicado no existe")
 	case errors.Is(err, store.ErrUnknownHosts):
 		writeError(w, http.StatusUnprocessableEntity, "unknown_hosts", "alguno de los hosts indicados no existe")
 	case errors.Is(err, store.ErrPartitionMissing):

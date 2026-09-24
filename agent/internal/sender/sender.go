@@ -16,6 +16,8 @@ import (
 	"slices"
 	"strconv"
 	"time"
+
+	"argos/agent/internal/checks"
 )
 
 const (
@@ -26,6 +28,8 @@ const (
 	DefaultDrainPace = 2500 * time.Millisecond
 	// maxRetryAfter acota cuanto se le obedece a un Retry-After (un server roto no debe dormirnos horas).
 	maxRetryAfter = 5 * time.Minute
+	// maxResponseBytes acota la respuesta que se lee (la lista de chequeos ronda 15 KiB).
+	maxResponseBytes = 64 << 10
 )
 
 // Metrics son las metricas del host en un instante. Los bloques opcionales
@@ -120,6 +124,11 @@ type Report struct {
 	Metrics      Metrics     `json:"metrics"`
 	Disks        []DiskUsage `json:"disks,omitempty"`
 	HostInfo     *HostInfo   `json:"host_info,omitempty"`
+	// ChecksRev es la revision de la lista de chequeos que tiene el agente ("" = ninguna);
+	// si difiere de la del servidor, la respuesta trae la lista nueva.
+	ChecksRev string `json:"checks_rev,omitempty"`
+	// Services son los resultados de chequeos desde el reporte anterior.
+	Services []checks.Result `json:"services,omitempty"`
 }
 
 // inheritExtras pasa a r los datos ocasionales (discos, host_info) de un reporte
@@ -149,14 +158,16 @@ type Options struct {
 	Token    string // agent token: solo va en el header Authorization
 	Logger   *slog.Logger
 
-	HTTPClient  *http.Client                               // default: Timeout 10s
-	MaxBuffer   int                                        // reportes retenidos offline (default 120)
-	MaxAttempts int                                        // intentos por reporte en cada flush (default 3)
-	BaseDelay   time.Duration                              // backoff inicial (default 1s)
-	MaxDelay    time.Duration                              // tope del backoff (default 30s)
-	DrainPace   time.Duration                              // pausa entre envios al vaciar el buffer (default DefaultDrainPace)
-	Interval    time.Duration                              // cadencia del agente: limita los envios por Send a Interval/DrainPace (0 = sin limite)
-	Sleep       func(context.Context, time.Duration) error // espera entre reintentos; inyectable en tests
+	HTTPClient  *http.Client  // default: Timeout 10s
+	MaxBuffer   int           // reportes retenidos offline (default 120)
+	MaxAttempts int           // intentos por reporte en cada flush (default 3)
+	BaseDelay   time.Duration // backoff inicial (default 1s)
+	MaxDelay    time.Duration // tope del backoff (default 30s)
+	DrainPace   time.Duration // pausa entre envios al vaciar el buffer (default DefaultDrainPace)
+	// OnChecks recibe la lista de chequeos que el servidor manda en la respuesta (nil = se ignora).
+	OnChecks func(context.Context, checks.Set)
+	Interval time.Duration                              // cadencia del agente: limita los envios por Send a Interval/DrainPace (0 = sin limite)
+	Sleep    func(context.Context, time.Duration) error // espera entre reintentos; inyectable en tests
 }
 
 // Client envia reportes. NO es seguro pa uso concurrente: un solo dueno (el loop del agente).
@@ -171,6 +182,7 @@ type Client struct {
 	maxDelay    time.Duration
 	drainPace   time.Duration
 	maxPerSend  int // 0 = sin limite
+	onChecks    func(context.Context, checks.Set)
 	sleep       func(context.Context, time.Duration) error
 
 	buf []Report
@@ -193,6 +205,7 @@ func New(o Options) (*Client, error) {
 		maxDelay:    o.MaxDelay,
 		drainPace:   o.DrainPace,
 		sleep:       o.Sleep,
+		onChecks:    o.OnChecks,
 	}
 	if c.logger == nil {
 		c.logger = slog.New(slog.DiscardHandler)
@@ -319,19 +332,42 @@ func (c *Client) sendOnce(ctx context.Context, r Report) error {
 		// url.Error incluye la URL (sin token): es seguro loguearlo.
 		return fmt.Errorf("enviando reporte: %w", err)
 	}
-	defer func() {
-		// Drenar (acotado) y cerrar permite reusar la conexion.
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
-		_ = resp.Body.Close()
-	}()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return ErrTokenRejected
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10)) // drenar (acotado) permite reusar la conexion
 		return &StatusError{Code: resp.StatusCode, RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())}
 	}
+	c.handleResponse(ctx, resp.Body)
 	return nil
+}
+
+// handleResponse aplica la lista de chequeos que venga en data.checks. Un servidor viejo
+// no la manda y una respuesta ilegible se ignora: el reporte ya fue aceptado.
+func (c *Client) handleResponse(ctx context.Context, body io.Reader) {
+	data, err := io.ReadAll(io.LimitReader(body, maxResponseBytes))
+	if err != nil {
+		c.logger.Debug("no se pudo leer la respuesta del servidor", "err", err)
+		return
+	}
+	if c.onChecks == nil || len(data) == 0 {
+		return
+	}
+	var env struct {
+		Data struct {
+			Checks *checks.Set `json:"checks"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		c.logger.Debug("respuesta del servidor sin formato esperado, se ignora")
+		return
+	}
+	if env.Data.Checks != nil {
+		c.onChecks(ctx, *env.Data.Checks)
+	}
 }
 
 // parseRetryAfter entiende segundos enteros o fecha HTTP; 0 si falta o es invalida. Se acota a maxRetryAfter.

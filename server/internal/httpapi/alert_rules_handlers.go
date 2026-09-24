@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	validRuleKinds   = map[string]bool{"metric": true, "host_status": true, "no_data": true}
+	validRuleKinds   = map[string]bool{"metric": true, "host_status": true, "no_data": true, "service_check": true}
 	validRuleMetrics = map[string]bool{"cpu_pct": true, "mem_pct": true, "disk_max_pct": true, "battery_pct": true, "load1": true, "load5": true, "load15": true}
 	validRuleOps     = map[string]bool{"gt": true, "lt": true}
 	validScopeTypes  = map[string]bool{store.ScopeAll: true, store.ScopeGroup: true, store.ScopeTag: true}
@@ -96,6 +96,9 @@ type alertRuleDTO struct {
 	DurationSeconds int       `json:"duration_seconds"`
 	ResolveSeconds  int       `json:"resolve_seconds"`
 	IncludeOffline  bool      `json:"include_offline"`
+	CheckID         *string   `json:"check_id"`
+	CheckName       *string   `json:"check_name"`
+	WarnOrDown      bool      `json:"warn_or_down"`
 	Scope           scopeDTO  `json:"scope"`
 	Severity        string    `json:"severity"`
 	Enabled         bool      `json:"enabled"`
@@ -109,6 +112,7 @@ func toAlertRuleDTO(r store.AlertRule) alertRuleDTO {
 	return alertRuleDTO{
 		ID: r.ID, Name: r.Name, Kind: r.Kind, Metric: r.Metric, Op: r.Op, Threshold: r.Threshold, ClearThreshold: r.ClearThreshold,
 		DurationSeconds: r.DurationSeconds, ResolveSeconds: r.ResolveSeconds, IncludeOffline: r.IncludeOffline,
+		CheckID: r.CheckID, CheckName: r.CheckName, WarnOrDown: r.WarnOrDown,
 		Scope: toScopeDTO(r.Scope, r.GroupName), Severity: r.Severity, Enabled: r.Enabled, ActiveAlerts: r.ActiveAlerts, ChannelIDs: r.ChannelIDs,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 	}
@@ -123,7 +127,7 @@ func validateRule(r *store.AlertRule) error {
 	}
 	r.Name = name
 	if !validRuleKinds[r.Kind] {
-		return badRequest("kind debe ser metric, host_status o no_data")
+		return badRequest("kind debe ser metric, host_status, no_data o service_check")
 	}
 	if !validAlertSeverity[r.Severity] {
 		return badRequest("severity debe ser info, warn o critical")
@@ -138,7 +142,17 @@ func validateRule(r *store.AlertRule) error {
 }
 
 func validateRuleCondition(r *store.AlertRule) error {
+	if r.Kind != "service_check" && (r.CheckID != nil || r.WarnOrDown) {
+		return badRequest("check_id y warn_or_down solo aplican a reglas service_check")
+	}
 	switch r.Kind {
+	case "service_check":
+		if r.Metric != nil || r.Op != nil || r.Threshold != nil || r.ClearThreshold != nil {
+			return badRequest("una regla service_check no admite metric, op, threshold ni clear_threshold")
+		}
+		if r.CheckID == nil || !isUUID(*r.CheckID) {
+			return badRequest("check_id requerido y debe ser un id valido")
+		}
 	case "host_status":
 		if r.Metric != nil || r.Op != nil || r.Threshold != nil || r.ClearThreshold != nil {
 			return badRequest("una regla host_status no admite metric, op, threshold ni clear_threshold")
@@ -214,6 +228,8 @@ type createAlertRuleReq struct {
 	DurationSeconds *int      `json:"duration_seconds"`
 	ResolveSeconds  *int      `json:"resolve_seconds"`
 	IncludeOffline  bool      `json:"include_offline"`
+	CheckID         *string   `json:"check_id"`
+	WarnOrDown      bool      `json:"warn_or_down"`
 	Scope           *scopeReq `json:"scope"`
 	Severity        string    `json:"severity"`
 	Enabled         *bool     `json:"enabled"`
@@ -230,7 +246,12 @@ func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 	rule := store.AlertRule{
 		Name: req.Name, Kind: req.Kind, Metric: req.Metric, Op: req.Op, Threshold: req.Threshold, ClearThreshold: req.ClearThreshold,
 		DurationSeconds: *req.DurationSeconds, ResolveSeconds: defaultResolveSecs, IncludeOffline: req.IncludeOffline,
+		CheckID: req.CheckID, WarnOrDown: req.WarnOrDown,
 		Scope: store.AlertScope{Type: store.ScopeAll}, Severity: req.Severity, Enabled: true,
+	}
+	if rule.CheckID != nil {
+		id := strings.ToLower(*rule.CheckID)
+		rule.CheckID = &id
 	}
 	if req.ResolveSeconds != nil {
 		rule.ResolveSeconds = *req.ResolveSeconds
@@ -262,7 +283,7 @@ func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// updateAlertRuleReq: PATCH parcial. kind y metric no se pueden cambiar (campo desconocido = 400): una regla con
+// updateAlertRuleReq: PATCH parcial. kind, metric y check_id no se pueden cambiar (campo desconocido = 400): una regla con
 // alertas abiertas no cambia de naturaleza; se crea otra.
 type updateAlertRuleReq struct {
 	Name            *string           `json:"name"`
@@ -272,6 +293,7 @@ type updateAlertRuleReq struct {
 	DurationSeconds *int              `json:"duration_seconds"`
 	ResolveSeconds  *int              `json:"resolve_seconds"`
 	IncludeOffline  *bool             `json:"include_offline"`
+	WarnOrDown      *bool             `json:"warn_or_down"`
 	Scope           *scopeReq         `json:"scope"`
 	Severity        *string           `json:"severity"`
 	Enabled         *bool             `json:"enabled"`
@@ -336,6 +358,9 @@ func applyRulePatch(rule *store.AlertRule, req updateAlertRuleReq, scope *store.
 	if req.IncludeOffline != nil {
 		rule.IncludeOffline = *req.IncludeOffline
 	}
+	if req.WarnOrDown != nil {
+		rule.WarnOrDown = *req.WarnOrDown
+	}
 	if scope != nil {
 		rule.Scope = *scope
 	}
@@ -362,6 +387,7 @@ func changedRuleFields(req updateAlertRuleReq) []string {
 	add(req.DurationSeconds != nil, "duration_seconds")
 	add(req.ResolveSeconds != nil, "resolve_seconds")
 	add(req.IncludeOffline != nil, "include_offline")
+	add(req.WarnOrDown != nil, "warn_or_down")
 	add(req.Scope != nil, "scope")
 	add(req.Severity != nil, "severity")
 	add(req.Enabled != nil, "enabled")
@@ -374,6 +400,9 @@ func ruleAuditDetail(r store.AlertRule, fields []string) map[string]any {
 	d := map[string]any{"name": r.Name, "kind": r.Kind, "severity": r.Severity, "enabled": r.Enabled, "scope_type": r.Scope.Type}
 	if r.Metric != nil {
 		d["metric"] = *r.Metric
+	}
+	if r.CheckID != nil {
+		d["check_id"] = *r.CheckID
 	}
 	if r.Scope.GroupID != nil {
 		d["group_id"] = *r.Scope.GroupID

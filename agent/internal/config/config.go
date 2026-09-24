@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"argos/agent/internal/checks"
 	"argos/agent/internal/state"
 )
 
@@ -45,6 +46,9 @@ type Config struct {
 	CAFile string
 	// AllowInsecure permite http hacia hosts que no son loopback (ARGOS_ALLOW_INSECURE=1).
 	AllowInsecure bool
+	// CheckAllow es la politica local de destinos de los chequeos (ARGOS_CHECK_ALLOW). Vacia = defecto:
+	// solo loopback y las IPs propias del host. El servidor no puede ampliarla.
+	CheckAllow *checks.Policy
 }
 
 // Load lee la configuracion con getenv (os.Getenv en produccion). defaultStateDir
@@ -94,6 +98,11 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 	default:
 		return Config{}, errors.New("ARGOS_ALLOW_INSECURE invalida: usa 1 o 0")
 	}
+	pol, err := checks.ParsePolicy(getenv("ARGOS_CHECK_ALLOW"))
+	if err != nil {
+		return Config{}, fmt.Errorf("ARGOS_CHECK_ALLOW invalida (hostnames, IPs o CIDRs separados por comas, con :puerto opcional): %w", err)
+	}
+	cfg.CheckAllow = pol
 	if cfg.StateDir == "" {
 		dir, err := defaultStateDir()
 		if err != nil {

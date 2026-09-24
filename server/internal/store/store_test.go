@@ -121,7 +121,7 @@ func newTestStore(t *testing.T) *Store {
 		t.Skip("ARGOS_TEST_DATABASE_URL no definida")
 	}
 	_, err := testPool.Exec(context.Background(),
-		`TRUNCATE service_checks, metrics, metrics_hourly, maintenance_state, disk_samples, enroll_tokens, hosts, host_groups, alert_rules, notification_channels, maintenance_windows, sessions, audit_log, users CASCADE`)
+		`TRUNCATE service_check_defs, service_check_events, service_checks, metrics, metrics_hourly, maintenance_state, disk_samples, enroll_tokens, hosts, host_groups, alert_rules, notification_channels, maintenance_windows, sessions, audit_log, users CASCADE`)
 	if err != nil {
 		t.Fatalf("limpiando tablas: %v", err)
 	}
@@ -161,7 +161,7 @@ func count(t *testing.T, sql string, args ...any) int {
 }
 
 // latestMigration es la version de la ultima migracion embebida.
-const latestMigration = 16
+const latestMigration = 17
 
 func TestMigrateIsIdempotent(t *testing.T) {
 	if testPool == nil {

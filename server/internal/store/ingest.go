@@ -61,7 +61,10 @@ type Sample struct {
 	// Info es nil si el reporte no trae host_info.
 	Info *HostInfoUpdate
 
+	// Services son los resultados legados (por nombre): solo muestra cruda, sin estado ni alertas.
 	Services []ServiceCheck
+	// CheckResults son los resultados de chequeos asignados (por check_id): estado, transiciones y muestras.
+	CheckResults []CheckResult
 }
 
 // IngestResult describe el efecto de un ingest sobre el host.
@@ -146,6 +149,10 @@ SELECT hostname, prev_status FROM upd`
 func (s *Store) IngestMetrics(ctx context.Context, hostID string, smp Sample) (IngestResult, error) {
 	var res IngestResult
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		plan, err := planCheckResults(ctx, tx, hostID, smp.CheckResults)
+		if err != nil {
+			return err
+		}
 		var b pgx.Batch
 		b.Queue(insertMetricsSQL, hostID, smp.Timestamp, smp.CPUPct, smp.MemUsedMB, smp.MemTotalMB,
 			smp.NetRxBytes, smp.NetTxBytes, smp.SwapUsedMB, smp.SwapTotalMB,
@@ -164,6 +171,7 @@ func (s *Store) IngestMetrics(ctx context.Context, hostID string, smp Sample) (I
 				`INSERT INTO service_checks (host_id, name, status, response_ms, ts) VALUES ($1, $2, $3, $4, $5)`,
 				hostID, c.Name, c.Status, c.ResponseMs, smp.Timestamp)
 		}
+		plan.queue(&b, hostID)
 		if info := smp.Info; info != nil {
 			b.Queue(upsertInfoSQL, hostID, info.BootTime, info.CPUCores, info.CPUThreads, info.CPUModel,
 				info.OSName, info.OSVersion, info.KernelVersion, info.AgentVersion, info.IPs)

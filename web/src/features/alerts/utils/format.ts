@@ -18,6 +18,7 @@ export const KIND_LABELS: Record<RuleKind, string> = {
   metric: 'Métrica',
   host_status: 'Estado del host',
   no_data: 'Sin datos',
+  service_check: 'Chequeo',
 }
 export const METRIC_LABELS: Record<RuleMetric, string> = {
   cpu_pct: 'CPU',
@@ -78,8 +79,11 @@ export function formatAlertValue(a: Pick<Alert, 'kind' | 'metric' | 'trigger_val
 }
 
 /** Condición legible de una regla: "CPU > 90 % durante 10 min". */
-export function describeCondition(r: Pick<AlertRule, 'kind' | 'metric' | 'op' | 'threshold' | 'duration_seconds'>): string {
+export function describeCondition(
+  r: Pick<AlertRule, 'kind' | 'metric' | 'op' | 'threshold' | 'duration_seconds'> & Partial<Pick<AlertRule, 'check_name' | 'warn_or_down'>>,
+): string {
   const during = r.duration_seconds > 0 ? ` durante ${formatSeconds(r.duration_seconds)}` : ''
+  if (r.kind === 'service_check') return `Chequeo ${r.check_name ?? 'eliminado'} ${r.warn_or_down ? 'en advertencia o caído' : 'caído'}${during}`
   if (r.kind === 'host_status') return `Host caído${during}`
   if (r.kind === 'no_data') return `Sin reportar por más de ${formatSeconds(Math.round(r.threshold ?? 0))}${during}`
   const label = r.metric ? METRIC_LABELS[r.metric] : 'Métrica'

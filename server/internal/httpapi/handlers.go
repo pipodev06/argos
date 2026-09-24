@@ -192,10 +192,16 @@ func (a *API) authenticateAgent(r *http.Request) (string, error) {
 
 // --- agente: ingest de metricas ---
 
+// serviceCheckPayload es una entrada de `services`: legada (solo name) o resultado de un chequeo asignado (check_id,
+// value, detail, ts). No se confia en ningun host_id del body.
 type serviceCheckPayload struct {
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	ResponseMs int    `json:"response_ms"`
+	CheckID    string   `json:"check_id"`
+	Name       string   `json:"name"`
+	Status     string   `json:"status"`
+	ResponseMs int      `json:"response_ms"`
+	Value      *float64 `json:"value"`
+	Detail     string   `json:"detail"`
+	TS         int64    `json:"ts"`
 }
 
 // metricsPayload son las metricas de un reporte. Los campos nuevos (swap, load, battery) son punteros:
@@ -231,6 +237,8 @@ type metricsIngestReq struct {
 	Disks     []diskPayload         `json:"disks"`
 	HostInfo  *hostInfoPayload      `json:"host_info"`
 	Services  []serviceCheckPayload `json:"services"`
+	// ChecksRev es la revision de la lista de chequeos que tiene el agente ("" = nunca recibio).
+	ChecksRev string `json:"checks_rev"`
 }
 
 func (a *API) agentMetrics(w http.ResponseWriter, r *http.Request) error {
@@ -266,7 +274,9 @@ func (a *API) agentMetrics(w http.ResponseWriter, r *http.Request) error {
 		a.logger.Log(r.Context(), level, "host recuperado", "host_id", hostID, "hostname", res.Hostname, "previous_status", res.PreviousStatus)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"received": true})
+	resp := map[string]any{"received": true}
+	a.attachChecks(r.Context(), hostID, req.ChecksRev, resp)
+	writeJSON(w, http.StatusOK, resp)
 	return nil
 }
 
@@ -291,37 +301,26 @@ func (a *API) validateSample(req *metricsIngestReq) (store.Sample, error) {
 		return store.Sample{}, badRequest("mem_used_mb no puede superar mem_total_mb")
 	case m.Net.RxBytes < 0 || m.Net.TxBytes < 0:
 		return store.Sample{}, badRequest("net.rx_bytes/net.tx_bytes no pueden ser negativos")
-	case len(req.Services) > maxServices:
-		return store.Sample{}, badRequest("maximo %d services", maxServices)
 	}
 
-	checks := make([]store.ServiceCheck, 0, len(req.Services))
-	for i, svc := range req.Services {
-		if err := checkText(fmt.Sprintf("services[%d].name", i), svc.Name, maxServiceName); err != nil {
-			return store.Sample{}, err
-		}
-		if !validServiceStatus[svc.Status] {
-			return store.Sample{}, badRequest("services[%d].status invalido", i)
-		}
-		if svc.ResponseMs < 0 || svc.ResponseMs > math.MaxInt32 {
-			return store.Sample{}, badRequest("services[%d].response_ms fuera de rango", i)
-		}
-		checks = append(checks, store.ServiceCheck{Name: svc.Name, Status: svc.Status, ResponseMs: svc.ResponseMs})
+	legacy, results, err := validateServices(req.Services, now)
+	if err != nil {
+		return store.Sample{}, err
 	}
 
 	sample := store.Sample{
-		Timestamp:  ts,
-		CPUPct:     m.CPUPct,
-		MemUsedMB:  m.MemUsedMB,
-		MemTotalMB: m.MemTotalMB,
-		NetRxBytes: m.Net.RxBytes,
-		NetTxBytes: m.Net.TxBytes,
-		Services:   checks,
+		Timestamp:    ts,
+		CPUPct:       m.CPUPct,
+		MemUsedMB:    m.MemUsedMB,
+		MemTotalMB:   m.MemTotalMB,
+		NetRxBytes:   m.Net.RxBytes,
+		NetTxBytes:   m.Net.TxBytes,
+		Services:     legacy,
+		CheckResults: results,
 	}
 	if err := validateExtras(&req.Metrics, &sample); err != nil {
 		return store.Sample{}, err
 	}
-	var err error
 	if sample.Disks, err = validateDisks(req.Disks); err != nil {
 		return store.Sample{}, err
 	}

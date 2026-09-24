@@ -169,9 +169,11 @@ func (s *Store) DeleteChannel(ctx context.Context, id string) (name, kind string
 	return name, kind, nil
 }
 
-// ChannelKeyIDs devuelve los secret_key_id distintos de los canales con secreto (pa validar al arrancar).
+// ChannelKeyIDs devuelve los secret_key_id distintos de los canales y de los chequeos de servicio con secreto
+// (pa validar la clave al arrancar).
 func (s *Store) ChannelKeyIDs(ctx context.Context) ([]string, error) {
-	rows, err := s.pool.Query(ctx, `SELECT DISTINCT secret_key_id FROM notification_channels WHERE secret_enc IS NOT NULL`)
+	rows, err := s.pool.Query(ctx, `SELECT secret_key_id FROM notification_channels WHERE secret_enc IS NOT NULL
+	 UNION SELECT secret_key_id FROM service_check_defs WHERE secret_enc IS NOT NULL`)
 	if err != nil {
 		return nil, fmt.Errorf("leyendo claves de canales: %w", err)
 	}
