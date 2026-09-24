@@ -1,0 +1,20 @@
+import { useParams } from 'react-router'
+import { InlineError } from '@/components/ui/inline-error'
+import { BackToHostsLink } from '@/features/hosts/components/BackToHostsLink'
+import { HostDetailView } from '@/features/hosts/components/HostDetailView'
+import { isHostId } from '@/features/hosts/utils/id'
+
+export function HostDetailPage() {
+  const { id } = useParams()
+
+  if (!id || !isHostId(id)) {
+    return (
+      <div className="flex flex-col gap-6">
+        <BackToHostsLink />
+        <InlineError>Id de host inválido.</InlineError>
+      </div>
+    )
+  }
+  // key: al cambiar de host se reinicia el estado (rango) del detalle.
+  return <HostDetailView key={id} id={id} />
+}

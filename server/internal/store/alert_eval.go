@@ -1,0 +1,222 @@
+package store
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/jackc/pgx/v5"
+)
+
+const (
+	// alertEvalLockName da la clave (hashtext) del lock advisory de transaccion que serializa el evaluador entre
+	// instancias: la que no lo obtiene salta el ciclo.
+	alertEvalLockName = "argos.alert_eval"
+
+	// alertEvalTimeout acota cada sentencia del ciclo (SET LOCAL statement_timeout, en ms).
+	alertEvalTimeoutMS = 20000
+
+	// MaxPendingDeliveries es el tope de entregas `pending`: por encima, las nuevas se encolan `suppressed`
+	// (evita que una tormenta de alertas llene la cola). Es un tope blando: se comprueba por sentencia.
+	MaxPendingDeliveries = 10000
+
+	// ReminderInterval es cada cuanto se recuerda una alerta critica sin reconocer.
+	ReminderInterval = 4 * 3600 // segundos
+)
+
+// pendingCapSQL es verdadero cuando la cola ya llego al tope. El LIMIT acota el conteo.
+var pendingCapSQL = `(SELECT count(*) FROM (SELECT 1 FROM notification_deliveries WHERE status = 'pending' LIMIT ` +
+	strconv.Itoa(MaxPendingDeliveries) + `) cap_q) >= ` + strconv.Itoa(MaxPendingDeliveries)
+
+// severityRankSQL compara severidades (info < warn < critical) sin depender del orden alfabetico.
+const severityRankSQL = `array_position(ARRAY['info', 'warn', 'critical'], %s)`
+
+// enqueueResolvedCTE encola el aviso `resolved` de cada alerta del CTE `res` (columna id) a los canales que
+// recibieron (o recibiran) su `opened`: no se anuncia la resolucion de algo que nunca se anuncio.
+var enqueueResolvedCTE = `, enq AS (
+  INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
+  SELECT res.id, d.channel_id, 'resolved', CASE WHEN ` + pendingCapSQL + ` THEN 'suppressed' ELSE 'pending' END
+    FROM res
+    JOIN notification_deliveries d ON d.alert_id = res.id AND d.event = 'opened' AND d.status IN ('pending', 'sending', 'sent')
+    JOIN notification_channels ch ON ch.id = d.channel_id AND ch.enabled
+  ON CONFLICT DO NOTHING
+)`
+
+// Pasos del ciclo de evaluacion, en orden. Todos leen la vista alert_candidates (migracion 00015) y usan now()
+// de la BD, que dentro de la transaccion es constante: todo el ciclo ve el mismo instante.
+var (
+	// 1. Alertas cuya regla se borro o desactivo, o cuyo host se deshabilito: se resuelven.
+	resolveOrphansSQL = `
+WITH res AS (
+  UPDATE alerts a
+     SET state = 'resolved', resolved_at = now(), clear_since = NULL,
+         resolve_reason = CASE WHEN h.status = 'disabled' THEN 'host_disabled'
+                               WHEN a.rule_id IS NULL THEN 'rule_deleted' ELSE 'rule_disabled' END
+    FROM hosts h
+   WHERE h.id = a.host_id AND a.state <> 'resolved'
+     AND (h.status = 'disabled' OR a.rule_id IS NULL
+          OR EXISTS (SELECT 1 FROM alert_rules r WHERE r.id = a.rule_id AND NOT r.enabled))
+  RETURNING a.id
+)` + enqueueResolvedCTE + ` SELECT count(*) FROM res`
+
+	// 2. Pendientes que ya no incumplen (o ya no son evaluables: host offline, regla desactivada) o que ya
+	// tienen alerta activa.
+	dropPendingSQL = `
+DELETE FROM alert_pending p
+ WHERE NOT EXISTS (SELECT 1 FROM alert_candidates c WHERE c.rule_id = p.rule_id AND c.host_id = p.host_id AND c.breach)
+    OR EXISTS (SELECT 1 FROM alerts a WHERE a.rule_id = p.rule_id AND a.host_id = p.host_id AND a.state <> 'resolved')`
+
+	// 3. Incumplimientos nuevos. `since` no se reinicia (ON CONFLICT DO NOTHING); host_status y no_data traen su
+	// inicio real de los datos del host.
+	startPendingSQL = `
+INSERT INTO alert_pending (rule_id, host_id, since)
+SELECT c.rule_id, c.host_id, LEAST(now(), COALESCE(c.breach_since, now()))
+  FROM alert_candidates c
+ WHERE c.breach
+   AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.rule_id = c.rule_id AND a.host_id = c.host_id AND a.state <> 'resolved')
+ON CONFLICT DO NOTHING`
+
+	// 4. Abrir alertas cuyo incumplimiento ya duro duration_seconds. El indice unico parcial es el dedupe duro.
+	// Dentro de una ventana de mantenimiento la alerta se abre igual (visible) con sus entregas `suppressed`.
+	openAlertsSQL = `
+WITH new AS (
+  INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed)
+  SELECT r.id, c.host_id, r.name, r.kind, r.metric, r.threshold, r.severity, c.value, c.value, c.in_maintenance
+    FROM alert_pending p
+    JOIN alert_candidates c ON c.rule_id = p.rule_id AND c.host_id = p.host_id AND c.breach
+    JOIN alert_rules r ON r.id = p.rule_id
+   WHERE p.since <= now() - make_interval(secs => r.duration_seconds)
+  ON CONFLICT (rule_id, host_id) WHERE state <> 'resolved' DO NOTHING
+  RETURNING id, rule_id, host_id, severity, suppressed
+), del AS (
+  DELETE FROM alert_pending p USING new WHERE p.rule_id = new.rule_id AND p.host_id = new.host_id
+), enq AS (
+  INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
+  SELECT new.id, ch.id, 'opened', CASE WHEN new.suppressed OR ` + pendingCapSQL + ` THEN 'suppressed' ELSE 'pending' END
+    FROM new
+    JOIN rule_channels rc ON rc.rule_id = new.rule_id
+    JOIN notification_channels ch ON ch.id = rc.channel_id AND ch.enabled
+     AND ` + fmt.Sprintf(severityRankSQL, "new.severity") + ` >= ` + fmt.Sprintf(severityRankSQL, "ch.min_severity") + `
+  ON CONFLICT DO NOTHING
+)
+SELECT count(*) FROM new`
+
+	// 5. Alertas activas: pico y desde cuando el valor esta del lado sano. Solo escribe si algo cambio.
+	touchAlertsSQL = `
+UPDATE alerts a SET peak_value = u.peak, clear_since = u.clr
+  FROM (SELECT a2.id,
+               CASE WHEN c.value IS NULL THEN a2.peak_value
+                    WHEN a2.peak_value IS NULL THEN c.value
+                    WHEN r.op = 'lt' THEN LEAST(a2.peak_value, c.value)
+                    ELSE GREATEST(a2.peak_value, c.value) END AS peak,
+               CASE WHEN c.clear THEN COALESCE(a2.clear_since, now()) END AS clr
+          FROM alerts a2
+          JOIN alert_candidates c ON c.rule_id = a2.rule_id AND c.host_id = a2.host_id
+          JOIN alert_rules r ON r.id = a2.rule_id
+         WHERE a2.state <> 'resolved') u
+ WHERE a.id = u.id AND (a.peak_value IS DISTINCT FROM u.peak OR a.clear_since IS DISTINCT FROM u.clr)`
+
+	// 6. Resolver las que llevan resolve_seconds del lado sano.
+	resolveRecoveredSQL = `
+WITH res AS (
+  UPDATE alerts a SET state = 'resolved', resolved_at = now(), resolve_reason = 'recovered', clear_since = NULL
+    FROM alert_rules r
+   WHERE r.id = a.rule_id AND a.state <> 'resolved' AND a.clear_since IS NOT NULL
+     AND a.clear_since <= now() - make_interval(secs => r.resolve_seconds)
+  RETURNING a.id
+)` + enqueueResolvedCTE + ` SELECT count(*) FROM res`
+
+	// 7. Alertas abiertas en mantenimiento cuya ventana ya termino (y el host sigue evaluable): se liberan y su
+	// `opened` retenido pasa a pending. Si ya estaban reconocidas solo se limpia la marca.
+	releaseSuppressedSQL = `
+WITH rel AS (
+  UPDATE alerts a SET suppressed = false
+    FROM alert_candidates c
+   WHERE a.suppressed AND a.state <> 'resolved' AND c.rule_id = a.rule_id AND c.host_id = a.host_id AND NOT c.in_maintenance
+  RETURNING a.id, a.state
+), up AS (
+  UPDATE notification_deliveries d SET status = 'pending', next_attempt_at = now()
+    FROM rel
+   WHERE rel.state = 'open' AND d.alert_id = rel.id AND d.event = 'opened' AND d.status = 'suppressed'
+)
+SELECT count(*) FROM rel`
+
+	// 8. Recordatorio cada 4 h de las criticas sin reconocer (solo a los canales que recibieron el `opened` y solo
+	// si el host es evaluable: un host offline no notifica). seq = numero de recordatorio: la UNIQUE lo hace idempotente.
+	remindersSQL = `
+WITH ins AS (
+INSERT INTO notification_deliveries (alert_id, channel_id, event, seq, status)
+SELECT a.id, d.channel_id, 'reminder', k.n, CASE WHEN c.in_maintenance OR ` + pendingCapSQL + ` THEN 'suppressed' ELSE 'pending' END
+  FROM alerts a
+  JOIN alert_candidates c ON c.rule_id = a.rule_id AND c.host_id = a.host_id AND NOT c.clear
+ CROSS JOIN LATERAL (SELECT floor(extract(epoch FROM now() - a.opened_at) / ` + strconv.Itoa(ReminderInterval) + `)::int AS n) k
+  JOIN notification_deliveries d ON d.alert_id = a.id AND d.event = 'opened' AND d.status IN ('pending', 'sending', 'sent')
+  JOIN notification_channels ch ON ch.id = d.channel_id AND ch.enabled
+ WHERE a.state = 'open' AND a.severity = 'critical' AND NOT a.suppressed AND k.n >= 1
+ON CONFLICT DO NOTHING
+RETURNING 1
+)
+SELECT count(*) FROM ins`
+)
+
+// EvalResult resume un ciclo del evaluador.
+type EvalResult struct {
+	// Ran es false si otra instancia tenia el lock (ciclo saltado).
+	Ran bool
+	// Opened, Resolved (por recuperacion o por regla/host), Released (liberadas de mantenimiento) y Reminders
+	// (entregas de recordatorio encoladas) cuentan lo que cambio en el ciclo.
+	Opened, Resolved, Released, Reminders int
+}
+
+// EvaluateAlerts corre un ciclo del motor de alertas en UNA transaccion bajo un lock advisory (con varias
+// instancias solo una evalua; la otra devuelve Ran=false). Lee solo hosts, host_latest y etiquetas.
+func (s *Store) EvaluateAlerts(ctx context.Context) (EvalResult, error) {
+	var res EvalResult
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var locked bool
+		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtext($1))`, alertEvalLockName).Scan(&locked); err != nil {
+			return fmt.Errorf("lock del evaluador: %w", err)
+		}
+		if !locked {
+			return nil
+		}
+		res.Ran = true
+		// statement_timeout no admite parametros; el valor es una constante.
+		if _, err := tx.Exec(ctx, fmt.Sprintf(`SET LOCAL statement_timeout = %d`, alertEvalTimeoutMS)); err != nil {
+			return fmt.Errorf("fijando statement_timeout: %w", err)
+		}
+
+		steps := []struct {
+			name string
+			sql  string
+			add  *int // nil = la sentencia no devuelve conteo (Exec)
+		}{
+			{"resolviendo alertas huerfanas", resolveOrphansSQL, &res.Resolved},
+			{"limpiando pendientes", dropPendingSQL, nil},
+			{"registrando incumplimientos", startPendingSQL, nil},
+			{"abriendo alertas", openAlertsSQL, &res.Opened},
+			{"actualizando alertas activas", touchAlertsSQL, nil},
+			{"resolviendo alertas recuperadas", resolveRecoveredSQL, &res.Resolved},
+			{"liberando alertas de mantenimiento", releaseSuppressedSQL, &res.Released},
+			{"encolando recordatorios", remindersSQL, &res.Reminders},
+		}
+		for _, st := range steps {
+			if st.add == nil {
+				if _, err := tx.Exec(ctx, st.sql); err != nil {
+					return fmt.Errorf("%s: %w", st.name, err)
+				}
+				continue
+			}
+			var n int
+			if err := tx.QueryRow(ctx, st.sql).Scan(&n); err != nil {
+				return fmt.Errorf("%s: %w", st.name, err)
+			}
+			*st.add += n
+		}
+		return nil
+	})
+	if err != nil {
+		return EvalResult{}, fmt.Errorf("evaluando alertas: %w", err)
+	}
+	return res, nil
+}

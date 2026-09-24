@@ -1,0 +1,2 @@
+# los scripts se embeben y ejecutan en hosts Linux/macOS: siempre LF
+*.sh text eol=lf

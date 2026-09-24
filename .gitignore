@@ -1,0 +1,25 @@
+# Go
+/server/argos-server
+/agent/argos-agent
+*.exe
+*.test
+
+# Node / web
+web/node_modules/
+web/dist/
+web/.oxlintrc.local.json
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# salidas de scripts/check-*
+.check/
+
+# binarios del agente generados por scripts/build-agent.sh
+dist/
