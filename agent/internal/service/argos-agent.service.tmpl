@@ -1,0 +1,45 @@
+[Unit]
+Description=Argos monitoring agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=argos-agent
+Group=argos-agent
+ExecStart={{.ExecPath}} run --service
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+# Estado (agent.json, ca.pem): /var/lib/argos-agent, solo del usuario del servicio.
+StateDirectory=argos-agent
+StateDirectoryMode=0700
+UMask=0077
+
+# Endurecimiento. /proc NO se restringe a un subconjunto: el agente lee /proc/stat,
+# /proc/meminfo y /proc/net/dev pa medir CPU, memoria y red.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

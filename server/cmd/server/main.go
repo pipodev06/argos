@@ -1,0 +1,202 @@
+// Comando server: servidor central de argos (API HTTP + Postgres).
+//
+// Uso:
+//
+//	argos-server                       arranca el servidor
+//	argos-server create-admin [user]   crea un usuario admin (contraseña por terminal o stdin)
+//	argos-server reset-password <user> fija una contraseña nueva, desbloquea la cuenta y cierra sus sesiones
+package main
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"argos/server/internal/agentdist"
+	"argos/server/internal/auth"
+	"argos/server/internal/config"
+	"argos/server/internal/httpapi"
+	"argos/server/internal/notify"
+	"argos/server/internal/retention"
+	"argos/server/internal/store"
+)
+
+const (
+	shutdownTimeout = 10 * time.Second
+	// Argon2id usa ~19 MiB por hash: 4 concurrentes acotan la RAM a ~76 MiB.
+	maxConcurrentHashes = 4
+)
+
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// os.Exit solo aca, despues de que run() retorno y corrieron sus defers.
+	if err := run(logger, os.Args[1:]); err != nil {
+		logger.Error("argos-server termino con error", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(logger *slog.Logger, args []string) error {
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("configuracion: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	pool, err := store.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("conectando a postgres: %w", err)
+	}
+	defer pool.Close()
+
+	if err := store.Migrate(ctx, pool); err != nil {
+		return err
+	}
+	st := store.New(pool)
+
+	hasher, err := auth.NewHasher(auth.DefaultParams, maxConcurrentHashes)
+	if err != nil {
+		return fmt.Errorf("creando hasher: %w", err)
+	}
+
+	if len(args) > 0 {
+		return runCommand(ctx, st, hasher, args)
+	}
+	logger.Info("postgres listo, migraciones aplicadas")
+	return serve(ctx, logger, cfg, pool, st, hasher)
+}
+
+// days convierte dias enteros a Duration.
+func days(n int) time.Duration { return time.Duration(n) * 24 * time.Hour }
+
+// loadDist carga el directorio de binarios del agente. Sin configurar devuelve nil en silencio; si esta
+// roto (falta, manifiesto invalido, sha256 distinto) deja un error fuerte y devuelve nil: las descargas
+// responden 404 pero el server sigue en pie.
+func loadDist(logger *slog.Logger, dir string) *agentdist.Catalog {
+	if dir == "" {
+		return nil
+	}
+	cat, err := agentdist.Load(dir)
+	if err != nil {
+		logger.Error("ARGOS_AGENT_DIST_DIR invalido: /dl e /install.* responderan 404 hasta corregirlo y reiniciar", "dir", dir, "err", err)
+		return nil
+	}
+	logger.Info("binarios del agente publicados", "version", cat.Version)
+	return cat
+}
+
+func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pgxpool.Pool, st *store.Store, hasher *auth.Hasher) error {
+	nd, err := setupNotify(ctx, cfg, st)
+	if err != nil {
+		return err
+	}
+	dist := loadDist(logger, cfg.AgentDistDir)
+	api := httpapi.New(st, hasher, logger, time.Now, httpapi.Options{
+		PublicURL:       cfg.PublicURL,
+		TrustedProxies:  cfg.TrustedProxies,
+		InsecureCookies: cfg.InsecureCookies,
+		HostDownAfter:   cfg.HostDownAfter,
+		Dist:            dist,
+		Secrets:         nd.box,
+		Webhook:         nd.client,
+	})
+	srv := &http.Server{
+		Addr:              cfg.ListenAddr,
+		Handler:           api.Routes(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 16,
+	}
+	useTLS := cfg.TLSCert != ""
+	if useTLS {
+		// Se carga el par al arrancar: un certificado ilegible falla rapido y con mensaje claro.
+		cert, err := tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
+		if err != nil {
+			return fmt.Errorf("cargando ARGOS_TLS_CERT/ARGOS_TLS_KEY: %w", err)
+		}
+		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}
+	} else if cfg.PublicURL != nil && cfg.PublicURL.Scheme == "https" {
+		logger.Info("sin TLS propio: se asume un proxy inverso que termina HTTPS (ver docs/decisiones.md)")
+	}
+
+	// El mantenimiento (purga, volcado de auditoria), el de particiones y resumenes de metricas y el
+	// detector de hosts caidos y el evaluador de alertas tienen su propio contexto: el de la senal se cancela antes que el apagado ordenado, y quiero que
+	// el ultimo volcado de auditoria corra despues.
+	maintCtx, stopMaint := context.WithCancel(context.WithoutCancel(ctx))
+	var maint sync.WaitGroup
+	maint.Go(func() {
+		runMaintenance(maintCtx, logger, st, api, retentionPolicy{
+			Audit:         days(cfg.AuditRetentionDays),
+			HostEvents:    days(cfg.HostEventsRetentionDays),
+			Alerts:        days(cfg.AlertsRetentionDays),
+			Notifications: days(cfg.NotificationsRetentionDays),
+		})
+	})
+	metricsMaint := retention.New(pool, logger, retention.Config{
+		RawDays:           cfg.MetricsRetentionDays,
+		HourlyDays:        cfg.MetricsHourlyRetentionDays,
+		ServiceChecksDays: cfg.ServiceChecksRetentionDays,
+		DiskDays:          cfg.DiskRetentionDays,
+		Interval:          cfg.MetricsMaintenanceInterval,
+	}, time.Now)
+	maint.Go(func() { metricsMaint.Run(maintCtx) })
+	maint.Go(func() {
+		runHostDownDetector(maintCtx, logger, st, cfg.HostDownAfter, cfg.HostCheckInterval)
+	})
+	maint.Go(func() {
+		runAlertEvaluator(maintCtx, logger, st, cfg.AlertEvalInterval, cfg.HostDownAfter)
+	})
+	baseURL := ""
+	if cfg.PublicURL != nil {
+		baseURL = cfg.PublicURL.String()
+	}
+	notifier := notify.NewWorker(st, nd.box, nd.client, logger, baseURL)
+	maint.Go(func() { notifier.Run(maintCtx, cfg.NotifyInterval) })
+	defer func() {
+		stopMaint()
+		maint.Wait()
+	}()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		logger.Info("argos server escuchando", "addr", cfg.ListenAddr, "tls", useTLS)
+		if useTLS {
+			serveErr <- srv.ListenAndServeTLS("", "")
+			return
+		}
+		serveErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveErr:
+		return fmt.Errorf("servidor http: %w", err)
+	case <-ctx.Done():
+		logger.Info("senal de apagado recibida")
+	}
+
+	// El ctx de la senal ya esta cancelado: el apagado usa uno nuevo con timeout.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("apagando servidor http: %w", err)
+	}
+	if err := <-serveErr; !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("servidor http: %w", err)
+	}
+	logger.Info("servidor apagado")
+	return nil
+}

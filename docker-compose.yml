@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: argos
+      POSTGRES_PASSWORD: argos_dev
+      POSTGRES_DB: argos
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # PostgreSQL 18+: el volumen va en /var/lib/postgresql (PGDATA versionado), no en .../data
+      - argos_db_data:/var/lib/postgresql
+
+volumes:
+  argos_db_data:

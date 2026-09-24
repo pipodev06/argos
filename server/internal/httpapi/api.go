@@ -1,0 +1,377 @@
+// Package httpapi expone la API HTTP de argos (dashboard y agentes).
+package httpapi
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"time"
+
+	"argos/server/internal/agentdist"
+	"argos/server/internal/auth"
+	"argos/server/internal/notify"
+	"argos/server/internal/store"
+)
+
+// Store es lo que la API necesita de la persistencia. Lo implementa *store.Store;
+// se define aca (donde se consume) pa poder probar los handlers con un falso.
+type Store interface {
+	// Hosts y agentes.
+	CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time) error
+	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, err error)
+	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
+	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
+	ListHosts(ctx context.Context, f store.HostFilter) (store.HostPage, error)
+	HostByID(ctx context.Context, hostID string) (store.HostDetail, error)
+	HostDisks(ctx context.Context, hostID string, now time.Time) ([]store.DiskUsage, error)
+	LatestMetrics(ctx context.Context, hostID string) (*store.MetricPoint, error)
+	MetricSeries(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
+	MetricSeriesHourly(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
+	RevokeHost(ctx context.Context, hostID string) error
+	Summary(ctx context.Context) (store.Summary, error)
+
+	// Grupos y etiquetas.
+	ListGroups(ctx context.Context) (groups []store.Group, ungrouped int, err error)
+	CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool) (store.Group, error)
+	UpdateGroup(ctx context.Context, id string, ch store.GroupChange) (store.Group, error)
+	DeleteGroup(ctx context.Context, id string) error
+	SetHostGroup(ctx context.Context, hostID string, groupID *string) (store.HostGroupResult, error)
+	SetHostTags(ctx context.Context, hostID string, tags []string) ([]string, error)
+	ListTags(ctx context.Context) ([]store.TagCount, error)
+	BulkHosts(ctx context.Context, b store.Bulk) (int, error)
+
+	// Alertas, reglas, mantenimiento y eventos de host.
+	ListAlerts(ctx context.Context, f store.AlertFilter) (store.AlertPage, error)
+	AlertByID(ctx context.Context, id string) (store.AlertDetail, error)
+	AckAlert(ctx context.Context, id, userID, username string) (store.Alert, error)
+	ResolveAlert(ctx context.Context, id, userID, username string) (store.Alert, error)
+	AlertSummary(ctx context.Context) (store.AlertSummary, error)
+	ListHostEvents(ctx context.Context, hostID string, after *store.EventCursor, limit int) (store.EventPage, error)
+	ListAlertRules(ctx context.Context) ([]store.AlertRule, error)
+	AlertRuleByID(ctx context.Context, id string) (store.AlertRule, error)
+	CreateAlertRule(ctx context.Context, r store.AlertRule, createdBy string) (store.AlertRule, error)
+	UpdateAlertRule(ctx context.Context, id string, mutate func(*store.AlertRule) error) (store.AlertRule, error)
+	DeleteAlertRule(ctx context.Context, id string) (name string, err error)
+	ListMaintenance(ctx context.Context) ([]store.MaintenanceWindow, error)
+	MaintenanceByID(ctx context.Context, id string) (store.MaintenanceWindow, error)
+	CreateMaintenance(ctx context.Context, w store.MaintenanceWindow, userID, username string) (store.MaintenanceWindow, error)
+	UpdateMaintenance(ctx context.Context, id string, mutate func(*store.MaintenanceWindow) error) (store.MaintenanceWindow, error)
+	DeleteMaintenance(ctx context.Context, id string) (name string, err error)
+
+	// Canales de notificacion y su asignacion a reglas.
+	ListChannels(ctx context.Context) ([]store.Channel, error)
+	ChannelByID(ctx context.Context, id string) (store.Channel, error)
+	CreateChannel(ctx context.Context, c store.Channel, createdBy string) (store.Channel, error)
+	UpdateChannel(ctx context.Context, id string, mutate func(*store.Channel) error) (store.Channel, error)
+	DeleteChannel(ctx context.Context, id string) (name, kind string, err error)
+	SetRuleChannels(ctx context.Context, ruleID string, channelIDs []string) error
+
+	// Usuarios y sesiones.
+	UserByUsername(ctx context.Context, username string) (store.User, error)
+	UserByID(ctx context.Context, id string) (store.User, error)
+	ListUsers(ctx context.Context, limit int) ([]store.User, error)
+	CreateUser(ctx context.Context, username, passwordHash, role string, mustChange bool) (store.User, error)
+	UpdateUser(ctx context.Context, id string, ch store.UserChange, now time.Time) (store.User, error)
+	RegisterLoginFailure(ctx context.Context, userID string, now time.Time, maxFails int, lockFor time.Duration) (locked bool, err error)
+	RegisterLoginSuccess(ctx context.Context, userID string, now time.Time) error
+	UpdatePasswordHash(ctx context.Context, userID, oldHash, newHash string) error
+	ChangePassword(ctx context.Context, userID, newHash string, keepSession []byte, now time.Time) error
+	CreateSession(ctx context.Context, sess store.Session) error
+	SessionByHash(ctx context.Context, idHash []byte) (store.SessionInfo, error)
+	TouchSession(ctx context.Context, idHash []byte, now time.Time) error
+	DeleteSession(ctx context.Context, idHash []byte) error
+
+	// Auditoria.
+	InsertAudit(ctx context.Context, e store.AuditEntry) error
+	ListAudit(ctx context.Context, f store.AuditFilter) (store.AuditPage, error)
+	AuditEvents(ctx context.Context) ([]string, error)
+}
+
+// WebhookClient es lo que la API necesita del cliente webhook (lo implementa *notify.Client).
+type WebhookClient interface {
+	CheckURL(ctx context.Context, raw string) error
+	Send(ctx context.Context, t notify.Target, body []byte) (httpStatus int, err error)
+}
+
+// Options son los ajustes de despliegue de la API.
+type Options struct {
+	// PublicURL es la URL publica del dashboard; nil = solo localhost.
+	PublicURL *url.URL
+	// TrustedProxies son los proxies de los que se acepta X-Forwarded-For.
+	TrustedProxies []netip.Prefix
+	// InsecureCookies quita __Host- y Secure de la cookie de sesion (solo dev sobre http).
+	InsecureCookies bool
+	// HostDownAfter es el umbral global de hosts caidos (ARGOS_HOST_DOWN_AFTER); GET /groups lo informa
+	// como el valor por defecto de los grupos sin umbral propio.
+	HostDownAfter time.Duration
+	// Dist es el catalogo verificado de binarios del agente (ARGOS_AGENT_DIST_DIR); nil = /dl e /install.*
+	// responden 404 y el dashboard no ofrece comandos de instalacion.
+	Dist *agentdist.Catalog
+	// Secrets cifra los secretos de los canales (ARGOS_SECRET_KEY); nil = crear o editar secretos responde 503.
+	Secrets *notify.Box
+	// Webhook valida y envia los webhooks (con la politica anti-SSRF); nil = igual que Secrets nil.
+	Webhook WebhookClient
+}
+
+// Politica de sesion y bloqueo (decisiones aprobadas).
+const (
+	// SessionIdleTimeout es la inactividad maxima de una sesion (la purga horaria lo usa tambien).
+	SessionIdleTimeout     = 30 * time.Minute
+	sessionAbsoluteTimeout = 8 * time.Hour
+	sessionTouchInterval   = time.Minute
+
+	maxFailedLogins = 10
+	accountLockTime = 15 * time.Minute
+)
+
+// API agrupa las dependencias de los handlers.
+type API struct {
+	store  Store
+	hasher *auth.Hasher
+	logger *slog.Logger
+	now    func() time.Time
+	opts   Options
+
+	cookieName   string
+	allowedHosts map[string]bool
+
+	// cursorKey firma los cursores de paginacion (HMAC). Es aleatoria por proceso: un reinicio invalida los
+	// cursores en vuelo (el cliente recibe 400 invalid_cursor y vuelve a la primera pagina).
+	cursorKey []byte
+
+	cmdOrigin string // origen de los comandos de instalacion ("" = no ofrecerlos)
+
+	loginLimiter   *limiter // por IP: 20 intentos / 10 min
+	distLimiter    *limiter // por IP: 30 / min (instaladores y descargas)
+	enrollLimiter  *limiter // por IP: 10 / min
+	metricsLimiter *limiter // por host: 1 cada 2 s, rafaga 5
+	testLimiter    *limiter // por usuario: 5 / min (POST /channels/{id}/test)
+	agentFails     failCounter
+
+	routes []route
+}
+
+// New crea la API. now permite fijar el reloj en tests (usar time.Now en produccion). Entra en panico solo
+// si el sistema no puede dar bytes aleatorios (no hay forma sensata de seguir sin ellos).
+func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time, opts Options) *API {
+	cursorKey := make([]byte, 32)
+	if _, err := rand.Read(cursorKey); err != nil {
+		panic(fmt.Sprintf("leyendo crypto/rand: %v", err))
+	}
+	a := &API{
+		cursorKey:      cursorKey,
+		store:          s,
+		hasher:         hasher,
+		logger:         logger,
+		now:            now,
+		opts:           opts,
+		cookieName:     "__Host-argos_sid",
+		allowedHosts:   map[string]bool{"localhost": true, "127.0.0.1": true, "::1": true},
+		loginLimiter:   newLimiter(20, 10*time.Minute),
+		enrollLimiter:  newLimiter(10, time.Minute),
+		metricsLimiter: newLimiter(5, 10*time.Second),
+		distLimiter:    newLimiter(distLimitBurst, time.Minute),
+		testLimiter:    newLimiter(channelTestsPerMinute, time.Minute),
+		cmdOrigin:      commandOrigin(opts.PublicURL, opts.Dist != nil),
+	}
+	if opts.InsecureCookies {
+		a.cookieName = "argos_sid"
+	}
+	if opts.PublicURL != nil {
+		a.allowedHosts[normalizeHost(opts.PublicURL.Hostname())] = true
+	}
+	return a
+}
+
+// access declara quien puede llamar a una ruta. No hay valor por defecto: toda
+// ruta se registra con uno explicito (deny by default).
+type access int
+
+const (
+	accessPublic     access = iota // sin credenciales: health, login, enroll de agente
+	accessAgent                    // bearer token de agente (nunca cookie)
+	accessSessionAny               // sesion valida, incluso con cambio de contraseña pendiente
+	accessSession                  // sesion valida (viewer o admin) sin cambio pendiente
+	accessAdmin                    // sesion de admin sin cambio pendiente
+)
+
+type route struct {
+	pattern string
+	access  access
+}
+
+func (a *API) route(mux *http.ServeMux, pattern string, acc access, h handlerFunc) {
+	a.routes = append(a.routes, route{pattern, acc})
+	switch acc {
+	case accessPublic, accessAgent:
+	case accessSessionAny:
+		h = a.requireSession(true, h)
+	case accessSession:
+		h = a.requireSession(false, h)
+	case accessAdmin:
+		h = a.requireSession(false, a.requireAdmin(h))
+	}
+	mux.HandleFunc(pattern, a.handle(h))
+}
+
+// Routes devuelve el handler completo: mux con todas las rutas envuelto en los
+// middlewares de seguridad (cabeceras, Host, CSRF, Content-Type).
+func (a *API) Routes() http.Handler {
+	a.routes = nil
+	mux := http.NewServeMux()
+
+	a.route(mux, "GET /health", accessPublic, a.health)
+
+	// Agentes.
+	a.route(mux, "POST /api/v1/agent/enroll", accessPublic, a.agentEnroll)
+	a.route(mux, "POST /api/v1/agent/metrics", accessAgent, a.agentMetrics)
+
+	// Sesion.
+	a.route(mux, "POST /api/v1/auth/login", accessPublic, a.login)
+	a.route(mux, "POST /api/v1/auth/logout", accessSessionAny, a.logout)
+	a.route(mux, "GET /api/v1/auth/me", accessSessionAny, a.me)
+	a.route(mux, "POST /api/v1/auth/password", accessSessionAny, a.changePassword)
+
+	// Dashboard.
+	a.route(mux, "GET /api/v1/hosts", accessSession, a.listHosts)
+	a.route(mux, "GET /api/v1/hosts/{id}", accessSession, a.getHost)
+	a.route(mux, "GET /api/v1/hosts/{id}/metrics", accessSession, a.hostMetrics)
+	a.route(mux, "POST /api/v1/hosts/enroll-token", accessAdmin, a.createEnrollToken)
+	a.route(mux, "POST /api/v1/hosts/bulk", accessAdmin, a.bulkHosts)
+	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
+	a.route(mux, "PUT /api/v1/hosts/{id}/group", accessAdmin, a.setHostGroup)
+	a.route(mux, "PUT /api/v1/hosts/{id}/tags", accessAdmin, a.setHostTags)
+	a.route(mux, "GET /api/v1/hosts/{id}/events", accessSession, a.hostEvents)
+	a.route(mux, "GET /api/v1/tags", accessSession, a.listTags)
+	a.route(mux, "GET /api/v1/summary", accessSession, a.summary)
+	a.route(mux, "GET /api/v1/groups", accessSession, a.listGroups)
+	a.route(mux, "POST /api/v1/groups", accessAdmin, a.createGroup)
+	a.route(mux, "PATCH /api/v1/groups/{id}", accessAdmin, a.updateGroup)
+	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
+
+	// Alertas (lectura: cualquier sesion; escritura, ack y resolve: solo admin).
+	a.route(mux, "GET /api/v1/alerts", accessSession, a.listAlerts)
+	a.route(mux, "GET /api/v1/alerts/summary", accessSession, a.alertSummary)
+	a.route(mux, "GET /api/v1/alerts/{id}", accessSession, a.getAlert)
+	a.route(mux, "POST /api/v1/alerts/{id}/ack", accessAdmin, a.ackAlert)
+	a.route(mux, "POST /api/v1/alerts/{id}/resolve", accessAdmin, a.resolveAlert)
+	a.route(mux, "GET /api/v1/alert-rules", accessSession, a.listAlertRules)
+	a.route(mux, "GET /api/v1/alert-rules/{id}", accessSession, a.getAlertRule)
+	a.route(mux, "POST /api/v1/alert-rules", accessAdmin, a.createAlertRule)
+	a.route(mux, "PATCH /api/v1/alert-rules/{id}", accessAdmin, a.updateAlertRule)
+	a.route(mux, "DELETE /api/v1/alert-rules/{id}", accessAdmin, a.deleteAlertRule)
+	a.route(mux, "PUT /api/v1/alert-rules/{id}/channels", accessAdmin, a.setRuleChannels)
+	a.route(mux, "GET /api/v1/channels", accessSession, a.listChannels)
+	a.route(mux, "GET /api/v1/channels/{id}", accessSession, a.getChannel)
+	a.route(mux, "POST /api/v1/channels", accessAdmin, a.createChannel)
+	a.route(mux, "PATCH /api/v1/channels/{id}", accessAdmin, a.updateChannel)
+	a.route(mux, "DELETE /api/v1/channels/{id}", accessAdmin, a.deleteChannel)
+	a.route(mux, "POST /api/v1/channels/{id}/test", accessAdmin, a.testChannel)
+	a.route(mux, "GET /api/v1/maintenance", accessSession, a.listMaintenance)
+	a.route(mux, "GET /api/v1/maintenance/{id}", accessSession, a.getMaintenance)
+	a.route(mux, "POST /api/v1/maintenance", accessAdmin, a.createMaintenance)
+	a.route(mux, "PATCH /api/v1/maintenance/{id}", accessAdmin, a.updateMaintenance)
+	a.route(mux, "DELETE /api/v1/maintenance/{id}", accessAdmin, a.deleteMaintenance)
+
+	a.route(mux, "GET /api/v1/users", accessAdmin, a.listUsers)
+	a.route(mux, "POST /api/v1/users", accessAdmin, a.createUser)
+	a.route(mux, "PATCH /api/v1/users/{id}", accessAdmin, a.updateUser)
+
+	a.route(mux, "GET /api/v1/audit", accessAdmin, a.listAudit)
+	a.route(mux, "GET /api/v1/audit/events", accessAdmin, a.listAuditEvents)
+
+	// Instaladores y descargas del agente (fuera de /api/).
+	a.registerDist(mux)
+
+	return a.securityHeaders(a.hostAllowlist(a.crossOrigin()(a.requireJSON(mux))))
+}
+
+// handlerFunc es un handler que devuelve su error; a.handle lo traduce a HTTP
+// en un unico sitio.
+type handlerFunc func(w http.ResponseWriter, r *http.Request) error
+
+func (a *API) handle(h handlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := h(w, r); err != nil {
+			a.writeErr(w, r, err)
+		}
+	}
+}
+
+// writeErr traduce un error a la respuesta HTTP. Todo lo desconocido es 500:
+// se loguea el error real y al cliente solo va un mensaje generico.
+func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
+	var ce *clientError
+	var weak *auth.WeakPasswordError
+	switch {
+	case errors.As(err, &ce):
+		if ce.retryAfter > 0 {
+			w.Header().Set("Retry-After", retryAfterSeconds(ce.retryAfter))
+		}
+		writeError(w, ce.status, ce.code, ce.msg)
+	case errors.As(err, &weak):
+		writeError(w, http.StatusBadRequest, "weak_password", weak.Reason)
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "recurso no encontrado")
+	case errors.Is(err, store.ErrUserExists):
+		writeError(w, http.StatusConflict, "username_taken", "ese nombre de usuario ya existe")
+	case errors.Is(err, store.ErrLastAdmin):
+		writeError(w, http.StatusConflict, "last_admin", "debe quedar al menos un admin activo")
+	case errors.Is(err, store.ErrTooManyTokens):
+		writeError(w, http.StatusConflict, "too_many_tokens", "hay demasiados enroll tokens activos, espera a que expiren")
+	case errors.Is(err, store.ErrGroupNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "group_not_found", "el grupo indicado no existe")
+	case errors.Is(err, store.ErrGroupExists):
+		writeError(w, http.StatusConflict, "group_exists", "ya existe un grupo con ese nombre")
+	case errors.Is(err, store.ErrGroupNotEmpty):
+		writeError(w, http.StatusConflict, "group_not_empty", "el grupo tiene hosts: muevelos a otro grupo antes de borrarlo")
+	case errors.Is(err, store.ErrTooManyGroups):
+		writeError(w, http.StatusConflict, "too_many_groups", fmt.Sprintf("se alcanzo el maximo de %d grupos", store.MaxGroups))
+	case errors.Is(err, store.ErrTooManyTags):
+		writeError(w, http.StatusUnprocessableEntity, "too_many_tags",
+			fmt.Sprintf("un host admite como maximo %d etiquetas", store.MaxTagsPerHost))
+	case errors.Is(err, store.ErrAlertResolved):
+		writeError(w, http.StatusConflict, "alert_resolved", "la alerta ya esta resuelta")
+	case errors.Is(err, store.ErrRuleExists):
+		writeError(w, http.StatusConflict, "rule_exists", "ya existe una regla con ese nombre")
+	case errors.Is(err, store.ErrTooManyRules):
+		writeError(w, http.StatusConflict, "too_many_rules", fmt.Sprintf("se alcanzo el maximo de %d reglas", store.MaxAlertRules))
+	case errors.Is(err, store.ErrTooManyWindows):
+		writeError(w, http.StatusConflict, "too_many_maintenance",
+			fmt.Sprintf("se alcanzo el maximo de %d ventanas de mantenimiento activas o programadas", store.MaxActiveMaintenance))
+	case errors.Is(err, store.ErrChannelExists):
+		writeError(w, http.StatusConflict, "channel_exists", "ya existe un canal con ese nombre")
+	case errors.Is(err, store.ErrTooManyChannels):
+		writeError(w, http.StatusConflict, "too_many_channels", fmt.Sprintf("se alcanzo el maximo de %d canales", store.MaxChannels))
+	case errors.Is(err, store.ErrChannelNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "channel_not_found", "alguno de los canales indicados no existe")
+	case errors.Is(err, store.ErrTooManyRuleChannels):
+		writeError(w, http.StatusConflict, "too_many_rule_channels", fmt.Sprintf("una regla admite como maximo %d canales", store.MaxChannelsPerRule))
+	case errors.Is(err, store.ErrUnknownHosts):
+		writeError(w, http.StatusUnprocessableEntity, "unknown_hosts", "alguno de los hosts indicados no existe")
+	case errors.Is(err, store.ErrPartitionMissing):
+		// Falta la particion del timestamp (el mantenimiento no la creo): problema del servidor, no de la
+		// muestra. 503 pa que el agente reintente; se loguea el error real.
+		a.logger.ErrorContext(r.Context(), "sin particion pa el timestamp de la muestra",
+			"method", r.Method, "path", r.URL.Path, "err", err)
+		writeError(w, http.StatusServiceUnavailable, "service_unavailable", "servicio no disponible temporalmente, reintenta")
+	case errors.Is(err, context.Canceled):
+		// El cliente corto la conexion: no es un error del servidor.
+		a.logger.DebugContext(r.Context(), "solicitud cancelada por el cliente", "method", r.Method, "path", r.URL.Path)
+		writeError(w, http.StatusServiceUnavailable, "canceled", "solicitud cancelada")
+	default:
+		a.logger.ErrorContext(r.Context(), "error interno",
+			"method", r.Method, "path", r.URL.Path, "err", err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "error interno del servidor")
+	}
+}
+
+func (a *API) health(w http.ResponseWriter, _ *http.Request) error {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	return nil
+}
