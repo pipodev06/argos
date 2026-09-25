@@ -6,7 +6,7 @@ Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/P
 
 ## Hecho (implementado y probado con tests; lo visual NO está probado en navegador)
 - Server: auth (admin/viewer, cookies, CSRF, auditoría), enroll de agentes, ingest, detector de caídos, grupos, resumen, retención y particionado; motor de alertas (reglas metric/host_status/no_data/service_check, mantenimiento, canales webhook con `/slack` para Discord); chequeos de servicios (tcp/http/tls/servicio, ejecutados por el agente); permisos por grupo (`store.Scope` obligatorio; viewers restringidos; canales/auditoría solo admin); `host_events` (00014 + 00020, retención 400 d); informes de disponibilidad (`/reports/*`, CSV); inventario del host (ingest 00021 + lectura con `can_inventory`); frontend servido por el server con `ARGOS_WEB_DIR`; etiquetas eliminadas.
-- Agente: métricas, servicio nativo, chequeos con política local `ARGOS_CHECK_ALLOW`, inventario (`ARGOS_INVENTORY_MODULES`, apagado por defecto), reintento del reemplazo atómico de `agent.json`.
+- Agente: métricas, servicio nativo, chequeos con política local `ARGOS_CHECK_ALLOW`, inventario (`ARGOS_INVENTORY_MODULES`, apagado por defecto; verificado con el agente local real), reintento del reemplazo atómico de `agent.json`.
 - Web: hosts (filtros, detalle, inventario), grupos, chequeos, alertas/reglas/mantenimiento/canales, usuarios con permisos, auditoría, Informes (`/informes`); Vitest (72+ tests).
 
 ## En curso / siguiente (orden acordado)
