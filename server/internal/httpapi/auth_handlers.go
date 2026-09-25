@@ -20,10 +20,11 @@ type userDTO struct {
 	// AllGroups: ve todos los hosts (admin o viewer sin restriccion); false = restringido a sus grupos.
 	AllGroups    bool `json:"all_groups"`
 	CanInventory bool `json:"can_inventory"`
+	CanUpdates   bool `json:"can_updates"`
 }
 
 func toUserDTO(u *sessionUser) userDTO {
-	return userDTO{ID: u.ID, Username: u.Username, Role: u.Role, MustChangePassword: u.MustChangePassword, AllGroups: u.Scope.All(), CanInventory: u.CanInventory}
+	return userDTO{ID: u.ID, Username: u.Username, Role: u.Role, MustChangePassword: u.MustChangePassword, AllGroups: u.Scope.All(), CanInventory: u.CanInventory, CanUpdates: u.CanUpdates}
 }
 
 type loginReq struct {

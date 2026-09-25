@@ -109,7 +109,9 @@ type sessionUser struct {
 	Scope store.Scope
 	// CanInventory: permiso (por usuario) de ver procesos y servicios. Un admin no lo necesita: lo ve todo.
 	CanInventory bool
-	sessionHash  []byte
+	// CanUpdates: permiso (por usuario) de leer parches del SO. Un admin no lo necesita: lo ve todo.
+	CanUpdates  bool
+	sessionHash []byte
 }
 
 // seesInventory: un admin o un usuario con can_inventory puede ver datos de inventario (p. ej. los puertos de una alerta).
@@ -235,7 +237,7 @@ func (a *API) authenticateSession(w http.ResponseWriter, r *http.Request) (*sess
 	return &sessionUser{
 		ID: si.User.ID, Username: si.User.Username, Role: si.User.Role,
 		MustChangePassword: si.User.MustChangePassword, sessionHash: hash,
-		Scope: si.User.Scope(), CanInventory: si.User.CanInventory,
+		Scope: si.User.Scope(), CanInventory: si.User.CanInventory, CanUpdates: si.User.CanUpdates,
 	}, nil
 }
 

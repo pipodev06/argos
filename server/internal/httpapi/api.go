@@ -123,6 +123,7 @@ type Store interface {
 	// Inventario del host (ingest del agente).
 	IngestInventory(ctx context.Context, hostID string, in store.InventoryFull, now time.Time) error
 	InventoryHeartbeat(ctx context.Context, hostID, module, rev string, now time.Time) error
+	IngestUpdates(ctx context.Context, hostID string, in store.UpdatesSnapshot, now time.Time) error
 	// Inventario del host (lectura, con ambito).
 	InventoryOverview(ctx context.Context, scope store.Scope, hostID string) ([]store.InventoryMeta, error)
 	InventoryItems(ctx context.Context, scope store.Scope, hostID, module string) ([]json.RawMessage, error)

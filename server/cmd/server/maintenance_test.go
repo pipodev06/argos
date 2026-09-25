@@ -10,11 +10,11 @@ import (
 )
 
 type fakePurger struct {
-	sessions, audit, tokens, events, alerts, windows, deliveries, checkEvents, checkState, inventory []int // filas que devuelve cada llamada, en orden
-	calls                                                                                            map[string]int
-	auditBefore, tokensBefore                                                                        time.Time
-	before                                                                                           map[string]time.Time // corte usado por cada tabla nueva
-	err                                                                                              error
+	sessions, audit, tokens, events, alerts, windows, deliveries, checkEvents, checkState, inventory, updates []int // filas que devuelve cada llamada, en orden
+	calls                                                                                                     map[string]int
+	auditBefore, tokensBefore                                                                                 time.Time
+	before                                                                                                    map[string]time.Time // corte usado por cada tabla nueva
+	err                                                                                                       error
 }
 
 func (f *fakePurger) next(name string, queue *[]int) (int, error) {
@@ -78,6 +78,10 @@ func (f *fakePurger) PurgeInventoryChanges(_ context.Context, before time.Time, 
 	return f.purge("inventory", &f.inventory, before)
 }
 
+func (f *fakePurger) PurgeUpdatesHistory(_ context.Context, before time.Time, _ int) (int, error) {
+	return f.purge("updates", &f.updates, before)
+}
+
 func (f *fakePurger) PurgeStaleCheckState(_ context.Context, now time.Time, _ int) (int, error) {
 	return f.purge("check_state", &f.checkState, now)
 }
@@ -94,7 +98,7 @@ func TestPurgeAllRepeatsWhileBatchesAreFull(t *testing.T) {
 	}
 	now := time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
 	keep := retentionPolicy{Audit: 180 * 24 * time.Hour, HostEvents: 180 * 24 * time.Hour, Alerts: 365 * 24 * time.Hour,
-		Notifications: 30 * 24 * time.Hour, CheckEvents: 180 * 24 * time.Hour, Inventory: 90 * 24 * time.Hour}
+		Notifications: 30 * 24 * time.Hour, CheckEvents: 180 * 24 * time.Hour, Inventory: 90 * 24 * time.Hour, Updates: 400 * 24 * time.Hour}
 	purgeAll(context.Background(), slog.New(slog.NewJSONHandler(io.Discard, nil)), f, now, keep)
 
 	if f.calls["sessions"] != 3 || f.calls["audit"] != 1 || f.calls["tokens"] != 1 {
@@ -102,7 +106,7 @@ func TestPurgeAllRepeatsWhileBatchesAreFull(t *testing.T) {
 	}
 	for name, want := range map[string]time.Duration{
 		"events": keep.HostEvents, "alerts": keep.Alerts, "windows": keep.Alerts, "deliveries": keep.Notifications,
-		"check_events": keep.CheckEvents, "inventory": keep.Inventory, "check_state": 0,
+		"check_events": keep.CheckEvents, "inventory": keep.Inventory, "updates": keep.Updates, "check_state": 0,
 	} {
 		if f.calls[name] != 1 || !f.before[name].Equal(now.Add(-want)) {
 			t.Errorf("%s: llamadas %d, corte %v; want 1 llamada con corte %v", name, f.calls[name], f.before[name], now.Add(-want))

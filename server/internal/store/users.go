@@ -46,6 +46,7 @@ type User struct {
 	AllGroups    bool
 	GroupIDs     []string // grupos visibles si !AllGroups, ordenados
 	CanInventory bool
+	CanUpdates   bool // permiso de leer parches (ver Scope)
 }
 
 // Scope es el ambito de hosts del usuario: los admins y los viewers con all_groups ven todo.
@@ -60,12 +61,12 @@ func (u User) Scope() Scope {
 const userColumns = `id, username, password_hash, role, must_change_password, failed_logins,
 	locked_until, disabled_at, last_login_at, created_at, all_groups,
 	ARRAY(SELECT ug.group_id::text FROM user_groups ug WHERE ug.user_id = users.id ORDER BY ug.group_id),
-	can_inventory`
+	can_inventory, can_updates`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.MustChangePassword, &u.FailedLogins,
-		&u.LockedUntil, &u.DisabledAt, &u.LastLoginAt, &u.CreatedAt, &u.AllGroups, &u.GroupIDs, &u.CanInventory)
+		&u.LockedUntil, &u.DisabledAt, &u.LastLoginAt, &u.CreatedAt, &u.AllGroups, &u.GroupIDs, &u.CanInventory, &u.CanUpdates)
 	return u, err
 }
 
@@ -146,6 +147,7 @@ type UserChange struct {
 	AllGroups    *bool
 	GroupIDs     *[]string
 	CanInventory *bool
+	CanUpdates   *bool
 }
 
 // UpdateUser aplica los cambios en una transaccion. Deshabilitar o resetear la
@@ -195,7 +197,7 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 				disabledAt = &now
 			}
 		}
-		allGroups, canInventory, clearGroups, err := resolveScopeChange(cur, newRole, ch)
+		allGroups, canInventory, canUpdates, clearGroups, err := resolveScopeChange(cur, newRole, ch)
 		if err != nil {
 			return err
 		}
@@ -209,9 +211,9 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 			}
 		}
 		u, err := scanUser(tx.QueryRow(ctx,
-			`UPDATE users SET role = $2, disabled_at = $3, all_groups = $4, can_inventory = $5
+			`UPDATE users SET role = $2, disabled_at = $3, all_groups = $4, can_inventory = $5, can_updates = $6
 			  WHERE id = $1 RETURNING `+userColumns,
-			id, newRole, disabledAt, allGroups, canInventory))
+			id, newRole, disabledAt, allGroups, canInventory, canUpdates))
 		if err != nil {
 			return fmt.Errorf("actualizando usuario: %w", err)
 		}
@@ -240,31 +242,35 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 	return out, nil
 }
 
-// resolveScopeChange calcula all_groups y can_inventory finales y si hay que vaciar user_groups. Un admin
-// no admite restricciones (se rechazan si el cambio las pide; si solo se le promueve, se reinician) y
+// resolveScopeChange calcula all_groups, can_inventory y can_updates finales y si hay que vaciar user_groups. Un
+// admin no admite restricciones (se rechazan si el cambio las pide; si solo se le promueve, se reinician) y
 // group_ids solo tiene sentido con all_groups=false.
-func resolveScopeChange(cur User, newRole string, ch UserChange) (allGroups, canInventory, clearGroups bool, err error) {
-	allGroups, canInventory = cur.AllGroups, cur.CanInventory
+func resolveScopeChange(cur User, newRole string, ch UserChange) (allGroups, canInventory, canUpdates, clearGroups bool, err error) {
+	allGroups, canInventory, canUpdates = cur.AllGroups, cur.CanInventory, cur.CanUpdates
 	if ch.AllGroups != nil {
 		allGroups = *ch.AllGroups
 	}
 	if ch.CanInventory != nil {
 		canInventory = *ch.CanInventory
 	}
+	if ch.CanUpdates != nil {
+		canUpdates = *ch.CanUpdates
+	}
 	withGroups := ch.GroupIDs != nil && len(*ch.GroupIDs) > 0
 	if newRole == RoleAdmin {
-		if (ch.AllGroups != nil && !*ch.AllGroups) || (ch.CanInventory != nil && *ch.CanInventory) || withGroups {
-			return false, false, false, ErrInvalidScope
+		if (ch.AllGroups != nil && !*ch.AllGroups) || (ch.CanInventory != nil && *ch.CanInventory) ||
+			(ch.CanUpdates != nil && *ch.CanUpdates) || withGroups {
+			return false, false, false, false, ErrInvalidScope
 		}
-		return true, false, true, nil
+		return true, false, false, true, nil
 	}
 	if allGroups {
 		if withGroups {
-			return false, false, false, ErrInvalidScope
+			return false, false, false, false, ErrInvalidScope
 		}
-		return true, canInventory, true, nil
+		return true, canInventory, canUpdates, true, nil
 	}
-	return false, canInventory, false, nil
+	return false, canInventory, canUpdates, false, nil
 }
 
 // replaceUserGroups reemplaza los grupos del usuario. ErrGroupNotFound si alguno no existe.

@@ -97,8 +97,11 @@ func (s *Store) IngestInventory(ctx context.Context, hostID string, in Inventory
 	return nil
 }
 
-// InventoryHeartbeat confirma que la foto no cambio. ErrNeedFull si el rev no coincide o no hay foto.
+// InventoryHeartbeat confirma que la foto no cambio (de cualquier modulo, incluido updates). ErrNeedFull si el rev no coincide o no hay foto.
 func (s *Store) InventoryHeartbeat(ctx context.Context, hostID, module, rev string, now time.Time) error {
+	if module == InventoryUpdates {
+		return s.updatesHeartbeat(ctx, hostID, rev, now)
+	}
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE inventory_current SET received_at = $4 WHERE host_id = $1 AND module = $2 AND rev = $3`,
 		hostID, module, rev, now)
@@ -254,5 +257,5 @@ func insertInventoryChanges(ctx context.Context, tx pgx.Tx, hostID, module strin
 
 // ValidInventoryModule dice si module es uno de los modulos del inventario.
 func ValidInventoryModule(module string) bool {
-	return module == InventoryPorts || module == InventoryServices || module == InventoryProcesses
+	return module == InventoryPorts || module == InventoryServices || module == InventoryProcesses || module == InventoryUpdates
 }
