@@ -132,7 +132,7 @@ func TestBuildTestMessageCarriesNoAlertData(t *testing.T) {
 
 func TestBuildMessageIncludesCleanedDetailInAlertAndText(t *testing.T) {
 	t.Parallel()
-	raw, err := BuildMessage([]Item{{Event: "opened", Hostname: "srv", Rule: "puertos", Severity: "warn", Value: f64(2),
+	raw, err := BuildMessage([]Item{{Event: "opened", Hostname: "srv", Rule: "puertos", Kind: "exposed_port", Severity: "warn", Value: f64(2),
 		Detail: "tcp/22,\r\n" + string(rune(0x202e)) + "tcp/80"}}, 0, "", t0)
 	if err != nil {
 		t.Fatal(err)
@@ -159,5 +159,23 @@ func TestBuildMessageIncludesCleanedDetailInAlertAndText(t *testing.T) {
 	}
 	if strings.Contains(string(raw), `"detail"`) {
 		t.Errorf("no debe haber detail sin detalle: %s", raw)
+	}
+}
+
+func TestBuildMessageDetailLabelDependsOnKind(t *testing.T) {
+	t.Parallel()
+	raw, err := BuildMessage([]Item{{Event: "opened", Hostname: "srv", Rule: "sec", Kind: "pending_updates", Severity: "warn", Value: f64(5),
+		Detail: "5 de seguridad, 12 en total"}}, 0, "", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(m.Text, " - 5 de seguridad, 12 en total") || strings.Contains(m.Text, "puertos") {
+		t.Errorf("text got %q, want detalle sin el rotulo de puertos", m.Text)
 	}
 }

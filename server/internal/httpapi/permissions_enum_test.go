@@ -97,6 +97,11 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 			return []string{api + "/hosts/" + x.hostB + suffix, api + "/hosts/" + x.hostNo + suffix, api + "/hosts/" + x.hostA + suffix}
 		}}
 	}
+	updPaths := func(suffix string) enumRoute {
+		return enumRoute{"updates", func(x *alertScopeEnv, _ string) []string {
+			return []string{api + "/hosts/" + x.hostB + suffix, api + "/hosts/" + x.hostNo + suffix, api + "/hosts/" + x.hostA + suffix}
+		}}
+	}
 	// Toda ruta GET nueva DEBE clasificarse aqui; si no, el test falla.
 	table := map[string]enumRoute{
 		"GET /health":                            {"public", fixed("/health")},
@@ -148,6 +153,8 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/hosts/{id}/inventory/services":  invPaths("/inventory/services"),
 		"GET /api/v1/hosts/{id}/inventory/processes": invPaths("/inventory/processes"),
 		"GET /api/v1/hosts/{id}/inventory/changes":   invPaths("/inventory/changes"),
+		"GET /api/v1/hosts/{id}/updates":             updPaths("/updates"),
+		"GET /api/v1/updates":                        {"updates_fleet", fixed(api + "/updates")},
 		"GET /api/v1/hosts/{id}/service-checks": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/service-checks", api + "/hosts/" + x.hostNo + "/service-checks"}
 		}},
@@ -198,6 +205,11 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 				if rec.Code != want {
 					t.Errorf("%s (%s): got %d, want %d", pattern, path, rec.Code, want)
 				}
+			case "inventory", "updates", "updates_fleet":
+				// Sin el permiso de lectura (can_inventory / can_updates) todo es el mismo 404, incluso el host propio.
+				if rec.Code != http.StatusNotFound {
+					t.Errorf("%s (%s): sin permiso got %d, want 404", pattern, path, rec.Code)
+				}
 			case "public", "own":
 				if rec.Code != http.StatusOK && rec.Code != http.StatusNotFound {
 					t.Errorf("%s (%s): got %d, want 200/404", pattern, path, rec.Code)
@@ -213,22 +225,39 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		}
 	}
 
-	// Con can_inventory el viewer restringido ve su host (200) y el resto sigue siendo el mismo 404.
-	x.patchUser(x.vaID, `{"can_inventory":true}`, http.StatusOK, "")
-	for pattern, er := range table {
-		if er.class != "inventory" {
-			continue
+	// Con el permiso de su clase el viewer restringido ve su host (200) y el resto sigue siendo el mismo 404. Cada
+	// permiso abre SOLO su clase: el otro se apaga antes pa comprobar que no se sustituyen.
+	for _, pc := range []struct{ class, on, off string }{
+		{"inventory", "can_inventory", "can_updates"},
+		{"updates", "can_updates", "can_inventory"},
+	} {
+		x.patchUser(x.vaID, `{"`+pc.off+`":false}`, http.StatusOK, "")
+		x.patchUser(x.vaID, `{"`+pc.on+`":true}`, http.StatusOK, "")
+		for pattern, er := range table {
+			if er.class != pc.class {
+				continue
+			}
+			suffix := strings.TrimPrefix(pattern, "GET /api/v1/hosts/{id}")
+			missing := x.do("GET", api+"/hosts/"+missingID+suffix, "", withCookie(x.va))
+			for i, path := range er.paths(x, checkB) { // hostB, hostNo, hostA
+				rec := x.do("GET", path, "", withCookie(x.va))
+				if i < 2 && (rec.Code != http.StatusNotFound || rec.Body.String() != missing.Body.String()) {
+					t.Errorf("%s (%s): con permiso y host ajeno got %d %q, want 404 identico", pattern, path, rec.Code, rec.Body.String())
+				}
+				if i == 2 && rec.Code != http.StatusOK {
+					t.Errorf("%s (%s): con permiso y host propio got %d, want 200", pattern, path, rec.Code)
+				}
+			}
 		}
-		suffix := strings.TrimPrefix(pattern, "GET /api/v1/hosts/{id}")
-		missing := x.do("GET", api+"/hosts/"+missingID+suffix, "", withCookie(x.va))
-		for i, path := range er.paths(x, checkB) { // hostB, hostNo, hostA
-			rec := x.do("GET", path, "", withCookie(x.va))
-			if i < 2 && (rec.Code != http.StatusNotFound || rec.Body.String() != missing.Body.String()) {
-				t.Errorf("%s (%s): con permiso y host ajeno got %d %q, want 404 identico", pattern, path, rec.Code, rec.Body.String())
-			}
-			if i == 2 && rec.Code != http.StatusOK {
-				t.Errorf("%s (%s): con permiso y host propio got %d, want 200", pattern, path, rec.Code)
-			}
+	}
+	// La flota de parches con permiso responde 200 y solo lista el ambito del usuario.
+	rec := x.do("GET", api+"/updates", "", withCookie(x.va))
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET /updates con can_updates got %d, want 200", rec.Code)
+	}
+	for _, f := range forbidden {
+		if f != "" && strings.Contains(rec.Body.String(), f) {
+			t.Errorf("GET /updates contiene dato ajeno %q", f)
 		}
 	}
 }

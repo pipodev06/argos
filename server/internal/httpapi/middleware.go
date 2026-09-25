@@ -119,6 +119,11 @@ func (u *sessionUser) seesInventory() bool {
 	return u != nil && (u.Role == store.RoleAdmin || u.CanInventory)
 }
 
+// seesUpdates: un admin o un usuario con can_updates puede ver parches del SO (y el detalle de sus alertas).
+func (u *sessionUser) seesUpdates() bool {
+	return u != nil && (u.Role == store.RoleAdmin || u.CanUpdates)
+}
+
 type ctxKey struct{}
 
 func currentUser(r *http.Request) *sessionUser {
@@ -180,9 +185,22 @@ func (a *API) requireFullScope(next handlerFunc) handlerFunc {
 // usuario con can_inventory Y que el host este dentro de su ambito. Sin permiso o con host ajeno responde el mismo
 // 404 que un host inexistente (no revela que existe). Todo handler de inventario se registra con este guard.
 func (a *API) requireInventory(next handlerFunc) handlerFunc {
+	return a.requireDataPermission((*sessionUser).seesInventory, next)
+}
+
+// requireUpdates protege la lectura de parches del SO con el mismo patron: admin o can_updates. Con {id} en la ruta
+// exige ademas que el host este en el ambito (mismo 404 que un host inexistente); sin {id} (flota) el ambito lo
+// aplica el store al listar.
+func (a *API) requireUpdates(next handlerFunc) handlerFunc {
+	return a.requireDataPermission((*sessionUser).seesUpdates, next)
+}
+
+// requireDataPermission es el guard comun de los datos sensibles de un host: sin permiso o con host ajeno, el
+// mismo store.ErrNotFound (404) que un host inexistente.
+func (a *API) requireDataPermission(allowed func(*sessionUser) bool, next handlerFunc) handlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		u := currentUser(r)
-		if u == nil || (u.Role != store.RoleAdmin && !u.CanInventory) {
+		if u == nil || !allowed(u) {
 			// Solo la falta de permiso se audita (no el host ajeno: seria un oraculo y ruido), con tope por usuario y ruta.
 			if u != nil {
 				if ok, _ := a.inventoryDenyDedup.allow(u.ID+"|"+r.Pattern, a.now()); ok {
@@ -193,12 +211,14 @@ func (a *API) requireInventory(next handlerFunc) handlerFunc {
 			}
 			return store.ErrNotFound
 		}
-		id := r.PathValue("id")
-		if !isUUID(id) {
-			return store.ErrNotFound
-		}
-		if _, err := a.store.HostByID(r.Context(), u.Scope, id); err != nil {
-			return err
+		if strings.Contains(r.Pattern, "{id}") {
+			id := r.PathValue("id")
+			if !isUUID(id) {
+				return store.ErrNotFound
+			}
+			if _, err := a.store.HostByID(r.Context(), u.Scope, id); err != nil {
+				return err
+			}
 		}
 		return next(w, r)
 	}

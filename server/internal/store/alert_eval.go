@@ -81,7 +81,9 @@ ON CONFLICT DO NOTHING`
 	openAlertsSQL = `
 WITH new AS (
   INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed, detail)
-  SELECT r.id, c.host_id, r.name, r.kind, r.metric, r.threshold, r.severity, c.value, c.value, c.in_maintenance, c.detail
+  SELECT r.id, c.host_id, r.name, r.kind, r.metric, r.threshold,
+         CASE WHEN r.kind = 'os_eol' AND c.value <= 0 THEN 'critical' ELSE r.severity END,
+         c.value, c.value, c.in_maintenance, c.detail
     FROM alert_pending p
     JOIN alert_candidates c ON c.rule_id = p.rule_id AND c.host_id = p.host_id AND c.breach
     JOIN alert_rules r ON r.id = p.rule_id

@@ -42,7 +42,7 @@ type alertDTO struct {
 	Suppressed   bool      `json:"suppressed"`
 	OpenedAt     time.Time `json:"opened_at"`
 	TriggerValue *float64  `json:"trigger_value"`
-	// Detail (alertas exposed_port: hasta 5 proto/puerto) solo va con permiso de inventario; sin el, null y queda el conteo en trigger_value.
+	// Detail (exposed_port: hasta 5 proto/puerto; parches: conteos, fecha o SO) solo va con el permiso del dato (can_inventory / can_updates); sin el, null y queda el conteo en trigger_value.
 	Detail        *string    `json:"detail"`
 	PeakValue     *float64   `json:"peak_value"`
 	Host          hostRefDTO `json:"host"`
@@ -53,9 +53,21 @@ type alertDTO struct {
 	ResolveReason *string    `json:"resolve_reason"`
 }
 
-func toAlertDTO(a store.Alert, seesInventory bool) alertDTO {
+// alertDetailAllowed dice si el usuario puede ver alerts.detail: es un dato de inventario (exposed_port) o de
+// parches (pending_updates, reboot_pending, os_eol) y exige el permiso de cada uno; sin el solo queda el conteo.
+func alertDetailAllowed(kind string, u *sessionUser) bool {
+	switch kind {
+	case "exposed_port":
+		return u.seesInventory()
+	case "pending_updates", "reboot_pending", "os_eol":
+		return u.seesUpdates()
+	}
+	return false
+}
+
+func toAlertDTO(a store.Alert, u *sessionUser) alertDTO {
 	var detail *string
-	if seesInventory {
+	if alertDetailAllowed(a.RuleKind, u) {
 		detail = a.Detail
 	}
 	return alertDTO{
@@ -251,7 +263,7 @@ func (a *API) listAlerts(w http.ResponseWriter, r *http.Request) error {
 	}
 	items := make([]alertDTO, 0, len(page.Items))
 	for _, al := range page.Items {
-		items = append(items, toAlertDTO(al, currentUser(r).seesInventory()))
+		items = append(items, toAlertDTO(al, currentUser(r)))
 	}
 	var next *string
 	if page.NextCursor != nil {
@@ -280,7 +292,7 @@ func (a *API) getAlert(w http.ResponseWriter, r *http.Request) error {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"alert": toAlertDTO(d.Alert, currentUser(r).seesInventory()), "deliveries": deliveries, "host_events": toHostEventDTOs(d.HostEvents),
+		"alert": toAlertDTO(d.Alert, currentUser(r)), "deliveries": deliveries, "host_events": toHostEventDTOs(d.HostEvents),
 	})
 	return nil
 }
@@ -310,7 +322,7 @@ func (a *API) alertAction(w http.ResponseWriter, r *http.Request, event string,
 	e := actor(u)
 	e.Event, e.Outcome, e.TargetType, e.TargetID = event, store.OutcomeOK, "alert", id
 	a.audit(r, e, map[string]any{"name": al.RuleName, "severity": al.Severity, "hostname": al.Hostname})
-	writeJSON(w, http.StatusOK, map[string]any{"alert": toAlertDTO(al, u.seesInventory())})
+	writeJSON(w, http.StatusOK, map[string]any{"alert": toAlertDTO(al, u)})
 	return nil
 }
 

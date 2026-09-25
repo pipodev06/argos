@@ -314,3 +314,25 @@ func TestSNMPChecksEndToEndThroughCollector(t *testing.T) {
 		t.Errorf("un viewer ve el perfil snmp: %.300s", body)
 	}
 }
+
+// El formulario de alta envia el perfil SNMP junto al resto de campos (antes daba "json invalido").
+func TestCreateDeviceWithSNMPProfile(t *testing.T) {
+	x := newSNMPEnv(t)
+	prof := x.newProfile(v3Body("perfil"))
+	col, _, _ := x.enrollHost(x.admin, "colector")
+
+	rec := x.do("POST", "/api/v1/devices", fmt.Sprintf(`{"name":"lnx","address":"10.50.0.1","collector_id":%q,"snmp_profile_id":%q}`, col, prof), withCookie(x.admin))
+	x.wantStatus(rec, http.StatusCreated, "")
+	var d struct {
+		Device struct {
+			SNMPProfile struct {
+				ID string `json:"id"`
+			} `json:"snmp_profile"`
+		} `json:"device"`
+	}
+	x.dataAs(rec, &d)
+	if d.Device.SNMPProfile.ID != prof {
+		t.Errorf("el dispositivo debe quedar con el perfil %s, got %+v", prof, d.Device.SNMPProfile)
+	}
+	x.wantStatus(x.do("POST", "/api/v1/devices", fmt.Sprintf(`{"name":"otro","address":"10.50.0.2","collector_id":%q,"snmp_profile_id":"no-uuid"}`, col), withCookie(x.admin)), http.StatusBadRequest, "invalid_body")
+}

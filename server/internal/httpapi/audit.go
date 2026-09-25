@@ -66,6 +66,7 @@ const (
 	evAgentAuthFail          = "agent_auth_fail"
 	evEnrollFail             = "enroll_fail"
 	evInventoryRead          = "inventory_read"
+	evUpdatesRead            = "updates_read"
 	evReportExported         = "report_exported"
 )
 
@@ -91,7 +92,7 @@ var auditDetailKeys = map[string]bool{
 	// Canales: solo el host del destino (nunca la URL completa, que puede llevar un token, ni el secreto HMAC).
 	"host": true,
 	// Lectura de inventario: solo el modulo consultado, nunca contenido.
-	"module": true,
+	"module": true, "scope": true,
 	// Exportacion de informes: tipo, rango y filas escritas, nunca contenido.
 	"report": true, "range": true, "rows": true,
 }

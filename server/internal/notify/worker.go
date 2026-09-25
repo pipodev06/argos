@@ -242,7 +242,7 @@ func (w *Worker) send(ctx context.Context, jobs []store.DeliveryJob) (int, error
 	}
 	items := make([]Item, len(jobs))
 	for i, j := range jobs {
-		items[i] = Item{AlertID: j.AlertID, Event: j.Event, Hostname: j.Hostname, Rule: j.RuleName,
+		items[i] = Item{AlertID: j.AlertID, Event: j.Event, Hostname: j.Hostname, Rule: j.RuleName, Kind: j.RuleKind,
 			Severity: j.Severity, Value: j.TriggerValue, Threshold: j.Threshold, Detail: deref(j.Detail)}
 	}
 	body, err := BuildMessage(items, 0, w.baseURL, w.now())
