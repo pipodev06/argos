@@ -5,7 +5,7 @@ import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
 import { formatSeconds } from '@/features/alerts/utils/format'
 import type { Device } from '@/features/devices/types/device.types'
 import type { ServiceCheck } from '../types/check.types'
-import { checkScopeLabel, checkTarget, CHECK_TYPE_LABELS } from '../utils/format'
+import { checkScopeLabel, checkTarget, checkTypeLabel } from '../utils/format'
 import { checkOrigin } from '../utils/origin'
 
 export type CheckAction = 'edit' | 'toggle' | 'delete'
@@ -42,7 +42,7 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
           <Row key={c.id}>
             <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
-            <Cell>{CHECK_TYPE_LABELS[c.type]}</Cell>
+            <Cell className="max-w-56 truncate">{checkTypeLabel(c)}</Cell>
             <Cell className="max-w-64 truncate tabular-nums" title={checkTarget(c)}>
               {checkTarget(c)}
             </Cell>

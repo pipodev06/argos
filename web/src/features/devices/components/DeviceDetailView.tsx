@@ -8,6 +8,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { BackToHostsLink } from '@/features/hosts/components/BackToHostsLink'
 import { Item } from '@/features/hosts/components/HostSystemInfo'
 import { formatFullDate, formatLastSeen } from '@/features/hosts/utils/format'
+import { versionLabel } from '@/features/snmp-profiles/utils/profileForm'
 import { useDeviceDetail } from '../hooks/useDevices'
 import { deviceStateOverride } from '../utils/status'
 import { DeleteDeviceConfirm } from './DeleteDeviceConfirm'
@@ -62,6 +63,11 @@ export function DeviceDetailView({ id }: { id: string }) {
                     {device.collector.name}
                   </Link>
                 ) : null}
+              </Item>
+            )}
+            {isAdmin && (
+              <Item term="Perfil SNMP">
+                {device.snmp_profile ? `${device.snmp_profile.name} (${versionLabel(device.snmp_profile.version)})` : 'Sin perfil'}
               </Item>
             )}
             <Item term="Grupo">{device.group?.name ?? 'Sin grupo'}</Item>

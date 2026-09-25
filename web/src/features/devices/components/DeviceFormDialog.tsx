@@ -5,6 +5,8 @@ import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import { useGroups } from '@/features/groups/hooks/useGroups'
+import { useSnmpProfileOptions } from '@/features/snmp-profiles/hooks/useSnmpProfiles'
+import { versionLabel } from '@/features/snmp-profiles/utils/profileForm'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { useCollectors } from '../hooks/useDevices'
 import { createDevice, updateDevice } from '../services/devices.service'
@@ -20,6 +22,7 @@ interface DeviceFormDialogProps {
 }
 
 const NO_GROUP = '__none__'
+const NO_PROFILE = '__none__'
 
 export function DeviceFormDialog(props: DeviceFormDialogProps) {
   // El formulario solo existe con el dialogo abierto: cada apertura empieza limpia y recarga colectores y grupos.
@@ -37,6 +40,7 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
   const { error, busy, run } = useUserMutation()
   const collectors = useCollectors()
   const { groups } = useGroups()
+  const profiles = useSnmpProfileOptions()
   const set = <K extends keyof DeviceDraft>(key: K, value: DeviceDraft[K]) => setDraft((d) => ({ ...d, [key]: value }))
 
   // El colector actual se conserva como opcion aunque ya no sea elegible (p. ej. deshabilitado): el servidor decide.
@@ -46,6 +50,14 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
   }
   const noCollectors = collectors.data !== null && collectorOptions.length === 0
   const groupOptions = [{ value: NO_GROUP, label: 'Sin grupo' }, ...(groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))]
+  // El perfil actual se conserva como opción aunque la lista no lo traiga; el servidor decide.
+  const profileOptions = [
+    { value: NO_PROFILE, label: 'Sin perfil' },
+    ...(profiles.data ?? []).map((p) => ({ value: p.id, label: `${p.name} (${versionLabel(p.version)})` })),
+  ]
+  if (device?.snmp_profile && !profileOptions.some((o) => o.value === device.snmp_profile?.id)) {
+    profileOptions.push({ value: device.snmp_profile.id, label: device.snmp_profile.name })
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -107,6 +119,15 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
         onChange={(v) => set('groupId', v === NO_GROUP ? '' : v)}
         options={groupOptions}
       />
+      <SelectField
+        id="device-snmp-profile"
+        label="Perfil SNMP"
+        value={draft.snmpProfileId || NO_PROFILE}
+        onChange={(v) => set('snmpProfileId', v === NO_PROFILE ? '' : v)}
+        options={profileOptions}
+        hint="Opcional. Sin perfil, los chequeos SNMP no se envían a este dispositivo."
+      />
+      {profiles.error && <InlineError>{profiles.error}</InlineError>}
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>

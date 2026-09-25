@@ -1,4 +1,4 @@
-import { IconBell, IconFolders, IconHeartRateMonitor, IconHistory, IconLayoutDashboard, IconListCheck, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
+import { IconBell, IconFolders, IconHeartRateMonitor, IconHistory, IconKey, IconLayoutDashboard, IconListCheck, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
 import type { Role } from '@/features/auth/types/auth.types'
 
 export interface NavItem {
@@ -30,6 +30,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/alertas/mantenimiento', label: 'Mantenimiento', Icon: IconTool, section: 'Alertas' },
   { to: '/alertas/canales', label: 'Canales', Icon: IconWebhook, section: 'Alertas', fullScope: true },
   { to: '/usuarios', label: 'Usuarios', Icon: IconUsers, section: 'Administración', roles: ['admin'] },
+  { to: '/perfiles-snmp', label: 'Perfiles SNMP', Icon: IconKey, section: 'Administración', roles: ['admin'] },
   { to: '/auditoria', label: 'Auditoría', Icon: IconHistory, section: 'Administración', roles: ['admin'] },
 ]
 

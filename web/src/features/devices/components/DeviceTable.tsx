@@ -20,7 +20,7 @@ interface DeviceTableProps {
 }
 
 export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: DeviceTableProps) {
-  const colSpan = isAdmin ? 9 : 6
+  const colSpan = isAdmin ? 10 : 6
   return (
     <DataTable caption="Dispositivos" className="min-w-[48rem]">
       <thead>
@@ -29,6 +29,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
           <HeadCell>Dispositivo</HeadCell>
           {isAdmin && <HeadCell>Dirección</HeadCell>}
           {isAdmin && <HeadCell>Colector</HeadCell>}
+          {isAdmin && <HeadCell>SNMP</HeadCell>}
           <HeadCell>Grupo</HeadCell>
           <HeadCell>Estado</HeadCell>
           <HeadCell>Visto</HeadCell>
@@ -53,6 +54,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
               </Cell>
               {isAdmin && <Cell className="tabular-nums">{d.address ?? '—'}</Cell>}
               {isAdmin && <Cell className="max-w-40 truncate">{d.collector?.name ?? '—'}</Cell>}
+              {isAdmin && <Cell className="max-w-40 truncate">{d.snmp_profile?.name ?? <span className="text-text-muted">—</span>}</Cell>}
               <Cell className="max-w-40 truncate">{d.group?.name ?? <span className="text-text-muted">Sin grupo</span>}</Cell>
               <Cell>
                 <DeviceStatusBadge device={d} />

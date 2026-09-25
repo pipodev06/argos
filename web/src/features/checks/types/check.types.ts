@@ -1,6 +1,6 @@
 import type { Scope, ScopeInput } from '@/features/alerts/types/alert.types'
 
-export type CheckType = 'tcp' | 'http' | 'tls_cert' | 'service' | 'ping'
+export type CheckType = 'tcp' | 'http' | 'tls_cert' | 'service' | 'ping' | 'snmp'
 export type CheckStatus = 'up' | 'down' | 'warn' | 'unknown'
 
 export interface ServiceCheck {
@@ -20,6 +20,10 @@ export interface ServiceCheck {
   crit_ms: number | null
   warn_days: number | null
   crit_days: number | null
+  /** Solo snmp: `reachable` | `if_oper`. */
+  metric?: string | null
+  /** Solo snmp con `if_oper`. */
+  if_index?: number | null
   /** Solo lo ve un admin. */
   header_name?: string | null
   has_secret: boolean
@@ -45,6 +49,8 @@ export interface CheckInput {
   warn_days?: number
   crit_days?: number
   header_name?: string
+  metric?: string
+  if_index?: number | null
   secret?: string | null
   scope?: ScopeInput
   enabled?: boolean
