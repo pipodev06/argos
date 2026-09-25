@@ -151,6 +151,24 @@ func (a *API) requireAdmin(next handlerFunc) handlerFunc {
 	}
 }
 
+// requireFullScope deja pasar solo a quien ve todos los hosts (admin o viewer con all_groups): los canales de
+// notificacion no tienen grupo, asi que un viewer restringido no puede leerlos. Responde 403 y audita el intento,
+// igual que requireAdmin con un viewer en una ruta de admin.
+func (a *API) requireFullScope(next handlerFunc) handlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		u := currentUser(r)
+		if u == nil || !u.Scope.All() {
+			if u != nil {
+				e := actor(u)
+				e.Event, e.Outcome = evAuthzDenied, store.OutcomeDenied
+				a.audit(r, e, map[string]any{"method": r.Method, "route": r.Pattern})
+			}
+			return errForbidden
+		}
+		return next(w, r)
+	}
+}
+
 func (a *API) authenticateSession(w http.ResponseWriter, r *http.Request) (*sessionUser, error) {
 	c, err := r.Cookie(a.cookieName)
 	if err != nil || c.Value == "" || len(c.Value) > auth.MaxSessionIDChars {

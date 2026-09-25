@@ -713,7 +713,7 @@ func TestListAlertsFiltersKeysetAndTotal(t *testing.T) {
 			rule, hostID(t, h), sev, state, min(i, 3)*10, resolved)
 	}
 
-	page, err := s.ListAlerts(ctx, AlertFilter{Limit: 2})
+	page, err := s.ListAlerts(ctx, AllScope(), AlertFilter{Limit: 2})
 	if err != nil || len(page.Items) != 2 || page.Total != 5 || page.NextCursor == nil {
 		t.Fatalf("pagina 1 got %+v, %v", page, err)
 	}
@@ -728,7 +728,7 @@ func TestListAlertsFiltersKeysetAndTotal(t *testing.T) {
 		if page.NextCursor == nil {
 			break
 		}
-		page, err = s.ListAlerts(ctx, AlertFilter{Limit: 2, After: page.NextCursor})
+		page, err = s.ListAlerts(ctx, AllScope(), AlertFilter{Limit: 2, After: page.NextCursor})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -737,20 +737,20 @@ func TestListAlertsFiltersKeysetAndTotal(t *testing.T) {
 		t.Errorf("paginando se vieron %d, want 5", len(seen))
 	}
 
-	if p, _ := s.ListAlerts(ctx, AlertFilter{States: []string{"open"}}); p.Total != 4 {
+	if p, _ := s.ListAlerts(ctx, AllScope(), AlertFilter{States: []string{"open"}}); p.Total != 4 {
 		t.Errorf("state=open total got %d, want 4", p.Total)
 	}
-	if p, _ := s.ListAlerts(ctx, AlertFilter{Severities: []string{"critical"}}); p.Total != 2 {
+	if p, _ := s.ListAlerts(ctx, AllScope(), AlertFilter{Severities: []string{"critical"}}); p.Total != 2 {
 		t.Errorf("severity=critical total got %d, want 2", p.Total)
 	}
-	if p, _ := s.ListAlerts(ctx, AlertFilter{HostIDs: []string{hostID(t, "a")}, RuleIDs: []string{r1.ID}}); p.Total != 1 {
+	if p, _ := s.ListAlerts(ctx, AllScope(), AlertFilter{HostIDs: []string{hostID(t, "a")}, RuleIDs: []string{r1.ID}}); p.Total != 1 {
 		t.Errorf("host+rule total got %d, want 1", p.Total)
 	}
-	if p, _ := s.ListAlerts(ctx, AlertFilter{States: []string{"open", "resolved"}, Severities: []string{"warn"}}); p.Total != 3 {
+	if p, _ := s.ListAlerts(ctx, AllScope(), AlertFilter{States: []string{"open", "resolved"}, Severities: []string{"warn"}}); p.Total != 3 {
 		t.Errorf("state OR + severity total got %d, want 3", p.Total)
 	}
 
-	sum, err := s.AlertSummary(ctx)
+	sum, err := s.AlertSummary(ctx, AllScope())
 	if err != nil || sum.Active != 4 || sum.BySeverity["critical"].Open != 2 || sum.BySeverity["warn"].Open != 2 || sum.BySeverity["info"].Open != 0 {
 		t.Errorf("resumen got %+v, %v", sum, err)
 	}
@@ -769,11 +769,11 @@ func TestAlertByIDIncludesDeliveriesAndHostEvents(t *testing.T) {
 	if err := testPool.QueryRow(ctx, `SELECT id FROM alerts`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	d, err := s.AlertByID(ctx, id)
+	d, err := s.AlertByID(ctx, AllScope(), id)
 	if err != nil || d.Alert.Hostname != "srv" || len(d.Deliveries) != 1 || d.Deliveries[0].ChannelName != "hook" || len(d.HostEvents) != 1 {
 		t.Fatalf("detalle got %+v, %v", d, err)
 	}
-	if _, err := s.AlertByID(ctx, "00000000-0000-0000-0000-0000000000aa"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.AlertByID(ctx, AllScope(), "00000000-0000-0000-0000-0000000000aa"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("inexistente got %v", err)
 	}
 }
@@ -890,7 +890,7 @@ func TestMaintenanceCRUDAndCaps(t *testing.T) {
 	if err != nil || up.Name != "otro" {
 		t.Fatalf("update got %+v, %v", up, err)
 	}
-	list, err := s.ListMaintenance(ctx)
+	list, err := s.ListMaintenance(ctx, AllScope())
 	if err != nil || len(list) != 2 {
 		t.Fatalf("list got %d, %v", len(list), err)
 	}
@@ -999,15 +999,15 @@ func TestHostEventsFromEveryWriter(t *testing.T) {
 	want("srv", "up>down:detector", "down>offline:group_change", "offline>down:group_change", "down>disabled:admin")
 
 	// Listado paginado por cursor.
-	page, err := s.ListHostEvents(ctx, hostID(t, "lap"), nil, 2)
+	page, err := s.ListHostEvents(ctx, AllScope(), hostID(t, "lap"), nil, 2)
 	if err != nil || len(page.Items) != 2 || page.NextCursor == nil || page.Items[0].ToStatus != "disabled" {
 		t.Fatalf("pagina 1 got %+v, %v", page, err)
 	}
-	page, err = s.ListHostEvents(ctx, hostID(t, "lap"), page.NextCursor, 2)
+	page, err = s.ListHostEvents(ctx, AllScope(), hostID(t, "lap"), page.NextCursor, 2)
 	if err != nil || len(page.Items) != 2 || page.NextCursor != nil {
 		t.Fatalf("pagina 2 got %+v, %v", page, err)
 	}
-	if _, err := s.ListHostEvents(ctx, "00000000-0000-0000-0000-0000000000aa", nil, 10); !errors.Is(err, ErrNotFound) {
+	if _, err := s.ListHostEvents(ctx, AllScope(), "00000000-0000-0000-0000-0000000000aa", nil, 10); !errors.Is(err, ErrNotFound) {
 		t.Errorf("host inexistente got %v", err)
 	}
 }

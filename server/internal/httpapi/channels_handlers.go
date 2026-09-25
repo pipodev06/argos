@@ -484,7 +484,7 @@ func (a *API) setRuleChannels(w http.ResponseWriter, r *http.Request) error {
 	if err := a.store.SetRuleChannels(r.Context(), id, ids); err != nil {
 		return err
 	}
-	rule, err := a.store.AlertRuleByID(r.Context(), id)
+	rule, err := a.store.AlertRuleByID(r.Context(), store.AllScope(), id)
 	if err != nil {
 		return err
 	}

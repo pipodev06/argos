@@ -90,9 +90,13 @@ const (
 	windowGroupFKey = "maintenance_windows_scope_group_id_fkey"
 )
 
-// ListAlertRules devuelve todas las reglas por nombre (hay un tope de MaxAlertRules).
-func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
-	rows, err := s.pool.Query(ctx, alertRuleSelect+` ORDER BY lower(r.name), r.id LIMIT $1`, MaxAlertRules)
+// ListAlertRules devuelve las reglas por nombre (hay un tope de MaxAlertRules). Un ambito restringido solo ve las
+// de alcance `all` y las de sus grupos, sin canales y con ActiveAlerts contando solo alertas de sus hosts.
+func (s *Store) ListAlertRules(ctx context.Context, scope Scope) ([]AlertRule, error) {
+	args := argList{MaxAlertRules}
+	rows, err := s.pool.Query(ctx,
+		alertRuleSelect+` WHERE `+scope.configCond("r.scope_type", "r.scope_group_id", &args)+` ORDER BY lower(r.name), r.id LIMIT $1`,
+		[]any(args)...)
 	if err != nil {
 		return nil, fmt.Errorf("listando reglas de alerta: %w", err)
 	}
@@ -100,12 +104,69 @@ func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
 	if err != nil {
 		return nil, fmt.Errorf("leyendo reglas de alerta: %w", err)
 	}
+	if scope.All() {
+		return rules, nil
+	}
+	if err := s.narrowRules(ctx, scope, rules); err != nil {
+		return nil, err
+	}
 	return rules, nil
 }
 
-// AlertRuleByID devuelve una regla. ErrNotFound si no existe.
-func (s *Store) AlertRuleByID(ctx context.Context, id string) (AlertRule, error) {
-	return alertRuleByID(ctx, s.pool, id, "")
+// AlertRuleByID devuelve una regla. ErrNotFound si no existe o queda fuera del ambito. Con ambito restringido
+// se aplica lo mismo que en ListAlertRules (sin canales, alertas activas solo de sus hosts).
+func (s *Store) AlertRuleByID(ctx context.Context, scope Scope, id string) (AlertRule, error) {
+	r, err := alertRuleByID(ctx, s.pool, id, "")
+	if err != nil {
+		return AlertRule{}, err
+	}
+	if scope.All() {
+		return r, nil
+	}
+	if !scope.sees(r.Scope) {
+		return AlertRule{}, ErrNotFound
+	}
+	rules := []AlertRule{r}
+	if err := s.narrowRules(ctx, scope, rules); err != nil {
+		return AlertRule{}, err
+	}
+	return rules[0], nil
+}
+
+// narrowRules recorta, en su sitio, lo que un ambito restringido no debe ver de las reglas: los canales de
+// notificacion (son de admin) y las alertas activas de hosts ajenos (ActiveAlerts pasa a contar solo las suyas).
+func (s *Store) narrowRules(ctx context.Context, scope Scope, rules []AlertRule) error {
+	ids := make([]string, len(rules))
+	for i := range rules {
+		ids[i] = rules[i].ID
+		rules[i].ChannelIDs = []string{}
+		rules[i].ActiveAlerts = 0
+	}
+	args := argList{ids}
+	rows, err := s.pool.Query(ctx,
+		`SELECT a.rule_id::text, count(*)::int FROM alerts a
+		  WHERE a.state <> 'resolved' AND a.rule_id = ANY($1::uuid[]) AND `+scope.hostCond("a.host_id", &args)+`
+		  GROUP BY a.rule_id`, []any(args)...)
+	if err != nil {
+		return fmt.Errorf("contando alertas activas del ambito: %w", err)
+	}
+	defer rows.Close()
+	counts := map[string]int{}
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return fmt.Errorf("leyendo alertas activas del ambito: %w", err)
+		}
+		counts[id] = n
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterando alertas activas del ambito: %w", err)
+	}
+	for i := range rules {
+		rules[i].ActiveAlerts = counts[rules[i].ID]
+	}
+	return nil
 }
 
 type rowQuerier interface {

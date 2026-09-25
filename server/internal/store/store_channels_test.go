@@ -100,17 +100,17 @@ func TestSetRuleChannels(t *testing.T) {
 	rule := mkRule(t, s, metricRule("cpu", "cpu_pct", "gt", 90, 0))
 	a, b := mkChan(t, s, 1, "a"), mkChan(t, s, 2, "b")
 
-	if got, _ := s.AlertRuleByID(ctx, rule.ID); len(got.ChannelIDs) != 0 || got.ChannelIDs == nil {
+	if got, _ := s.AlertRuleByID(ctx, AllScope(), rule.ID); len(got.ChannelIDs) != 0 || got.ChannelIDs == nil {
 		t.Fatalf("una regla sin canales devuelve lista vacia (no nil): %#v", got.ChannelIDs)
 	}
 	if err := s.SetRuleChannels(ctx, rule.ID, []string{b.ID, a.ID}); err != nil {
 		t.Fatal(err)
 	}
-	got, _ := s.AlertRuleByID(ctx, rule.ID)
+	got, _ := s.AlertRuleByID(ctx, AllScope(), rule.ID)
 	if !slices.Equal(got.ChannelIDs, []string{a.ID, b.ID}) {
 		t.Errorf("ChannelIDs got %v, want [%s %s]", got.ChannelIDs, a.ID, b.ID)
 	}
-	rules, _ := s.ListAlertRules(ctx)
+	rules, _ := s.ListAlertRules(ctx, AllScope())
 	if len(rules) != 1 || len(rules[0].ChannelIDs) != 2 {
 		t.Errorf("ListAlertRules debe traer los canales: %+v", rules)
 	}
@@ -123,7 +123,7 @@ func TestSetRuleChannels(t *testing.T) {
 	if err := s.SetRuleChannels(ctx, rule.ID, []string{b.ID, "00000000-0000-4000-8000-0000000000ff"}); !errors.Is(err, ErrChannelNotFound) {
 		t.Errorf("canal inexistente err got %v, want ErrChannelNotFound", err)
 	}
-	if got, _ := s.AlertRuleByID(ctx, rule.ID); !slices.Equal(got.ChannelIDs, []string{a.ID}) {
+	if got, _ := s.AlertRuleByID(ctx, AllScope(), rule.ID); !slices.Equal(got.ChannelIDs, []string{a.ID}) {
 		t.Errorf("tras el fallo debe quedar [a]: %v", got.ChannelIDs)
 	}
 	if err := s.SetRuleChannels(ctx, "00000000-0000-4000-8000-0000000000ff", nil); !errors.Is(err, ErrNotFound) {
@@ -146,7 +146,7 @@ func TestSetRuleChannels(t *testing.T) {
 	if _, _, err := s.DeleteChannel(ctx, a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.AlertRuleByID(ctx, rule.ID); len(got.ChannelIDs) != 0 {
+	if got, _ := s.AlertRuleByID(ctx, AllScope(), rule.ID); len(got.ChannelIDs) != 0 {
 		t.Errorf("el canal borrado sigue en la regla: %v", got.ChannelIDs)
 	}
 }

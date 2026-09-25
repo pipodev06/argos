@@ -176,7 +176,7 @@ func validateRuleCondition(r *store.AlertRule) error {
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 func (a *API) listAlertRules(w http.ResponseWriter, r *http.Request) error {
-	rules, err := a.store.ListAlertRules(r.Context())
+	rules, err := a.store.ListAlertRules(r.Context(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ func (a *API) getAlertRule(w http.ResponseWriter, r *http.Request) error {
 	if !isUUID(id) {
 		return badRequest("id invalido")
 	}
-	rule, err := a.store.AlertRuleByID(r.Context(), id)
+	rule, err := a.store.AlertRuleByID(r.Context(), currentUser(r).Scope, id)
 	if err != nil {
 		return err
 	}
