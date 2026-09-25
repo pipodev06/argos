@@ -287,16 +287,13 @@ func TestLatestMetricsAndSeriesIncludeNewColumns(t *testing.T) {
 	}
 }
 
-func TestHostByIDIncludesGroupTagsAndInfo(t *testing.T) {
+func TestHostByIDIncludesGroupAndInfo(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	g := mkGroup(t, s, "g", false, nil)
 	seedHost(t, "h", "up", ago(time.Second))
 	id := hostID(t, "h")
 	if _, err := s.SetHostGroup(ctx, id, &g.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.SetHostTags(ctx, id, []string{"prod"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.IngestMetrics(ctx, id, Sample{Timestamp: time.Now(), MemTotalMB: 16000, Info: &HostInfoUpdate{CPUModel: "X", IPs: []netip.Addr{netip.MustParseAddr("::1")}}}); err != nil {
@@ -306,7 +303,7 @@ func TestHostByIDIncludesGroupTagsAndInfo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h.Group == nil || h.Group.Name != "g" || len(h.Tags) != 1 || h.Info.CPUModel == nil || *h.Info.CPUModel != "X" ||
+	if h.Group == nil || h.Group.Name != "g" || h.Info.CPUModel == nil || *h.Info.CPUModel != "X" ||
 		h.Info.MemTotalMB == nil || *h.Info.MemTotalMB != 16000 || len(h.Info.IPs) != 1 || h.Info.OSName != nil {
 		t.Errorf("HostByID got %+v", h)
 	}

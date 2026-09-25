@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -235,85 +236,6 @@ func TestSetHostGroup(t *testing.T) {
 
 func strPtr(s string) *string { return &s }
 
-func manyTags(n int) string {
-	parts := make([]string, n)
-	for i := range n {
-		parts[i] = fmt.Sprintf(`"t%02d"`, i)
-	}
-	return `{"tags":[` + strings.Join(parts, ",") + `]}`
-}
-
-func TestSetHostTags(t *testing.T) {
-	t.Parallel()
-	path := "/api/v1/hosts/" + hostUUID + "/tags"
-	tests := []struct {
-		name       string
-		path, body string
-		storeErr   error
-		wantStatus int
-		wantCode   string
-		wantSent   []string
-	}{
-		{"ok", path, `{"tags":[" prod ","Zona.a-1"]}`, nil, 200, "", []string{"prod", "Zona.a-1"}},
-		{"dedupe sin distinguir mayusculas", path, `{"tags":["Ventas","ventas","VENTAS","web"]}`, nil, 200, "", []string{"Ventas", "web"}},
-		{"acepta espacios y unicode internos", path, `{"tags":["sede lima","ñandú"]}`, nil, 200, "", []string{"sede lima", "ñandú"}},
-		{"vaciar", path, `{"tags":[]}`, nil, 200, "", []string{}},
-		{"20 entran", path, manyTags(20), nil, 200, "", nil},
-		{"21 es 422", path, manyTags(21), nil, 422, "too_many_tags", nil},
-		{"tags ausente", path, `{}`, nil, 400, "invalid_body", nil},
-		{"tags null", path, `{"tags":null}`, nil, 400, "invalid_body", nil},
-		{"vacia", path, `{"tags":["  "]}`, nil, 400, "invalid_tag", nil},
-		{"larga", path, `{"tags":["` + strings.Repeat("x", 33) + `"]}`, nil, 400, "invalid_tag", nil},
-		{"32 caben", path, `{"tags":["` + strings.Repeat("x", 32) + `"]}`, nil, 200, "", nil},
-		{"con control", path, `{"tags":["x\ty"]}`, nil, 400, "invalid_tag", nil},
-		{"con bidi", path, `{"tags":["x\u202ey"]}`, nil, 400, "invalid_tag", nil},
-		{"formato viejo", path, `{"labels":[]}`, nil, 400, "invalid_body", nil},
-		{"campo desconocido", path, `{"tags":[],"x":1}`, nil, 400, "invalid_body", nil},
-		{"host id invalido", "/api/v1/hosts/x/tags", `{"tags":[]}`, nil, 400, "invalid_id", nil},
-		{"host inexistente", path, `{"tags":[]}`, store.ErrNotFound, 404, "not_found", nil},
-		{"el trigger tambien es 422", path, `{"tags":["a"]}`, store.ErrTooManyTags, 422, "too_many_tags", nil},
-		{"error de db", path, `{"tags":[]}`, errors.New("boom"), 500, "internal_error", nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			fs := &fakeStore{x: fakeExtra{err: tt.storeErr, savedTags: []string{"prod"}}}
-			h, _ := newTestAPI(t, fs)
-			rec, resp := do(t, h, "PUT", tt.path, "", tt.body, asSession)
-			if tt.wantCode != "" {
-				wantError(t, rec, resp, tt.wantStatus, tt.wantCode)
-				return
-			}
-			if rec.Code != 200 {
-				t.Fatalf("status %d (%s)", rec.Code, rec.Body.String())
-			}
-			if tt.wantSent != nil && !slices.Equal(fs.x.gotTags, tt.wantSent) {
-				t.Errorf("etiquetas al store got %+v, want %+v", fs.x.gotTags, tt.wantSent)
-			}
-			wantKeys(t, "respuesta", dataMap(t, resp), "tags")
-			// Solo se audita la cantidad.
-			if len(fs.audits) != 1 || fs.audits[0].Event != "host_tags_set" || strings.Contains(string(fs.audits[0].Detail), "prod") {
-				t.Errorf("auditoria got %+v", fs.audits)
-			}
-		})
-	}
-}
-
-func TestListTags(t *testing.T) {
-	t.Parallel()
-	fs := viewerStore(&fakeStore{x: fakeExtra{tagCounts: []store.TagCount{{Name: "prod", Count: 3}, {Name: "dev", Count: 1}}}})
-	h, _ := newTestAPI(t, fs)
-	rec, resp := do(t, h, "GET", "/api/v1/tags", "", "", asSession)
-	if rec.Code != 200 || !strings.Contains(string(resp.Data), `{"tags":[{"name":"prod","count":3},{"name":"dev","count":1}]}`) {
-		t.Errorf("respuesta got %d %s", rec.Code, resp.Data)
-	}
-	h, _ = newTestAPI(t, &fakeStore{})
-	_, resp = do(t, h, "GET", "/api/v1/tags", "", "", asSession)
-	if string(resp.Data) != `{"tags":[]}` {
-		t.Errorf("vacio got %s, want tags:[]", resp.Data)
-	}
-}
-
 func TestBulkHosts(t *testing.T) {
 	t.Parallel()
 	ids := func(n int) string {
@@ -343,18 +265,10 @@ func TestBulkHosts(t *testing.T) {
 			}
 		}},
 		{"set_group sin group_id", `{"ids":[` + one + `],"action":"set_group"}`, nil, 400, "invalid_body", nil},
-		{"set_group con key", `{"ids":[` + one + `],"action":"set_group","group_id":null,"tag":"a"}`, nil, 400, "invalid_body", nil},
-		{"add_tag", `{"ids":[` + one + `],"action":"add_tag","tag":" prod "}`, nil, 200, "", func(t *testing.T, b store.Bulk) {
-			if b.Tag != "prod" || b.Action != store.BulkAddTag {
-				t.Errorf("bulk got %+v", b)
-			}
-		}},
-		{"add_tag sin tag", `{"ids":[` + one + `],"action":"add_tag"}`, nil, 400, "invalid_body", nil},
-		{"add_tag invalida", `{"ids":[` + one + `],"action":"add_tag","tag":" "}`, nil, 400, "invalid_tag", nil},
-		{"add_tag con group_id", `{"ids":[` + one + `],"action":"add_tag","tag":"x","group_id":null}`, nil, 400, "invalid_body", nil},
-		{"remove_tag", `{"ids":[` + one + `],"action":"remove_tag","tag":"env"}`, nil, 200, "", nil},
-		{"remove_tag sin tag", `{"ids":[` + one + `],"action":"remove_tag"}`, nil, 400, "invalid_body", nil},
-		{"add_label ya no existe", `{"ids":[` + one + `],"action":"add_label","tag":"x"}`, nil, 400, "invalid_body", nil},
+		{"tag ya no existe en el body", `{"ids":[` + one + `],"action":"set_group","group_id":null,"tag":"a"}`, nil, 400, "invalid_body", nil},
+		{"add_tag ya no existe", `{"ids":[` + one + `],"action":"add_tag","tag":"x"}`, nil, 400, "invalid_body", nil},
+		{"remove_tag ya no existe", `{"ids":[` + one + `],"action":"remove_tag","tag":"x"}`, nil, 400, "invalid_body", nil},
+		{"disable con group_id", `{"ids":[` + one + `],"action":"disable","group_id":null}`, nil, 400, "invalid_body", nil},
 		{"disable", `{"ids":[` + one + `],"action":"disable"}`, nil, 200, "", nil},
 		{"disable con extras", `{"ids":[` + one + `],"action":"disable","tag":"x"}`, nil, 400, "invalid_body", nil},
 		{"accion desconocida", `{"ids":[` + one + `],"action":"borrar"}`, nil, 400, "invalid_body", nil},
@@ -375,7 +289,6 @@ func TestBulkHosts(t *testing.T) {
 		{"campo desconocido", `{"ids":[` + one + `],"action":"disable","x":1}`, nil, 400, "invalid_body", nil},
 		{"host inexistente", `{"ids":[` + one + `],"action":"disable"}`, store.ErrUnknownHosts, 422, "unknown_hosts", nil},
 		{"grupo inexistente", `{"ids":[` + one + `],"action":"set_group","group_id":"` + groupUUID + `"}`, store.ErrGroupNotFound, 422, "group_not_found", nil},
-		{"limite de etiquetas", `{"ids":[` + one + `],"action":"add_tag","tag":"a"}`, store.ErrTooManyTags, 422, "too_many_tags", nil},
 		{"error de db", `{"ids":[` + one + `],"action":"disable"}`, errors.New("boom"), 500, "internal_error", nil},
 	}
 	for _, tt := range tests {
@@ -445,7 +358,7 @@ func TestEnrollTokenWithGroup(t *testing.T) {
 // Lectura: viewer y admin; escritura: solo admin (403 con viewer, 401 sin sesion).
 func TestNewRoutesRoles(t *testing.T) {
 	t.Parallel()
-	reads := []string{"/api/v1/groups", "/api/v1/tags", "/api/v1/summary", "/api/v1/hosts"}
+	reads := []string{"/api/v1/groups", "/api/v1/summary", "/api/v1/hosts"}
 	for _, p := range reads {
 		t.Run("lectura "+p, func(t *testing.T) {
 			t.Parallel()
@@ -462,7 +375,6 @@ func TestNewRoutesRoles(t *testing.T) {
 		{"PATCH", "/api/v1/groups/" + groupUUID, `{"name":"x"}`},
 		{"DELETE", "/api/v1/groups/" + groupUUID, ``},
 		{"PUT", "/api/v1/hosts/" + hostUUID + "/group", `{"group_id":null}`},
-		{"PUT", "/api/v1/hosts/" + hostUUID + "/tags", `{"tags":[]}`},
 		{"POST", "/api/v1/hosts/bulk", `{"ids":["` + hostUUID + `"],"action":"disable"}`},
 	}
 	for _, w := range writes {
@@ -474,8 +386,32 @@ func TestNewRoutesRoles(t *testing.T) {
 			wantError(t, rec, resp, http.StatusForbidden, "forbidden")
 			rec, resp = do(t, h, w.method, w.path, "", w.body)
 			wantError(t, rec, resp, http.StatusUnauthorized, "unauthenticated")
-			if fs.x.gotBulk.Action != "" || fs.x.deleted != "" || fs.x.gotTags != nil {
+			if fs.x.gotBulk.Action != "" || fs.x.deleted != "" {
 				t.Errorf("el store no debe recibir nada de un viewer / sin sesion")
+			}
+		})
+	}
+}
+
+// Las rutas de etiquetas ya no existen (404), no quedan como rutas medio vivas.
+func TestTagRoutesRemoved(t *testing.T) {
+	t.Parallel()
+	routes := []struct{ method, path, body string }{
+		{"GET", "/api/v1/tags", ""},
+		{"PUT", "/api/v1/hosts/" + hostUUID + "/tags", `{"tags":[]}`},
+	}
+	for _, r := range routes {
+		t.Run(r.method+" "+r.path, func(t *testing.T) {
+			t.Parallel()
+			h, _ := newTestAPI(t, &fakeStore{})
+			req := httptest.NewRequest(r.method, r.path, strings.NewReader(r.body))
+			req.Host = "localhost:8080"
+			req.Header.Set("Content-Type", "application/json")
+			asSession(req)
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("got %d, want 404 (ruta eliminada)", rec.Code)
 			}
 		})
 	}

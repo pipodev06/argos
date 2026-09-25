@@ -5,7 +5,6 @@ import { formatLastSeen } from '../utils/format'
 import { formatOs } from '../utils/os'
 import { hostStatusDetail } from '../utils/status'
 import { HostStatusBadge } from './HostStatusBadge'
-import { TagChips } from './TagChips'
 
 interface HostHeaderProps {
   host: HostDetail
@@ -31,7 +30,6 @@ export function HostHeader({ host, ip, canEdit, onEdit }: HostHeaderProps) {
         )}
       </div>
       <p className="text-sm text-text-muted tabular-nums">{line}</p>
-      <TagChips tags={host.tags} />
       {(host.status === 'down' || host.status === 'offline') && (
         <p className="text-sm">{hostStatusDetail(host.status, host.last_seen_at)}</p>
       )}

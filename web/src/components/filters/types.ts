@@ -23,7 +23,7 @@ export interface SearchField extends FieldBase {
   maxLength?: number
 }
 
-/** Checkboxes (OR dentro del campo; el consumidor decide la semantica, p. ej. AND en etiquetas). Opciones estaticas (`options`, orden canonico y valores validos) o cargadas (`useOptions`). */
+/** Checkboxes (OR dentro del campo; el consumidor decide la semantica). Opciones estaticas (`options`, orden canonico y valores validos) o cargadas (`useOptions`). */
 export interface MultiField extends FieldBase {
   kind: 'multi'
   /** Plural para el resumen "N <plural>". */

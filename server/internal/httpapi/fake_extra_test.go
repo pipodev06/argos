@@ -31,10 +31,6 @@ type fakeExtra struct {
 	gotHostID string
 	gotGroup  *string
 
-	savedTags []string
-	gotTags   []string
-	tagCounts []store.TagCount
-
 	affected int
 	gotBulk  store.Bulk
 
@@ -89,17 +85,6 @@ func (f *fakeStore) SetHostGroup(_ context.Context, hostID string, groupID *stri
 	defer f.mu.Unlock()
 	f.x.gotHostID, f.x.gotGroup = hostID, groupID
 	return f.x.hostGroup, f.x.err
-}
-
-func (f *fakeStore) SetHostTags(_ context.Context, _ string, tags []string) ([]string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.x.gotTags = tags
-	return f.x.savedTags, f.x.err
-}
-
-func (f *fakeStore) ListTags(context.Context) ([]store.TagCount, error) {
-	return f.x.tagCounts, f.x.err
 }
 
 func (f *fakeStore) BulkHosts(_ context.Context, b store.Bulk) (int, error) {

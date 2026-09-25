@@ -685,9 +685,6 @@ func checkAuditDetail(d store.ServiceCheckDef, fields []string) map[string]any {
 	if d.Scope.GroupID != nil {
 		m["group_id"] = *d.Scope.GroupID
 	}
-	if d.Scope.Tag != nil {
-		m["tag"] = *d.Scope.Tag
-	}
 	if fields != nil {
 		m["fields"] = fields
 	}

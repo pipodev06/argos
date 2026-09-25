@@ -53,8 +53,6 @@ export function BulkBar({ ids, onClear, onDone }: BulkBarProps) {
         {ids.length} {ids.length === 1 ? 'seleccionado' : 'seleccionados'}
       </span>
       <Button variant="outline" size="sm" onClick={() => setMode('set_group')}>Asignar grupo</Button>
-      <Button variant="outline" size="sm" onClick={() => setMode('add_tag')}>Agregar etiqueta</Button>
-      <Button variant="outline" size="sm" onClick={() => setMode('remove_tag')}>Quitar etiqueta</Button>
       <Button variant="outline" size="sm" onClick={() => setConfirmDisable(true)}>Deshabilitar</Button>
       <Button variant="ghost" size="icon-sm" aria-label="Quitar selección" className="ml-auto" onClick={onClear}>
         <IconX stroke={1.5} aria-hidden />

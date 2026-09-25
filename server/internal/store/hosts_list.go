@@ -62,7 +62,6 @@ type HostFilter struct {
 	Statuses []string // vacio = todos
 	GroupIDs []string // vacio y !NoGroup = cualquier grupo; varios se combinan con OR
 	NoGroup  bool     // incluye los hosts sin grupo (OR con GroupIDs)
-	Tags     []string // el host debe tener todas (AND, sin distinguir mayusculas)
 	OSes     []string // vacio = cualquiera; varios con OR (sin distinguir mayusculas)
 
 	// Filtros de metricas (nil = sin filtro). Un host sin el dato no los cumple. Quien llama valida rangos.
@@ -98,7 +97,6 @@ type HostRow struct {
 	BootTime        *time.Time
 	BatteryPct      *int
 	BatteryCharging *bool
-	Tags            []string
 }
 
 // HostPage es una pagina de la lista: Total cuenta todos los hosts que cumplen los filtros (no solo la pagina).
@@ -106,11 +104,6 @@ type HostPage struct {
 	Items      []HostRow
 	NextCursor *HostCursor // nil = era la ultima pagina
 	Total      int
-}
-
-// querier es lo que comparten el pool y las transacciones pa leer.
-type querier interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
 // argList acumula parametros y devuelve el marcador $n de cada uno.
@@ -160,10 +153,6 @@ func (s *Store) ListHosts(ctx context.Context, f HostFilter) (HostPage, error) {
 	}
 	if len(f.OSes) > 0 {
 		where = append(where, fmt.Sprintf(`lower(h.os) = ANY(%s::text[])`, args.add(lowerAll(f.OSes))))
-	}
-	for _, t := range f.Tags {
-		where = append(where, fmt.Sprintf(
-			`EXISTS (SELECT 1 FROM host_tags x WHERE x.host_id = h.id AND lower(x.tag) = %s)`, args.add(strings.ToLower(t))))
 	}
 	if f.CPUGt != nil {
 		where = append(where, fmt.Sprintf(`l.cpu_pct::float8 > %s::float8`, args.add(*f.CPUGt)))
@@ -266,41 +255,7 @@ SELECT id, hostname, status, status_changed_at, last_seen_at, group_id, group_na
 		page.Items = []HostRow{}
 		return page, nil
 	}
-
-	ids := make([]string, len(page.Items))
-	for i, h := range page.Items {
-		ids[i] = h.ID
-	}
-	tags, err := tagsByHost(ctx, s.pool, ids)
-	if err != nil {
-		return HostPage{}, err
-	}
-	for i := range page.Items {
-		page.Items[i].Tags = tags[page.Items[i].ID]
-	}
 	return page, nil
-}
-
-// tagsByHost carga las etiquetas de varios hosts en una sola consulta, en orden alfabetico sin distinguir mayusculas.
-func tagsByHost(ctx context.Context, q querier, ids []string) (map[string][]string, error) {
-	rows, err := q.Query(ctx, `SELECT host_id, tag FROM host_tags WHERE host_id = ANY($1) ORDER BY host_id, lower(tag), tag`, ids)
-	if err != nil {
-		return nil, fmt.Errorf("leyendo etiquetas: %w", err)
-	}
-	defer rows.Close()
-
-	out := make(map[string][]string)
-	for rows.Next() {
-		var id, tag string
-		if err := rows.Scan(&id, &tag); err != nil {
-			return nil, fmt.Errorf("leyendo etiqueta: %w", err)
-		}
-		out[id] = append(out[id], tag)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterando etiquetas: %w", err)
-	}
-	return out, nil
 }
 
 // HostInfo es la info estatica del host (host_info) mas la memoria total del ultimo reporte. Todo es
@@ -329,7 +284,6 @@ type HostDetail struct {
 	StatusChangedAt time.Time
 	CreatedAt       time.Time
 	Group           *GroupRef
-	Tags            []string
 	Info            HostInfo
 }
 
@@ -360,11 +314,6 @@ func (s *Store) HostByID(ctx context.Context, hostID string) (HostDetail, error)
 	if groupID != nil && groupName != nil {
 		h.Group = &GroupRef{ID: *groupID, Name: *groupName}
 	}
-	tags, err := tagsByHost(ctx, s.pool, []string{hostID})
-	if err != nil {
-		return HostDetail{}, err
-	}
-	h.Tags = tags[hostID]
 	return h, nil
 }
 

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,8 +34,7 @@ type listPage struct {
 		Group    *struct {
 			Name string `json:"name"`
 		} `json:"group"`
-		Tags []string `json:"tags"`
-		IP   *string  `json:"ip"`
+		IP   *string `json:"ip"`
 		Disk *struct {
 			Pct   float64 `json:"pct"`
 			Mount string  `json:"mount"`
@@ -84,7 +82,6 @@ func TestFleetManagementEndToEnd(t *testing.T) {
 
 	// Un host creado sin grupo queda sin grupo; luego se asigna.
 	e.wantStatus(e.do("PUT", "/api/v1/hosts/"+lap+"/group", `{"group_id":"`+laptops+`"}`, withCookie(admin)), http.StatusOK, "")
-	e.wantStatus(e.do("PUT", "/api/v1/hosts/"+lap+"/tags", `{"tags":["dev"]}`, withCookie(admin)), http.StatusOK, "")
 
 	// Ingest con el payload NUEVO del agente.
 	body := `{"timestamp":` + strconv.FormatInt(e.clock.Now().Unix(), 10) + `,"metrics":{"cpu_pct":91.5,"mem_used_mb":8000,"mem_total_mb":16000,` +
@@ -140,8 +137,9 @@ func TestFleetManagementEndToEnd(t *testing.T) {
 		p.Items[1].Disk == nil || p.Items[1].Disk.Mount != "/data" || p.Items[1].Disk.Pct != 90 {
 		t.Errorf("srv-01 got %+v", p.Items[1])
 	}
-	if got := e.list(viewer, "tag=DEV"); got.Total != 1 || got.Items[0].Hostname != "lap-01" || len(got.Items[0].Tags) != 1 {
-		t.Errorf("filtro por etiqueta got %+v", got)
+	// tag= (etiquetas eliminadas) se ignora: no filtra ni falla.
+	if got := e.list(viewer, "tag=DEV"); got.Total != 2 {
+		t.Errorf("tag= debe ignorarse, got %+v", got)
 	}
 	if got := e.list(viewer, "group="+servers); got.Total != 1 || got.Items[0].Hostname != "srv-01" {
 		t.Errorf("filtro por grupo got %+v", got)
@@ -196,22 +194,17 @@ func TestFleetManagementEndToEnd(t *testing.T) {
 	}
 	e.wantStatus(e.do("DELETE", "/api/v1/groups/"+laptops, "", withCookie(admin)), http.StatusConflict, "group_not_empty")
 
-	// Bulk: mover ambos a "sin grupo", etiquetar y luego borrar el grupo vacio.
+	// Bulk: mover ambos a "sin grupo" y luego borrar el grupo vacio.
 	ids := fmt.Sprintf(`["%s","%s"]`, srv, lap)
 	e.wantStatus(e.do("POST", "/api/v1/hosts/bulk", `{"ids":`+ids+`,"action":"set_group","group_id":null}`, withCookie(admin)), http.StatusOK, "")
-	e.wantStatus(e.do("POST", "/api/v1/hosts/bulk", `{"ids":`+ids+`,"action":"add_tag","tag":"web"}`, withCookie(admin)), http.StatusOK, "")
 	e.wantStatus(e.do("DELETE", "/api/v1/groups/"+laptops, "", withCookie(admin)), http.StatusOK, "")
-	rec = e.do("GET", "/api/v1/tags", "", withCookie(viewer))
-	if !strings.Contains(rec.Body.String(), `"name":"web","count":2`) {
-		t.Errorf("tags got %s", rec.Body.String())
-	}
 	if got := e.list(viewer, "status=offline&group=none"); got.Total != 2 {
 		t.Errorf("sin grupo y offline got %d, want 2 (down sin always_on se reclasifica)", got.Total)
 	}
 
 	// Un viewer no puede escribir; todo lo escrito quedo auditado.
 	e.wantStatus(e.do("POST", "/api/v1/hosts/bulk", `{"ids":`+ids+`,"action":"disable"}`, withCookie(viewer)), http.StatusForbidden, "forbidden")
-	for _, ev := range []string{"group_created", "group_updated", "group_deleted", "host_group_set", "host_tags_set", "hosts_bulk"} {
+	for _, ev := range []string{"group_created", "group_updated", "group_deleted", "host_group_set", "hosts_bulk"} {
 		if e.count(`SELECT count(*) FROM audit_log WHERE event = $1`, ev) == 0 {
 			t.Errorf("falta el evento de auditoria %s", ev)
 		}
@@ -226,8 +219,6 @@ func TestNewRoutesRequireSessionAndRole(t *testing.T) {
 	for _, rt := range []struct{ method, path, body string }{
 		{"POST", "/api/v1/groups", `{"name":"x"}`},
 		{"PUT", "/api/v1/hosts/" + anyUUID + "/group", `{"group_id":null}`},
-		{"PUT", "/api/v1/hosts/" + anyUUID + "/tags", `{"tags":[]}`},
-		{"POST", "/api/v1/hosts/bulk", `{"ids":["` + anyUUID + `"],"action":"add_tag","tag":"x"}`},
 		{"POST", "/api/v1/hosts/bulk", `{"ids":["` + anyUUID + `"],"action":"disable"}`},
 	} {
 		e.wantStatus(e.do(rt.method, rt.path, rt.body), http.StatusUnauthorized, "unauthenticated")
@@ -238,46 +229,29 @@ func TestNewRoutesRequireSessionAndRole(t *testing.T) {
 	}
 }
 
-func TestTagFilterANDWithTotalAndCursorEndToEnd(t *testing.T) {
+func TestGroupFilterWithTotalAndCursorEndToEnd(t *testing.T) {
 	e := newEnv(t, Options{})
 	admin := e.adminCookie()
 	e.newUser("viewer", pwViewer, store.RoleViewer, false)
 	viewer := e.login("viewer", pwViewer)
 
-	// a, b y c tienen "prod"; solo a y b tienen tambien "lima"; d solo "lima".
-	tags := map[string]string{"h-a": `["Prod","lima"]`, "h-b": `["prod","LIMA"]`, "h-c": `["prod"]`, "h-d": `["lima"]`}
-	for name, body := range tags {
+	// a y b en el grupo; c sin grupo.
+	g := e.newGroup(admin, `{"name":"prod"}`)
+	for _, name := range []string{"h-a", "h-b", "h-c"} {
 		id, _, _ := e.enrollHost(admin, name)
-		e.wantStatus(e.do("PUT", "/api/v1/hosts/"+id+"/tags", `{"tags":`+body+`}`, withCookie(admin)), http.StatusOK, "")
+		if name != "h-c" {
+			e.wantStatus(e.do("PUT", "/api/v1/hosts/"+id+"/group", `{"group_id":"`+g+`"}`, withCookie(admin)), http.StatusOK, "")
+		}
 	}
-
-	// La grafia se canonicaliza: "prod" de h-b se guarda como la ya existente en otro host.
-	if got := e.list(viewer, "tag=prod&sort=name&dir=asc"); got.Total != 3 {
-		t.Errorf("tag=prod total got %d, want 3", got.Total)
-	}
-	p1 := e.list(viewer, "tag=prod&tag=LIMA&sort=name&dir=asc&limit=1")
+	p1 := e.list(viewer, "group="+g+"&sort=name&dir=asc&limit=1")
 	if p1.Total != 2 || len(p1.Items) != 1 || p1.Items[0].Hostname != "h-a" || p1.NextCursor == nil {
 		t.Fatalf("pagina 1 got %+v", p1)
 	}
-	p2 := e.list(viewer, "tag=prod&tag=LIMA&sort=name&dir=asc&limit=1&cursor="+*p1.NextCursor)
+	p2 := e.list(viewer, "group="+g+"&sort=name&dir=asc&limit=1&cursor="+*p1.NextCursor)
 	if p2.Total != 2 || len(p2.Items) != 1 || p2.Items[0].Hostname != "h-b" || p2.NextCursor != nil {
 		t.Errorf("pagina 2 got %+v", p2)
 	}
-	// El cursor de un filtro no sirve con otro conjunto de etiquetas.
-	rec := e.do("GET", "/api/v1/hosts?tag=prod&sort=name&dir=asc&limit=1&cursor="+*p1.NextCursor, "", withCookie(viewer))
+	// El cursor de un filtro no sirve con otro.
+	rec := e.do("GET", "/api/v1/hosts?group=none&sort=name&dir=asc&limit=1&cursor="+*p1.NextCursor, "", withCookie(viewer))
 	e.wantStatus(rec, http.StatusBadRequest, "invalid_cursor")
-
-	rec = e.do("GET", "/api/v1/tags", "", withCookie(viewer))
-	e.wantStatus(rec, http.StatusOK, "")
-	var out struct {
-		Tags []struct {
-			Name  string `json:"name"`
-			Count int    `json:"count"`
-		} `json:"tags"`
-	}
-	e.dataAs(rec, &out)
-	if len(out.Tags) != 2 || out.Tags[0].Count != 3 || out.Tags[1].Count != 3 {
-		// prod: a, b, c (3); lima: a, b, d (3). Empatan y salen por nombre.
-		t.Errorf("/tags got %+v, want prod y lima con 3", out.Tags)
-	}
 }

@@ -74,7 +74,7 @@ type ServiceCheckDef struct {
 const checkDefSelect = `
 SELECT d.id, d.name, d.type, d.interval_seconds, d.timeout_ms, d.retries, d.target_host, d.target_port, d.url,
        d.expect_status, d.expect_text, d.service_name, d.warn_ms, d.crit_ms, d.warn_days, d.crit_days,
-       d.header_name, d.secret_enc, d.secret_key_id, d.scope_type, d.scope_group_id, d.scope_tag, g.name,
+       d.header_name, d.secret_enc, d.secret_key_id, d.scope_type, d.scope_group_id, g.name,
        d.enabled, d.created_at, d.updated_at
   FROM service_check_defs d LEFT JOIN host_groups g ON g.id = d.scope_group_id`
 
@@ -82,15 +82,14 @@ func scanCheckDef(row pgx.Row) (ServiceCheckDef, error) {
 	var d ServiceCheckDef
 	err := row.Scan(&d.ID, &d.Name, &d.Type, &d.IntervalSeconds, &d.TimeoutMs, &d.Retries, &d.TargetHost, &d.TargetPort,
 		&d.URL, &d.ExpectStatus, &d.ExpectText, &d.ServiceName, &d.WarnMs, &d.CritMs, &d.WarnDays, &d.CritDays,
-		&d.HeaderName, &d.SecretEnc, &d.SecretKeyID, &d.Scope.Type, &d.Scope.GroupID, &d.Scope.Tag, &d.GroupName,
+		&d.HeaderName, &d.SecretEnc, &d.SecretKeyID, &d.Scope.Type, &d.Scope.GroupID, &d.GroupName,
 		&d.Enabled, &d.CreatedAt, &d.UpdatedAt)
 	return d, err
 }
 
 // hostInScopeSQL es verdadero si el host h (alias) entra en el alcance del chequeo d (alias).
 const hostInScopeSQL = `(d.scope_type = 'all'
-  OR (d.scope_type = 'group' AND d.scope_group_id = h.group_id)
-  OR (d.scope_type = 'tag' AND EXISTS (SELECT 1 FROM host_tags t WHERE t.host_id = h.id AND lower(t.tag) = lower(d.scope_tag))))`
+  OR (d.scope_type = 'group' AND d.scope_group_id = h.group_id))`
 
 // ListServiceChecks devuelve las definiciones por nombre (tope MaxServiceChecks).
 func (s *Store) ListServiceChecks(ctx context.Context) ([]ServiceCheckDef, error) {
@@ -149,12 +148,12 @@ func (s *Store) CreateServiceCheck(ctx context.Context, d ServiceCheckDef, creat
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO service_check_defs (id, name, type, interval_seconds, timeout_ms, retries, target_host, target_port,
 			        url, expect_status, expect_text, service_name, warn_ms, crit_ms, warn_days, crit_days, header_name,
-			        secret_enc, secret_key_id, scope_type, scope_group_id, scope_tag, enabled, created_by)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-			         $23, NULLIF($24, '')::uuid)`,
+			        secret_enc, secret_key_id, scope_type, scope_group_id, enabled, created_by)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
+			         $22, NULLIF($23, '')::uuid)`,
 			d.ID, d.Name, d.Type, d.IntervalSeconds, d.TimeoutMs, d.Retries, d.TargetHost, d.TargetPort,
 			d.URL, d.ExpectStatus, d.ExpectText, d.ServiceName, d.WarnMs, d.CritMs, d.WarnDays, d.CritDays, d.HeaderName,
-			d.SecretEnc, d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Scope.Tag, d.Enabled, createdBy); err != nil {
+			d.SecretEnc, d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Enabled, createdBy); err != nil {
 			return mapCheckErr(err, "insertando chequeo")
 		}
 		var err error
@@ -184,11 +183,11 @@ func (s *Store) UpdateServiceCheck(ctx context.Context, id string, mutate func(*
 			        target_host = $6, target_port = $7, url = $8, expect_status = $9, expect_text = $10,
 			        service_name = $11, warn_ms = $12, crit_ms = $13, warn_days = $14, crit_days = $15,
 			        header_name = $16, secret_enc = $17, secret_key_id = $18, scope_type = $19, scope_group_id = $20,
-			        scope_tag = $21, enabled = $22, updated_at = now()
+			        enabled = $21, updated_at = now()
 			  WHERE id = $1`,
 			id, d.Name, d.IntervalSeconds, d.TimeoutMs, d.Retries, d.TargetHost, d.TargetPort, d.URL, d.ExpectStatus,
 			d.ExpectText, d.ServiceName, d.WarnMs, d.CritMs, d.WarnDays, d.CritDays, d.HeaderName, d.SecretEnc,
-			d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Scope.Tag, d.Enabled); err != nil {
+			d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Enabled); err != nil {
 			return mapCheckErr(err, "actualizando chequeo")
 		}
 		out, err = checkDefByID(ctx, tx, id, "")

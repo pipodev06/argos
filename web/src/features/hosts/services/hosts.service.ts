@@ -7,7 +7,6 @@ import type {
   HostListResponse,
   HostMetrics,
   MetricRange,
-  TagCount,
 } from '../types/host.types'
 
 export function listHosts(query: URLSearchParams, signal?: AbortSignal): Promise<HostListResponse> {
@@ -42,18 +41,8 @@ export function setHostGroup(id: string, groupId: string | null) {
   })
 }
 
-export function setHostTags(id: string, tags: string[]) {
-  return apiRequest<{ tags: string[] }>(`/hosts/${encodeURIComponent(id)}/tags`, {
-    method: 'PUT',
-    body: { tags },
-  })
-}
 
 export function bulkHosts(request: BulkRequest) {
   return apiRequest<{ affected: number }>('/hosts/bulk', { method: 'POST', body: request })
 }
 
-export async function listTags(signal?: AbortSignal): Promise<TagCount[]> {
-  const data = await apiRequest<{ tags: TagCount[] }>('/tags', { signal })
-  return data.tags
-}

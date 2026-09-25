@@ -64,7 +64,6 @@ export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggl
             <SortableHead id="mem" label="Mem" {...sortProps} className="hidden md:table-cell" />
             <SortableHead id="disk" label="Disco (uso)" {...sortProps} className="hidden md:table-cell" />
             {show('ip') && <HeadCell className="hidden md:table-cell">IP</HeadCell>}
-            {show('tags') && <HeadCell className="hidden md:table-cell">Etiquetas</HeadCell>}
             {show('uptime') && <HeadCell className="hidden md:table-cell">Uptime</HeadCell>}
             {show('battery') && <HeadCell className="hidden md:table-cell">Batería</HeadCell>}
             <SortableHead id="last_seen" label="Visto" {...sortProps} />
@@ -115,11 +114,6 @@ export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggl
                     </Cell>
                     {show('ip') && (
                       <Cell className="hidden md:table-cell">{h.ip ?? '—'}</Cell>
-                    )}
-                    {show('tags') && (
-                      <Cell className="hidden max-w-56 truncate text-xs md:table-cell">
-                        {h.tags.length > 0 ? h.tags.join(', ') : '—'}
-                      </Cell>
                     )}
                     {show('uptime') && (
                       <Cell className="hidden text-center tabular-nums md:table-cell">

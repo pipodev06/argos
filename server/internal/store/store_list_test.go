@@ -21,16 +21,15 @@ func seedFleet(t *testing.T, s *Store) {
 		memUsed, memTot  int
 		disk             *float64
 		ago              time.Duration
-		tags             []string
 	}{
-		{"alpha", "up", "linux", servers.ID, f64(90), 8000, 16000, f64(50), 5 * time.Second, []string{"prod", "Lima"}},
-		{"bravo", "down", "linux", servers.ID, f64(10), 1000, 16000, f64(97), time.Hour, []string{"prod"}},
-		{"Charlie", "up", "windows", laptops.ID, f64(40), 12000, 16000, nil, 10 * time.Second, []string{"dev", "lima"}},
-		{"delta", "offline", "windows", laptops.ID, nil, 0, 0, nil, 2 * time.Hour, nil},
-		{"echo", "pending", "", "", nil, 0, 0, nil, 0, nil},
-		{"foxtrot", "disabled", "linux", "", f64(5), 100, 1000, f64(10), 3 * time.Hour, nil},
-		{"dup", "up", "darwin", "", f64(40), 4000, 16000, f64(50), 20 * time.Second, nil},
-		{"dup~", "up", "darwin", "", f64(40), 4000, 16000, f64(50), 30 * time.Second, nil},
+		{"alpha", "up", "linux", servers.ID, f64(90), 8000, 16000, f64(50), 5 * time.Second},
+		{"bravo", "down", "linux", servers.ID, f64(10), 1000, 16000, f64(97), time.Hour},
+		{"Charlie", "up", "windows", laptops.ID, f64(40), 12000, 16000, nil, 10 * time.Second},
+		{"delta", "offline", "windows", laptops.ID, nil, 0, 0, nil, 2 * time.Hour},
+		{"echo", "pending", "", "", nil, 0, 0, nil, 0},
+		{"foxtrot", "disabled", "linux", "", f64(5), 100, 1000, f64(10), 3 * time.Hour},
+		{"dup", "up", "darwin", "", f64(40), 4000, 16000, f64(50), 20 * time.Second},
+		{"dup~", "up", "darwin", "", f64(40), 4000, 16000, f64(50), 30 * time.Second},
 	}
 	for _, r := range rows {
 		var lastSeen *time.Duration
@@ -41,9 +40,6 @@ func seedFleet(t *testing.T, s *Store) {
 		mustExec(t, `UPDATE hosts SET os = NULLIF($2, '') WHERE agent_token_hash = $1`, "hash-"+r.name, r.os)
 		if r.group != "" {
 			mustExec(t, `UPDATE hosts SET group_id = $2 WHERE agent_token_hash = $1`, "hash-"+r.name, r.group)
-		}
-		for _, tag := range r.tags {
-			mustExec(t, `INSERT INTO host_tags (host_id, tag) SELECT id, $2 FROM hosts WHERE agent_token_hash = $1`, "hash-"+r.name, tag)
 		}
 		if r.cpu != nil {
 			var diskMount *string
@@ -106,9 +102,6 @@ func TestListHostsFilters(t *testing.T) {
 		{"grupo o none, os, estado y q", HostFilter{GroupIDs: []string{serversID}, NoGroup: true, OSes: []string{"linux", "darwin"},
 			Statuses: []string{"up", "disabled"}, Q: "a"}, []string{"alpha"}},
 		{"grupo o none con filtro numerico", HostFilter{GroupIDs: []string{groupID}, NoGroup: true, CPUGt: f64(30)}, []string{"Charlie", "dup", "dup"}},
-		{"una etiqueta", HostFilter{Tags: []string{"prod"}}, []string{"alpha", "bravo"}},
-		{"etiquetas AND sin mayusculas", HostFilter{Tags: []string{"PROD", "lima"}}, []string{"alpha"}},
-		{"etiqueta inexistente", HostFilter{Tags: []string{"nope"}}, nil},
 		{"combinado", HostFilter{Statuses: []string{"up"}, NoGroup: true, OSes: []string{"darwin"}, Q: "du"}, []string{"dup", "dup"}},
 	}
 	for _, tt := range tests {
@@ -195,7 +188,7 @@ func TestListHostsSortsAndKeysetPagination(t *testing.T) {
 	}
 }
 
-func TestListHostsRowContentAndTags(t *testing.T) {
+func TestListHostsRowContent(t *testing.T) {
 	s := newTestStore(t)
 	seedFleet(t, s)
 	ctx := context.Background()
@@ -208,8 +201,8 @@ func TestListHostsRowContentAndTags(t *testing.T) {
 		t.Fatalf("got (%+v, %v)", page, err)
 	}
 	h := page.Items[0]
-	if h.Group == nil || h.Group.Name != "Servidores" || !slices.Equal(h.Tags, []string{"Lima", "prod"}) {
-		t.Errorf("grupo/etiquetas got %+v / %+v", h.Group, h.Tags)
+	if h.Group == nil || h.Group.Name != "Servidores" {
+		t.Errorf("grupo got %+v", h.Group)
 	}
 	if h.CPUPct == nil || *h.CPUPct != 90 || h.MemUsedMB == nil || *h.MemUsedMB != 8000 || h.DiskPct == nil || *h.DiskPct != 50 || h.DiskMount == nil || *h.DiskMount != "/" {
 		t.Errorf("ultimo valor got %+v", h)

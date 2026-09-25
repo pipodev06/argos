@@ -42,7 +42,6 @@ type hostDetailDTO struct {
 	StatusChangedAt time.Time    `json:"status_changed_at"`
 	CreatedAt       time.Time    `json:"created_at"`
 	Group           *groupRefDTO `json:"group"`
-	Tags            []string     `json:"tags"`
 }
 
 // hostInfoDTO es la info estatica del host (host_info) mas la memoria total. Todo es null si el agente no la manda.
@@ -179,7 +178,7 @@ func (a *API) getHost(w http.ResponseWriter, r *http.Request) error {
 		"host": hostDetailDTO{
 			ID: host.ID, Hostname: host.Hostname, OS: host.OS, Arch: host.Arch, Status: host.Status,
 			LastSeenAt: utcPtr(host.LastSeenAt), StatusChangedAt: host.StatusChangedAt.UTC(), CreatedAt: host.CreatedAt.UTC(),
-			Group: toGroupRefDTO(host.Group), Tags: nonNilTags(host.Tags),
+			Group: toGroupRefDTO(host.Group),
 		},
 		"info":   toHostInfoDTO(host.Info),
 		"latest": latest,

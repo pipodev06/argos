@@ -99,6 +99,8 @@ type Config struct {
 	ServiceEventsRetentionDays int
 	// AgentDistDir es el directorio con los binarios del agente que se publican en /dl (vacio = no se sirven).
 	AgentDistDir string
+	// WebDir es el build del frontend (index.html + assets/) que el server sirve (vacio = no se sirve).
+	WebDir string
 	// InsecureCookies quita el prefijo __Host- y el atributo Secure de la cookie de sesion.
 	// SOLO desarrollo sobre http (p. ej. Safari en localhost); nunca en produccion.
 	InsecureCookies bool
@@ -113,6 +115,7 @@ func Load(getenv func(string) string) (Config, error) {
 		TLSCert:            getenv("ARGOS_TLS_CERT"),
 		TLSKey:             getenv("ARGOS_TLS_KEY"),
 		AgentDistDir:       getenv("ARGOS_AGENT_DIST_DIR"),
+		WebDir:             getenv("ARGOS_WEB_DIR"),
 		AuditRetentionDays: defaultAuditRetention,
 		HostDownAfter:      defaultHostDownAfter,
 		HostCheckInterval:  defaultHostCheckInterval,

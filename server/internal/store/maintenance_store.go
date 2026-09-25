@@ -29,14 +29,14 @@ type MaintenanceWindow struct {
 const maintenanceListWindow = "30 days"
 
 const maintenanceSelect = `
-SELECT m.id, m.name, m.starts_at, m.ends_at, m.scope_type, m.scope_group_id, m.scope_tag,
+SELECT m.id, m.name, m.starts_at, m.ends_at, m.scope_type, m.scope_group_id,
        g.name, m.created_by_name, m.created_at,
        CASE WHEN m.ends_at <= now() THEN 'ended' WHEN m.starts_at > now() THEN 'scheduled' ELSE 'active' END
   FROM maintenance_windows m LEFT JOIN host_groups g ON g.id = m.scope_group_id`
 
 func scanWindow(row pgx.Row) (MaintenanceWindow, error) {
 	var w MaintenanceWindow
-	err := row.Scan(&w.ID, &w.Name, &w.StartsAt, &w.EndsAt, &w.Scope.Type, &w.Scope.GroupID, &w.Scope.Tag,
+	err := row.Scan(&w.ID, &w.Name, &w.StartsAt, &w.EndsAt, &w.Scope.Type, &w.Scope.GroupID,
 		&w.GroupName, &w.CreatedByName, &w.CreatedAt, &w.Status)
 	return w, err
 }
@@ -90,11 +90,11 @@ func (s *Store) CreateMaintenance(ctx context.Context, w MaintenanceWindow, user
 		}
 		var id string
 		err := tx.QueryRow(ctx,
-			`INSERT INTO maintenance_windows (name, starts_at, ends_at, scope_type, scope_group_id, scope_tag,
+			`INSERT INTO maintenance_windows (name, starts_at, ends_at, scope_type, scope_group_id,
 			                                  created_by, created_by_name)
-			 VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::uuid, NULLIF($8, ''))
+			 VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::uuid, NULLIF($7, ''))
 			 RETURNING id`,
-			w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID, w.Scope.Tag,
+			w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID,
 			userID, username).Scan(&id)
 		if isFKViolation(err, windowGroupFKey) {
 			return ErrGroupNotFound
@@ -125,9 +125,9 @@ func (s *Store) UpdateMaintenance(ctx context.Context, id string, mutate func(*M
 		}
 		_, err = tx.Exec(ctx,
 			`UPDATE maintenance_windows SET name = $2, starts_at = $3, ends_at = $4, scope_type = $5,
-			        scope_group_id = $6, scope_tag = $7
+			        scope_group_id = $6
 			  WHERE id = $1`,
-			id, w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID, w.Scope.Tag)
+			id, w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID)
 		if isFKViolation(err, windowGroupFKey) {
 			return ErrGroupNotFound
 		}

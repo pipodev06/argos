@@ -372,7 +372,7 @@ func TestEvaluateNoDataRule(t *testing.T) {
 	}
 }
 
-func TestEvaluateScopeGroupAndTag(t *testing.T) {
+func TestEvaluateScopeGroup(t *testing.T) {
 	s := newTestStore(t)
 	g := mkGroup(t, s, "prod", false, nil)
 	for _, n := range []string{"a", "b", "c"} {
@@ -380,7 +380,6 @@ func TestEvaluateScopeGroupAndTag(t *testing.T) {
 		setLatest(t, n, 99)
 	}
 	setGroupOf(t, "a", g.ID)
-	mustExec(t, `INSERT INTO host_tags (host_id, tag) VALUES ($1, 'Dev')`, hostID(t, "b"))
 
 	byGroup := metricRule("g", "cpu_pct", "gt", 90, 0)
 	byGroup.Scope = AlertScope{Type: ScopeGroup, GroupID: &g.ID}
@@ -388,13 +387,7 @@ func TestEvaluateScopeGroupAndTag(t *testing.T) {
 	if r := evalOnce(t, s); r.Opened != 1 {
 		t.Fatalf("alcance grupo opened got %d, want 1", r.Opened)
 	}
-	byTag := metricRule("l", "cpu_pct", "gt", 90, 0)
-	byTag.Scope = AlertScope{Type: ScopeTag, Tag: sptr("dEV")}
-	mkRule(t, s, byTag)
-	if r := evalOnce(t, s); r.Opened != 1 {
-		t.Fatalf("alcance etiqueta opened got %d, want 1", r.Opened)
-	}
-	if n := count(t, `SELECT count(*) FROM alerts a JOIN hosts h ON h.id = a.host_id WHERE h.hostname = 'c'`); n != 0 {
+	if n := count(t, `SELECT count(*) FROM alerts a JOIN hosts h ON h.id = a.host_id WHERE h.hostname <> 'a'`); n != 0 {
 		t.Error("el host fuera de alcance no debe alertar")
 	}
 }
@@ -437,7 +430,7 @@ func TestEvaluateMaintenanceSuppressesThenReleases(t *testing.T) {
 	}
 }
 
-func TestEvaluateMaintenanceScopedToGroupAndTag(t *testing.T) {
+func TestEvaluateMaintenanceScopedToGroup(t *testing.T) {
 	s := newTestStore(t)
 	g := mkGroup(t, s, "prod", false, nil)
 	seedHost(t, "in", "up", ago(time.Second))
@@ -454,25 +447,6 @@ func TestEvaluateMaintenanceScopedToGroupAndTag(t *testing.T) {
 	}
 	if n := count(t, `SELECT count(*) FROM alerts a JOIN hosts h ON h.id = a.host_id WHERE NOT a.suppressed AND h.hostname = 'out'`); n != 1 {
 		t.Error("el host fuera del grupo no se suprime")
-	}
-}
-
-func TestEvaluateMaintenanceScopedToTag(t *testing.T) {
-	s := newTestStore(t)
-	seedHost(t, "in", "up", ago(time.Second))
-	seedHost(t, "out", "up", ago(time.Second))
-	setLatest(t, "in", 99)
-	setLatest(t, "out", 99)
-	mustExec(t, `INSERT INTO host_tags (host_id, tag) VALUES ($1, 'Ventas')`, hostID(t, "in"))
-	mkRule(t, s, metricRule("cpu", "cpu_pct", "gt", 90, 0))
-	mustExec(t, `INSERT INTO maintenance_windows (name, starts_at, ends_at, scope_type, scope_tag)
-		VALUES ('t', now() - interval '1 hour', now() + interval '1 hour', 'tag', 'ventas')`)
-	evalOnce(t, s)
-	if n := count(t, `SELECT count(*) FROM alerts a JOIN hosts h ON h.id = a.host_id WHERE a.suppressed AND h.hostname = 'in'`); n != 1 {
-		t.Error("el host con la etiqueta debe quedar suppressed")
-	}
-	if n := count(t, `SELECT count(*) FROM alerts a JOIN hosts h ON h.id = a.host_id WHERE NOT a.suppressed AND h.hostname = 'out'`); n != 1 {
-		t.Error("el host sin la etiqueta no se suprime")
 	}
 }
 
@@ -897,9 +871,10 @@ func TestMaintenanceCRUDAndCaps(t *testing.T) {
 	if _, err := s.CreateMaintenance(ctx, long, uid, "adm"); err == nil {
 		t.Error("all > 24 h debe rechazarse")
 	}
-	long.Scope = AlertScope{Type: ScopeTag, Tag: sptr("dev")}
+	g := mkGroup(t, s, "dev", false, nil)
+	long.Scope = AlertScope{Type: ScopeGroup, GroupID: &g.ID}
 	if _, err := s.CreateMaintenance(ctx, long, uid, "adm"); err != nil {
-		t.Errorf("etiqueta 25 h debe permitirse: %v", err)
+		t.Errorf("grupo 25 h debe permitirse: %v", err)
 	}
 	long.EndsAt = now.Add(32 * 24 * time.Hour)
 	if _, err := s.CreateMaintenance(ctx, long, uid, "adm"); err == nil {
