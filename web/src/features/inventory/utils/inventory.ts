@@ -1,6 +1,7 @@
 import type { FilterField, FiltersOf } from '@/components/filters/types'
 import type { User } from '@/features/auth/types/auth.types'
-import type { ChangeKind, ModuleStatus, ServiceStart, ServiceState } from '../types/inventory.types'
+import { formatElapsed } from '@/features/hosts/utils/format'
+import type { ChangeKind, ModuleStatus, ModuleSummary, ServiceStart, ServiceState } from '../types/inventory.types'
 
 export const SECTIONS = ['ports', 'services', 'processes', 'changes'] as const
 export type Section = (typeof SECTIONS)[number]
@@ -112,4 +113,16 @@ export function describeChange(kind: ChangeKind, before: unknown, after: unknown
   if (kind === 'added') return describeValue(after)
   if (kind === 'removed') return describeValue(before)
   return `${describeValue(before)} → ${describeValue(after)}`
+}
+
+/** Ruta propia del inventario de un host. */
+export function inventoryPath(hostId: string): string {
+  return `/hosts/${encodeURIComponent(hostId)}/inventario`
+}
+
+/** Valor de una tarjeta-resumen: conteo (`ok`), "Desactivado" o sin dato (null), y "hace X" si hay `updated_at`. */
+export function summaryValue(mod: ModuleSummary | undefined, now: number): { text: string | number | null; detail?: string } {
+  if (!mod || mod.status === 'no_data') return { text: null }
+  if (mod.status === 'disabled') return { text: 'Desactivado' }
+  return { text: mod.count, detail: mod.updated_at ? `hace ${formatElapsed(mod.updated_at, now)}` : undefined }
 }

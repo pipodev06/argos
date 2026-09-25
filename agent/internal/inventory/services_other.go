@@ -1,8 +1,8 @@
-//go:build !windows
+//go:build !windows && !linux
 
 package inventory
 
 import "context"
 
-// servicesSource es nil fuera de Windows: los servicios de Linux quedan pa v1.1 y macOS no aplica.
+// servicesSource es nil en SO sin implementacion (macOS): el modulo se omite con aviso.
 func servicesSource() func(ctx context.Context) ([]Service, error) { return nil }

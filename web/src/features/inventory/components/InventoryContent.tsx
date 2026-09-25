@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { IconAlertTriangle, IconListDetails, IconRefresh } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -6,15 +6,14 @@ import { InlineError } from '@/components/ui/inline-error'
 import { Pagination } from '@/components/ui/pagination'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useAuth } from '@/features/auth/hooks/useAuth'
 import { formatElapsed } from '@/features/hosts/utils/format'
 import { useCursorPagination } from '@/hooks/useCursorPagination'
 import { useNow } from '@/hooks/useNow'
+import { usePagedList } from '@/hooks/usePagedList'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 import { useInventoryChanges, useInventoryModule } from '../hooks/useInventory'
 import type { ModuleList } from '../types/inventory.types'
 import {
-  canViewInventory,
   EMPTY_TEXT,
   emptyKind,
   INVENTORY_FIELDS,
@@ -83,9 +82,31 @@ function ModuleBody<T>({
   )
 }
 
+/** Lista completa paginada en cliente (15 por defecto). Remontar con `key` para volver a la página 1. */
+function PagedList<T>({ items, itemLabel, render }: { items: T[]; itemLabel: string; render: (rows: T[]) => ReactNode }) {
+  const paged = usePagedList(items)
+  return (
+    <div className="flex flex-col gap-3">
+      {render(paged.rows)}
+      <Pagination
+        page={paged.page}
+        pageSize={paged.pageSize}
+        count={paged.rows.length}
+        total={paged.total}
+        itemLabel={itemLabel}
+        hasPrev={paged.hasPrev}
+        hasNext={paged.hasNext}
+        onPrev={paged.prev}
+        onNext={paged.next}
+        onPageSizeChange={paged.setPageSize}
+      />
+    </div>
+  )
+}
+
 function PortsView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'ports')
-  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PortsTable items={items} />} />
+  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="puertos" render={(rows) => <PortsTable items={rows} />} />} />
 }
 
 function ServicesView({ hostId, state, onDenied }: { hostId: string; state: string; onDenied: () => void }) {
@@ -99,7 +120,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
         return shown.length === 0 ? (
           <EmptyState Icon={IconListDetails} title="Ningún servicio coincide con el estado elegido" />
         ) : (
-          <ServicesTable items={shown} />
+          <PagedList key={state} items={shown} itemLabel="servicios" render={(rows) => <ServicesTable items={rows} />} />
         )
       }}
     />
@@ -108,7 +129,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
 
 function ProcessesView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'processes')
-  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <ProcessesTable items={items} />} />
+  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="procesos" render={(rows) => <ProcessesTable items={rows} />} />} />
 }
 
 function ChangesView({
@@ -168,7 +189,8 @@ function ChangesView({
   )
 }
 
-function InventoryContent({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
+/** Contenido de la página de inventario: una sola consulta por sub-sección activa. */
+export function InventoryContent({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const pagination = useCursorPagination()
   const { filters, setFilters } = useUrlFilters(INVENTORY_FIELDS, { onChange: pagination.reset })
   const { section } = filters
@@ -197,17 +219,3 @@ function InventoryContent({ hostId, onDenied }: { hostId: string; onDenied: () =
   )
 }
 
-/** Sección "Inventario" del detalle de host: solo admin o `can_inventory`; una consulta por sub-sección activa. */
-export function HostInventorySection({ hostId }: { hostId: string }) {
-  const { user } = useAuth()
-  const [denied, setDenied] = useState(false)
-  if (!canViewInventory(user) || denied) return null
-  return (
-    <section className="flex flex-col gap-3" aria-labelledby="host-inventory-title">
-      <h2 id="host-inventory-title" className="text-sm font-semibold">
-        Inventario
-      </h2>
-      <InventoryContent hostId={hostId} onDenied={() => setDenied(true)} />
-    </section>
-  )
-}

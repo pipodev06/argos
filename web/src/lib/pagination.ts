@@ -1,9 +1,9 @@
 // Paginacion por cursor: el servidor solo dice cual es el cursor de la pagina siguiente, asi que "Anterior" se
 // resuelve en el cliente con una pila de los cursores ya visitados. Funciones puras (sin React).
 
-export const PAGE_SIZES = [25, 50, 100] as const
+export const PAGE_SIZES = [15, 30, 50, 100] as const
 export type PageSize = (typeof PAGE_SIZES)[number]
-export const DEFAULT_PAGE_SIZE: PageSize = 25
+export const DEFAULT_PAGE_SIZE: PageSize = 15
 
 export function isPageSize(value: number): value is PageSize {
   return (PAGE_SIZES as readonly number[]).includes(value)
@@ -49,4 +49,12 @@ export function formatPageRange(
   const fmt = (n: number) => n.toLocaleString(locale)
   const range = `${fmt(start)}–${fmt(end)}`
   return total == null ? range : `${range} de ${fmt(total)}`
+}
+
+/** Ventana [start, end) de una lista completa en memoria; la pagina se acota a la ultima existente. */
+export function pageWindow(total: number, page: number, pageSize: number): { page: number; start: number; end: number } {
+  const lastPage = Math.max(1, Math.ceil(total / pageSize))
+  const safe = Math.min(Math.max(1, Math.floor(page)), lastPage)
+  const start = (safe - 1) * pageSize
+  return { page: safe, start, end: Math.min(start + pageSize, total) }
 }

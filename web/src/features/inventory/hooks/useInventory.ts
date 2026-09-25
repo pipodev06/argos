@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { isClientError, usePolledFetch } from '@/hooks/usePolledFetch'
-import { getInventoryModule, listInventoryChanges } from '../services/inventory.service'
+import { getInventoryModule, getInventorySummary, listInventoryChanges } from '../services/inventory.service'
 import type { InventoryModule } from '../types/inventory.types'
 
 // El inventario cambia poco: refresco cada 60 s (pausado con la pestana oculta), solo de la sub-seccion activa.
@@ -23,4 +23,10 @@ export function useInventoryChanges(hostId: string, module: string, kind: string
     [hostId, qs],
   )
   return usePolledFetch(fetcher, { intervalMs: REFRESH_MS, paused: true })
+}
+
+/** Resumen del host (conteos por modulo): es lo unico que pide el detalle del host. */
+export function useInventorySummary(hostId: string) {
+  const fetcher = useCallback((signal: AbortSignal) => getInventorySummary(hostId, signal), [hostId])
+  return usePolledFetch(fetcher, { intervalMs: REFRESH_MS, stopOn: isClientError })
 }

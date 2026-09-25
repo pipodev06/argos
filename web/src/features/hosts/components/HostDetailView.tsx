@@ -3,7 +3,7 @@ import { InlineError } from '@/components/ui/inline-error'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { HostEventsSection } from '@/features/alerts/components/HostEventsSection'
 import { HostChecksSection } from '@/features/checks/components/HostChecksSection'
-import { HostInventorySection } from '@/features/inventory/components/HostInventorySection'
+import { HostInventorySummary } from '@/features/inventory/components/HostInventorySummary'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useHostDetail } from '../hooks/useHostDetail'
 import { useHostMetrics } from '../hooks/useHostMetrics'
@@ -65,7 +65,7 @@ export function HostDetailView({ id }: { id: string }) {
 
           <HostEventsSection hostId={id} />
 
-          <HostInventorySection hostId={id} />
+          <HostInventorySummary hostId={id} />
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-2">

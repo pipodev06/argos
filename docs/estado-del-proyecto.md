@@ -13,7 +13,7 @@ Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/P
 1. Botones "Exportar CSV" y filtro por grupo en Informes (`web/`; contrato en `decisiones/2026-09-25-sla-csv.md`).
 2. Punto 2: parches/vulnerabilidades del SO (falta diseño).
 3. Punto 8: ping/SNMP para equipos sin agente (diseño aprobado: `decisiones/2026-09-25-ping-snmp.md`, `gosnmp` aprobado, 3 tandas).
-4. Servicios Linux del inventario (v1.1, `systemctl`), alerta "puerto nuevo expuesto" (diseñada).
+4. Alerta "puerto nuevo expuesto" (diseñada; ver `decisiones/2026-09-25-inventario.md`). Servicios Linux del inventario: hecho.
 Aplazado por el usuario: canal SMTP, despliegue/dominio, separar roles de BD, firma de binarios. Sin probar: instalación real del agente (Windows/Linux/macOS), systemd sin privilegios, revisión visual de pantallas nuevas (la hace el usuario).
 
 ## Cómo trabajar y verificar

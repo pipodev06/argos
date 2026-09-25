@@ -18,12 +18,12 @@ describe('hostQuery', () => {
     expect(isVolatileSort('last_seen')).toBe(false)
   })
   it('defaults de la URL', () => {
-    expect(parse('')).toMatchObject({ sort: 'severity', dir: 'asc', limit: 25, status: [] })
+    expect(parse('')).toMatchObject({ sort: 'severity', dir: 'asc', limit: 15, status: [] })
     expect(parse('sort=mem').dir).toBe('desc')
   })
   it('filtros inválidos se ignoran', () => {
     const f = parse('status=zzz&os=beos&disk_gt=101&sort=x&limit=13')
-    expect(f).toMatchObject({ status: [], os: [], disk_gt: null, sort: 'severity', limit: 25 })
+    expect(f).toMatchObject({ status: [], os: [], disk_gt: null, sort: 'severity', limit: 15 })
   })
   it('buildApiQuery fija sort, dir y limit y agrega cursor', () => {
     const q = buildApiQuery(parse('status=down&cpu_gt=90'), 'abc')
@@ -31,7 +31,7 @@ describe('hostQuery', () => {
     expect(q.get('cpu_gt')).toBe('90')
     expect(q.get('sort')).toBe('severity')
     expect(q.get('dir')).toBe('asc')
-    expect(q.get('limit')).toBe('25')
+    expect(q.get('limit')).toBe('15')
     expect(q.get('cursor')).toBe('abc')
     expect(buildApiQuery(parse(''), null).has('cursor')).toBe(false)
   })
