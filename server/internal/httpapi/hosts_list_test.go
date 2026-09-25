@@ -169,11 +169,11 @@ func TestListHostsResponseShape(t *testing.T) {
 	osName, osVersion := "Windows 11", "23H2"
 	charging := true
 	rows := []store.HostRow{
-		{ID: "id-1", Hostname: "laptop", Status: "up", StatusChangedAt: seen, LastSeenAt: &seen, Group: &store.GroupRef{ID: groupUUID, Name: "Laptops"},
+		{ID: "id-1", Hostname: "laptop", Kind: "agent", Status: "up", StatusChangedAt: seen, LastSeenAt: &seen, Group: &store.GroupRef{ID: groupUUID, Name: "Laptops"},
 			OS: "windows", OSName: &osName, OSVersion: &osVersion,
 			IPs: []netip.Addr{netip.MustParseAddr("127.0.0.1"), netip.MustParseAddr("192.168.1.25")}, CPUPct: &cpu, MemUsedMB: &used, MemTotalMB: &total,
 			DiskPct: &disk, DiskMount: &mount, BootTime: &boot, BatteryPct: &bp, BatteryCharging: &charging},
-		{ID: "id-2", Hostname: "vacio", Status: "pending", StatusChangedAt: seen},
+		{ID: "id-2", Hostname: "vacio", Kind: "agent", Status: "pending", StatusChangedAt: seen},
 	}
 	fs := viewerStore(&fakeStore{x: fakeExtra{page: store.HostPage{
 		Items: rows, Total: 2, NextCursor: &store.HostCursor{NullFlag: 0, SortKey: "3", LName: "laptop", ID: groupUUID},
@@ -194,7 +194,7 @@ func TestListHostsResponseShape(t *testing.T) {
 	if data.Total != 2 || len(data.Items) != 2 || data.NextCursor == nil || *data.NextCursor == "" {
 		t.Fatalf("data got %+v", data)
 	}
-	keys := []string{"id", "hostname", "status", "status_changed_at", "last_seen_at", "group", "os", "os_name", "os_version", "ip", "cpu_pct", "mem_pct", "disk", "boot_time", "battery"}
+	keys := []string{"id", "hostname", "kind", "status", "status_changed_at", "last_seen_at", "group", "os", "os_name", "os_version", "ip", "cpu_pct", "mem_pct", "disk", "boot_time", "battery"}
 	wantKeys(t, "item", data.Items[0], keys...)
 	wantKeys(t, "item vacio", data.Items[1], keys...)
 	full := data.Items[0]

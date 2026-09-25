@@ -242,11 +242,17 @@ type StaleHost struct {
 	Status string
 }
 
-// markStaleSQL pasa a down (grupo always_on) u offline (resto, incluidos los hosts sin grupo) los
-// hosts up que no reportan hace mas que el umbral: down_after_seconds de su grupo o, si no tiene, el
-// global ($1, en segundos). Los subplanes correlacionados re-evaluan last_seen_at bajo el lock de la
-// fila (un CTE con join podria marcar un host que acaba de reportar). La transicion se registra en host_events
-// en la misma sentencia.
+// staleAfterSQL es el umbral de silencio del host h: down_after_seconds de su grupo o, si no tiene, el global ($1, en
+// segundos).
+const staleAfterSQL = `make_interval(secs => COALESCE(
+           (SELECT g.down_after_seconds FROM host_groups g WHERE g.id = h.group_id), $1::float8))`
+
+// markStaleSQL pasa a down (grupo always_on) u offline (resto, incluidos los hosts sin grupo) los hosts up que no
+// reportan hace mas que el umbral. Los subplanes correlacionados re-evaluan last_seen_at bajo el lock de la fila (un
+// CTE con join podria marcar un host que acaba de reportar). La transicion se registra en host_events en la misma
+// sentencia. Un dispositivo (kind device) solo se marca si su colector reporto dentro de su umbral (si el colector
+// callo no se sabe nada del dispositivo, ver markDevicesUnreachableSQL) y si no tiene un chequeo ping reciente en
+// unknown (bloqueado por el colector: no hay evaluacion).
 const markStaleSQL = `
 WITH upd AS (
   UPDATE hosts h
@@ -254,8 +260,12 @@ WITH upd AS (
                        THEN 'down' ELSE 'offline' END,
          status_changed_at = now()
    WHERE h.status = 'up'
-     AND h.last_seen_at < now() - make_interval(secs => COALESCE(
-           (SELECT g.down_after_seconds FROM host_groups g WHERE g.id = h.group_id), $1::float8))
+     AND h.last_seen_at < now() - ` + staleAfterSQL + `
+     AND (h.kind = 'agent' OR (
+           EXISTS (SELECT 1 FROM hosts c WHERE c.id = h.collector_host_id AND c.status = 'up'
+                      AND c.last_seen_at >= now() - ` + staleAfterSQL + `)
+           AND NOT EXISTS (SELECT 1 FROM service_check_state s WHERE s.host_id = h.id AND s.status = 'unknown'
+                      AND s.ts >= now() - ` + staleAfterSQL + `)))
   RETURNING h.id, h.hostname, h.status
 ), ev AS (
   INSERT INTO host_events (host_id, from_status, to_status, source)
@@ -263,12 +273,42 @@ WITH upd AS (
 )
 SELECT id, hostname, status FROM upd`
 
+// markDevicesUnreachableSQL pasa a offline los dispositivos up o down cuyo colector no esta up: no se puede evaluar
+// su alcanzabilidad, asi que no cuentan como caidos (offline no abre alertas de host caido; las de chequeo exigen
+// un estado fresco). Cuando el colector vuelva, el primer ping los devuelve a up (ver deviceReachSQL).
+const markDevicesUnreachableSQL = `
+WITH upd AS (
+  UPDATE hosts h SET status = 'offline', status_changed_at = now()
+    FROM (SELECT d.id, d.status FROM hosts d JOIN hosts c ON c.id = d.collector_host_id
+           WHERE d.kind = 'device' AND d.status IN ('up', 'down') AND c.status <> 'up'
+           ORDER BY d.id FOR UPDATE OF d) prev
+   WHERE h.id = prev.id
+  RETURNING h.id, prev.status AS prev_status
+), ev AS (
+  INSERT INTO host_events (host_id, from_status, to_status, source)
+  SELECT id, prev_status, 'offline', 'detector' FROM upd
+)
+SELECT count(*) FROM upd`
+
 // MarkStaleHosts marca los hosts up que no reportan hace mas que su umbral (el de su grupo o
 // globalDownAfter) y devuelve cuales cambio y a que estado. Es una sola sentencia: atomica e
 // idempotente, segura con varias instancias (la segunda re-evalua el WHERE tras el lock y ya no ve
 // el host como up). Usa el reloj de Postgres, el mismo que escribe last_seen_at. Nunca toca disabled
-// ni pending, ni hosts que ya estan down u offline (su status_changed_at no se mueve).
+// ni pending, ni hosts que ya estan down u offline (su status_changed_at no se mueve). Despues marca offline los
+// dispositivos cuyo colector no esta up (no se devuelven: no son una caida); al ir despues, un colector que acaba de
+// pasar a down u offline arrastra a sus dispositivos en la misma pasada.
 func (s *Store) MarkStaleHosts(ctx context.Context, globalDownAfter time.Duration) ([]StaleHost, error) {
+	stale, err := s.markStale(ctx, globalDownAfter)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.pool.Exec(ctx, markDevicesUnreachableSQL); err != nil {
+		return nil, fmt.Errorf("marcando dispositivos sin colector: %w", err)
+	}
+	return stale, nil
+}
+
+func (s *Store) markStale(ctx context.Context, globalDownAfter time.Duration) ([]StaleHost, error) {
 	rows, err := s.pool.Query(ctx, markStaleSQL, globalDownAfter.Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("marcando hosts sin reportar: %w", err)

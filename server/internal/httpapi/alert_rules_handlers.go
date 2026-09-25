@@ -35,22 +35,42 @@ type scopeDTO struct {
 	Type      string  `json:"type"`
 	GroupID   *string `json:"group_id"`
 	GroupName *string `json:"group_name"`
+	// DeviceID y DeviceName solo aparecen en chequeos ping con alcance de un dispositivo.
+	DeviceID   *string `json:"device_id,omitempty"`
+	DeviceName *string `json:"device_name,omitempty"`
 }
 
 func toScopeDTO(s store.AlertScope, groupName *string) scopeDTO {
-	return scopeDTO{Type: s.Type, GroupID: s.GroupID, GroupName: groupName}
+	return scopeDTO{Type: s.Type, GroupID: s.GroupID, GroupName: groupName, DeviceID: s.HostID}
 }
 
 // scopeReq es el alcance que manda el cliente (el nombre del grupo solo se devuelve, no se acepta).
 type scopeReq struct {
-	Type    string  `json:"type"`
-	GroupID *string `json:"group_id"`
+	Type     string  `json:"type"`
+	GroupID  *string `json:"group_id"`
+	DeviceID *string `json:"device_id"`
 }
 
 // toScope valida el alcance y lo normaliza: el tipo fija que campos van (los demas deben faltar).
-func (s scopeReq) toScope() (store.AlertScope, error) {
+func (s scopeReq) toScope() (store.AlertScope, error) { return s.toScopeWith(false) }
+
+// toScopeWith es toScope; allowDevice admite el alcance de un dispositivo concreto (solo chequeos ping).
+func (s scopeReq) toScopeWith(allowDevice bool) (store.AlertScope, error) {
+	if s.Type == store.ScopeDevice && allowDevice {
+		if s.GroupID != nil || s.DeviceID == nil || !isUUID(*s.DeviceID) {
+			return store.AlertScope{}, badRequest("scope device requiere device_id valido y no admite group_id")
+		}
+		id := strings.ToLower(*s.DeviceID)
+		return store.AlertScope{Type: s.Type, HostID: &id}, nil
+	}
 	if !validScopeTypes[s.Type] {
+		if allowDevice {
+			return store.AlertScope{}, badRequest("scope.type debe ser all, group o device")
+		}
 		return store.AlertScope{}, badRequest("scope.type debe ser all o group")
+	}
+	if s.DeviceID != nil {
+		return store.AlertScope{}, badRequest("device_id solo aplica al scope device")
 	}
 	out := store.AlertScope{Type: s.Type}
 	switch s.Type {

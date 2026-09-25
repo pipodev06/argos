@@ -168,7 +168,7 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 func (s *Store) HostIDByTokenHash(ctx context.Context, tokenHash string) (string, error) {
 	var id string
 	err := s.pool.QueryRow(ctx, `SELECT id FROM hosts
-		  WHERE agent_token_hash = $1 AND agent_token_revoked_at IS NULL AND status <> 'disabled'`, tokenHash).Scan(&id)
+		  WHERE kind = 'agent' AND agent_token_hash = $1 AND agent_token_revoked_at IS NULL AND status <> 'disabled'`, tokenHash).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}

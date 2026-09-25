@@ -35,6 +35,7 @@ const defaultMetricRange = "1h"
 type hostDetailDTO struct {
 	ID              string       `json:"id"`
 	Hostname        string       `json:"hostname"`
+	Kind            string       `json:"kind"`
 	OS              string       `json:"os"`
 	Arch            string       `json:"arch"`
 	Status          string       `json:"status"`
@@ -176,7 +177,7 @@ func (a *API) getHost(w http.ResponseWriter, r *http.Request) error {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"host": hostDetailDTO{
-			ID: host.ID, Hostname: host.Hostname, OS: host.OS, Arch: host.Arch, Status: host.Status,
+			ID: host.ID, Hostname: host.Hostname, Kind: host.Kind, OS: host.OS, Arch: host.Arch, Status: host.Status,
 			LastSeenAt: utcPtr(host.LastSeenAt), StatusChangedAt: host.StatusChangedAt.UTC(), CreatedAt: host.CreatedAt.UTC(),
 			Group: toGroupRefDTO(host.Group),
 		},

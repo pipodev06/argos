@@ -81,6 +81,7 @@ type HostFilter struct {
 type HostRow struct {
 	ID              string
 	Hostname        string
+	Kind            string
 	Status          string
 	StatusChangedAt time.Time
 	LastSeenAt      *time.Time
@@ -191,7 +192,7 @@ func (s *Store) ListHosts(ctx context.Context, scope Scope, f HostFilter) (HostP
 	// hostSorts y dir/op salen de listas blancas; los valores del cliente van siempre como parametros.
 	query := fmt.Sprintf(`
 WITH base AS (
-  SELECT h.id, h.hostname, h.status, h.status_changed_at, h.last_seen_at, g.id AS group_id, g.name AS group_name,
+  SELECT h.id, h.hostname, h.kind, h.status, h.status_changed_at, h.last_seen_at, g.id AS group_id, g.name AS group_name,
          COALESCE(h.os, '') AS os, hi.os_name, hi.os_version, hi.ips, hi.boot_time,
          l.cpu_pct, l.mem_used_mb, l.mem_total_mb, l.disk_max_pct, l.disk_max_mount, l.battery_pct, l.battery_charging,
          CASE WHEN (%[1]s) IS NULL THEN 1 ELSE 0 END AS nf,
@@ -204,7 +205,7 @@ WITH base AS (
     LEFT JOIN host_info hi ON hi.host_id = h.id
    WHERE %[4]s
 )
-SELECT id, hostname, status, status_changed_at, last_seen_at, group_id, group_name, os, os_name, os_version, ips, boot_time,
+SELECT id, hostname, kind, status, status_changed_at, last_seen_at, group_id, group_name, os, os_name, os_version, ips, boot_time,
        cpu_pct, mem_used_mb, mem_total_mb, disk_max_pct, disk_max_mount, battery_pct, battery_charging,
        nf, sk::text AS sk_text, ln, total
   FROM base
@@ -226,7 +227,7 @@ SELECT id, hostname, status, status_changed_at, last_seen_at, group_id, group_na
 		var c HostCursor
 		var groupID, groupName *string
 		var total int
-		if err := rows.Scan(&h.ID, &h.Hostname, &h.Status, &h.StatusChangedAt, &h.LastSeenAt, &groupID, &groupName, &h.OS,
+		if err := rows.Scan(&h.ID, &h.Hostname, &h.Kind, &h.Status, &h.StatusChangedAt, &h.LastSeenAt, &groupID, &groupName, &h.OS,
 			&h.OSName, &h.OSVersion, &h.IPs, &h.BootTime, &h.CPUPct, &h.MemUsedMB, &h.MemTotalMB, &h.DiskPct, &h.DiskMount, &h.BatteryPct, &h.BatteryCharging,
 			&c.NullFlag, &c.SortKey, &c.LName, &total); err != nil {
 			return HostPage{}, fmt.Errorf("leyendo host: %w", err)
@@ -275,6 +276,7 @@ type HostInfo struct {
 type HostDetail struct {
 	ID              string
 	Hostname        string
+	Kind            string
 	OS              string
 	Arch            string
 	Status          string
@@ -292,7 +294,7 @@ func (s *Store) HostByID(ctx context.Context, scope Scope, hostID string) (HostD
 	var groupID, groupName *string
 	args := argList{hostID}
 	err := s.pool.QueryRow(ctx,
-		`SELECT h.id, h.hostname, COALESCE(h.os, ''), COALESCE(h.arch, ''), h.status, h.last_seen_at, h.status_changed_at, h.created_at,
+		`SELECT h.id, h.hostname, h.kind, COALESCE(h.os, ''), COALESCE(h.arch, ''), h.status, h.last_seen_at, h.status_changed_at, h.created_at,
 		        g.id, g.name,
 		        i.boot_time, i.cpu_model, i.cpu_cores, i.cpu_threads, i.os_name, i.os_version, i.kernel_version, i.agent_version, i.ips,
 		        l.mem_total_mb
@@ -301,7 +303,7 @@ func (s *Store) HostByID(ctx context.Context, scope Scope, hostID string) (HostD
 		   LEFT JOIN host_info i ON i.host_id = h.id
 		   LEFT JOIN host_latest l ON l.host_id = h.id
 		  WHERE h.id = $1 AND `+scope.groupCond("h.group_id", &args), []any(args)...,
-	).Scan(&h.ID, &h.Hostname, &h.OS, &h.Arch, &h.Status, &h.LastSeenAt, &h.StatusChangedAt, &h.CreatedAt,
+	).Scan(&h.ID, &h.Hostname, &h.Kind, &h.OS, &h.Arch, &h.Status, &h.LastSeenAt, &h.StatusChangedAt, &h.CreatedAt,
 		&groupID, &groupName,
 		&h.Info.BootTime, &h.Info.CPUModel, &h.Info.CPUCores, &h.Info.CPUThreads, &h.Info.OSName, &h.Info.OSVersion,
 		&h.Info.KernelVersion, &h.Info.AgentVersion, &h.Info.IPs, &h.Info.MemTotalMB)

@@ -52,6 +52,7 @@ type batteryDTO struct {
 type hostItemDTO struct {
 	ID              string       `json:"id"`
 	Hostname        string       `json:"hostname"`
+	Kind            string       `json:"kind"`
 	Status          string       `json:"status"`
 	StatusChangedAt time.Time    `json:"status_changed_at"`
 	LastSeenAt      *time.Time   `json:"last_seen_at"`
@@ -69,7 +70,7 @@ type hostItemDTO struct {
 
 func toHostItemDTO(h store.HostRow) hostItemDTO {
 	dto := hostItemDTO{
-		ID: h.ID, Hostname: h.Hostname, Status: h.Status, StatusChangedAt: h.StatusChangedAt.UTC(), LastSeenAt: utcPtr(h.LastSeenAt),
+		ID: h.ID, Hostname: h.Hostname, Kind: h.Kind, Status: h.Status, StatusChangedAt: h.StatusChangedAt.UTC(), LastSeenAt: utcPtr(h.LastSeenAt),
 		Group: toGroupRefDTO(h.Group), OS: h.OS, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
 		CPUPct: round1(h.CPUPct),
 	}

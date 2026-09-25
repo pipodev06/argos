@@ -119,6 +119,10 @@ type agentCheck struct {
 	CritDays     *int    `json:"crit_days,omitempty"`
 	HeaderName   *string `json:"header_name,omitempty"`
 	Secret       string  `json:"secret,omitempty"`
+	// Target y DeviceID solo van en los pings de un colector: Target es la IP literal del dispositivo (nunca un
+	// nombre) y DeviceID es informativo.
+	Target   *string `json:"target,omitempty"`
+	DeviceID *string `json:"device_id,omitempty"`
 }
 
 // checksDelivery es el objeto `checks` de la respuesta.
@@ -159,8 +163,16 @@ func toAgentCheck(d store.ServiceCheckDef) agentCheck {
 	}
 }
 
-// buildChecksDelivery resuelve los chequeos del host y arma la entrega: tope MaxChecksPerHost y maxChecksPayloadBytes
-// (lo que exceda se trunca por id y se registra); un chequeo cuyo secreto no se puede descifrar se omite y se
+// toPingCheck es un ping de un dispositivo tal como lo recibe su colector: el id es el del par chequeo-dispositivo.
+func toPingCheck(p store.PingAssignment) agentCheck {
+	it := toAgentCheck(p.Def)
+	target, device := p.Address.String(), p.DeviceID
+	it.ID, it.Target, it.DeviceID = p.ItemID, &target, &device
+	return it
+}
+
+// buildChecksDelivery resuelve los chequeos del host y arma la entrega: los propios y, si es colector, los pings de
+// sus dispositivos; tope MaxChecksPerHost en total y maxChecksPayloadBytes (lo que exceda se trunca por id y se registra); un chequeo cuyo secreto no se puede descifrar se omite y se
 // registra. Devuelve tambien la revision de la lista entregada.
 func (a *API) buildChecksDelivery(ctx context.Context, hostID string) (checksDelivery, error) {
 	defs, err := a.store.HostChecks(ctx, hostID)
@@ -171,9 +183,16 @@ func (a *API) buildChecksDelivery(ctx context.Context, hostID string) (checksDel
 	if truncated {
 		defs = defs[:store.MaxChecksPerHost]
 	}
-	items := make([]agentCheck, 0, len(defs))
-	secretRevs := make([]string, 0, len(defs))
-	size := 2
+	pings, err := a.store.CollectorPings(ctx, hostID)
+	if err != nil {
+		return checksDelivery{}, err
+	}
+	if room := store.MaxChecksPerHost - len(defs); len(pings) > room {
+		pings, truncated = pings[:room], true
+	}
+	items := make([]agentCheck, 0, len(defs)+len(pings))
+	secretRevs := make([]string, 0, len(defs)+len(pings))
+	size, full := 2, false
 	for _, d := range defs {
 		it := toAgentCheck(d)
 		sr := ""
@@ -193,11 +212,26 @@ func (a *API) buildChecksDelivery(ctx context.Context, hostID string) (checksDel
 		}
 		if size+len(b)+1 > maxChecksPayloadBytes {
 			truncated = true
+			full = true
 			break
 		}
 		size += len(b) + 1
 		items = append(items, it)
 		secretRevs = append(secretRevs, sr)
+	}
+	for _, p := range pings {
+		it := toPingCheck(p)
+		b, err := json.Marshal(it) //nolint:gosec // un ping no lleva secreto (Secret queda vacio)
+		if err != nil {
+			return checksDelivery{}, fmt.Errorf("serializando ping %s: %w", p.ItemID, err)
+		}
+		if full || size+len(b)+1 > maxChecksPayloadBytes {
+			truncated = true
+			break
+		}
+		size += len(b) + 1
+		items = append(items, it)
+		secretRevs = append(secretRevs, "")
 	}
 	if truncated {
 		a.logger.WarnContext(ctx, "chequeos del host truncados por tope", "host_id", hostID, "delivered", len(items))
