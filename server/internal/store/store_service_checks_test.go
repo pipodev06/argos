@@ -123,7 +123,7 @@ func TestServiceCheckCRUDAndConstraints(t *testing.T) {
 	if _, _, err := s.DeleteServiceCheck(ctx, missing); !errors.Is(err, ErrNotFound) {
 		t.Errorf("borrar inexistente got %v, want ErrNotFound", err)
 	}
-	if _, err := s.ServiceCheckByID(ctx, missing); !errors.Is(err, ErrNotFound) {
+	if _, err := s.ServiceCheckByID(ctx, AllScope(), missing); !errors.Is(err, ErrNotFound) {
 		t.Errorf("leer inexistente got %v, want ErrNotFound", err)
 	}
 	if name, typ, err := s.DeleteServiceCheck(ctx, d.ID); err != nil || name != "Mi Check" || typ != CheckTCP {
@@ -292,26 +292,26 @@ func TestHostServiceChecksAndEvents(t *testing.T) {
 	for i, st := range []string{"up", "down", "up"} {
 		ingestResults(t, s, host, result(c.ID, st, base.Add(time.Duration(i)*time.Minute)))
 	}
-	got, err := s.HostServiceChecks(ctx, host)
+	got, err := s.HostServiceChecks(ctx, AllScope(), host)
 	if err != nil || len(got) != 2 {
 		t.Fatalf("HostServiceChecks got (%d, %v), want 2", len(got), err)
 	}
 	if got[0].Def.Name != "c" || got[0].State == nil || got[0].State.Status != "up" || got[1].State != nil {
 		t.Errorf("estados got %+v / %+v; el que no reporto debe venir sin estado", got[0].State, got[1].State)
 	}
-	if _, err := s.HostServiceChecks(ctx, "00000000-0000-4000-8000-000000000000"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.HostServiceChecks(ctx, AllScope(), "00000000-0000-4000-8000-000000000000"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("host inexistente got %v, want ErrNotFound", err)
 	}
 
-	p1, err := s.ListCheckEvents(ctx, host, c.ID, nil, 2)
+	p1, err := s.ListCheckEvents(ctx, AllScope(), host, c.ID, nil, 2)
 	if err != nil || len(p1.Items) != 2 || p1.NextCursor == nil || p1.Items[0].ToStatus != "up" || p1.Items[1].ToStatus != "down" {
 		t.Fatalf("pagina 1 got %+v err=%v", p1, err)
 	}
-	p2, err := s.ListCheckEvents(ctx, host, c.ID, p1.NextCursor, 2)
+	p2, err := s.ListCheckEvents(ctx, AllScope(), host, c.ID, p1.NextCursor, 2)
 	if err != nil || len(p2.Items) != 1 || p2.NextCursor != nil || p2.Items[0].FromStatus != nil {
 		t.Fatalf("pagina 2 got %+v err=%v", p2, err)
 	}
-	if _, err := s.ListCheckEvents(ctx, "00000000-0000-4000-8000-000000000000", c.ID, nil, 5); !errors.Is(err, ErrNotFound) {
+	if _, err := s.ListCheckEvents(ctx, AllScope(), "00000000-0000-4000-8000-000000000000", c.ID, nil, 5); !errors.Is(err, ErrNotFound) {
 		t.Errorf("eventos de host inexistente got %v, want ErrNotFound", err)
 	}
 }
@@ -479,7 +479,7 @@ func TestServiceCheckRuleConstraintsAndCascade(t *testing.T) {
 	if _, _, err := s.DeleteServiceCheck(ctx, c.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AlertRuleByID(ctx, rule.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := s.AlertRuleByID(ctx, AllScope(), rule.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("la regla debe caer con su chequeo, got %v", err)
 	}
 }

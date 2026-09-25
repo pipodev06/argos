@@ -357,7 +357,7 @@ func (a *API) secretsReady() error {
 // --- lecturas ---
 
 func (a *API) listServiceChecks(w http.ResponseWriter, r *http.Request) error {
-	defs, err := a.store.ListServiceChecks(r.Context())
+	defs, err := a.store.ListServiceChecks(r.Context(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}
@@ -375,7 +375,7 @@ func (a *API) getServiceCheck(w http.ResponseWriter, r *http.Request) error {
 	if !isUUID(id) {
 		return badRequest("id invalido")
 	}
-	d, err := a.store.ServiceCheckByID(r.Context(), strings.ToLower(id))
+	d, err := a.store.ServiceCheckByID(r.Context(), currentUser(r).Scope, strings.ToLower(id))
 	if err != nil {
 		return err
 	}
@@ -735,7 +735,7 @@ func (a *API) hostServiceChecks(w http.ResponseWriter, r *http.Request) error {
 	if !isUUID(id) {
 		return invalidID()
 	}
-	checks, err := a.store.HostServiceChecks(r.Context(), strings.ToLower(id))
+	checks, err := a.store.HostServiceChecks(r.Context(), currentUser(r).Scope, strings.ToLower(id))
 	if err != nil {
 		return err
 	}
@@ -777,7 +777,8 @@ func (a *API) hostCheckEvents(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	fp := fingerprintOf("check_events", id, checkID)
+	scope := currentUser(r).Scope
+	fp := fingerprintOf("check_events", id, checkID, scope.Key())
 	var after *store.EventCursor
 	if raw := v.Get("cursor"); raw != "" {
 		p, err := a.decodeKeyset(raw, fp)
@@ -790,7 +791,7 @@ func (a *API) hostCheckEvents(w http.ResponseWriter, r *http.Request) error {
 		}
 		after = &store.EventCursor{At: time.UnixMicro(p.T), ID: evID}
 	}
-	page, err := a.store.ListCheckEvents(r.Context(), id, checkID, after, limit)
+	page, err := a.store.ListCheckEvents(r.Context(), scope, id, checkID, after, limit)
 	if err != nil {
 		return err
 	}

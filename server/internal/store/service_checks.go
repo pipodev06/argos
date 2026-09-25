@@ -91,9 +91,13 @@ func scanCheckDef(row pgx.Row) (ServiceCheckDef, error) {
 const hostInScopeSQL = `(d.scope_type = 'all'
   OR (d.scope_type = 'group' AND d.scope_group_id = h.group_id))`
 
-// ListServiceChecks devuelve las definiciones por nombre (tope MaxServiceChecks).
-func (s *Store) ListServiceChecks(ctx context.Context) ([]ServiceCheckDef, error) {
-	rows, err := s.pool.Query(ctx, checkDefSelect+` ORDER BY lower(d.name), d.id LIMIT $1`, MaxServiceChecks)
+// ListServiceChecks devuelve las definiciones por nombre (tope MaxServiceChecks). Un ambito restringido solo ve
+// las de alcance `all` y las de sus grupos.
+func (s *Store) ListServiceChecks(ctx context.Context, scope Scope) ([]ServiceCheckDef, error) {
+	args := argList{MaxServiceChecks}
+	rows, err := s.pool.Query(ctx,
+		checkDefSelect+` WHERE `+scope.configCond("d.scope_type", "d.scope_group_id", &args)+` ORDER BY lower(d.name), d.id LIMIT $1`,
+		[]any(args)...)
 	if err != nil {
 		return nil, fmt.Errorf("listando chequeos: %w", err)
 	}
@@ -104,9 +108,16 @@ func (s *Store) ListServiceChecks(ctx context.Context) ([]ServiceCheckDef, error
 	return out, nil
 }
 
-// ServiceCheckByID devuelve un chequeo. ErrNotFound si no existe.
-func (s *Store) ServiceCheckByID(ctx context.Context, id string) (ServiceCheckDef, error) {
-	return checkDefByID(ctx, s.pool, id, "")
+// ServiceCheckByID devuelve un chequeo. ErrNotFound si no existe o queda fuera del ambito.
+func (s *Store) ServiceCheckByID(ctx context.Context, scope Scope, id string) (ServiceCheckDef, error) {
+	d, err := checkDefByID(ctx, s.pool, id, "")
+	if err != nil {
+		return ServiceCheckDef{}, err
+	}
+	if !scope.sees(d.Scope) {
+		return ServiceCheckDef{}, ErrNotFound
+	}
+	return d, nil
 }
 
 func checkDefByID(ctx context.Context, q rowQuerier, id, lock string) (ServiceCheckDef, error) {
@@ -245,9 +256,9 @@ type HostCheck struct {
 }
 
 // HostServiceChecks devuelve los chequeos habilitados que alcanzan al host con su estado, por nombre.
-// ErrNotFound si el host no existe.
-func (s *Store) HostServiceChecks(ctx context.Context, hostID string) ([]HostCheck, error) {
-	if err := s.requireHost(ctx, hostID); err != nil {
+// ErrNotFound si el host no existe o esta fuera del ambito.
+func (s *Store) HostServiceChecks(ctx context.Context, scope Scope, hostID string) ([]HostCheck, error) {
+	if err := s.requireHost(ctx, scope, hostID); err != nil {
 		return nil, err
 	}
 	rows, err := s.pool.Query(ctx,
@@ -278,9 +289,13 @@ func (s *Store) HostServiceChecks(ctx context.Context, hostID string) ([]HostChe
 	return out, nil
 }
 
-func (s *Store) requireHost(ctx context.Context, hostID string) error {
+// requireHost devuelve ErrNotFound si el host no existe o esta fuera del ambito (indistinguibles).
+func (s *Store) requireHost(ctx context.Context, scope Scope, hostID string) error {
 	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1)`, hostID).Scan(&exists); err != nil {
+	args := argList{hostID}
+	if err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM hosts h WHERE h.id = $1 AND `+scope.groupCond("h.group_id", &args)+`)`,
+		[]any(args)...).Scan(&exists); err != nil {
 		return fmt.Errorf("buscando host: %w", err)
 	}
 	if !exists {
@@ -304,10 +319,10 @@ type CheckEventPage struct {
 	NextCursor *EventCursor
 }
 
-// ListCheckEvents devuelve las transiciones del chequeo en el host. ErrNotFound si el host no existe.
-// limit debe estar entre 1 y MaxAlertListLimit.
-func (s *Store) ListCheckEvents(ctx context.Context, hostID, checkID string, after *EventCursor, limit int) (CheckEventPage, error) {
-	if err := s.requireHost(ctx, hostID); err != nil {
+// ListCheckEvents devuelve las transiciones del chequeo en el host. ErrNotFound si el host no existe o esta fuera
+// del ambito. limit debe estar entre 1 y MaxAlertListLimit.
+func (s *Store) ListCheckEvents(ctx context.Context, scope Scope, hostID, checkID string, after *EventCursor, limit int) (CheckEventPage, error) {
+	if err := s.requireHost(ctx, scope, hostID); err != nil {
 		return CheckEventPage{}, err
 	}
 	sql := `SELECT id, from_status, to_status, detail, at FROM service_check_events WHERE host_id = $1 AND check_id = $2`

@@ -124,10 +124,15 @@ func scanAlert(row pgx.Row) (Alert, error) {
 
 // alertWhere arma el WHERE de los filtros con parametros posicionales (solo texto fijo; los valores van como
 // argumentos). Cada filtro presente agrega una condicion: sin OR-NULL, pa que el planificador use los indices.
-func alertWhere(f AlertFilter) (conds []string, args []any) {
+func alertWhere(scope Scope, f AlertFilter) (conds []string, args []any) {
 	add := func(cond string, v any) {
 		args = append(args, v)
 		conds = append(conds, strings.ReplaceAll(cond, "$$", "$"+strconv.Itoa(len(args))))
+	}
+	if !scope.All() {
+		al := argList(args)
+		conds = append(conds, scope.hostCond("a.host_id", &al))
+		args = []any(al)
 	}
 	if len(f.States) > 0 {
 		add("a.state = ANY($$)", f.States)
@@ -144,12 +149,13 @@ func alertWhere(f AlertFilter) (conds []string, args []any) {
 	return conds, args
 }
 
-// ListAlerts devuelve una pagina de alertas, las mas recientes primero (keyset por (opened_at, id)).
-func (s *Store) ListAlerts(ctx context.Context, f AlertFilter) (AlertPage, error) {
+// ListAlerts devuelve una pagina de alertas, las mas recientes primero (keyset por (opened_at, id)). scope limita
+// las alertas (y el total) a las de hosts visibles.
+func (s *Store) ListAlerts(ctx context.Context, scope Scope, f AlertFilter) (AlertPage, error) {
 	if f.Limit < 1 || f.Limit > MaxAlertListLimit {
 		f.Limit = DefaultAlertListLimit
 	}
-	conds, args := alertWhere(f)
+	conds, args := alertWhere(scope, f)
 
 	var page AlertPage
 	countSQL := `SELECT count(*)::int FROM alerts a`
@@ -188,9 +194,11 @@ func (s *Store) ListAlerts(ctx context.Context, f AlertFilter) (AlertPage, error
 	return page, nil
 }
 
-// AlertByID devuelve una alerta con sus entregas y los ultimos eventos de su host. ErrNotFound si no existe.
-func (s *Store) AlertByID(ctx context.Context, id string) (AlertDetail, error) {
-	a, err := scanAlert(s.pool.QueryRow(ctx, alertSelect+` WHERE a.id = $1`, id))
+// AlertByID devuelve una alerta con sus entregas y los ultimos eventos de su host. ErrNotFound si no existe o su
+// host esta fuera del ambito (indistinguible).
+func (s *Store) AlertByID(ctx context.Context, scope Scope, id string) (AlertDetail, error) {
+	args := argList{id}
+	a, err := scanAlert(s.pool.QueryRow(ctx, alertSelect+` WHERE a.id = $1 AND `+scope.hostCond("a.host_id", &args), []any(args)...))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AlertDetail{}, ErrNotFound
 	}
@@ -215,7 +223,7 @@ func (s *Store) AlertByID(ctx context.Context, id string) (AlertDetail, error) {
 		return AlertDetail{}, fmt.Errorf("leyendo entregas: %w", err)
 	}
 
-	page, err := s.ListHostEvents(ctx, a.HostID, nil, alertDetailEvents)
+	page, err := s.ListHostEvents(ctx, scope, a.HostID, nil, alertDetailEvents)
 	if err != nil {
 		return AlertDetail{}, err
 	}
@@ -281,12 +289,14 @@ func (s *Store) alertByID(ctx context.Context, id string) (Alert, error) {
 	return a, nil
 }
 
-// AlertSummary cuenta las alertas activas por severidad y estado.
-func (s *Store) AlertSummary(ctx context.Context) (AlertSummary, error) {
+// AlertSummary cuenta las alertas activas por severidad y estado, solo las de hosts del ambito.
+func (s *Store) AlertSummary(ctx context.Context, scope Scope) (AlertSummary, error) {
 	sum := AlertSummary{BySeverity: map[string]SeverityCount{"info": {}, "warn": {}, "critical": {}}}
+	var args argList
 	rows, err := s.pool.Query(ctx,
-		`SELECT severity, state, count(*)::int, count(*) FILTER (WHERE suppressed)::int
-		   FROM alerts WHERE state <> 'resolved' GROUP BY severity, state`)
+		`SELECT a.severity, a.state, count(*)::int, count(*) FILTER (WHERE a.suppressed)::int
+		   FROM alerts a WHERE a.state <> 'resolved' AND `+scope.hostCond("a.host_id", &args)+` GROUP BY a.severity, a.state`,
+		[]any(args)...)
 	if err != nil {
 		return AlertSummary{}, fmt.Errorf("resumiendo alertas: %w", err)
 	}
@@ -326,14 +336,10 @@ type EventPage struct {
 }
 
 // ListHostEvents devuelve las transiciones de status del host (mas recientes primero). ErrNotFound si el host
-// no existe. limit debe estar entre 1 y MaxAlertListLimit.
-func (s *Store) ListHostEvents(ctx context.Context, hostID string, after *EventCursor, limit int) (EventPage, error) {
-	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1)`, hostID).Scan(&exists); err != nil {
-		return EventPage{}, fmt.Errorf("buscando host: %w", err)
-	}
-	if !exists {
-		return EventPage{}, ErrNotFound
+// no existe o esta fuera del ambito. limit debe estar entre 1 y MaxAlertListLimit.
+func (s *Store) ListHostEvents(ctx context.Context, scope Scope, hostID string, after *EventCursor, limit int) (EventPage, error) {
+	if err := s.requireHost(ctx, scope, hostID); err != nil {
+		return EventPage{}, err
 	}
 	sql := `SELECT id, from_status, to_status, at, source FROM host_events WHERE host_id = $1`
 	args := []any{hostID}

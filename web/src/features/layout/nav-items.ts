@@ -9,6 +9,8 @@ export interface NavItem {
   section: string
   /** Roles que ven el item; sin definir = todos. */
   roles?: readonly Role[]
+  /** Solo para quien ve todos los grupos (los viewers restringidos no lo ven). */
+  fullScope?: boolean
   /** `end` de NavLink: solo activo en la ruta exacta (necesario para `/`). */
   end?: boolean
   /** Contador de alertas abiertas junto a la etiqueta. */
@@ -24,7 +26,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/alertas', label: 'Alertas', Icon: IconBell, section: 'Alertas', end: true, openAlertsCount: true },
   { to: '/alertas/reglas', label: 'Reglas', Icon: IconListCheck, section: 'Alertas' },
   { to: '/alertas/mantenimiento', label: 'Mantenimiento', Icon: IconTool, section: 'Alertas' },
-  { to: '/alertas/canales', label: 'Canales', Icon: IconWebhook, section: 'Alertas' },
+  { to: '/alertas/canales', label: 'Canales', Icon: IconWebhook, section: 'Alertas', fullScope: true },
   { to: '/usuarios', label: 'Usuarios', Icon: IconUsers, section: 'Administración', roles: ['admin'] },
   { to: '/auditoria', label: 'Auditoría', Icon: IconHistory, section: 'Administración', roles: ['admin'] },
 ]

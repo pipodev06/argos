@@ -206,7 +206,7 @@ func TestGroupsCRUD(t *testing.T) {
 	seedHost(t, "c", "up", ago(time.Second))
 	setGroupOf(t, "a", g.ID)
 	setGroupOf(t, "b", g.ID)
-	groups, ungrouped, err := s.ListGroups(ctx)
+	groups, ungrouped, err := s.ListGroups(ctx, AllScope())
 	if err != nil || len(groups) != 2 || ungrouped != 1 {
 		t.Fatalf("ListGroups got (%+v, %d, %v)", groups, ungrouped, err)
 	}
@@ -236,7 +236,7 @@ func TestGroupLimit200(t *testing.T) {
 		t.Fatalf("grupo 201 got %v, want ErrTooManyGroups", err)
 	}
 	// Tras borrar uno cabe exactamente uno mas, aun con creaciones concurrentes.
-	groups, _, err := s.ListGroups(ctx)
+	groups, _, err := s.ListGroups(ctx, AllScope())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,11 +42,15 @@ const (
 )
 
 // ListGroups devuelve los grupos con su cantidad de hosts (por nombre) y cuantos hosts no tienen grupo.
-func (s *Store) ListGroups(ctx context.Context) (groups []Group, ungrouped int, err error) {
+// Con un ambito restringido solo salen sus grupos y ungrouped es 0 (nunca ve hosts sin grupo).
+func (s *Store) ListGroups(ctx context.Context, scope Scope) (groups []Group, ungrouped int, err error) {
+	var args argList
+	// Un grupo esta en el ambito si sus hosts lo estan: la misma condicion, sobre g.id.
 	rows, err := s.pool.Query(ctx,
 		`SELECT g.id, g.name, g.down_after_seconds, g.always_on, count(h.id)::int
 		   FROM host_groups g LEFT JOIN hosts h ON h.group_id = g.id
-		  GROUP BY g.id ORDER BY lower(g.name), g.id`)
+		  WHERE `+scope.groupCond("g.id", &args)+`
+		  GROUP BY g.id ORDER BY lower(g.name), g.id`, []any(args)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listando grupos: %w", err)
 	}
@@ -57,6 +61,9 @@ func (s *Store) ListGroups(ctx context.Context) (groups []Group, ungrouped int, 
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("leyendo grupos: %w", err)
+	}
+	if !scope.All() {
+		return groups, 0, nil
 	}
 	if err := s.pool.QueryRow(ctx, `SELECT count(*)::int FROM hosts WHERE group_id IS NULL`).Scan(&ungrouped); err != nil {
 		return nil, 0, fmt.Errorf("contando hosts sin grupo: %w", err)

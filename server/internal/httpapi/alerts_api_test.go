@@ -616,7 +616,7 @@ func TestAlertRoutesAreRegisteredWithTheExpectedAccess(t *testing.T) {
 	}
 }
 
-func (f *fakeStore) ListAlerts(context.Context, store.AlertFilter) (store.AlertPage, error) {
+func (f *fakeStore) ListAlerts(context.Context, store.Scope, store.AlertFilter) (store.AlertPage, error) {
 	return store.AlertPage{}, f.x.err
 }
 

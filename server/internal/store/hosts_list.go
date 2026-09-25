@@ -125,8 +125,9 @@ func lowerAll(in []string) []string {
 // ListHosts devuelve una pagina de hosts con filtros, orden y paginacion keyset. El orden total es
 // (host sin valor al final, valor del orden segun direccion, nombre, id): el nombre y el id siempre
 // ascendentes, asi el cursor (nombre no es unico) identifica una posicion exacta. Las etiquetas de la
-// pagina se cargan en una segunda consulta (sin N+1).
-func (s *Store) ListHosts(ctx context.Context, f HostFilter) (HostPage, error) {
+// pagina se cargan en una segunda consulta (sin N+1). scope limita los hosts visibles: aplica a la lista,
+// al total y al cursor por igual (se une con AND a los filtros).
+func (s *Store) ListHosts(ctx context.Context, scope Scope, f HostFilter) (HostPage, error) {
 	sortSpec, ok := hostSorts[f.Sort]
 	if !ok {
 		return HostPage{}, fmt.Errorf("orden de hosts desconocido %q", f.Sort)
@@ -134,7 +135,7 @@ func (s *Store) ListHosts(ctx context.Context, f HostFilter) (HostPage, error) {
 	limit := min(max(f.Limit, 1), MaxHostListLimit)
 
 	var args argList
-	var where []string
+	where := []string{scope.groupCond("h.group_id", &args)}
 	if f.Q != "" {
 		where = append(where, fmt.Sprintf(`strpos(lower(h.hostname), lower(%s)) > 0`, args.add(f.Q)))
 	}
@@ -169,10 +170,7 @@ func (s *Store) ListHosts(ctx context.Context, f HostFilter) (HostPage, error) {
 	if f.SeenBefore > 0 {
 		where = append(where, fmt.Sprintf(`h.last_seen_at < now() - %s::int * interval '1 second'`, args.add(f.SeenBefore)))
 	}
-	whereSQL := "TRUE"
-	if len(where) > 0 {
-		whereSQL = strings.Join(where, " AND ")
-	}
+	whereSQL := strings.Join(where, " AND ")
 
 	dir, op := "ASC", ">"
 	if f.Desc {
@@ -287,10 +285,12 @@ type HostDetail struct {
 	Info            HostInfo
 }
 
-// HostByID devuelve la ficha del host (con grupo, etiquetas e info) o ErrNotFound.
-func (s *Store) HostByID(ctx context.Context, hostID string) (HostDetail, error) {
+// HostByID devuelve la ficha del host (con grupo, etiquetas e info) o ErrNotFound. Un host fuera del
+// ambito es indistinguible de uno inexistente.
+func (s *Store) HostByID(ctx context.Context, scope Scope, hostID string) (HostDetail, error) {
 	var h HostDetail
 	var groupID, groupName *string
+	args := argList{hostID}
 	err := s.pool.QueryRow(ctx,
 		`SELECT h.id, h.hostname, COALESCE(h.os, ''), COALESCE(h.arch, ''), h.status, h.last_seen_at, h.status_changed_at, h.created_at,
 		        g.id, g.name,
@@ -300,7 +300,7 @@ func (s *Store) HostByID(ctx context.Context, hostID string) (HostDetail, error)
 		   LEFT JOIN host_groups g ON g.id = h.group_id
 		   LEFT JOIN host_info i ON i.host_id = h.id
 		   LEFT JOIN host_latest l ON l.host_id = h.id
-		  WHERE h.id = $1`, hostID,
+		  WHERE h.id = $1 AND `+scope.groupCond("h.group_id", &args), []any(args)...,
 	).Scan(&h.ID, &h.Hostname, &h.OS, &h.Arch, &h.Status, &h.LastSeenAt, &h.StatusChangedAt, &h.CreatedAt,
 		&groupID, &groupName,
 		&h.Info.BootTime, &h.Info.CPUModel, &h.Info.CPUCores, &h.Info.CPUThreads, &h.Info.OSName, &h.Info.OSVersion,

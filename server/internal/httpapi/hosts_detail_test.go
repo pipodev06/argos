@@ -15,7 +15,7 @@ import (
 
 const detailHostID = "0f8fad5b-d9cb-469f-a165-70867728950e"
 
-func (f *fakeStore) HostByID(_ context.Context, _ string) (store.HostDetail, error) {
+func (f *fakeStore) HostByID(_ context.Context, _ store.Scope, _ string) (store.HostDetail, error) {
 	return f.detail, f.detailErr
 }
 

@@ -44,7 +44,7 @@ func TestListHostsMetricFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := tt.filter
 			f.Sort, f.Limit = "name", 100
-			page, err := s.ListHosts(ctx, f)
+			page, err := s.ListHosts(ctx, AllScope(), f)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -72,7 +72,7 @@ func TestListHostsMetricFiltersKeysetAndOSInfo(t *testing.T) {
 		if pages > 10 {
 			t.Fatal("paginacion sin fin")
 		}
-		page, err := s.ListHosts(ctx, f)
+		page, err := s.ListHosts(ctx, AllScope(), f)
 		if err != nil {
 			t.Fatal(err)
 		}

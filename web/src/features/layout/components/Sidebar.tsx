@@ -65,7 +65,9 @@ interface SidebarContentProps {
 // Contenido unico del sidebar: lo usan el aside de escritorio y el drawer (Sheet) movil.
 export function SidebarContent({ collapsed = false, onToggleCollapsed, onNavigate }: SidebarContentProps) {
   const { user } = useAuth()
-  const items = NAV_ITEMS.filter((item) => !item.roles || (user !== null && item.roles.includes(user.role)))
+  const items = NAV_ITEMS.filter(
+    (item) => (!item.roles || (user !== null && item.roles.includes(user.role))) && (!item.fullScope || user?.all_groups === true),
+  )
   const CollapseIcon = collapsed ? IconLayoutSidebarLeftExpand : IconLayoutSidebarLeftCollapse
   const collapseLabel = collapsed ? 'Expandir menú' : 'Contraer menú'
 

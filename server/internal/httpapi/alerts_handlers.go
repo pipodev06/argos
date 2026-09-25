@@ -226,7 +226,8 @@ func (a *API) listAlerts(w http.ResponseWriter, r *http.Request) error {
 	if f.Limit, err = parseLimit(v); err != nil {
 		return err
 	}
-	fp := fingerprintOf("alerts", f.States, f.Severities, f.HostIDs, f.RuleIDs)
+	scope := currentUser(r).Scope
+	fp := fingerprintOf("alerts", f.States, f.Severities, f.HostIDs, f.RuleIDs, scope.Key())
 	if raw := v.Get("cursor"); raw != "" {
 		p, err := a.decodeKeyset(raw, fp)
 		if err != nil {
@@ -238,7 +239,7 @@ func (a *API) listAlerts(w http.ResponseWriter, r *http.Request) error {
 		f.After = &store.AlertCursor{OpenedAt: time.UnixMicro(p.T), ID: p.I}
 	}
 
-	page, err := a.store.ListAlerts(r.Context(), f)
+	page, err := a.store.ListAlerts(r.Context(), scope, f)
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,7 @@ func (a *API) getAlert(w http.ResponseWriter, r *http.Request) error {
 	if !isUUID(id) {
 		return badRequest("id invalido")
 	}
-	d, err := a.store.AlertByID(r.Context(), id)
+	d, err := a.store.AlertByID(r.Context(), currentUser(r).Scope, id)
 	if err != nil {
 		return err
 	}
@@ -314,7 +315,7 @@ type severityCountDTO struct {
 
 // alertSummary devuelve los contadores de alertas activas por severidad y estado.
 func (a *API) alertSummary(w http.ResponseWriter, r *http.Request) error {
-	sum, err := a.store.AlertSummary(r.Context())
+	sum, err := a.store.AlertSummary(r.Context(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}
@@ -337,7 +338,8 @@ func (a *API) hostEvents(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	fp := fingerprintOf("events", strings.ToLower(id))
+	scope := currentUser(r).Scope
+	fp := fingerprintOf("events", strings.ToLower(id), scope.Key())
 	var after *store.EventCursor
 	if raw := v.Get("cursor"); raw != "" {
 		p, err := a.decodeKeyset(raw, fp)
@@ -350,7 +352,7 @@ func (a *API) hostEvents(w http.ResponseWriter, r *http.Request) error {
 		}
 		after = &store.EventCursor{At: time.UnixMicro(p.T), ID: evID}
 	}
-	page, err := a.store.ListHostEvents(r.Context(), id, after, limit)
+	page, err := a.store.ListHostEvents(r.Context(), scope, id, after, limit)
 	if err != nil {
 		return err
 	}

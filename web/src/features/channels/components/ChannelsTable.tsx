@@ -43,7 +43,7 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
           <Row key={c.id}>
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
             <Cell>Webhook</Cell>
-            {canAct && <Cell className="max-w-56 truncate font-mono text-xs">{c.config?.host ?? '—'}</Cell>}
+            {canAct && <Cell className="max-w-56 truncate">{c.config?.host ?? '—'}</Cell>}
             <Cell>{c.has_secret ? 'Sí' : 'No'}</Cell>
             <Cell>
               <SeverityBadge severity={c.min_severity} />

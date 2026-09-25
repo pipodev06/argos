@@ -362,7 +362,7 @@ func TestHostByID(t *testing.T) {
 	ctx := context.Background()
 	h := mkHost(t, "srv-ficha")
 
-	got, err := s.HostByID(ctx, h)
+	got, err := s.HostByID(ctx, AllScope(), h)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +371,7 @@ func TestHostByID(t *testing.T) {
 	}
 
 	mustExec(t, `UPDATE hosts SET os = NULL, arch = NULL WHERE id = $1`, h)
-	got, err = s.HostByID(ctx, h)
+	got, err = s.HostByID(ctx, AllScope(), h)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +379,7 @@ func TestHostByID(t *testing.T) {
 		t.Errorf("os/arch nulos deben leerse como vacio, got %q/%q", got.OS, got.Arch)
 	}
 
-	if _, err := s.HostByID(ctx, "0f8fad5b-d9cb-469f-a165-70867728950e"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.HostByID(ctx, AllScope(), "0f8fad5b-d9cb-469f-a165-70867728950e"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("err got %v, want ErrNotFound", err)
 	}
 }

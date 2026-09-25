@@ -53,11 +53,13 @@ func windowByID(ctx context.Context, q rowQuerier, id, lock string) (Maintenance
 }
 
 // ListMaintenance devuelve las ventanas activas, programadas y las terminadas en los ultimos 30 dias
-// (las mas recientes primero).
-func (s *Store) ListMaintenance(ctx context.Context) ([]MaintenanceWindow, error) {
+// (las mas recientes primero). Un ambito restringido solo ve las de alcance `all` y las de sus grupos.
+func (s *Store) ListMaintenance(ctx context.Context, scope Scope) ([]MaintenanceWindow, error) {
+	args := argList{MaxActiveMaintenance * 4}
 	rows, err := s.pool.Query(ctx,
-		maintenanceSelect+` WHERE m.ends_at > now() - interval '`+maintenanceListWindow+`' ORDER BY m.starts_at DESC, m.id LIMIT $1`,
-		MaxActiveMaintenance*4)
+		maintenanceSelect+` WHERE m.ends_at > now() - interval '`+maintenanceListWindow+`' AND `+
+			scope.configCond("m.scope_type", "m.scope_group_id", &args)+` ORDER BY m.starts_at DESC, m.id LIMIT $1`,
+		[]any(args)...)
 	if err != nil {
 		return nil, fmt.Errorf("listando ventanas de mantenimiento: %w", err)
 	}
@@ -68,9 +70,16 @@ func (s *Store) ListMaintenance(ctx context.Context) ([]MaintenanceWindow, error
 	return ws, nil
 }
 
-// MaintenanceByID devuelve una ventana. ErrNotFound si no existe.
-func (s *Store) MaintenanceByID(ctx context.Context, id string) (MaintenanceWindow, error) {
-	return windowByID(ctx, s.pool, id, "")
+// MaintenanceByID devuelve una ventana. ErrNotFound si no existe o queda fuera del ambito.
+func (s *Store) MaintenanceByID(ctx context.Context, scope Scope, id string) (MaintenanceWindow, error) {
+	w, err := windowByID(ctx, s.pool, id, "")
+	if err != nil {
+		return MaintenanceWindow{}, err
+	}
+	if !scope.sees(w.Scope) {
+		return MaintenanceWindow{}, ErrNotFound
+	}
+	return w, nil
 }
 
 // CreateMaintenance crea una ventana (ya validada). ErrTooManyWindows si ya hay MaxActiveMaintenance activas o

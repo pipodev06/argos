@@ -27,17 +27,17 @@ type Store interface {
 	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, err error)
 	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
 	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
-	ListHosts(ctx context.Context, f store.HostFilter) (store.HostPage, error)
-	HostByID(ctx context.Context, hostID string) (store.HostDetail, error)
+	ListHosts(ctx context.Context, scope store.Scope, f store.HostFilter) (store.HostPage, error)
+	HostByID(ctx context.Context, scope store.Scope, hostID string) (store.HostDetail, error)
 	HostDisks(ctx context.Context, hostID string, now time.Time) ([]store.DiskUsage, error)
 	LatestMetrics(ctx context.Context, hostID string) (*store.MetricPoint, error)
 	MetricSeries(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	MetricSeriesHourly(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	RevokeHost(ctx context.Context, hostID string) error
-	Summary(ctx context.Context) (store.Summary, error)
+	Summary(ctx context.Context, scope store.Scope) (store.Summary, error)
 
 	// Grupos.
-	ListGroups(ctx context.Context) (groups []store.Group, ungrouped int, err error)
+	ListGroups(ctx context.Context, scope store.Scope) (groups []store.Group, ungrouped int, err error)
 	CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool) (store.Group, error)
 	UpdateGroup(ctx context.Context, id string, ch store.GroupChange) (store.Group, error)
 	DeleteGroup(ctx context.Context, id string) error
@@ -45,19 +45,19 @@ type Store interface {
 	BulkHosts(ctx context.Context, b store.Bulk) (int, error)
 
 	// Alertas, reglas, mantenimiento y eventos de host.
-	ListAlerts(ctx context.Context, f store.AlertFilter) (store.AlertPage, error)
-	AlertByID(ctx context.Context, id string) (store.AlertDetail, error)
+	ListAlerts(ctx context.Context, scope store.Scope, f store.AlertFilter) (store.AlertPage, error)
+	AlertByID(ctx context.Context, scope store.Scope, id string) (store.AlertDetail, error)
 	AckAlert(ctx context.Context, id, userID, username string) (store.Alert, error)
 	ResolveAlert(ctx context.Context, id, userID, username string) (store.Alert, error)
-	AlertSummary(ctx context.Context) (store.AlertSummary, error)
-	ListHostEvents(ctx context.Context, hostID string, after *store.EventCursor, limit int) (store.EventPage, error)
-	ListAlertRules(ctx context.Context) ([]store.AlertRule, error)
-	AlertRuleByID(ctx context.Context, id string) (store.AlertRule, error)
+	AlertSummary(ctx context.Context, scope store.Scope) (store.AlertSummary, error)
+	ListHostEvents(ctx context.Context, scope store.Scope, hostID string, after *store.EventCursor, limit int) (store.EventPage, error)
+	ListAlertRules(ctx context.Context, scope store.Scope) ([]store.AlertRule, error)
+	AlertRuleByID(ctx context.Context, scope store.Scope, id string) (store.AlertRule, error)
 	CreateAlertRule(ctx context.Context, r store.AlertRule, createdBy string) (store.AlertRule, error)
 	UpdateAlertRule(ctx context.Context, id string, mutate func(*store.AlertRule) error) (store.AlertRule, error)
 	DeleteAlertRule(ctx context.Context, id string) (name string, err error)
-	ListMaintenance(ctx context.Context) ([]store.MaintenanceWindow, error)
-	MaintenanceByID(ctx context.Context, id string) (store.MaintenanceWindow, error)
+	ListMaintenance(ctx context.Context, scope store.Scope) ([]store.MaintenanceWindow, error)
+	MaintenanceByID(ctx context.Context, scope store.Scope, id string) (store.MaintenanceWindow, error)
 	CreateMaintenance(ctx context.Context, w store.MaintenanceWindow, userID, username string) (store.MaintenanceWindow, error)
 	UpdateMaintenance(ctx context.Context, id string, mutate func(*store.MaintenanceWindow) error) (store.MaintenanceWindow, error)
 	DeleteMaintenance(ctx context.Context, id string) (name string, err error)
@@ -71,14 +71,14 @@ type Store interface {
 	SetRuleChannels(ctx context.Context, ruleID string, channelIDs []string) error
 
 	// Chequeos de servicio (definiciones, estado por host y eventos).
-	ListServiceChecks(ctx context.Context) ([]store.ServiceCheckDef, error)
-	ServiceCheckByID(ctx context.Context, id string) (store.ServiceCheckDef, error)
+	ListServiceChecks(ctx context.Context, scope store.Scope) ([]store.ServiceCheckDef, error)
+	ServiceCheckByID(ctx context.Context, scope store.Scope, id string) (store.ServiceCheckDef, error)
 	CreateServiceCheck(ctx context.Context, d store.ServiceCheckDef, createdBy string) (store.ServiceCheckDef, error)
 	UpdateServiceCheck(ctx context.Context, id string, mutate func(*store.ServiceCheckDef) error) (store.ServiceCheckDef, error)
 	DeleteServiceCheck(ctx context.Context, id string) (name, typ string, err error)
 	HostChecks(ctx context.Context, hostID string) ([]store.ServiceCheckDef, error)
-	HostServiceChecks(ctx context.Context, hostID string) ([]store.HostCheck, error)
-	ListCheckEvents(ctx context.Context, hostID, checkID string, after *store.EventCursor, limit int) (store.CheckEventPage, error)
+	HostServiceChecks(ctx context.Context, scope store.Scope, hostID string) ([]store.HostCheck, error)
+	ListCheckEvents(ctx context.Context, scope store.Scope, hostID, checkID string, after *store.EventCursor, limit int) (store.CheckEventPage, error)
 
 	// Usuarios y sesiones.
 	UserByUsername(ctx context.Context, username string) (store.User, error)
@@ -277,8 +277,8 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "PATCH /api/v1/alert-rules/{id}", accessAdmin, a.updateAlertRule)
 	a.route(mux, "DELETE /api/v1/alert-rules/{id}", accessAdmin, a.deleteAlertRule)
 	a.route(mux, "PUT /api/v1/alert-rules/{id}/channels", accessAdmin, a.setRuleChannels)
-	a.route(mux, "GET /api/v1/channels", accessSession, a.listChannels)
-	a.route(mux, "GET /api/v1/channels/{id}", accessSession, a.getChannel)
+	a.route(mux, "GET /api/v1/channels", accessSession, a.requireFullScope(a.listChannels))
+	a.route(mux, "GET /api/v1/channels/{id}", accessSession, a.requireFullScope(a.getChannel))
 	a.route(mux, "POST /api/v1/channels", accessAdmin, a.createChannel)
 	a.route(mux, "PATCH /api/v1/channels/{id}", accessAdmin, a.updateChannel)
 	a.route(mux, "DELETE /api/v1/channels/{id}", accessAdmin, a.deleteChannel)
@@ -339,6 +339,9 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusNotFound, "not_found", "recurso no encontrado")
 	case errors.Is(err, store.ErrUserExists):
 		writeError(w, http.StatusConflict, "username_taken", "ese nombre de usuario ya existe")
+	case errors.Is(err, store.ErrInvalidScope):
+		writeError(w, http.StatusBadRequest, "invalid_scope",
+			"los permisos por grupo no aplican a admins, y group_ids exige all_groups=false")
 	case errors.Is(err, store.ErrLastAdmin):
 		writeError(w, http.StatusConflict, "last_admin", "debe quedar al menos un admin activo")
 	case errors.Is(err, store.ErrTooManyTokens):

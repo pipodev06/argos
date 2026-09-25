@@ -79,7 +79,7 @@ func maintenanceAuditDetail(w store.MaintenanceWindow) map[string]any {
 }
 
 func (a *API) listMaintenance(w http.ResponseWriter, r *http.Request) error {
-	ws, err := a.store.ListMaintenance(r.Context())
+	ws, err := a.store.ListMaintenance(r.Context(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (a *API) getMaintenance(w http.ResponseWriter, r *http.Request) error {
 	if !isUUID(id) {
 		return badRequest("id invalido")
 	}
-	win, err := a.store.MaintenanceByID(r.Context(), id)
+	win, err := a.store.MaintenanceByID(r.Context(), currentUser(r).Scope, id)
 	if err != nil {
 		return err
 	}
