@@ -15,6 +15,7 @@ import { useServiceChecks } from '@/features/checks/hooks/useChecks'
 import { deleteCheck, updateCheck } from '@/features/checks/services/checks.service'
 import type { ServiceCheck } from '@/features/checks/types/check.types'
 import { CHECK_FIELDS, filterChecks } from '@/features/checks/utils/checkQuery'
+import { useAllDevices } from '@/features/devices/hooks/useDevices'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 
@@ -22,6 +23,7 @@ export function ChecksPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const { data: checks, error, loading, refresh } = useServiceChecks()
+  const { data: devices } = useAllDevices()
   const { filters, setFilters, clear, hasActive } = useUrlFilters(CHECK_FIELDS)
   const [form, setForm] = useState<{ check: ServiceCheck | null } | null>(null)
   const [deleting, setDeleting] = useState<ServiceCheck | null>(null)
@@ -73,7 +75,7 @@ export function ChecksPage() {
         {checks && checks.length > 0 && shown?.length === 0 && hasActive && (
           <NoResultsState Icon={IconHeartRateMonitor} title="Ningún chequeo coincide con los filtros." onClear={clear} />
         )}
-        {shown && shown.length > 0 && <ChecksTable checks={shown} canAct={isAdmin} busy={toggle.busy} onAction={handleAction} />}
+        {shown && shown.length > 0 && <ChecksTable checks={shown} canAct={isAdmin} busy={toggle.busy} devices={devices ?? undefined} onAction={handleAction} />}
       </div>
       {isAdmin && (
         <>
