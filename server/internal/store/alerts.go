@@ -341,7 +341,7 @@ func (s *Store) ListHostEvents(ctx context.Context, scope Scope, hostID string, 
 	if err := s.requireHost(ctx, scope, hostID); err != nil {
 		return EventPage{}, err
 	}
-	sql := `SELECT id, from_status, to_status, at, source FROM host_events WHERE host_id = $1`
+	sql := `SELECT id, COALESCE(from_status, ''), to_status, at, source FROM host_events WHERE host_id = $1`
 	args := []any{hostID}
 	if after != nil {
 		args = append(args, after.At, after.ID)
@@ -374,10 +374,16 @@ func (s *Store) ListHostEvents(ctx context.Context, scope Scope, hostID string, 
 
 // Retencion: cada Purge* borra hasta batch filas anteriores a before y devuelve cuantas borro.
 
-// PurgeHostEvents borra eventos de host anteriores a before.
+// PurgeHostEvents borra eventos de host anteriores a before, salvo el ultimo de cada host anterior a before:
+// es el estado con el que el host entra a la ventana retenida (el SLA lo necesita pa un host estable).
 func (s *Store) PurgeHostEvents(ctx context.Context, before time.Time, batch int) (int, error) {
 	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM host_events WHERE id IN (SELECT id FROM host_events WHERE at < $1 ORDER BY at LIMIT $2)`, before, batch)
+		`DELETE FROM host_events WHERE id IN (
+		   SELECT e.id FROM host_events e
+		    WHERE e.at < $1
+		      AND EXISTS (SELECT 1 FROM host_events n
+		                   WHERE n.host_id = e.host_id AND n.at < $1 AND (n.at, n.id) > (e.at, e.id))
+		    ORDER BY e.at LIMIT $2)`, before, batch)
 	if err != nil {
 		return 0, fmt.Errorf("purgando eventos de host: %w", err)
 	}
@@ -417,4 +423,48 @@ func (s *Store) PurgeMaintenanceWindows(ctx context.Context, before time.Time, b
 		return 0, fmt.Errorf("purgando ventanas de mantenimiento: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+// HostStatusEvent es una transicion de status de un host tal como se guardo. FromStatus nil marca el evento
+// inicial (alta o siembra).
+type HostStatusEvent struct {
+	HostID     string
+	FromStatus *string
+	ToStatus   string
+	At         time.Time
+	Source     string
+}
+
+// HostEventsInRange devuelve, de los hosts del ambito, los eventos con from <= at < to y, por cada host, el
+// ultimo evento anterior a from (su estado al entrar al rango). Orden: host, at, id. Sin tope de filas: el
+// llamador acota el rango y el conjunto de hosts. El ambito es obligatorio.
+func (s *Store) HostEventsInRange(ctx context.Context, scope Scope, from, to time.Time) ([]HostStatusEvent, error) {
+	var args argList
+	fromP, toP := args.add(from), args.add(to)
+	inRange := scope.hostCond("e.host_id", &args)
+	prior := scope.groupCond("h.group_id", &args)
+	rows, err := s.pool.Query(ctx, `
+SELECT host_id, from_status, to_status, at, source FROM (
+  SELECT e.id, e.host_id, e.from_status, e.to_status, e.at, e.source
+    FROM host_events e WHERE e.at >= `+fromP+` AND e.at < `+toP+` AND `+inRange+`
+  UNION ALL
+  SELECT l.id, l.host_id, l.from_status, l.to_status, l.at, l.source
+    FROM hosts h
+   CROSS JOIN LATERAL (SELECT p.id, p.host_id, p.from_status, p.to_status, p.at, p.source
+                         FROM host_events p WHERE p.host_id = h.id AND p.at < `+fromP+`
+                        ORDER BY p.at DESC, p.id DESC LIMIT 1) l
+   WHERE `+prior+`
+) x ORDER BY host_id, at, id`, []any(args)...)
+	if err != nil {
+		return nil, fmt.Errorf("listando eventos del rango: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (HostStatusEvent, error) {
+		var e HostStatusEvent
+		err := row.Scan(&e.HostID, &e.FromStatus, &e.ToStatus, &e.At, &e.Source)
+		return e, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leyendo eventos del rango: %w", err)
+	}
+	return out, nil
 }

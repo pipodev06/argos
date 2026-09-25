@@ -1021,8 +1021,9 @@ func TestPurgeAlertData(t *testing.T) {
 
 	mustExec(t, `INSERT INTO host_events (host_id, from_status, to_status, at, source) VALUES
 		($1, 'up', 'down', now() - interval '200 days', 'detector'), ($1, 'down', 'up', now() - interval '1 day', 'ingest')`, h)
-	if n, err := s.PurgeHostEvents(ctx, time.Now().Add(-180*24*time.Hour), 1000); err != nil || n != 1 {
-		t.Errorf("purge host_events got %d, %v; want 1", n, err)
+	// El evento de hace 200 d es el ultimo anterior al corte: se conserva (estado inicial del host).
+	if n, err := s.PurgeHostEvents(ctx, time.Now().Add(-180*24*time.Hour), 1000); err != nil || n != 0 {
+		t.Errorf("purge host_events got %d, %v; want 0", n, err)
 	}
 
 	mustExec(t, `INSERT INTO alerts (id, host_id, rule_name, rule_kind, severity, state, opened_at, resolved_at, resolve_reason) VALUES

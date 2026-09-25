@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"argos/agent/internal/checks"
+	"argos/agent/internal/inventory"
 	"argos/agent/internal/state"
 )
 
@@ -49,6 +50,9 @@ type Config struct {
 	// CheckAllow es la politica local de destinos de los chequeos (ARGOS_CHECK_ALLOW). Vacia = defecto:
 	// solo loopback y las IPs propias del host. El servidor no puede ampliarla.
 	CheckAllow *checks.Policy
+	// InventoryModules son los modulos de inventario activados localmente (ARGOS_INVENTORY_MODULES:
+	// ports, services, processes). Vacio = apagado (defecto). El servidor no puede activarlos.
+	InventoryModules []string
 }
 
 // Load lee la configuracion con getenv (os.Getenv en produccion). defaultStateDir
@@ -103,6 +107,11 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 		return Config{}, fmt.Errorf("ARGOS_CHECK_ALLOW invalida (hostnames, IPs o CIDRs separados por comas, con :puerto opcional): %w", err)
 	}
 	cfg.CheckAllow = pol
+	mods, err := inventory.ParseModules(getenv("ARGOS_INVENTORY_MODULES"))
+	if err != nil {
+		return Config{}, fmt.Errorf("ARGOS_INVENTORY_MODULES invalida (lista separada por comas de ports, services, processes): %w", err)
+	}
+	cfg.InventoryModules = mods
 	if cfg.StateDir == "" {
 		dir, err := defaultStateDir()
 		if err != nil {

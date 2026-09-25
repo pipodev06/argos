@@ -56,6 +56,8 @@ type Store interface {
 	CreateAlertRule(ctx context.Context, r store.AlertRule, createdBy string) (store.AlertRule, error)
 	UpdateAlertRule(ctx context.Context, id string, mutate func(*store.AlertRule) error) (store.AlertRule, error)
 	DeleteAlertRule(ctx context.Context, id string) (name string, err error)
+	AvailabilityReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.HostAvailability, error)
+	ServiceChecksReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.CheckAvailability, error)
 	ListMaintenance(ctx context.Context, scope store.Scope) ([]store.MaintenanceWindow, error)
 	MaintenanceByID(ctx context.Context, scope store.Scope, id string) (store.MaintenanceWindow, error)
 	CreateMaintenance(ctx context.Context, w store.MaintenanceWindow, userID, username string) (store.MaintenanceWindow, error)
@@ -157,11 +159,12 @@ type API struct {
 
 	cmdOrigin string // origen de los comandos de instalacion ("" = no ofrecerlos)
 
-	loginLimiter   *limiter // por IP: 20 intentos / 10 min
-	distLimiter    *limiter // por IP: 30 / min (instaladores y descargas)
-	enrollLimiter  *limiter // por IP: 10 / min
-	metricsLimiter *limiter // por host: 1 cada 2 s, rafaga 5
-	testLimiter    *limiter // por usuario: 5 / min (POST /channels/{id}/test)
+	loginLimiter   *limiter      // por IP: 20 intentos / 10 min
+	distLimiter    *limiter      // por IP: 30 / min (instaladores y descargas)
+	enrollLimiter  *limiter      // por IP: 10 / min
+	metricsLimiter *limiter      // por host: 1 cada 2 s, rafaga 5
+	testLimiter    *limiter      // por usuario: 5 / min (POST /channels/{id}/test)
+	reportSem      chan struct{} // cupos de informes de disponibilidad concurrentes
 	agentFails     failCounter
 
 	routes []route
@@ -188,6 +191,7 @@ func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time
 		metricsLimiter: newLimiter(5, 10*time.Second),
 		distLimiter:    newLimiter(distLimitBurst, time.Minute),
 		testLimiter:    newLimiter(channelTestsPerMinute, time.Minute),
+		reportSem:      make(chan struct{}, maxConcurrentReports),
 		cmdOrigin:      commandOrigin(opts.PublicURL, opts.Dist != nil),
 	}
 	if opts.InsecureCookies {
@@ -266,6 +270,8 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
 
 	// Alertas (lectura: cualquier sesion; escritura, ack y resolve: solo admin).
+	a.route(mux, "GET /api/v1/reports/availability", accessSession, a.availabilityReport)
+	a.route(mux, "GET /api/v1/reports/service-checks", accessSession, a.serviceChecksReport)
 	a.route(mux, "GET /api/v1/alerts", accessSession, a.listAlerts)
 	a.route(mux, "GET /api/v1/alerts/summary", accessSession, a.alertSummary)
 	a.route(mux, "GET /api/v1/alerts/{id}", accessSession, a.getAlert)
