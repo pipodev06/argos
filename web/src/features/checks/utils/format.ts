@@ -33,6 +33,7 @@ const DETAIL_LABELS: Record<string, string> = {
   expired: 'Certificado vencido',
   auth_failed: 'Autenticación SNMP fallida (revisa el perfil)',
   no_such_object: 'La interfaz u objeto no existe en el equipo',
+  bad_response: 'Respuesta inválida del equipo',
 }
 
 export const detailLabel = (detail: string | null): string => (detail ? (DETAIL_LABELS[detail] ?? detail) : '—')

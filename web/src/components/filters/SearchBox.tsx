@@ -51,7 +51,7 @@ export function SearchBox({ field, value, onCommit }: SearchBoxProps) {
         maxLength={field.maxLength ?? 128}
         value={draft}
         onChange={(e) => handleChange(e.target.value)}
-        className="h-8 pl-8"
+        className="h-8 border-text-muted pl-8"
       />
     </div>
   )

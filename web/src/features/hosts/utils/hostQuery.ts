@@ -36,7 +36,7 @@ const SEEN_UNITS: readonly NumericUnit[] = [
  * battery_lt, seen_before, q, sort, dir, limit.
  */
 export const HOST_FIELDS = [
-  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar hosts', placeholder: 'Buscar (/)' },
+  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar hosts', placeholder: 'Buscar' },
   {
     kind: 'multi',
     key: 'status',
