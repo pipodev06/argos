@@ -58,6 +58,17 @@ type hostInfoDTO struct {
 	Privilege     *string    `json:"privilege"`
 	IPs           []string   `json:"ips"`
 	MemTotalMB    *int       `json:"mem_total_mb"`
+	// PhysicalDisks es null si el agente no lo reporta (desconocido), nunca [] por defecto.
+	PhysicalDisks []physicalDiskDTO `json:"physical_disks"`
+}
+
+// physicalDiskDTO es un disco fisico y los mounts que contiene; model, bus y size_mb son null si no se conocen.
+type physicalDiskDTO struct {
+	ID     string   `json:"id"`
+	Model  *string  `json:"model"`
+	Bus    *string  `json:"bus"`
+	SizeMB *int64   `json:"size_mb"`
+	Mounts []string `json:"mounts"`
 }
 
 func toHostInfoDTO(i store.HostInfo) hostInfoDTO {
@@ -71,6 +82,16 @@ func toHostInfoDTO(i store.HostInfo) hostInfoDTO {
 	}
 	for _, ip := range i.IPs {
 		dto.IPs = append(dto.IPs, ip.String())
+	}
+	if i.PhysicalDisks != nil {
+		dto.PhysicalDisks = make([]physicalDiskDTO, 0, len(i.PhysicalDisks))
+		for _, d := range i.PhysicalDisks {
+			mounts := d.Mounts
+			if mounts == nil {
+				mounts = []string{}
+			}
+			dto.PhysicalDisks = append(dto.PhysicalDisks, physicalDiskDTO{ID: d.ID, Model: d.Model, Bus: d.Bus, SizeMB: d.SizeMB, Mounts: mounts})
+		}
 	}
 	return dto
 }

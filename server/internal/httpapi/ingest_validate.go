@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/netip"
@@ -20,7 +21,17 @@ const (
 	maxCPUThreads   = 8192      // SMALLINT en la BD (CHECK 1..8192)
 	maxLoad         = 1e6       // REAL admite mucho mas; esto es un tope de cordura
 	minBootTimeUnix = 946684800 // 2000-01-01: una fecha anterior es basura
+
+	maxPhysicalDisks   = 16
+	maxDiskIDLen       = 32
+	maxDiskModelLen    = 64
+	maxDiskMounts      = 32
+	maxDiskMountLen    = 64
+	maxDiskSizeMB      = 1 << 40
+	maxPhysicalDisksJS = 6144 // bytes del JSON compacto; el CHECK de la BD (8 KiB en texto jsonb) deja margen
 )
+
+var validDiskBus = map[string]bool{"nvme": true, "sata": true, "scsi": true, "usb": true, "virtual": true, "other": true}
 
 type diskPayload struct {
 	Mount   string `json:"mount"`
@@ -40,6 +51,16 @@ type hostInfoPayload struct {
 	// Privilege: nivel con el que corre el agente ("user" | "elevated"); vacio = agente que aun no lo reporta.
 	Privilege string   `json:"privilege"`
 	IPs       []string `json:"ips"`
+	// PhysicalDisks: discos fisicos y sus mounts; ausente o vacio = el agente no lo sabe.
+	PhysicalDisks []physicalDiskPayload `json:"physical_disks"`
+}
+
+type physicalDiskPayload struct {
+	ID     string   `json:"id"`
+	Model  string   `json:"model"`
+	Bus    string   `json:"bus"`
+	SizeMB *int64   `json:"size_mb"`
+	Mounts []string `json:"mounts"`
 }
 
 // validateExtras valida swap, load y bateria y los copia al sample (ausente = nil). Cada campo es opcional
@@ -135,6 +156,74 @@ func validateDisks(in []diskPayload) ([]store.DiskSample, error) {
 	return out, nil
 }
 
+// validatePhysicalDisks valida la lista de discos fisicos (vacia = ausente: nil = desconocido).
+func validatePhysicalDisks(in []physicalDiskPayload) ([]store.PhysicalDisk, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	if len(in) > maxPhysicalDisks {
+		return nil, badRequest("host_info.physical_disks admite como maximo %d discos", maxPhysicalDisks)
+	}
+	ids := make(map[string]bool, len(in))
+	mounts := make(map[string]bool)
+	out := make([]store.PhysicalDisk, 0, len(in))
+	for i, d := range in {
+		field := fmt.Sprintf("host_info.physical_disks[%d]", i)
+		if d.ID == "" {
+			return nil, badRequest("%s.id requerido", field)
+		}
+		if err := checkOptionalText(field+".id", d.ID, maxDiskIDLen); err != nil {
+			return nil, err
+		}
+		if ids[d.ID] {
+			return nil, badRequest("%s.id repetido", field)
+		}
+		ids[d.ID] = true
+		if err := checkOptionalText(field+".model", d.Model, maxDiskModelLen); err != nil {
+			return nil, err
+		}
+		if d.Bus != "" && !validDiskBus[d.Bus] {
+			return nil, badRequest("%s.bus debe ser nvme, sata, scsi, usb, virtual u other", field)
+		}
+		if d.SizeMB != nil && (*d.SizeMB < 1 || *d.SizeMB > maxDiskSizeMB) {
+			return nil, badRequest("%s.size_mb fuera de rango 1-%d", field, int64(maxDiskSizeMB))
+		}
+		if len(d.Mounts) > maxDiskMounts {
+			return nil, badRequest("%s.mounts admite como maximo %d elementos", field, maxDiskMounts)
+		}
+		pd := store.PhysicalDisk{ID: d.ID, SizeMB: d.SizeMB, Mounts: make([]string, 0, len(d.Mounts))}
+		if d.Model != "" {
+			pd.Model = &d.Model
+		}
+		if d.Bus != "" {
+			pd.Bus = &d.Bus
+		}
+		for _, m := range d.Mounts {
+			if m == "" {
+				return nil, badRequest("%s.mounts contiene un texto vacio", field)
+			}
+			if err := checkOptionalText(field+".mounts", m, maxDiskMountLen); err != nil {
+				return nil, err
+			}
+			if mounts[m] {
+				return nil, badRequest("%s.mounts repite un mount ya asignado", field)
+			}
+			mounts[m] = true
+			pd.Mounts = append(pd.Mounts, m)
+		}
+		out = append(out, pd)
+	}
+	// El peor caso teorico (16 discos x 32 mounts x 64) supera el tope de la columna: se acota el total.
+	raw, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("serializando host_info.physical_disks: %w", err)
+	}
+	if len(raw) > maxPhysicalDisksJS {
+		return nil, badRequest("host_info.physical_disks excede %d bytes", maxPhysicalDisksJS)
+	}
+	return out, nil
+}
+
 // validateHostInfo valida la info estatica (nil = ausente). Textos vacios y numeros en cero son "sin dato".
 func validateHostInfo(in *hostInfoPayload, now time.Time) (*store.HostInfoUpdate, error) {
 	if in == nil {
@@ -159,8 +248,13 @@ func validateHostInfo(in *hostInfoPayload, now time.Time) (*store.HostInfoUpdate
 	if in.Privilege != "" && in.Privilege != "user" && in.Privilege != "elevated" {
 		return nil, badRequest("host_info.privilege debe ser user o elevated")
 	}
+	disks, err := validatePhysicalDisks(in.PhysicalDisks)
+	if err != nil {
+		return nil, err
+	}
 	out := &store.HostInfoUpdate{
-		CPUModel: in.CPUModel, OSName: in.OSName, OSVersion: in.OSVersion,
+		PhysicalDisks: disks,
+		CPUModel:      in.CPUModel, OSName: in.OSName, OSVersion: in.OSVersion,
 		KernelVersion: in.KernelVersion, AgentVersion: in.AgentVersion, Privilege: in.Privilege,
 	}
 

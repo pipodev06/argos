@@ -150,7 +150,7 @@ func TestHostDetailShape(t *testing.T) {
 		}
 		wantKeys(t, "data", raw, "host", "info", "latest", "disks")
 		data := map[string]map[string]any{"host": raw["host"].(map[string]any), "latest": raw["latest"].(map[string]any), "info": raw["info"].(map[string]any)}
-		wantKeys(t, "info", data["info"], "boot_time", "cpu_model", "cpu_cores", "cpu_threads", "os_name", "os_version", "kernel_version", "agent_version", "privilege", "ips", "mem_total_mb")
+		wantKeys(t, "info", data["info"], "boot_time", "cpu_model", "cpu_cores", "cpu_threads", "os_name", "os_version", "kernel_version", "agent_version", "privilege", "ips", "mem_total_mb", "physical_disks")
 		wantKeys(t, "host", data["host"], "id", "hostname", "kind", "os", "arch", "status", "last_seen_at", "status_changed_at", "created_at", "group")
 		wantKeys(t, "latest", data["latest"], latestKeys...)
 		if got := data["host"]["status_changed_at"]; got != "2026-09-23T10:00:00Z" {
@@ -289,4 +289,49 @@ func TestInvalidRangeMessageListsAllRanges(t *testing.T) {
 			t.Errorf("el mensaje %q no menciona el rango %s", resp.Error.Message, name)
 		}
 	}
+}
+
+// physical_disks: null si el agente no lo reporta (nunca []); con datos, campos ausentes como null.
+func TestHostDetailPhysicalDisks(t *testing.T) {
+	t.Parallel()
+	detail := store.HostDetail{ID: detailHostID, Hostname: "srv-01", Kind: "agent", Status: "up", StatusChangedAt: fixedNow, CreatedAt: fixedNow}
+	get := func(t *testing.T, disks []store.PhysicalDisk) any {
+		t.Helper()
+		d := detail
+		d.Info.PhysicalDisks = disks
+		h, _ := newTestAPI(t, &fakeStore{detail: d})
+		rec, resp := do(t, h, "GET", "/api/v1/hosts/"+detailHostID, "", "", asSession)
+		if rec.Code != 200 {
+			t.Fatalf("status got %d, want 200", rec.Code)
+		}
+		var raw struct {
+			Info map[string]any `json:"info"`
+		}
+		if err := json.Unmarshal(resp.Data, &raw); err != nil {
+			t.Fatal(err)
+		}
+		return raw.Info["physical_disks"]
+	}
+	t.Run("desconocido es null", func(t *testing.T) {
+		t.Parallel()
+		if got := get(t, nil); got != nil {
+			t.Errorf("physical_disks got %v, want null", got)
+		}
+	})
+	t.Run("con datos", func(t *testing.T) {
+		t.Parallel()
+		model, size := "SAMSUNG", int64(488386)
+		got, ok := get(t, []store.PhysicalDisk{{ID: "0", Model: &model, SizeMB: &size, Mounts: []string{"D:\\"}}, {ID: "1"}}).([]any)
+		if !ok || len(got) != 2 {
+			t.Fatalf("physical_disks got %v, want 2 discos", got)
+		}
+		wantKeys(t, "disco 0", got[0].(map[string]any), "id", "model", "bus", "size_mb", "mounts")
+		second := got[1].(map[string]any)
+		if second["model"] != nil || second["bus"] != nil || second["size_mb"] != nil {
+			t.Errorf("campos ausentes got %v, want null", second)
+		}
+		if m, ok := second["mounts"].([]any); !ok || len(m) != 0 {
+			t.Errorf("mounts got %v, want []", second["mounts"])
+		}
+	})
 }

@@ -57,6 +57,7 @@ func (s *System) HostInfo(ctx context.Context) (sender.HostInfo, error) {
 	if s.optionalOK(ctx, "ips", err) {
 		info.IPs = usableIPs(ifs)
 	}
+	info.PhysicalDisks = s.physicalDisks(ctx)
 	if info.BootTime == 0 && info.CPUModel == "" && info.OSName == "" && len(info.IPs) == 0 {
 		return sender.HostInfo{}, errors.New("no se pudo leer ningun dato del host")
 	}

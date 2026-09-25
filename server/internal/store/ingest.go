@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -37,6 +38,18 @@ type HostInfoUpdate struct {
 	AgentVersion  string
 	Privilege     string // "user" | "elevated" | "" (no reportado)
 	IPs           []netip.Addr
+	// PhysicalDisks: nil = el agente no lo sabe (se guarda NULL); un arreglo vacio no se produce.
+	PhysicalDisks []PhysicalDisk
+}
+
+// PhysicalDisk es un disco fisico y los mounts (los mismos de DiskSample.Mount) que contiene. Los
+// campos opcionales son nil si el agente no los conoce. Los tags son el formato JSONB guardado.
+type PhysicalDisk struct {
+	ID     string   `json:"id"`
+	Model  *string  `json:"model,omitempty"`
+	Bus    *string  `json:"bus,omitempty"`
+	SizeMB *int64   `json:"size_mb,omitempty"`
+	Mounts []string `json:"mounts"`
 }
 
 // Sample es un reporte completo del agente en un instante. Los campos con puntero (swap, load,
@@ -110,17 +123,17 @@ WHERE l.ts < EXCLUDED.ts`
 	// host_info: no escribe si nada cambio (boot_time con tolerancia de 60 s: el agente lo deriva de uptime).
 	upsertInfoSQL = `
 INSERT INTO host_info AS i (host_id, boot_time, cpu_cores, cpu_threads, cpu_model, os_name, os_version,
-                            kernel_version, agent_version, ips, privilege)
-VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), $10, NULLIF($11, ''))
+                            kernel_version, agent_version, ips, privilege, physical_disks)
+VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), $10, NULLIF($11, ''), $12::jsonb)
 ON CONFLICT (host_id) DO UPDATE SET
   boot_time = EXCLUDED.boot_time, cpu_cores = EXCLUDED.cpu_cores, cpu_threads = EXCLUDED.cpu_threads,
   cpu_model = EXCLUDED.cpu_model, os_name = EXCLUDED.os_name, os_version = EXCLUDED.os_version,
   kernel_version = EXCLUDED.kernel_version, agent_version = EXCLUDED.agent_version, ips = EXCLUDED.ips,
-  privilege = EXCLUDED.privilege, updated_at = now()
-WHERE (i.cpu_cores, i.cpu_threads, i.cpu_model, i.os_name, i.os_version, i.kernel_version, i.agent_version, i.ips, i.privilege)
+  privilege = EXCLUDED.privilege, physical_disks = EXCLUDED.physical_disks, updated_at = now()
+WHERE (i.cpu_cores, i.cpu_threads, i.cpu_model, i.os_name, i.os_version, i.kernel_version, i.agent_version, i.ips, i.privilege, i.physical_disks)
       IS DISTINCT FROM
       (EXCLUDED.cpu_cores, EXCLUDED.cpu_threads, EXCLUDED.cpu_model, EXCLUDED.os_name, EXCLUDED.os_version,
-       EXCLUDED.kernel_version, EXCLUDED.agent_version, EXCLUDED.ips, EXCLUDED.privilege)
+       EXCLUDED.kernel_version, EXCLUDED.agent_version, EXCLUDED.ips, EXCLUDED.privilege, EXCLUDED.physical_disks)
    OR (i.boot_time IS NULL) <> (EXCLUDED.boot_time IS NULL)
    OR abs(extract(epoch FROM i.boot_time - EXCLUDED.boot_time)) > 60`
 
@@ -144,6 +157,18 @@ WITH upd AS (
 )
 SELECT hostname, prev_status FROM upd`
 )
+
+// marshalPhysicalDisks serializa la lista pa la columna JSONB; nil (desconocido) va como NULL.
+func marshalPhysicalDisks(disks []PhysicalDisk) ([]byte, error) {
+	if disks == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(disks)
+	if err != nil {
+		return nil, fmt.Errorf("serializando discos fisicos: %w", err)
+	}
+	return b, nil
+}
 
 // IngestMetrics guarda un reporte (metricas, discos, servicios, info del host y ultimo valor) y
 // marca el host como up, todo en una transaccion y un solo round-trip (pgx.Batch).
@@ -174,8 +199,12 @@ func (s *Store) IngestMetrics(ctx context.Context, hostID string, smp Sample) (I
 		}
 		plan.queue(&b, hostID)
 		if info := smp.Info; info != nil {
+			disksJSON, err := marshalPhysicalDisks(info.PhysicalDisks)
+			if err != nil {
+				return err
+			}
 			b.Queue(upsertInfoSQL, hostID, info.BootTime, info.CPUCores, info.CPUThreads, info.CPUModel,
-				info.OSName, info.OSVersion, info.KernelVersion, info.AgentVersion, info.IPs, info.Privilege)
+				info.OSName, info.OSVersion, info.KernelVersion, info.AgentVersion, info.IPs, info.Privilege, disksJSON)
 		}
 		diskPct, diskMount, diskTS := worstDisk(smp.Disks, smp.Timestamp)
 		b.Queue(upsertLatestSQL, hostID, smp.Timestamp, smp.CPUPct, smp.MemUsedMB, smp.MemTotalMB,

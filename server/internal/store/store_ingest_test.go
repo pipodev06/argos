@@ -340,3 +340,60 @@ func TestMetricSeriesHourlyNewColumns(t *testing.T) {
 		t.Errorf("load5/load15 sin dato deben ser nil: %+v", p)
 	}
 }
+
+// physical_disks: NULL (desconocido) distinto de [], se lee tal cual, idempotente y un cambio reescribe.
+func TestIngestPhysicalDisks(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "pd", "up", ago(time.Second))
+	id := hostID(t, "pd")
+	now := time.Now().Truncate(time.Second)
+	model, bus, size := "SAMSUNG", "nvme", int64(488386)
+	disks := func() []PhysicalDisk {
+		return []PhysicalDisk{{ID: "0", Model: &model, Bus: &bus, SizeMB: &size, Mounts: []string{"D:\\", "E:\\"}}, {ID: "1", Mounts: []string{}}}
+	}
+	send := func(i int, d []PhysicalDisk) {
+		t.Helper()
+		if _, err := s.IngestMetrics(ctx, id, Sample{Timestamp: now.Add(time.Duration(i) * time.Second), Info: &HostInfoUpdate{OSName: "Windows", PhysicalDisks: d}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func() (HostInfo, time.Time) {
+		t.Helper()
+		h, err := s.HostByID(ctx, AllScope(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var u time.Time
+		if err := testPool.QueryRow(ctx, `SELECT updated_at FROM host_info WHERE host_id = $1`, id).Scan(&u); err != nil {
+			t.Fatal(err)
+		}
+		return h.Info, u
+	}
+
+	send(0, nil)
+	if info, _ := read(); info.PhysicalDisks != nil {
+		t.Fatalf("sin dato got %v, want nil (NULL)", info.PhysicalDisks)
+	}
+	send(1, disks())
+	info, first := read()
+	if len(info.PhysicalDisks) != 2 || info.PhysicalDisks[0].ID != "0" || *info.PhysicalDisks[0].Model != "SAMSUNG" ||
+		*info.PhysicalDisks[0].SizeMB != 488386 || len(info.PhysicalDisks[0].Mounts) != 2 || info.PhysicalDisks[1].Model != nil {
+		t.Fatalf("physical_disks got %+v", info.PhysicalDisks)
+	}
+	time.Sleep(20 * time.Millisecond)
+	send(2, disks())
+	if _, got := read(); !got.Equal(first) {
+		t.Errorf("mismos discos no deben reescribir host_info")
+	}
+	changed := disks()
+	changed[1].Mounts = []string{"C:\\"}
+	send(3, changed)
+	if _, got := read(); !got.After(first) {
+		t.Errorf("un mount distinto debe reescribir host_info")
+	}
+	// Un CHECK de la BD rechaza lo que no es arreglo.
+	if _, err := testPool.Exec(ctx, `UPDATE host_info SET physical_disks = '{}'::jsonb WHERE host_id = $1`, id); err == nil {
+		t.Errorf("physical_disks objeto debio violar el CHECK")
+	}
+}

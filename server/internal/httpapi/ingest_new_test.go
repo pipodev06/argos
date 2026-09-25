@@ -38,11 +38,45 @@ func TestAgentMetricsNewFieldsValidation(t *testing.T) {
 		}
 		return `"host_info":{"ips":[` + strings.Join(parts, ",") + `]}`
 	}
+	pd := func(disks string) string { return `"host_info":{"physical_disks":` + disks + `}` }
+	manyPD := func(n, mounts int) string {
+		parts := make([]string, n)
+		for i := range n {
+			ms := make([]string, mounts)
+			for j := range mounts {
+				ms[j] = fmt.Sprintf(`"/m%d_%d_%s"`, i, j, strings.Repeat("x", 30))
+			}
+			parts[i] = fmt.Sprintf(`{"id":"d%d","mounts":[%s]}`, i, strings.Join(ms, ","))
+		}
+		return pd("[" + strings.Join(parts, ",") + "]")
+	}
 	tests := []struct {
 		name     string
 		body     string
 		wantCode int
 	}{
+		// discos fisicos
+		{"physical_disks valido", metricsBody("", pd(`[{"id":"0","model":"SAMSUNG","bus":"nvme","size_mb":488386,"mounts":["D:\\","E:\\"]},{"id":"1","mounts":[]}]`)), 200},
+		{"physical_disks vacio = ausente", metricsBody("", pd(`[]`)), 200},
+		{"physical_disks null", metricsBody("", pd(`null`)), 200},
+		{"physical_disks 16 discos", metricsBody("", manyPD(16, 1)), 200},
+		{"physical_disks 17 discos", metricsBody("", manyPD(17, 1)), 400},
+		{"physical_disks 32 mounts", metricsBody("", manyPD(1, 32)), 200},
+		{"physical_disks 33 mounts", metricsBody("", manyPD(1, 33)), 400},
+		{"physical_disks total excede 6 KiB", metricsBody("", manyPD(16, 32)), 400},
+		{"physical_disks id repetido", metricsBody("", pd(`[{"id":"0"},{"id":"0"}]`)), 400},
+		{"physical_disks id vacio", metricsBody("", pd(`[{"id":""}]`)), 400},
+		{"physical_disks id de 33", metricsBody("", pd(`[{"id":"`+strings.Repeat("a", 33)+`"}]`)), 400},
+		{"physical_disks model de 65", metricsBody("", pd(`[{"id":"0","model":"`+strings.Repeat("a", 65)+`"}]`)), 400},
+		{"physical_disks model con control", metricsBody("", pd(`[{"id":"0","model":"a\u0007"}]`)), 400},
+		{"physical_disks bus invalido", metricsBody("", pd(`[{"id":"0","bus":"ide"}]`)), 400},
+		{"physical_disks size 0", metricsBody("", pd(`[{"id":"0","size_mb":0}]`)), 400},
+		{"physical_disks size 2^40", metricsBody("", pd(`[{"id":"0","size_mb":1099511627776}]`)), 200},
+		{"physical_disks size 2^40+1", metricsBody("", pd(`[{"id":"0","size_mb":1099511627777}]`)), 400},
+		{"physical_disks mount repetido en el mismo disco", metricsBody("", pd(`[{"id":"0","mounts":["/","/"]}]`)), 400},
+		{"physical_disks mount repetido entre discos", metricsBody("", pd(`[{"id":"0","mounts":["/"]},{"id":"1","mounts":["/"]}]`)), 400},
+		{"physical_disks mount de 65", metricsBody("", pd(`[{"id":"0","mounts":["`+strings.Repeat("a", 65)+`"]}]`)), 400},
+		{"physical_disks mount vacio", metricsBody("", pd(`[{"id":"0","mounts":[""]}]`)), 400},
 		// swap, load, bateria
 		{"swap valido", metricsBody(`"swap":{"used_mb":0,"total_mb":2048}`, ""), 200},
 		{"swap negativo", metricsBody(`"swap":{"used_mb":-1,"total_mb":2048}`, ""), 400},
