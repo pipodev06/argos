@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canViewInventory, describeChange, describeValue, emptyKind, isExposed } from './inventory'
+import { canViewInventory, describeChange, describeValue, emptyKind, inventoryPath, isExposed, summaryValue } from './inventory'
 
 describe('isExposed', () => {
   it.each(['127.0.0.1', '127.1.2.3', '::1', '[::1]', '::ffff:127.0.0.1'])('%s es solo local', (b) => {
@@ -43,5 +43,22 @@ describe('canViewInventory', () => {
     expect(canViewInventory({ role: 'viewer', can_inventory: true })).toBe(true)
     expect(canViewInventory({ role: 'viewer', can_inventory: false })).toBe(false)
     expect(canViewInventory(null)).toBe(false)
+  })
+})
+
+describe('summaryValue / inventoryPath', () => {
+  const now = Date.parse('2026-09-25T12:00:00Z')
+  const base = { truncated: false, collected_at: null, count: 0 }
+  it('ok: conteo y hace X', () => {
+    expect(summaryValue({ ...base, status: 'ok', count: 42, updated_at: '2026-09-25T11:58:00Z' }, now)).toEqual({ text: 42, detail: 'hace 2 min' })
+  })
+  it('ok con 0 muestra 0; disabled y no_data', () => {
+    expect(summaryValue({ ...base, status: 'ok', updated_at: null }, now)).toEqual({ text: 0, detail: undefined })
+    expect(summaryValue({ ...base, status: 'disabled', updated_at: null }, now).text).toBe('Desactivado')
+    expect(summaryValue({ ...base, status: 'no_data', updated_at: null }, now).text).toBeNull()
+    expect(summaryValue(undefined, now).text).toBeNull()
+  })
+  it('ruta del host', () => {
+    expect(inventoryPath('abc')).toBe('/hosts/abc/inventario')
   })
 })

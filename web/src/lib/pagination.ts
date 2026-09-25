@@ -50,3 +50,11 @@ export function formatPageRange(
   const range = `${fmt(start)}–${fmt(end)}`
   return total == null ? range : `${range} de ${fmt(total)}`
 }
+
+/** Ventana [start, end) de una lista completa en memoria; la pagina se acota a la ultima existente. */
+export function pageWindow(total: number, page: number, pageSize: number): { page: number; start: number; end: number } {
+  const lastPage = Math.max(1, Math.ceil(total / pageSize))
+  const safe = Math.min(Math.max(1, Math.floor(page)), lastPage)
+  const start = (safe - 1) * pageSize
+  return { page: safe, start, end: Math.min(start + pageSize, total) }
+}

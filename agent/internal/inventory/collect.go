@@ -27,7 +27,7 @@ type Sources struct {
 	Services func(ctx context.Context) ([]Service, error)
 }
 
-// SystemSources devuelve las lecturas reales (gopsutil; servicios solo en Windows).
+// SystemSources devuelve las lecturas reales (gopsutil; servicios en Windows y Linux).
 func SystemSources() Sources {
 	return Sources{
 		Conns: func(ctx context.Context) ([]psnet.ConnectionStat, error) {

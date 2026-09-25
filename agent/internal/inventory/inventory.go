@@ -54,7 +54,7 @@ type Port struct {
 	OwnerKnown bool   `json:"owner_known"`
 }
 
-// Service es un servicio del SO (solo Windows en v1).
+// Service es un servicio del SO (Windows y Linux con systemd).
 type Service struct {
 	Name    string `json:"name"`
 	Display string `json:"display"`
