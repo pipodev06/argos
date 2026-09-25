@@ -2,6 +2,8 @@
 
 Software de monitoreo (tipo Zabbix/PRTG/Nagios) — agente en host + servidor central con dashboard.
 
+**Al iniciar una sesión nueva:** leer `docs/estado-del-proyecto.md` (una página: qué hay, qué sigue, cómo verificar y levantar en local). Del resto (`docs/decisiones.md` índice, `docs/deuda-tecnica.md`) abrir solo lo que toque la tarea. Verificar siempre con `ARGOS_TEST_DATABASE_URL` definida (ver ese documento).
+
 ## Decisiones de estilo/diseño congeladas
 
 **Estilo visual: "Slate"** (elegido por el usuario el 2026-09-23, propuesto por ui-ux-designer; reemplaza a `terminal-dark`). Moderno y sereno, claro y oscuro. Cambiar cualquier punto de esta sección requiere pedido explícito del usuario.
