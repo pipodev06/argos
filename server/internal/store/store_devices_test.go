@@ -445,3 +445,19 @@ func TestListHostsKindFilter(t *testing.T) {
 		}
 	}
 }
+
+func TestSummaryIgnoresDevices(t *testing.T) {
+	s := newTestStore(t)
+	seedHost(t, "col", "up", ago(time.Second))
+	mkDevice(t, s, "router", "192.168.1.1", "col", nil)
+	if _, err := s.pool.Exec(context.Background(), `UPDATE hosts SET status = 'down' WHERE kind = 'device'`); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := s.Summary(context.Background(), AllScope())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Counts.Total() != 1 || sum.Counts.Down != 0 || len(sum.RecentlyDown) != 0 {
+		t.Errorf("el resumen no debe contar dispositivos: %+v, caidos %v", sum.Counts, sum.RecentlyDown)
+	}
+}
