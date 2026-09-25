@@ -6,6 +6,7 @@ import { AlertsPage } from './AlertsPage'
 import { ChecksPage } from './ChecksPage'
 import { ChannelsPage } from './ChannelsPage'
 import { GroupsPage } from './GroupsPage'
+import { ReportsPage } from './ReportsPage'
 import { HostDetailPage } from './HostDetailPage'
 import { HostsPage } from './HostsPage'
 import { MaintenancePage } from './MaintenancePage'
@@ -31,6 +32,7 @@ export function DashboardPage() {
         <Route path="hosts/:id" element={<HostDetailPage />} />
         <Route path="grupos" element={<GroupsPage />} />
         <Route path="chequeos" element={<ChecksPage />} />
+        <Route path="informes" element={<ReportsPage />} />
         <Route path="alertas" element={<AlertsPage />} />
         <Route path="alertas/reglas" element={<RulesPage />} />
         <Route path="alertas/mantenimiento" element={<MaintenancePage />} />
