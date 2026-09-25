@@ -10,8 +10,10 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"argos/agent/internal/inventory"
 	"argos/agent/internal/state"
 )
 
@@ -19,12 +21,14 @@ const (
 	linuxInstallDir = "/opt/argos-agent"
 	linuxUnitPath   = "/etc/systemd/system/argos-agent.service"
 	linuxStateDir   = "/var/lib/argos-agent"
+	linuxSudoersDir = "/etc/sudoers.d"
 )
 
 var (
 	systemctlPaths = []string{"/usr/bin/systemctl", "/bin/systemctl"}
 	useraddPaths   = []string{"/usr/sbin/useradd", "/sbin/useradd", "/usr/bin/useradd"}
 	userdelPaths   = []string{"/usr/sbin/userdel", "/sbin/userdel", "/usr/bin/userdel"}
+	visudoPaths    = []string{"/usr/sbin/visudo", "/usr/bin/visudo", "/sbin/visudo"}
 )
 
 // firstExisting devuelve la primera ruta absoluta que exista. Las herramientas del
@@ -99,7 +103,12 @@ func (m Manager) Install(ctx context.Context, o InstallOptions) error {
 		printf(o.Out, "CA copiada a %s/%s\n", linuxStateDir, state.CAFileName)
 	}
 
-	unit, err := RenderSystemdUnit(exe)
+	sudo := false
+	if o.Privileged {
+		sudo = installSudoers(ctx, o.Out)
+		printf(o.Out, "aviso: modo privilegiado: el servicio conserva el usuario %s pero gana las capacidades %s (leer procesos y puertos de otros usuarios). Para volver al modo normal: uninstall e install sin --privileged\n", Name, capsAmbient)
+	}
+	unit, err := RenderSystemdUnitOpts(exe, UnitOptions{Privileged: o.Privileged, Sudo: sudo})
 	if err != nil {
 		return err
 	}
@@ -156,7 +165,8 @@ func (m Manager) Uninstall(ctx context.Context, keepState bool, out io.Writer) e
 			}
 		}()
 	}
-	errs = append(errs, removeIfExists(linuxUnitPath), removeIfExists(linuxInstallDir))
+	errs = append(errs, removeIfExists(linuxUnitPath), removeIfExists(linuxInstallDir),
+		removeIfExists(filepath.Join(linuxSudoersDir, SudoersName)))
 	if !keepState {
 		errs = append(errs, removeIfExists(linuxStateDir))
 		errs = append(errs, deleteLinuxUser(ctx, out))
@@ -222,4 +232,33 @@ func (Manager) Status(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("instalado; estado: %s; al arranque: %s", strings.TrimSpace(active), strings.TrimSpace(enabled)), nil
+}
+
+// installSudoers instala /etc/sudoers.d/argos-agent (0440) con los comandos exactos del modulo
+// updates, validado con `visudo -cf` antes de dejarlo. Devuelve false (y avisa) si no se pudo:
+// el agente sigue con las capacidades pero sin sudo.
+func installSudoers(ctx context.Context, out io.Writer) bool {
+	exists := func(p string) bool { fi, err := os.Stat(p); return err == nil && !fi.IsDir() }
+	if !hasRPMManager(inventory.PrivilegedCommands(), exists) {
+		printf(out, "sin gestor RPM (dnf/yum/zypper): no se instala sudoers; apt funciona sin root y el endurecimiento de la unit no se relaja\n")
+		return false
+	}
+	printf(out, "aviso: gestor RPM detectado: se instala sudoers (comandos exactos de solo lectura) y la unit relaja NoNewPrivileges=false y suma CAP_SETUID/CAP_SETGID/CAP_AUDIT_WRITE al bounding set porque sudo es setuid\n")
+	visudo, err := firstExisting(visudoPaths...)
+	if err != nil {
+		printf(out, "aviso: sin visudo no se instala el sudoers; el modulo updates seguira sin sudo (%v)\n", err)
+		return false
+	}
+	content, err := RenderSudoers(Name, inventory.PrivilegedCommands())
+	if err != nil {
+		printf(out, "aviso: no se genero el sudoers: %v\n", err)
+		return false
+	}
+	validate := func(path string) error { return runTool(ctx, visudo, "-cf", path) }
+	if err := installSudoersFile(linuxSudoersDir, SudoersName, []byte(content), validate); err != nil {
+		printf(out, "aviso: no se instalo el sudoers; el modulo updates seguira sin sudo: %v\n", err)
+		return false
+	}
+	printf(out, "sudoers instalado en %s (solo comandos exactos de lectura del modulo updates)\n", filepath.Join(linuxSudoersDir, SudoersName))
+	return true
 }

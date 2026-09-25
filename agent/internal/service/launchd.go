@@ -29,11 +29,11 @@ var launchdPlist = template.Must(template.New("plist").Parse(`<?xml version="1.0
 		<string>run</string>
 		<string>--service</string>
 	</array>
-	<key>UserName</key>
+{{if .User}}	<key>UserName</key>
 	<string>{{.User}}</string>
 	<key>GroupName</key>
 	<string>{{.User}}</string>
-	<key>RunAtLoad</key>
+{{end}}	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
 	<dict>
@@ -57,12 +57,18 @@ var launchdPlist = template.Must(template.New("plist").Parse(`<?xml version="1.0
 `))
 
 // RenderLaunchdPlist genera el plist del LaunchDaemon pa el binario instalado en execPath.
-func RenderLaunchdPlist(execPath string) (string, error) {
+// Con privileged omite UserName/GroupName y launchd lo corre como root (macOS no tiene
+// permisos intermedios pa ver procesos y sockets de otros usuarios).
+func RenderLaunchdPlist(execPath string, privileged bool) (string, error) {
 	if err := safePath(execPath); err != nil {
 		return "", err
 	}
+	user := macUser
+	if privileged {
+		user = ""
+	}
 	var b bytes.Buffer
-	err := launchdPlist.Execute(&b, struct{ Label, ExecPath, User, LogPath string }{launchdLabel, execPath, macUser, macLogPath})
+	err := launchdPlist.Execute(&b, struct{ Label, ExecPath, User, LogPath string }{launchdLabel, execPath, user, macLogPath})
 	if err != nil {
 		return "", fmt.Errorf("generando el plist: %w", err)
 	}

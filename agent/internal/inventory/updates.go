@@ -40,6 +40,9 @@ const (
 type UpdatesConfig struct {
 	Interval      time.Duration // 0 = DefaultUpdatesInterval
 	WindowsOnline string        // "" = auto
+	// UseSudo (ARGOS_UPDATES_SUDO; lo fija el instalador con --privileged) ejecuta dnf/yum/zypper con
+	// `sudo -n --`, solo los comandos de PrivilegedCommands. Solo aplica en Linux.
+	UseSudo bool
 }
 
 // ParseWindowsOnline valida ARGOS_UPDATES_WINDOWS_ONLINE (vacio = auto).

@@ -3,6 +3,7 @@
 package service
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ import (
 func TestServiceConfig(t *testing.T) {
 	t.Parallel()
 
-	c := serviceConfig()
+	c := serviceConfig(false)
 	if c.ServiceStartName != `NT SERVICE\argos-agent` {
 		t.Errorf("cuenta got %q, want la cuenta virtual NT SERVICE\\argos-agent", c.ServiceStartName)
 	}
@@ -99,5 +100,19 @@ func TestAdminOperationsRefuseWithoutElevation(t *testing.T) {
 	}
 	if err := m.Uninstall(t.Context(), true, nil); err != ErrNotPrivileged { //nolint:errorlint // idem
 		t.Errorf("Uninstall got %v, want ErrNotPrivileged", err)
+	}
+}
+
+// --privileged: LocalSystem, sin contrasena; el resto de la configuracion no cambia.
+func TestServiceConfigPrivileged(t *testing.T) {
+	t.Parallel()
+
+	c := serviceConfig(true)
+	if c.ServiceStartName != "LocalSystem" || c.Password != "" {
+		t.Errorf("cuenta got %q pass=%q, want LocalSystem sin contrasena", c.ServiceStartName, c.Password)
+	}
+	c.ServiceStartName = serviceConfig(false).ServiceStartName
+	if !reflect.DeepEqual(c, serviceConfig(false)) {
+		t.Errorf("solo debe cambiar la cuenta: got %+v want %+v", c, serviceConfig(false))
 	}
 }

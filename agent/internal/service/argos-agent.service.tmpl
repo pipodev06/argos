@@ -8,7 +8,8 @@ Type=simple
 User=argos-agent
 Group=argos-agent
 ExecStart={{.ExecPath}} run --service
-Restart=on-failure
+{{if .Sudo}}Environment=ARGOS_UPDATES_SUDO=true
+{{end}}Restart=on-failure
 RestartSec=10
 TimeoutStopSec=30
 
@@ -19,7 +20,7 @@ UMask=0077
 
 # Endurecimiento. /proc NO se restringe a un subconjunto: el agente lee /proc/stat,
 # /proc/meminfo y /proc/net/dev pa medir CPU, memoria y red.
-NoNewPrivileges=true
+NoNewPrivileges={{.NoNewPrivileges}}
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
@@ -30,8 +31,8 @@ ProtectKernelLogs=true
 ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
-CapabilityBoundingSet=
-AmbientCapabilities=
+CapabilityBoundingSet={{.BoundingCaps}}
+AmbientCapabilities={{.AmbientCaps}}
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 RestrictNamespaces=true
 RestrictRealtime=true
@@ -39,7 +40,7 @@ RestrictSUIDSGID=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
 SystemCallArchitectures=native
-SystemCallFilter=@system-service
+SystemCallFilter={{.SyscallFilter}}
 
 [Install]
 WantedBy=multi-user.target

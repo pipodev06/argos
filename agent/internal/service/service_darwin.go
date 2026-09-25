@@ -87,7 +87,7 @@ func (m Manager) Install(ctx context.Context, o InstallOptions) error {
 		return err
 	}
 
-	plist, err := RenderLaunchdPlist(exe)
+	plist, err := RenderLaunchdPlist(exe, o.Privileged)
 	if err != nil {
 		return err
 	}
@@ -98,6 +98,9 @@ func (m Manager) Install(ctx context.Context, o InstallOptions) error {
 		return fmt.Errorf("propietario del plist: %w", err)
 	}
 	printf(o.Out, "LaunchDaemon instalado en %s (aun sin cargar)\n", macPlistPath)
+	if o.Privileged {
+		printf(o.Out, "ADVERTENCIA (--privileged): el LaunchDaemon corre como root en vez de %s (macOS no tiene permisos intermedios). Gana: ver procesos y puertos de otros usuarios. Arriesga: un fallo del agente se ejecutaria como root. Para volver: uninstall e install sin --privileged.\n", macUser)
+	}
 	return nil
 }
 

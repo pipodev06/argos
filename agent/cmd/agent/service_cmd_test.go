@@ -414,3 +414,15 @@ func TestFirstReportPayloadCarriesDisksAndHostInfoOnlyWhenMeasured(t *testing.T)
 		})
 	}
 }
+
+func TestInstallPrivilegedFlag(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.app.execute(ctx, []string{"install"}); err != nil || h.svc.opts.Privileged {
+		t.Errorf("sin --privileged: err %v Privileged %v, want false", err, h.svc.opts.Privileged)
+	}
+	if err := h.app.execute(ctx, []string{"install", "--privileged"}); err != nil || !h.svc.opts.Privileged {
+		t.Errorf("con --privileged: err %v Privileged %v, want true", err, h.svc.opts.Privileged)
+	}
+}

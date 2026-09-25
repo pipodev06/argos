@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 )
@@ -21,6 +22,7 @@ const (
 	rpmPath        = "/usr/bin/rpm"
 	needsRestart   = "/usr/bin/needs-restarting"
 	softwareUpdate = "/usr/sbin/softwareupdate"
+	sudoPath       = "/usr/bin/sudo"
 
 	rebootRequiredFile = "/var/run/reboot-required"
 	aptHistoryFile     = "/var/log/apt/history.log"
@@ -41,6 +43,7 @@ type updEnv struct {
 	goos          string
 	windowsOnline string
 	run           runFunc
+	sudo          bool // modo privilegiado: dnf/yum/zypper via `sudo -n --` (solo PrivilegedCommands)
 	getenv        func(string) string
 	exists        func(path string) bool
 	modTime       func(path string) (time.Time, bool)
@@ -56,6 +59,7 @@ func realUpdEnv(cfg UpdatesConfig) updEnv {
 	return updEnv{
 		goos:          runtime.GOOS,
 		windowsOnline: online,
+		sudo:          cfg.UseSudo && runtime.GOOS == "linux",
 		run:           runCmd,
 		getenv:        os.Getenv,
 		exists:        func(p string) bool { _, err := os.Stat(p); return err == nil },
@@ -211,16 +215,56 @@ func (e updEnv) linux(ctx context.Context) (Updates, error) {
 	case e.exists(aptGetPath):
 		return e.apt(ctx)
 	case e.exists(dnfPath):
-		return e.rpmFamily(ctx, dnfPath, "dnf", []string{"updateinfo", "list", "--security"})
+		return e.rpmFamily(ctx, dnfPath, "dnf", dnfSecArgs)
 	case e.exists(yumPath):
-		return e.rpmFamily(ctx, yumPath, "yum", []string{"updateinfo", "list", "security"})
+		return e.rpmFamily(ctx, yumPath, "yum", yumSecArgs)
 	case e.exists(zypperPath):
 		return e.zypper(ctx)
 	}
 	return Updates{Source: "none"}, nil // sin gestor conocido: todo desconocido
 }
 
+// Argumentos fijos de los gestores RPM. Son la fuente unica: el modulo los ejecuta y
+// PrivilegedCommands genera de ellos la lista del sudoers (deben coincidir exactamente).
+var (
+	dnfSecArgs  = []string{"updateinfo", "list", "--security"}
+	yumSecArgs  = []string{"updateinfo", "list", "security"}
+	rpmBaseArgs = []string{"-q", "--cacheonly"}
+	zypperBase  = []string{"--non-interactive", "--no-refresh", "-x"}
+)
+
+func rpmCheckArgs() []string { return slices.Concat(rpmBaseArgs, []string{"check-update"}) }
+func rpmSecurityArgs(secArgs []string) []string {
+	return slices.Concat(rpmBaseArgs, secArgs)
+}
+func zypperUpdatesArgs() []string { return slices.Concat(zypperBase, []string{"list-updates"}) }
+func zypperPatchesArgs() []string {
+	return slices.Concat(zypperBase, []string{"list-patches", "--category", "security"})
+}
+
+// PrivilegedCommands son los unicos comandos (ruta absoluta + argv exacto) que el modulo
+// ejecuta con `sudo -n --` en modo privilegiado. El instalador los vuelca al sudoers.
+func PrivilegedCommands() [][]string {
+	return [][]string{
+		slices.Concat([]string{dnfPath}, rpmCheckArgs()),
+		slices.Concat([]string{dnfPath}, rpmSecurityArgs(dnfSecArgs)),
+		slices.Concat([]string{yumPath}, rpmCheckArgs()),
+		slices.Concat([]string{yumPath}, rpmSecurityArgs(yumSecArgs)),
+		slices.Concat([]string{zypperPath}, zypperUpdatesArgs()),
+		slices.Concat([]string{zypperPath}, zypperPatchesArgs()),
+	}
+}
+
+func isPrivilegedCommand(path string, args []string) bool {
+	argv := slices.Concat([]string{path}, args)
+	return slices.ContainsFunc(PrivilegedCommands(), func(c []string) bool { return slices.Equal(c, argv) })
+}
+
 func (e updEnv) runLinux(ctx context.Context, path string, args ...string) (cmdResult, error) {
+	if e.sudo && isPrivilegedCommand(path, args) {
+		args = slices.Concat([]string{"-n", "--", path}, args)
+		path = sudoPath
+	}
 	return e.run(ctx, cmdSpec{path: path, args: args, env: linuxEnv(), timeout: linuxTimeout, maxOut: maxCmdOut})
 }
 
@@ -245,7 +289,7 @@ func (e updEnv) apt(ctx context.Context) (Updates, error) {
 
 func (e updEnv) rpmFamily(ctx context.Context, mgr, source string, secArgs []string) (Updates, error) {
 	u := Updates{Source: source}
-	res, err := e.runLinux(ctx, mgr, "-q", "--cacheonly", "check-update")
+	res, err := e.runLinux(ctx, mgr, rpmCheckArgs()...)
 	if err != nil && ctx.Err() != nil {
 		return Updates{}, err
 	}
@@ -256,7 +300,7 @@ func (e updEnv) rpmFamily(ctx context.Context, mgr, source string, secArgs []str
 			n = parseDnfCheck(res.out)
 		}
 		u.PendingTotal = &n
-		sres, serr := e.runLinux(ctx, mgr, append([]string{"-q", "--cacheonly"}, secArgs...)...)
+		sres, serr := e.runLinux(ctx, mgr, rpmSecurityArgs(secArgs)...)
 		if serr == nil && sres.code == 0 && !sres.truncated {
 			pk, ids := parseDnfSecurity(sres.out)
 			u.PendingSecurity, u.Advisories = &pk, ids
@@ -286,13 +330,12 @@ func (e updEnv) rpmLast(ctx context.Context, u *Updates) {
 
 func (e updEnv) zypper(ctx context.Context) (Updates, error) {
 	u := Updates{Source: "zypper"}
-	base := []string{"--non-interactive", "--no-refresh", "-x"}
-	if res, err := e.runLinux(ctx, zypperPath, append(base, "list-updates")...); err == nil && res.code == 0 && !res.truncated {
+	if res, err := e.runLinux(ctx, zypperPath, zypperUpdatesArgs()...); err == nil && res.code == 0 && !res.truncated {
 		if n, _, perr := parseZypperXML(res.out, "package"); perr == nil {
 			u.PendingTotal = &n
 		}
 	}
-	if res, err := e.runLinux(ctx, zypperPath, append(base, "list-patches", "--category", "security")...); err == nil && res.code == 0 && !res.truncated {
+	if res, err := e.runLinux(ctx, zypperPath, zypperPatchesArgs()...); err == nil && res.code == 0 && !res.truncated {
 		if n, names, perr := parseZypperXML(res.out, "patch"); perr == nil {
 			u.PendingSecurity, u.Advisories = &n, names
 		}

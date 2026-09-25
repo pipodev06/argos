@@ -61,7 +61,8 @@ type Config struct {
 	// ports, services, processes). Vacio = apagado (defecto). El servidor no puede activarlos.
 	InventoryModules []string
 	// Updates configura el modulo "updates" del inventario (ARGOS_UPDATES_INTERVAL entre 1h y 24h,
-	// defecto 6h; ARGOS_UPDATES_WINDOWS_ONLINE auto|never|always, defecto auto).
+	// defecto 6h; ARGOS_UPDATES_WINDOWS_ONLINE auto|never|always, defecto auto; ARGOS_UPDATES_SUDO lo
+	// fija `install --privileged` en Linux).
 	Updates inventory.UpdatesConfig
 }
 
@@ -149,6 +150,12 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 	cfg.Updates.WindowsOnline, err = inventory.ParseWindowsOnline(getenv("ARGOS_UPDATES_WINDOWS_ONLINE"))
 	if err != nil {
 		return Config{}, fmt.Errorf("ARGOS_UPDATES_WINDOWS_ONLINE invalida: %w", err)
+	}
+	if raw := strings.TrimSpace(getenv("ARGOS_UPDATES_SUDO")); raw != "" {
+		cfg.Updates.UseSudo, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("ARGOS_UPDATES_SUDO invalida (true o false): %w", err)
+		}
 	}
 	if cfg.StateDir == "" {
 		dir, err := defaultStateDir()

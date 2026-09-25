@@ -29,7 +29,7 @@ import (
 
 const (
 	httpTimeout = 10 * time.Second
-	usage       = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] | uninstall [--keep-state] | start | stop | status"
+	usage       = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] [--privileged] | uninstall [--keep-state] | start | stop | status"
 
 	// maxTokenBytes acota lo que se lee del token por stdin (un enroll token real ocupa ~50 bytes).
 	maxTokenBytes = 4096
@@ -433,6 +433,7 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 func (a *app) install(ctx context.Context, args []string) error {
 	fs := a.newFlagSet("install")
 	caFile := fs.String("ca-file", "", "CA privada (PEM) del servidor; se copia al estado como ca.pem (o ARGOS_CA_FILE)")
+	privileged := fs.Bool("privileged", false, "modo privilegiado (opt-in): ve procesos y puertos de otros usuarios con el minimo privilegio del SO (Linux: 2 capacidades + sudoers acotado pa updates; Windows: LocalSystem; macOS: root); por defecto el agente NO tiene privilegios")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("argumentos de install: %w", err)
 	}
@@ -440,9 +441,10 @@ func (a *app) install(ctx context.Context, args []string) error {
 		return err
 	}
 	err := a.svc.Install(ctx, service.InstallOptions{
-		CAFile: firstNonEmpty(*caFile, a.getenv("ARGOS_CA_FILE")),
-		Out:    a.stdout,
-		Logger: a.logger,
+		CAFile:     firstNonEmpty(*caFile, a.getenv("ARGOS_CA_FILE")),
+		Privileged: *privileged,
+		Out:        a.stdout,
+		Logger:     a.logger,
 	})
 	if err != nil {
 		return fmt.Errorf("install: %w", err)

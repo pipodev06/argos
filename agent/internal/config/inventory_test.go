@@ -68,3 +68,28 @@ func TestLoadUpdatesConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadUpdatesSudo(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		raw     string
+		want    bool
+		wantErr bool
+	}{
+		{raw: "", want: false},
+		{raw: "true", want: true},
+		{raw: "1", want: true},
+		{raw: "no", wantErr: true},
+	}
+	for _, tt := range tests {
+		cfg, err := Load(func(k string) string {
+			if k == "ARGOS_UPDATES_SUDO" {
+				return tt.raw
+			}
+			return ""
+		}, stateDir)
+		if (err != nil) != tt.wantErr || cfg.Updates.UseSudo != tt.want {
+			t.Errorf("sudo %q = %v, %v; want %v (err=%v)", tt.raw, cfg.Updates.UseSudo, err, tt.want, tt.wantErr)
+		}
+	}
+}
