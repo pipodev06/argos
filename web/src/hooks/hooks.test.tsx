@@ -10,7 +10,7 @@ import { useUrlFilters } from './useUrlFilters'
 describe('useCursorPagination', () => {
   it('avanza, retrocede y reinicia', () => {
     const { result } = renderHook(() => useCursorPagination())
-    expect(result.current).toMatchObject({ cursor: null, page: 1, hasPrev: false, pageSize: 25 })
+    expect(result.current).toMatchObject({ cursor: null, page: 1, hasPrev: false, pageSize: 15 })
     act(() => result.current.next('c2'))
     act(() => result.current.next('c3'))
     expect(result.current).toMatchObject({ cursor: 'c3', page: 3, hasPrev: true })

@@ -1,9 +1,9 @@
 // Paginacion por cursor: el servidor solo dice cual es el cursor de la pagina siguiente, asi que "Anterior" se
 // resuelve en el cliente con una pila de los cursores ya visitados. Funciones puras (sin React).
 
-export const PAGE_SIZES = [25, 50, 100] as const
+export const PAGE_SIZES = [15, 30, 50, 100] as const
 export type PageSize = (typeof PAGE_SIZES)[number]
-export const DEFAULT_PAGE_SIZE: PageSize = 25
+export const DEFAULT_PAGE_SIZE: PageSize = 15
 
 export function isPageSize(value: number): value is PageSize {
   return (PAGE_SIZES as readonly number[]).includes(value)
