@@ -1,37 +1,22 @@
-# Estado del proyecto (actualizado 2026-09-24; una linea por hito; detalle en `decisiones/`, historia en git)
-Leyenda: HECHO = implementado y probado con tests/e2e de API; PARCIAL; NO EMPEZADO. "Sin probar" = sin navegador o sin integracion real.
+# Estado del proyecto (actualizado 2026-09-25) — LEER ESTO AL INICIAR UNA SESIÓN NUEVA
+Detalle por tema en `decisiones/` (índice: `decisiones.md`; abre solo el tema de tu tarea). Deuda: `deuda-tecnica.md`. Historia: git. Reglas del orquestador y lecciones de agentes: memoria del proyecto y `~/.claude/agents/*.md`.
 
-## Server (`server/`, Go, Postgres, goose 00001-00013)
-- HECHO Base: config por env, slog, limites, apagado ordenado, migraciones goose embebidas 00001-00013 (probadas Up/Down con datos) -> `decisiones/api-servidor.md`
-- HECHO Auth de dashboard: usuarios admin/viewer, sesion en cookie, Argon2id, bloqueo, rate limits, CSRF, auditoria, CLI `create-admin`/`reset-password`, TLS opcional -> `decisiones/auth-y-sesiones.md`
-- HECHO Enroll con token hasheado (TTL 15 min, max 50 activos, `group_id`), revocacion de hosts
-- HECHO Ingest de metricas (swap, load, bateria, discos, `host_info`, `host_latest`) y series (1h..1y) con huecos/reinicios
-- HECHO Detector de caidos (`down`/`offline`, umbral por grupo) -> `decisiones/estados-y-deteccion.md`
-- HECHO API de grupos, etiquetas, bulk, `GET /summary`, `GET /hosts` con filtros/orden/cursor/`total` -> `decisiones/grupos-etiquetas-metricas.md`
-- HECHO Particionado diario, resumen por hora, retencion (metrics, service_checks, disk_samples) -> `decisiones/datos-retencion-particionado.md`
-- PARCIAL La BD real `argos` solo tiene 00004 documentada; 00006-00013 sin migrar hasta backup + reinicio del server; sin usuarios (crear admin)
-- NO EMPEZADO Motor de alertas/notificaciones, tabla `host_events`, MFA, rotacion del token de agente, servir el SPA desde el binario (fallback `index.html`), servir instaladores del agente
-- Sin verificar: `go test -race` (sin gcc), volumen (1000 hosts) de lista/resumen, integracion con `web/` y agente reales, SIGTERM real
+## Qué es
+Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/Postgres 18 (`server/`, goose 00001–00021) + dashboard React (`web/`, Vite, Tailwind v4, shadcn, estilo Slate congelado en `CLAUDE.md`). Repo privado `pipodev06/argos` (rama `main`; CI de GitHub Actions verde: web, go server, go agent con `-race` en Linux).
 
-## Agente (`agent/`, Go, gopsutil v4)
-- HECHO Metricas reales (CPU, memoria, red, swap, load, bateria, discos por montaje, `host_info`), enroll, estado en disco, transporte seguro, backoff + `Retry-After` + buffer en memoria (120) -> `decisiones/agente-transporte-y-estado.md`
-- HECHO Servicio nativo `install|uninstall|start|stop|status` (Windows cuenta virtual, systemd endurecido, LaunchDaemon) -> `decisiones/agente-colectores-y-servicio.md`
-- Sin verificar: instalacion real en Windows/Linux/macOS, `systemd-analyze security`, macOS (ni ejecucion), registro de eventos de Windows, SmartScreen
-- NO EMPEZADO Buffer offline en disco (libreria por decidir), firma de binarios, auto-actualizacion, pasar config de entorno al servicio desde `install`
+## Hecho (implementado y probado con tests; lo visual NO está probado en navegador)
+- Server: auth (admin/viewer, cookies, CSRF, auditoría), enroll de agentes, ingest, detector de caídos, grupos, resumen, retención y particionado; motor de alertas (reglas metric/host_status/no_data/service_check, mantenimiento, canales webhook con `/slack` para Discord); chequeos de servicios (tcp/http/tls/servicio, ejecutados por el agente); permisos por grupo (`store.Scope` obligatorio; viewers restringidos; canales/auditoría solo admin); `host_events` (00014 + 00020, retención 400 d); informes de disponibilidad (`/reports/*`, CSV); inventario del host (ingest 00021 + lectura con `can_inventory`); frontend servido por el server con `ARGOS_WEB_DIR`; etiquetas eliminadas.
+- Agente: métricas, servicio nativo, chequeos con política local `ARGOS_CHECK_ALLOW`, inventario (`ARGOS_INVENTORY_MODULES`, apagado por defecto; verificado con el agente local real), reintento del reemplazo atómico de `agent.json`.
+- Web: hosts (filtros, detalle, inventario), grupos, chequeos, alertas/reglas/mantenimiento/canales, usuarios con permisos, auditoría, Informes (`/informes`); Vitest (72+ tests).
 
-## Web (`web/`, Vite + React + Tailwind v4 + shadcn, estilo Slate)
-- HECHO Login/sesion, cambio de clave normal y forzado, 401 central, tema claro/oscuro por boton, `UserMenu`
-- HECHO Shell (`AppShell` + sidebar 240/56 px + drawer movil), react-router 8.4.0 (`/` -> `/hosts`, `/hosts`, `/hosts/:id`, `*`), componentes compartidos (`PageHeader`, `EmptyState`, `Pagination`, `FilterChip`, `UsageBar`, `StatusTile`, `CopyBlock`, 12 shadcn en Slate) -> `decisiones/frontend-estilo-y-componentes.md`
-- HECHO Lista de hosts simple (polling 10 s) y "Agregar host" (enroll-token, solo admin)
-- PARCIAL Detalle de host: encabezado, tarjetas de ultimo valor, graficas CPU/Memoria/Red con rangos 1h..1y; NO muestra aun swap/load/bateria/discos/`info`/grupo/etiquetas de la API ampliada
-- NO EMPEZADO Pantalla Resumen (`/`, contra `GET /summary`), tabla de Hosts con filtros/orden/paginacion (`Pagination`/`FilterChip` sin cablear), pantalla Grupos (`/grupos`) y etiquetas, detalle ampliado, items de nav Resumen/Grupos
-- NO EMPEZADO Tests de frontend (sin runner), code-splitting
-- Sin verificar: todo lo visual y de teclado (sin navegador), CSP real, rangos 30d/90d/1y y contrato nuevo contra la API real
+## En curso / siguiente (orden acordado)
+1. Botones "Exportar CSV" y filtro por grupo en Informes (`web/`; contrato en `decisiones/2026-09-25-sla-csv.md`).
+2. Punto 2: parches/vulnerabilidades del SO (falta diseño).
+3. Punto 8: ping/SNMP para equipos sin agente (diseño aprobado: `decisiones/2026-09-25-ping-snmp.md`, `gosnmp` aprobado, 3 tandas).
+4. Servicios Linux del inventario (v1.1, `systemctl`), alerta "puerto nuevo expuesto" (diseñada).
+Aplazado por el usuario: canal SMTP, despliegue/dominio, separar roles de BD, firma de binarios. Sin probar: instalación real del agente (Windows/Linux/macOS), systemd sin privilegios, revisión visual de pantallas nuevas (la hace el usuario).
 
-## Infra
-- PARCIAL `docker-compose.yml` solo con Postgres 18; scripts `scripts/check-{go,web}.sh`
-- NO EMPEZADO CI (`-race`), Dockerfiles, empaquetado y firma, despliegue
-
-## Bloqueos y decisiones abiertas
-- Ver "Pendientes de decision del usuario" en `decisiones.md` y el resumen de `deuda-tecnica.md`.
-- `CLAUDE.md` del repo aun describe terminal-dark; el estilo vigente es Slate.
+## Cómo trabajar y verificar
+- Verificar: `bash scripts/check-go.sh <server|agent> [--fast] [--pkg ./ruta]` y `bash scripts/check-web.sh`. Los tests de BD se SALTAN sin `ARGOS_TEST_DATABASE_URL=postgres://argos:argos@localhost:5432/argos_test?sslmode=disable` (BD `argos_test` ya existe en el Postgres local): definirla SIEMPRE.
+- Orquestación: medir antes de delegar; spec larga en archivo del scratchpad y prompt corto; agentes no escriben `docs/` (devuelven "Notas para docs"); ≤2 agentes en paralelo con contrato fijo; revisar lo entregado con los scripts y greps de estilo.
+- Levantar en local (Windows, Git Bash): BD `argos` (usuario y clave `argos`, localhost:5432). Clave de cifrado estable en `C:\Users\piter\.argos-dev\secret-key.txt` (si se pierde hay que recrear los canales). Server: compilar `cd server && go build -o <ruta>/argos-server.exe ./cmd/server` y ejecutar con `ARGOS_WEB_DIR=D:/projects/argos/web/dist ARGOS_SECRET_KEY=$(cat ~/.argos-dev/secret-key.txt) ARGOS_AGENT_DIST_DIR=D:/projects/argos/dist/agent ARGOS_PUBLIC_URL=http://localhost:8080 DATABASE_URL=postgres://argos:argos@localhost:5432/argos?sslmode=disable`; agente: `agent` compilado con `ARGOS_INTERVAL=30s ... run`; frontend: `cd web && npm run build` (el server sirve `web/dist`). Claude Code mata procesos en segundo plano bajo presión de memoria: reiniciarlos solo cuando el usuario lo pida.

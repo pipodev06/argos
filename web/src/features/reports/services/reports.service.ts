@@ -21,3 +21,12 @@ export async function getServiceChecksReport(
   if (groupId) params.append('group_id', groupId)
   return apiRequest<ServiceChecksReport>(`/reports/service-checks?${params}`, { signal })
 }
+
+export type ReportCsv = 'availability' | 'service-checks' | 'alerts'
+
+/** URL de descarga de un CSV (el navegador la baja con `<a download>`; requiere la sesion). */
+export function reportCsvUrl(kind: ReportCsv, range: ReportRange, groupId?: string): string {
+  const params = new URLSearchParams({ range })
+  if (groupId) params.append('group_id', groupId)
+  return `/api/v1/reports/${kind}.csv?${params}`
+}

@@ -59,6 +59,7 @@ type Store interface {
 	DeleteAlertRule(ctx context.Context, id string) (name string, err error)
 	AvailabilityReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.HostAvailability, error)
 	ServiceChecksReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.CheckAvailability, error)
+	ExportAlerts(ctx context.Context, scope store.Scope, f store.AlertExportFilter, fn func(store.AlertExportRow) error) (int, error)
 	ListMaintenance(ctx context.Context, scope store.Scope) ([]store.MaintenanceWindow, error)
 	MaintenanceByID(ctx context.Context, scope store.Scope, id string) (store.MaintenanceWindow, error)
 	CreateMaintenance(ctx context.Context, w store.MaintenanceWindow, userID, username string) (store.MaintenanceWindow, error)
@@ -293,6 +294,9 @@ func (a *API) Routes() http.Handler {
 	// Alertas (lectura: cualquier sesion; escritura, ack y resolve: solo admin).
 	a.route(mux, "GET /api/v1/reports/availability", accessSession, a.availabilityReport)
 	a.route(mux, "GET /api/v1/reports/service-checks", accessSession, a.serviceChecksReport)
+	a.route(mux, "GET /api/v1/reports/availability.csv", accessSession, a.availabilityCSV)
+	a.route(mux, "GET /api/v1/reports/service-checks.csv", accessSession, a.serviceChecksCSV)
+	a.route(mux, "GET /api/v1/reports/alerts.csv", accessSession, a.alertsCSV)
 	a.route(mux, "GET /api/v1/alerts", accessSession, a.listAlerts)
 	a.route(mux, "GET /api/v1/alerts/summary", accessSession, a.alertSummary)
 	a.route(mux, "GET /api/v1/alerts/{id}", accessSession, a.getAlert)
