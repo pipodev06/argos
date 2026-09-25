@@ -396,7 +396,7 @@ func TestHostFingerprintCoversMetricFilters(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		hq, err := parseHostQuery(v)
+		hq, err := parseHostQuery(v, store.AllScope())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -420,7 +420,7 @@ func TestHostFingerprintCoversMultiValueFilters(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		hq, err := parseHostQuery(v)
+		hq, err := parseHostQuery(v, store.AllScope())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -443,11 +443,11 @@ func TestHostFingerprintCoversMultiValueFilters(t *testing.T) {
 // marcador o enlace viejo sigue funcionando y no filtra nada.
 func TestHostListIgnoresRemovedTagParam(t *testing.T) {
 	t.Parallel()
-	with, err := parseHostQuery(url.Values{"tag": {"prod", "x"}})
+	with, err := parseHostQuery(url.Values{"tag": {"prod", "x"}}, store.AllScope())
 	if err != nil {
 		t.Fatalf("tag= debe ignorarse, got %v", err)
 	}
-	without, err := parseHostQuery(url.Values{})
+	without, err := parseHostQuery(url.Values{}, store.AllScope())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -228,11 +228,11 @@ func TestHostDownAndRecoveryCycle(t *testing.T) {
 	}
 
 	// La API lee el campo nuevo.
-	page, err := s.ListHosts(ctx, HostFilter{Sort: "severity", Limit: 10})
+	page, err := s.ListHosts(ctx, AllScope(), HostFilter{Sort: "severity", Limit: 10})
 	if err != nil || len(page.Items) != 1 || !page.Items[0].StatusChangedAt.Equal(upAt) {
 		t.Errorf("ListHosts got (%+v, %v), want StatusChangedAt=%v", page, err, upAt)
 	}
-	detail, err := s.HostByID(ctx, hostID)
+	detail, err := s.HostByID(ctx, AllScope(), hostID)
 	if err != nil || !detail.StatusChangedAt.Equal(upAt) {
 		t.Errorf("HostByID got (%+v, %v), want StatusChangedAt=%v", detail, err, upAt)
 	}

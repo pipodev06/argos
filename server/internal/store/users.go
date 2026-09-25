@@ -21,7 +21,13 @@ var (
 	ErrUserExists = errors.New("usuario ya existe")
 	// ErrLastAdmin: la operacion dejaria al sistema sin ningun admin activo.
 	ErrLastAdmin = errors.New("no se puede dejar el sistema sin admin activo")
+	// ErrInvalidScope: el cambio de permisos por grupo es incoherente (restringir a un admin, o dar group_ids
+	// a quien ve todos los grupos).
+	ErrInvalidScope = errors.New("permisos por grupo invalidos")
 )
+
+// Constraint de user_groups.group_id (nombre autogenerado por Postgres).
+const userGroupFKey = "user_groups_group_id_fkey"
 
 // User es un usuario del dashboard. PasswordHash nunca sale de la capa HTTP.
 type User struct {
@@ -35,15 +41,31 @@ type User struct {
 	DisabledAt         *time.Time
 	LastLoginAt        *time.Time
 	CreatedAt          time.Time
+
+	// Permisos por grupo (solo aplican a viewers; un admin siempre ve todo, ver Scope).
+	AllGroups    bool
+	GroupIDs     []string // grupos visibles si !AllGroups, ordenados
+	CanInventory bool
 }
 
+// Scope es el ambito de hosts del usuario: los admins y los viewers con all_groups ven todo.
+func (u User) Scope() Scope {
+	if u.Role == RoleAdmin || u.AllGroups {
+		return AllScope()
+	}
+	return GroupScope(u.GroupIDs)
+}
+
+// userColumns se usa siempre sobre la tabla users sin alias (SELECT, INSERT y UPDATE ... RETURNING).
 const userColumns = `id, username, password_hash, role, must_change_password, failed_logins,
-	locked_until, disabled_at, last_login_at, created_at`
+	locked_until, disabled_at, last_login_at, created_at, all_groups,
+	ARRAY(SELECT ug.group_id::text FROM user_groups ug WHERE ug.user_id = users.id ORDER BY ug.group_id),
+	can_inventory`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.MustChangePassword, &u.FailedLogins,
-		&u.LockedUntil, &u.DisabledAt, &u.LastLoginAt, &u.CreatedAt)
+		&u.LockedUntil, &u.DisabledAt, &u.LastLoginAt, &u.CreatedAt, &u.AllGroups, &u.GroupIDs, &u.CanInventory)
 	return u, err
 }
 
@@ -118,6 +140,12 @@ type UserChange struct {
 	Disabled *bool
 	// PasswordHash, si no es nil, resetea la contraseña: exige cambiarla al proximo login.
 	PasswordHash *string
+
+	// Permisos por grupo (solo viewers). GroupIDs reemplaza la lista completa (ids ya validados y sin repetir);
+	// solo aplica con AllGroups=false. Promover a admin los reinicia (ve todo, sin inventario).
+	AllGroups    *bool
+	GroupIDs     *[]string
+	CanInventory *bool
 }
 
 // UpdateUser aplica los cambios en una transaccion. Deshabilitar o resetear la
@@ -167,9 +195,23 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 				disabledAt = &now
 			}
 		}
+		allGroups, canInventory, clearGroups, err := resolveScopeChange(cur, newRole, ch)
+		if err != nil {
+			return err
+		}
+		if clearGroups {
+			if _, err := tx.Exec(ctx, `DELETE FROM user_groups WHERE user_id = $1`, id); err != nil {
+				return fmt.Errorf("limpiando grupos del usuario: %w", err)
+			}
+		} else if ch.GroupIDs != nil {
+			if err := replaceUserGroups(ctx, tx, id, *ch.GroupIDs); err != nil {
+				return err
+			}
+		}
 		u, err := scanUser(tx.QueryRow(ctx,
-			`UPDATE users SET role = $2, disabled_at = $3 WHERE id = $1 RETURNING `+userColumns,
-			id, newRole, disabledAt))
+			`UPDATE users SET role = $2, disabled_at = $3, all_groups = $4, can_inventory = $5
+			  WHERE id = $1 RETURNING `+userColumns,
+			id, newRole, disabledAt, allGroups, canInventory))
 		if err != nil {
 			return fmt.Errorf("actualizando usuario: %w", err)
 		}
@@ -196,6 +238,52 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 		return User{}, err
 	}
 	return out, nil
+}
+
+// resolveScopeChange calcula all_groups y can_inventory finales y si hay que vaciar user_groups. Un admin
+// no admite restricciones (se rechazan si el cambio las pide; si solo se le promueve, se reinician) y
+// group_ids solo tiene sentido con all_groups=false.
+func resolveScopeChange(cur User, newRole string, ch UserChange) (allGroups, canInventory, clearGroups bool, err error) {
+	allGroups, canInventory = cur.AllGroups, cur.CanInventory
+	if ch.AllGroups != nil {
+		allGroups = *ch.AllGroups
+	}
+	if ch.CanInventory != nil {
+		canInventory = *ch.CanInventory
+	}
+	withGroups := ch.GroupIDs != nil && len(*ch.GroupIDs) > 0
+	if newRole == RoleAdmin {
+		if (ch.AllGroups != nil && !*ch.AllGroups) || (ch.CanInventory != nil && *ch.CanInventory) || withGroups {
+			return false, false, false, ErrInvalidScope
+		}
+		return true, false, true, nil
+	}
+	if allGroups {
+		if withGroups {
+			return false, false, false, ErrInvalidScope
+		}
+		return true, canInventory, true, nil
+	}
+	return false, canInventory, false, nil
+}
+
+// replaceUserGroups reemplaza los grupos del usuario. ErrGroupNotFound si alguno no existe.
+func replaceUserGroups(ctx context.Context, tx pgx.Tx, userID string, groupIDs []string) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM user_groups WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("limpiando grupos del usuario: %w", err)
+	}
+	if len(groupIDs) == 0 {
+		return nil
+	}
+	_, err := tx.Exec(ctx,
+		`INSERT INTO user_groups (user_id, group_id) SELECT $1, unnest($2::uuid[])`, userID, groupIDs)
+	if isFKViolation(err, userGroupFKey) {
+		return ErrGroupNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("asignando grupos al usuario: %w", err)
+	}
+	return nil
 }
 
 func lockActiveAdmins(ctx context.Context, tx pgx.Tx) error {

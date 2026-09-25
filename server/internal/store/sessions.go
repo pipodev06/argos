@@ -48,10 +48,13 @@ func (s *Store) SessionByHash(ctx context.Context, idHash []byte) (SessionInfo, 
 	u := &si.User
 	err := s.pool.QueryRow(ctx,
 		`SELECT s.last_seen_at, s.expires_at,
-		        u.id, u.username, u.role, u.must_change_password, u.disabled_at
+		        u.id, u.username, u.role, u.must_change_password, u.disabled_at,
+		        u.all_groups, u.can_inventory,
+		        ARRAY(SELECT ug.group_id::text FROM user_groups ug WHERE ug.user_id = u.id ORDER BY ug.group_id)
 		   FROM sessions s JOIN users u ON u.id = s.user_id
 		  WHERE s.id_hash = $1`, idHash,
-	).Scan(&si.LastSeenAt, &si.ExpiresAt, &u.ID, &u.Username, &u.Role, &u.MustChangePassword, &u.DisabledAt)
+	).Scan(&si.LastSeenAt, &si.ExpiresAt, &u.ID, &u.Username, &u.Role, &u.MustChangePassword, &u.DisabledAt,
+		&u.AllGroups, &u.CanInventory, &u.GroupIDs)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SessionInfo{}, ErrNotFound
 	}

@@ -53,3 +53,4 @@
 - [vigente] Chequeos de servicios: diseno aprobado y tanda 1 (servidor+agente) implementada -> [decisiones/2026-09-24-chequeos-servicios.md](decisiones/2026-09-24-chequeos-servicios.md)
 
 - [vigente] Etiquetas de host ELIMINADAS (migracion 00018): reemplaza las decisiones de etiquetas; los grupos se conservan -> [decisiones/2026-09-24-fases-2-y-3.md](decisiones/2026-09-24-fases-2-y-3.md)
+- [2026-09-25 Permisos por grupo](decisiones/2026-09-25-permisos-por-grupo.md) — ámbito por usuario/grupo, tanda 1 hecha (hosts/resumen/grupos/usuarios), tandas 2 y 3 pendientes

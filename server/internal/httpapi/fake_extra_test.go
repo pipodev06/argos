@@ -42,7 +42,7 @@ func (f *fakeStore) HostChecks(context.Context, string) ([]store.ServiceCheckDef
 	return nil, nil
 }
 
-func (f *fakeStore) ListHosts(_ context.Context, fl store.HostFilter) (store.HostPage, error) {
+func (f *fakeStore) ListHosts(_ context.Context, _ store.Scope, fl store.HostFilter) (store.HostPage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.x.gotFilter = fl
@@ -53,9 +53,11 @@ func (f *fakeStore) HostDisks(context.Context, string, time.Time) ([]store.DiskU
 	return f.x.disks, f.x.err
 }
 
-func (f *fakeStore) Summary(context.Context) (store.Summary, error) { return f.x.summary, f.x.err }
+func (f *fakeStore) Summary(context.Context, store.Scope) (store.Summary, error) {
+	return f.x.summary, f.x.err
+}
 
-func (f *fakeStore) ListGroups(context.Context) ([]store.Group, int, error) {
+func (f *fakeStore) ListGroups(context.Context, store.Scope) ([]store.Group, int, error) {
 	return f.x.groups, f.x.ungrouped, f.x.err
 }
 

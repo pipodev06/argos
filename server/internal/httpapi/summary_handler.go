@@ -46,7 +46,7 @@ func toTopDTOs(in []store.TopHost) []topHostDTO {
 // summary devuelve la foto de la flota (viewer o admin): conteos por estado y por grupo, rankings de hosts
 // up por cpu, memoria y disco, y los ultimos hosts caidos.
 func (a *API) summary(w http.ResponseWriter, r *http.Request) error {
-	sum, err := a.store.Summary(r.Context())
+	sum, err := a.store.Summary(r.Context(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}

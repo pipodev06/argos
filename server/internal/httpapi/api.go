@@ -27,17 +27,17 @@ type Store interface {
 	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, err error)
 	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
 	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
-	ListHosts(ctx context.Context, f store.HostFilter) (store.HostPage, error)
-	HostByID(ctx context.Context, hostID string) (store.HostDetail, error)
+	ListHosts(ctx context.Context, scope store.Scope, f store.HostFilter) (store.HostPage, error)
+	HostByID(ctx context.Context, scope store.Scope, hostID string) (store.HostDetail, error)
 	HostDisks(ctx context.Context, hostID string, now time.Time) ([]store.DiskUsage, error)
 	LatestMetrics(ctx context.Context, hostID string) (*store.MetricPoint, error)
 	MetricSeries(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	MetricSeriesHourly(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	RevokeHost(ctx context.Context, hostID string) error
-	Summary(ctx context.Context) (store.Summary, error)
+	Summary(ctx context.Context, scope store.Scope) (store.Summary, error)
 
 	// Grupos.
-	ListGroups(ctx context.Context) (groups []store.Group, ungrouped int, err error)
+	ListGroups(ctx context.Context, scope store.Scope) (groups []store.Group, ungrouped int, err error)
 	CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool) (store.Group, error)
 	UpdateGroup(ctx context.Context, id string, ch store.GroupChange) (store.Group, error)
 	DeleteGroup(ctx context.Context, id string) error
@@ -339,6 +339,9 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusNotFound, "not_found", "recurso no encontrado")
 	case errors.Is(err, store.ErrUserExists):
 		writeError(w, http.StatusConflict, "username_taken", "ese nombre de usuario ya existe")
+	case errors.Is(err, store.ErrInvalidScope):
+		writeError(w, http.StatusBadRequest, "invalid_scope",
+			"los permisos por grupo no aplican a admins, y group_ids exige all_groups=false")
 	case errors.Is(err, store.ErrLastAdmin):
 		writeError(w, http.StatusConflict, "last_admin", "debe quedar al menos un admin activo")
 	case errors.Is(err, store.ErrTooManyTokens):

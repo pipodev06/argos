@@ -37,7 +37,7 @@ func toGroupDTO(g store.Group) groupDTO {
 }
 
 func (a *API) listGroups(w http.ResponseWriter, r *http.Request) error {
-	groups, ungrouped, err := a.store.ListGroups(r.Context())
+	groups, ungrouped, err := a.store.ListGroups(r.Context(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}

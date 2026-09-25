@@ -104,7 +104,12 @@ type sessionUser struct {
 	Username           string
 	Role               string
 	MustChangePassword bool
-	sessionHash        []byte
+	// Scope es el ambito de hosts del usuario, leido de la BD en cada request (nunca cacheado: revocar un
+	// grupo aplica en la siguiente peticion). Lo exigen las consultas del store sobre hosts.
+	Scope store.Scope
+	// CanInventory: permiso (por usuario) de ver procesos y servicios. Un admin no lo necesita: lo ve todo.
+	CanInventory bool
+	sessionHash  []byte
 }
 
 type ctxKey struct{}
@@ -179,6 +184,7 @@ func (a *API) authenticateSession(w http.ResponseWriter, r *http.Request) (*sess
 	return &sessionUser{
 		ID: si.User.ID, Username: si.User.Username, Role: si.User.Role,
 		MustChangePassword: si.User.MustChangePassword, sessionHash: hash,
+		Scope: si.User.Scope(), CanInventory: si.User.CanInventory,
 	}, nil
 }
 

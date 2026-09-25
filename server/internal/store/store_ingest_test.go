@@ -299,7 +299,7 @@ func TestHostByIDIncludesGroupAndInfo(t *testing.T) {
 	if _, err := s.IngestMetrics(ctx, id, Sample{Timestamp: time.Now(), MemTotalMB: 16000, Info: &HostInfoUpdate{CPUModel: "X", IPs: []netip.Addr{netip.MustParseAddr("::1")}}}); err != nil {
 		t.Fatal(err)
 	}
-	h, err := s.HostByID(ctx, id)
+	h, err := s.HostByID(ctx, AllScope(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestHostByIDIncludesGroupAndInfo(t *testing.T) {
 		h.Info.MemTotalMB == nil || *h.Info.MemTotalMB != 16000 || len(h.Info.IPs) != 1 || h.Info.OSName != nil {
 		t.Errorf("HostByID got %+v", h)
 	}
-	if _, err := s.HostByID(ctx, missingUUID); !errors.Is(err, ErrNotFound) {
+	if _, err := s.HostByID(ctx, AllScope(), missingUUID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("host inexistente got %v", err)
 	}
 }

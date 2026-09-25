@@ -153,7 +153,7 @@ func (a *API) getHost(w http.ResponseWriter, r *http.Request) error {
 		return invalidID()
 	}
 	ctx := r.Context()
-	host, err := a.store.HostByID(ctx, id)
+	host, err := a.store.HostByID(ctx, currentUser(r).Scope, id)
 	if err != nil {
 		return err
 	}
@@ -200,6 +200,14 @@ func (a *API) hostMetrics(w http.ResponseWriter, r *http.Request) error {
 	rng, ok := metricRanges[rangeName]
 	if !ok {
 		return &clientError{status: http.StatusBadRequest, code: "invalid_range", msg: "range debe ser 1h, 6h, 24h, 7d, 30d, 90d o 1y"}
+	}
+
+	// Un viewer restringido no lee las metricas de hosts fuera de su ambito (404 como si no existiera).
+	// Con ambito total no hace falta: se mantiene el comportamiento de siempre.
+	if scope := currentUser(r).Scope; !scope.All() {
+		if _, err := a.store.HostByID(r.Context(), scope, id); err != nil {
+			return err
+		}
 	}
 
 	series := a.store.MetricSeries

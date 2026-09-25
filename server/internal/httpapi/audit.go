@@ -22,42 +22,43 @@ const (
 
 // Eventos de auditoria.
 const (
-	evLoginOK             = "login_ok"
-	evLoginFail           = "login_fail"
-	evLogout              = "logout"
-	evPasswordChanged     = "password_changed"
-	evUserCreated         = "user_created"
-	evUserRoleChanged     = "user_role_changed"
-	evUserDisabled        = "user_disabled"
-	evUserEnabled         = "user_enabled"
-	evUserPasswordReset   = "user_password_reset"
-	evEnrollTokenCreated  = "enroll_token_created" //nolint:gosec // nombre de evento, no una credencial
-	evHostEnrolled        = "host_enrolled"
-	evHostRevoked         = "host_revoked"
-	evGroupCreated        = "group_created"
-	evGroupUpdated        = "group_updated"
-	evGroupDeleted        = "group_deleted"
-	evHostGroupSet        = "host_group_set"
-	evHostsBulk           = "hosts_bulk"
-	evAlertAcked          = "alert_acked"
-	evAlertResolved       = "alert_resolved"
-	evAlertRuleCreated    = "alert_rule_created"
-	evAlertRuleUpdated    = "alert_rule_updated"
-	evAlertRuleDeleted    = "alert_rule_deleted"
-	evChannelCreated      = "channel_created"
-	evChannelUpdated      = "channel_updated"
-	evChannelDeleted      = "channel_deleted"
-	evChannelTested       = "channel_tested"
-	evRuleChannelsSet     = "alert_rule_channels_set"
-	evServiceCheckCreated = "service_check_created"
-	evServiceCheckUpdated = "service_check_updated"
-	evServiceCheckDeleted = "service_check_deleted"
-	evMaintenanceCreated  = "maintenance_created"
-	evMaintenanceUpdated  = "maintenance_updated"
-	evMaintenanceDeleted  = "maintenance_deleted"
-	evAuthzDenied         = "authz_denied"
-	evAgentAuthFail       = "agent_auth_fail"
-	evEnrollFail          = "enroll_fail"
+	evLoginOK                = "login_ok"
+	evLoginFail              = "login_fail"
+	evLogout                 = "logout"
+	evPasswordChanged        = "password_changed"
+	evUserCreated            = "user_created"
+	evUserRoleChanged        = "user_role_changed"
+	evUserDisabled           = "user_disabled"
+	evUserEnabled            = "user_enabled"
+	evUserPasswordReset      = "user_password_reset"
+	evUserPermissionsChanged = "user_permissions_changed"
+	evEnrollTokenCreated     = "enroll_token_created" //nolint:gosec // nombre de evento, no una credencial
+	evHostEnrolled           = "host_enrolled"
+	evHostRevoked            = "host_revoked"
+	evGroupCreated           = "group_created"
+	evGroupUpdated           = "group_updated"
+	evGroupDeleted           = "group_deleted"
+	evHostGroupSet           = "host_group_set"
+	evHostsBulk              = "hosts_bulk"
+	evAlertAcked             = "alert_acked"
+	evAlertResolved          = "alert_resolved"
+	evAlertRuleCreated       = "alert_rule_created"
+	evAlertRuleUpdated       = "alert_rule_updated"
+	evAlertRuleDeleted       = "alert_rule_deleted"
+	evChannelCreated         = "channel_created"
+	evChannelUpdated         = "channel_updated"
+	evChannelDeleted         = "channel_deleted"
+	evChannelTested          = "channel_tested"
+	evRuleChannelsSet        = "alert_rule_channels_set"
+	evServiceCheckCreated    = "service_check_created"
+	evServiceCheckUpdated    = "service_check_updated"
+	evServiceCheckDeleted    = "service_check_deleted"
+	evMaintenanceCreated     = "maintenance_created"
+	evMaintenanceUpdated     = "maintenance_updated"
+	evMaintenanceDeleted     = "maintenance_deleted"
+	evAuthzDenied            = "authz_denied"
+	evAgentAuthFail          = "agent_auth_fail"
+	evEnrollFail             = "enroll_fail"
 )
 
 // auditDetailKeys es la lista blanca de claves permitidas en audit_log.detail.
@@ -65,6 +66,9 @@ const (
 var auditDetailKeys = map[string]bool{
 	"reason": true, "locked": true, "role": true, "disabled": true,
 	"method": true, "route": true, "count": true, "hostname": true,
+	// Permisos por grupo de un usuario: valores antes (prev_*) y despues; group_ids solo si son pocos.
+	"all_groups": true, "prev_all_groups": true, "can_inventory": true, "prev_can_inventory": true,
+	"group_ids": true, "group_count": true, "prev_group_count": true,
 	// Grupos y acciones masivas.
 	"action": true, "group_id": true, "name": true, "always_on": true, "down_after_seconds": true,
 	// Alertas, reglas y mantenimiento: nombres y ajustes, nunca secretos.

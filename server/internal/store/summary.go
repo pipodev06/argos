@@ -70,13 +70,17 @@ type Summary struct {
 // Summary calcula el resumen de la flota: conteos por estado y por grupo (solo grupos con hosts, mas "sin
 // grupo" si hay), los 10 hosts up con mas cpu, memoria y disco, y los 10 caidos mas recientes (solo down:
 // un host offline no requiere atencion).
-func (s *Store) Summary(ctx context.Context) (Summary, error) {
+//
+// scope limita TODO el resumen (conteos, rankings y caidos) a los hosts visibles.
+func (s *Store) Summary(ctx context.Context, scope Scope) (Summary, error) {
 	var sum Summary
 
+	var cargs argList
 	rows, err := s.pool.Query(ctx,
 		`SELECT g.id, g.name, h.status, count(*)::int
 		   FROM hosts h LEFT JOIN host_groups g ON g.id = h.group_id
-		  GROUP BY g.id, g.name, h.status`)
+		  WHERE `+scope.groupCond("h.group_id", &cargs)+`
+		  GROUP BY g.id, g.name, h.status`, []any(cargs)...)
 	if err != nil {
 		return Summary{}, fmt.Errorf("contando hosts por grupo: %w", err)
 	}
@@ -112,20 +116,22 @@ func (s *Store) Summary(ctx context.Context) (Summary, error) {
 	rows.Close()
 	sum.ByGroup = orderedGroups(byGroup, order)
 
-	if sum.TopCPU, err = s.top(ctx, `l.cpu_pct::float8`, `l.cpu_pct IS NOT NULL`, false); err != nil {
+	if sum.TopCPU, err = s.top(ctx, scope, `l.cpu_pct::float8`, `l.cpu_pct IS NOT NULL`, false); err != nil {
 		return Summary{}, err
 	}
-	if sum.TopMem, err = s.top(ctx, `l.mem_used_mb::float8 * 100 / l.mem_total_mb`, `l.mem_total_mb > 0`, false); err != nil {
+	if sum.TopMem, err = s.top(ctx, scope, `l.mem_used_mb::float8 * 100 / l.mem_total_mb`, `l.mem_total_mb > 0`, false); err != nil {
 		return Summary{}, err
 	}
-	if sum.TopDisk, err = s.top(ctx, `l.disk_max_pct::float8`, `l.disk_max_pct IS NOT NULL`, true); err != nil {
+	if sum.TopDisk, err = s.top(ctx, scope, `l.disk_max_pct::float8`, `l.disk_max_pct IS NOT NULL`, true); err != nil {
 		return Summary{}, err
 	}
 
+	dargs := argList{topN}
 	down, err := s.pool.Query(ctx,
 		`SELECT h.id, h.hostname, h.status_changed_at, g.id, g.name
 		   FROM hosts h LEFT JOIN host_groups g ON g.id = h.group_id
-		  WHERE h.status = 'down' ORDER BY h.status_changed_at DESC, h.id LIMIT $1`, topN)
+		  WHERE h.status = 'down' AND `+scope.groupCond("h.group_id", &dargs)+`
+		  ORDER BY h.status_changed_at DESC, h.id LIMIT $1`, []any(dargs)...)
 	if err != nil {
 		return Summary{}, fmt.Errorf("leyendo hosts caidos: %w", err)
 	}
@@ -172,16 +178,17 @@ func orderedGroups(byGroup map[string]*GroupCounts, order []string) []GroupCount
 
 // top devuelve los topN hosts up con mayor valor. value y cond son fragmentos SQL fijos (nunca input externo);
 // withMount agrega el montaje del disco mas lleno.
-func (s *Store) top(ctx context.Context, value, cond string, withMount bool) ([]TopHost, error) {
+func (s *Store) top(ctx context.Context, scope Scope, value, cond string, withMount bool) ([]TopHost, error) {
 	mount := "NULL::text"
 	if withMount {
 		mount = "l.disk_max_mount"
 	}
+	args := argList{topN}
 	rows, err := s.pool.Query(ctx, fmt.Sprintf(
 		`SELECT h.id, h.hostname, %[1]s AS value, %[2]s
 		   FROM hosts h JOIN host_latest l ON l.host_id = h.id
-		  WHERE h.status = 'up' AND %[3]s
-		  ORDER BY value DESC, h.id LIMIT $1`, value, mount, cond), topN)
+		  WHERE h.status = 'up' AND %[3]s AND %[4]s
+		  ORDER BY value DESC, h.id LIMIT $1`, value, mount, cond, scope.groupCond("h.group_id", &args)), []any(args)...)
 	if err != nil {
 		return nil, fmt.Errorf("leyendo ranking: %w", err)
 	}

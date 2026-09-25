@@ -118,7 +118,7 @@ type hostQuery struct {
 	cursor      string
 }
 
-func parseHostQuery(v url.Values) (hostQuery, error) {
+func parseHostQuery(v url.Values, scope store.Scope) (hostQuery, error) {
 	var f store.HostFilter
 
 	q := strings.TrimSpace(v.Get("q"))
@@ -204,7 +204,7 @@ func parseHostQuery(v url.Values) (hostQuery, error) {
 	if len(cursor) > maxCursorLen {
 		return hostQuery{}, errInvalidCursor
 	}
-	return hostQuery{filter: f, fingerprint: fingerprint(f), cursor: cursor}, nil
+	return hostQuery{filter: f, fingerprint: fingerprint(f, scope), cursor: cursor}, nil
 }
 
 // parseGroupFilter lee group repetido: ids de grupo y/o none (sin grupo), unicos y ordenados.
@@ -265,10 +265,10 @@ func parsePctFilter(v url.Values, name string) (*float64, error) {
 	return &n, nil
 }
 
-// fingerprint resume filtros, orden y direccion (no el limite: se puede cambiar entre paginas).
-func fingerprint(f store.HostFilter) string {
+// fingerprint resume filtros, orden, direccion y ambito del usuario (no el limite: se puede cambiar entre paginas).
+func fingerprint(f store.HostFilter, scope store.Scope) string {
 	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup, f.OSes, f.Sort, f.Desc,
-		f.CPUGt, f.MemGt, f.DiskGt, f.BatteryLt, f.SeenBefore})
+		f.CPUGt, f.MemGt, f.DiskGt, f.BatteryLt, f.SeenBefore, scope.Key()})
 	if err != nil {
 		return "" // solo strings, bools y listas: no deberia ocurrir
 	}
@@ -323,7 +323,7 @@ func (a *API) decodeCursor(raw, fp string) (*store.HostCursor, error) {
 
 // listHosts devuelve una pagina de hosts (viewer o admin): filtros, orden y paginacion por cursor.
 func (a *API) listHosts(w http.ResponseWriter, r *http.Request) error {
-	q, err := parseHostQuery(r.URL.Query())
+	q, err := parseHostQuery(r.URL.Query(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}
@@ -332,7 +332,7 @@ func (a *API) listHosts(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	page, err := a.store.ListHosts(r.Context(), q.filter)
+	page, err := a.store.ListHosts(r.Context(), currentUser(r).Scope, q.filter)
 	if err != nil {
 		return err
 	}

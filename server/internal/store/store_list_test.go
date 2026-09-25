@@ -108,7 +108,7 @@ func TestListHostsFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := tt.filter
 			f.Sort, f.Limit = "name", 100
-			page, err := s.ListHosts(ctx, f)
+			page, err := s.ListHosts(ctx, AllScope(), f)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -161,7 +161,7 @@ func TestListHostsSortsAndKeysetPagination(t *testing.T) {
 					if pages > 20 {
 						t.Fatal("paginacion sin fin")
 					}
-					page, err := s.ListHosts(ctx, f)
+					page, err := s.ListHosts(ctx, AllScope(), f)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -196,7 +196,7 @@ func TestListHostsRowContent(t *testing.T) {
 	             FROM hosts WHERE hostname = 'alpha'`)
 	mustExec(t, `UPDATE host_latest SET battery_pct = 80, battery_charging = true WHERE host_id = (SELECT id FROM hosts WHERE hostname = 'alpha')`)
 
-	page, err := s.ListHosts(ctx, HostFilter{Sort: "name", Q: "alpha", Limit: 10})
+	page, err := s.ListHosts(ctx, AllScope(), HostFilter{Sort: "name", Q: "alpha", Limit: 10})
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("got (%+v, %v)", page, err)
 	}
@@ -221,13 +221,13 @@ func TestListHostsRowContent(t *testing.T) {
 func TestSummary(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	empty, err := s.Summary(ctx)
+	empty, err := s.Summary(ctx, AllScope())
 	if err != nil || empty.Counts.Total() != 0 || empty.TopCPU == nil || empty.RecentlyDown == nil || len(empty.ByGroup) != 0 {
 		t.Fatalf("resumen vacio got (%+v, %v)", empty, err)
 	}
 
 	seedFleet(t, s)
-	sum, err := s.Summary(ctx)
+	sum, err := s.Summary(ctx, AllScope())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestSummary(t *testing.T) {
 
 	// Acotado a 10.
 	mustExec(t, `INSERT INTO hosts (hostname, agent_token_hash, status, last_seen_at) SELECT 'm' || g, 'hm' || g, 'down', now() FROM generate_series(1, 15) g`)
-	sum, err = s.Summary(ctx)
+	sum, err = s.Summary(ctx, AllScope())
 	if err != nil || len(sum.RecentlyDown) != topN {
 		t.Errorf("recently_down acotado got %d (%v), want %d", len(sum.RecentlyDown), err, topN)
 	}
@@ -281,7 +281,7 @@ func TestListHostsMultiValueFiltersKeysetPagination(t *testing.T) {
 	f := HostFilter{GroupIDs: []string{groupID}, NoGroup: true, OSes: []string{"windows", "darwin"}, Sort: "name", Limit: 2}
 	var got []string
 	for i := 0; i < 5; i++ {
-		page, err := s.ListHosts(ctx, f)
+		page, err := s.ListHosts(ctx, AllScope(), f)
 		if err != nil {
 			t.Fatal(err)
 		}
