@@ -60,7 +60,7 @@ func newTestWorker(t *testing.T, f *fakeServer, conns *[]psnet.ConnectionStat, n
 	t.Helper()
 	src := fakeSources(nil, nil)
 	src.Conns = func(context.Context) ([]psnet.ConnectionStat, error) { return *conns, nil }
-	m, ok := buildModule(ModulePorts, src)
+	m, ok := buildModule(ModulePorts, src, UpdatesConfig{})
 	if !ok {
 		t.Fatal("modulo ports no disponible")
 	}

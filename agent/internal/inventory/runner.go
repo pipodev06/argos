@@ -10,6 +10,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -28,6 +29,11 @@ const (
 	unsupportedMax  = 24 * time.Hour
 
 	startJitter = 5 * time.Second
+
+	// El modulo de parches arranca con un retardo aleatorio (no todos los hosts a la vez).
+	updatesStartJitter = 10 * time.Minute
+	updatesHeartbeat   = 24 * time.Hour
+	updatesSpread      = 0.2
 )
 
 // Options configura Run.
@@ -38,6 +44,7 @@ type Options struct {
 	Modules    []string     // ya validados con ParseModules; vacio = no hace nada
 	Logger     *slog.Logger
 	Sources    *Sources // nil = las lecturas reales del SO
+	Updates    UpdatesConfig
 }
 
 // module es un colector con su cadencia.
@@ -46,19 +53,35 @@ type module struct {
 	interval  time.Duration // cada cuanto se recolecta
 	heartbeat time.Duration // cada cuanto se refresca sin cambios
 	collect   func(ctx context.Context) (snapshot, error)
+	start     time.Duration // la primera recoleccion espera un aleatorio en [0, start]
+	spread    float64       // fraccion de jitter (+-) sobre interval; 0 = fijo
 }
 
-func buildModule(name string, src Sources) (module, bool) {
+func buildModule(name string, src Sources, ucfg UpdatesConfig) (module, bool) {
 	switch name {
 	case ModulePorts:
-		return module{name, time.Minute, 6 * time.Hour, func(ctx context.Context) (snapshot, error) { return collectPorts(ctx, src) }}, true
+		return module{name: name, interval: time.Minute, heartbeat: 6 * time.Hour, collect: func(ctx context.Context) (snapshot, error) { return collectPorts(ctx, src) }, start: startJitter}, true
 	case ModuleServices:
 		if src.Services == nil {
 			return module{}, false
 		}
-		return module{name, 10 * time.Minute, 6 * time.Hour, func(ctx context.Context) (snapshot, error) { return collectServices(ctx, src) }}, true
+		return module{name: name, interval: 10 * time.Minute, heartbeat: 6 * time.Hour, collect: func(ctx context.Context) (snapshot, error) { return collectServices(ctx, src) }, start: startJitter}, true
 	case ModuleProcesses:
-		return module{name, 5 * time.Minute, 30 * time.Minute, func(ctx context.Context) (snapshot, error) { return collectProcesses(ctx, src) }}, true
+		return module{name: name, interval: 5 * time.Minute, heartbeat: 30 * time.Minute, collect: func(ctx context.Context) (snapshot, error) { return collectProcesses(ctx, src) }, start: startJitter}, true
+	case ModuleUpdates:
+		if src.Updates == nil {
+			return module{}, false
+		}
+		interval := ucfg.Interval
+		if interval == 0 {
+			interval = DefaultUpdatesInterval
+		}
+		interval = min(max(interval, MinUpdatesInterval), MaxUpdatesInterval)
+		if runtime.GOOS == "darwin" {
+			interval = max(interval, MaxUpdatesInterval) // softwareupdate contacta a Apple: 1 vez al dia
+		}
+		return module{name: name, interval: interval, heartbeat: updatesHeartbeat, start: updatesStartJitter, spread: updatesSpread,
+			collect: func(ctx context.Context) (snapshot, error) { return collectUpdates(ctx, src) }}, true
 	}
 	return module{}, false
 }
@@ -83,6 +106,9 @@ func Run(ctx context.Context, o Options) {
 	if o.Sources != nil {
 		src = *o.Sources
 	}
+	if src.Updates == nil {
+		src.Updates = systemUpdates(o.Updates)
+	}
 	cl := &client{url: endpoint, token: o.Token, http: o.HTTPClient}
 	if cl.http == nil {
 		cl.http = &http.Client{Timeout: 10 * time.Second}
@@ -90,7 +116,7 @@ func Run(ctx context.Context, o Options) {
 
 	var wg sync.WaitGroup
 	for _, name := range o.Modules {
-		m, ok := buildModule(name, src)
+		m, ok := buildModule(name, src, o.Updates)
 		if !ok {
 			logger.Warn("modulo de inventario no disponible en este sistema, se omite", "module", name)
 			continue
@@ -123,7 +149,7 @@ type worker struct {
 }
 
 func (w *worker) loop(ctx context.Context) {
-	wait := jitter(startJitter)
+	wait := jitter(w.mod.start)
 	for {
 		t := time.NewTimer(wait)
 		select {
@@ -136,6 +162,16 @@ func (w *worker) loop(ctx context.Context) {
 	}
 }
 
+// every es la espera normal entre recolecciones, con jitter si el modulo lo pide.
+func (w *worker) every() time.Duration {
+	d := w.mod.interval
+	if w.mod.spread <= 0 {
+		return d
+	}
+	span := time.Duration(float64(d) * w.mod.spread)
+	return d - span + jitter(2*span)
+}
+
 // step hace un ciclo (recolectar, decidir, enviar) y devuelve cuanto esperar al siguiente.
 func (w *worker) step(ctx context.Context) time.Duration {
 	snap, err := w.mod.collect(ctx)
@@ -143,7 +179,7 @@ func (w *worker) step(ctx context.Context) time.Duration {
 		if ctx.Err() == nil {
 			w.log.Warn("no se pudo recolectar el inventario", "err", err)
 		}
-		return w.mod.interval
+		return w.every()
 	}
 	now := w.now()
 	full := !w.sent || w.needFull || snap.rev != w.lastRev
@@ -151,7 +187,7 @@ func (w *worker) step(ctx context.Context) time.Duration {
 	case full && w.sent && !w.needFull && now.Sub(w.lastSend) < minGap:
 		return minGap - now.Sub(w.lastSend)
 	case !full && now.Sub(w.lastSend) < w.mod.heartbeat:
-		return w.mod.interval
+		return w.every()
 	}
 	var body []byte
 	if full {
@@ -161,7 +197,7 @@ func (w *worker) step(ctx context.Context) time.Duration {
 	}
 	if err != nil {
 		w.log.Error("serializando el inventario", "err", err)
-		return w.mod.interval
+		return w.every()
 	}
 	status, err := w.cl.post(ctx, body)
 	return w.handle(ctx, status, err, full, snap.rev, now)
@@ -172,7 +208,7 @@ func (w *worker) handle(ctx context.Context, status int, err error, wasFull bool
 	switch {
 	case err != nil:
 		if ctx.Err() != nil {
-			return w.mod.interval
+			return w.every()
 		}
 		return w.fail("error de red", err, "")
 	case status >= 200 && status <= 299:
@@ -184,8 +220,8 @@ func (w *worker) handle(ctx context.Context, status int, err error, wasFull bool
 		}
 		w.sent, w.lastRev, w.lastSend, w.needFull = true, rev, now, false
 		w.unsupported, w.failing = 0, false
-		return w.mod.interval
-	case status == http.StatusNotFound || status == http.StatusMethodNotAllowed:
+		return w.every()
+	case unsupportedStatus(status):
 		w.unsupported++
 		d := backoff(unsupportedBase, unsupportedMax, w.unsupported-1)
 		if w.unsupported == 1 {
@@ -201,6 +237,20 @@ func (w *worker) handle(ctx context.Context, status int, err error, wasFull bool
 	default:
 		return w.fail("respuesta inesperada", nil, fmt.Sprint(status))
 	}
+}
+
+// unsupportedStatus: un 4xx que no es transitorio (401/403 credenciales, 408, 429) ni el 409 de
+// need_full significa que el servidor no acepta este modulo (404/405 si es viejo, 400/413/422 si no
+// conoce el modulo): se desactiva con backoff largo en vez de reintentar a cada rato.
+func unsupportedStatus(status int) bool {
+	if status < 400 || status > 499 {
+		return false
+	}
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests:
+		return false
+	}
+	return true
 }
 
 // fail cuenta un fallo transitorio: avisa solo en el primero de la racha y espera con backoff.

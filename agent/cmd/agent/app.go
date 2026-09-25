@@ -404,6 +404,7 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 				Token:      creds.AgentToken,
 				HTTPClient: client,
 				Modules:    cfg.InventoryModules,
+				Updates:    cfg.Updates,
 				Logger:     a.logger,
 			})
 		}()

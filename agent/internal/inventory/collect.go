@@ -25,6 +25,7 @@ type Sources struct {
 	ProcName func(ctx context.Context, pid int32) (string, error)
 	Procs    func(ctx context.Context) ([]ProcInfo, error)
 	Services func(ctx context.Context) ([]Service, error)
+	Updates  func(ctx context.Context) (Updates, error) // nil = modulo no disponible en este SO
 }
 
 // SystemSources devuelve las lecturas reales (gopsutil; servicios en Windows y Linux).
