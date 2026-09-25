@@ -11,20 +11,21 @@ export interface PermissionsForm {
   allGroups: boolean
   groupIds: string[]
   canInventory: boolean
+  canUpdates: boolean
 }
 
 export function formFromUser(u: ManagedUser): PermissionsForm {
-  return { allGroups: u.all_groups, groupIds: [...u.group_ids], canInventory: u.can_inventory }
+  return { allGroups: u.all_groups, groupIds: [...u.group_ids], canInventory: u.can_inventory, canUpdates: u.can_updates }
 }
 
 /** Con all_groups=true el servidor rechaza group_ids (invalid_scope): solo se envía al restringir. */
 export function toPayload(f: PermissionsForm): UpdateUserInput {
-  if (f.allGroups) return { all_groups: true, can_inventory: f.canInventory }
-  return { all_groups: false, group_ids: [...f.groupIds], can_inventory: f.canInventory }
+  if (f.allGroups) return { all_groups: true, can_inventory: f.canInventory, can_updates: f.canUpdates }
+  return { all_groups: false, group_ids: [...f.groupIds], can_inventory: f.canInventory, can_updates: f.canUpdates }
 }
 
 export function isSameForm(a: PermissionsForm, b: PermissionsForm): boolean {
-  if (a.allGroups !== b.allGroups || a.canInventory !== b.canInventory) return false
+  if (a.allGroups !== b.allGroups || a.canInventory !== b.canInventory || a.canUpdates !== b.canUpdates) return false
   if (a.allGroups) return true
   return a.groupIds.length === b.groupIds.length && a.groupIds.every((id) => b.groupIds.includes(id))
 }

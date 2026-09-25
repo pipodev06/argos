@@ -20,7 +20,13 @@ export const KIND_LABELS: Record<RuleKind, string> = {
   no_data: 'Sin datos',
   service_check: 'Chequeo',
   exposed_port: 'Puerto nuevo expuesto',
+  pending_updates: 'Actualizaciones de seguridad pendientes',
+  reboot_pending: 'Reinicio pendiente',
+  os_eol: 'Fin de vida del SO',
 }
+
+/** Reglas del modulo de parches: sin metrica/operador, el umbral es un conteo o dias. */
+export const isUpdatesKind = (k: RuleKind): boolean => k === 'pending_updates' || k === 'reboot_pending' || k === 'os_eol'
 export const METRIC_LABELS: Record<RuleMetric, string> = {
   cpu_pct: 'CPU',
   mem_pct: 'Memoria',
@@ -68,14 +74,19 @@ export function formatSeconds(seconds: number): string {
 export function formatMetricValue(kind: RuleKind, metric: RuleMetric | null, value: number | null): string {
   if (value === null) return '—'
   if (kind === 'exposed_port') return `${formatNumber(value, 0)} ${value === 1 ? 'puerto' : 'puertos'}`
+  if (kind === 'pending_updates') return `${formatNumber(value, 0)} de seguridad`
+  if (kind === 'reboot_pending') return `${formatNumber(value, 0)} d`
+  if (kind === 'os_eol') return value <= 0 ? 'vencido' : `faltan ${formatNumber(value, 0)} d`
   if (kind === 'no_data') return formatSeconds(Math.round(value))
   if (kind === 'metric' && !isLoadMetric(metric)) return `${formatNumber(value, 2)} %`
   return formatNumber(value, 2)
 }
 
 /** "82,5 % (pico 95 %)"; el pico solo se muestra si difiere del valor de apertura. */
-export function formatAlertValue(a: Pick<Alert, 'kind' | 'metric' | 'trigger_value' | 'peak_value'>): string {
+export function formatAlertValue(a: Pick<Alert, 'kind' | 'metric' | 'trigger_value' | 'peak_value'> & Partial<Pick<Alert, 'detail'>>): string {
   const base = formatMetricValue(a.kind, a.metric, a.trigger_value)
+  // Parches: el `detail` (solo con permiso) amplia el conteo; sin el, solo el conteo. El pico no aplica.
+  if (isUpdatesKind(a.kind)) return a.detail ? `${base} (${a.detail})` : base
   if (a.trigger_value === null || a.peak_value === null || a.peak_value === a.trigger_value) return base
   return `${base} (pico ${formatMetricValue(a.kind, a.metric, a.peak_value)})`
 }
@@ -90,11 +101,17 @@ export function exposedPortsText(a: Pick<Alert, 'trigger_value' | 'detail'>): st
 /** Condición legible de una regla: "CPU > 90 % durante 10 min". */
 export function describeCondition(
   r: Pick<AlertRule, 'kind' | 'metric' | 'op' | 'threshold' | 'duration_seconds'> &
-    Partial<Pick<AlertRule, 'check_name' | 'warn_or_down' | 'expected_ports'>>,
+    Partial<Pick<AlertRule, 'check_name' | 'warn_or_down' | 'expected_ports' | 'duration_days'>>,
 ): string {
   const during = r.duration_seconds > 0 ? ` durante ${formatSeconds(r.duration_seconds)}` : ''
   if (r.kind === 'service_check') return `Chequeo ${r.check_name ?? 'eliminado'} ${r.warn_or_down ? 'en advertencia o caído' : 'caído'}${during}`
   if (r.kind === 'exposed_port') return `Puerto nuevo expuesto (${r.expected_ports?.length ?? 0} esperados)`
+  if (r.kind === 'pending_updates') {
+    const days = r.duration_days ?? 0
+    return `≥ ${formatNumber(r.threshold ?? 0, 0)} de seguridad${days > 0 ? ` durante ${days} d` : ''}`
+  }
+  if (r.kind === 'reboot_pending') return `Reinicio pendiente ≥ ${formatNumber(r.threshold ?? 0, 0)} d`
+  if (r.kind === 'os_eol') return `Fin de vida en ≤ ${formatNumber(r.threshold ?? 0, 0)} d`
   if (r.kind === 'host_status') return `Host caído${during}`
   if (r.kind === 'no_data') return `Sin reportar por más de ${formatSeconds(Math.round(r.threshold ?? 0))}${during}`
   const label = r.metric ? METRIC_LABELS[r.metric] : 'Métrica'

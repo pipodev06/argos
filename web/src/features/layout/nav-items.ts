@@ -1,5 +1,5 @@
-import { IconBell, IconFolders, IconHeartRateMonitor, IconHistory, IconKey, IconLayoutDashboard, IconListCheck, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
-import type { Role } from '@/features/auth/types/auth.types'
+import { IconBell, IconShieldCheck, IconFolders, IconHeartRateMonitor, IconHistory, IconKey, IconLayoutDashboard, IconListCheck, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
+import type { Role, User } from '@/features/auth/types/auth.types'
 
 export interface NavItem {
   to: string
@@ -11,6 +11,8 @@ export interface NavItem {
   roles?: readonly Role[]
   /** Solo para quien ve todos los grupos (los viewers restringidos no lo ven). */
   fullScope?: boolean
+  /** Solo admin o quien tenga el permiso `can_updates` (parches del SO). */
+  requiresUpdates?: boolean
   /** `end` de NavLink: solo activo en la ruta exacta (necesario para `/`). */
   end?: boolean
   /** Contador de alertas abiertas junto a la etiqueta. */
@@ -24,6 +26,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/dispositivos', label: 'Dispositivos', Icon: IconRouter, section: 'Monitoreo' },
   { to: '/grupos', label: 'Grupos', Icon: IconFolders, section: 'Monitoreo' },
   { to: '/chequeos', label: 'Chequeos', Icon: IconHeartRateMonitor, section: 'Monitoreo' },
+  { to: '/parches', label: 'Parches', Icon: IconShieldCheck, section: 'Monitoreo', requiresUpdates: true },
   { to: '/informes', label: 'Informes', Icon: IconReportAnalytics, section: 'Monitoreo' },
   { to: '/alertas', label: 'Alertas', Icon: IconBell, section: 'Alertas', end: true, openAlertsCount: true },
   { to: '/alertas/reglas', label: 'Reglas', Icon: IconListCheck, section: 'Alertas' },
@@ -43,4 +46,12 @@ export function groupBySection(items: readonly NavItem[]): [string, NavItem[]][]
     else groups.set(item.section, [item])
   }
   return [...groups]
+}
+
+/** Visibilidad de un item segun el usuario (el servidor vuelve a validar cada ruta). */
+export function isNavItemVisible(item: NavItem, user: Pick<User, 'role' | 'all_groups' | 'can_updates'> | null): boolean {
+  if (item.roles && !(user !== null && item.roles.includes(user.role))) return false
+  if (item.fullScope && user?.all_groups !== true) return false
+  if (item.requiresUpdates && !(user !== null && (user.role === 'admin' || user.can_updates))) return false
+  return true
 }

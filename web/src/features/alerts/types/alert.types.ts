@@ -2,7 +2,7 @@ import type { HostStatus } from '@/features/hosts/types/host.types'
 
 export type AlertSeverity = 'info' | 'warn' | 'critical'
 export type AlertState = 'open' | 'acknowledged' | 'resolved'
-export type RuleKind = 'metric' | 'host_status' | 'no_data' | 'service_check' | 'exposed_port'
+export type RuleKind = 'metric' | 'host_status' | 'no_data' | 'service_check' | 'exposed_port' | 'pending_updates' | 'reboot_pending' | 'os_eol'
 export type RuleMetric = 'cpu_pct' | 'mem_pct' | 'disk_max_pct' | 'battery_pct' | 'load1' | 'load5' | 'load15'
 export type RuleOp = 'gt' | 'lt'
 /** `device` solo lo usan los chequeos ping. */
@@ -28,7 +28,7 @@ export interface Alert {
   suppressed: boolean
   opened_at: string
   trigger_value: number | null
-  /** exposed_port: "tcp/22, udp/53" (máx 5); null sin permiso de inventario. */
+  /** exposed_port: "tcp/22, udp/53" (máx 5); null sin permiso de inventario. Parches: null sin permiso `can_updates`. */
   detail?: string | null
   peak_value: number | null
   host: { id: string; hostname: string }
@@ -106,6 +106,8 @@ export interface AlertRule {
   threshold: number | null
   clear_threshold: number | null
   duration_seconds: number
+  /** Solo pending_updates (días con pendientes de seguridad); 0 en el resto. */
+  duration_days: number
   resolve_seconds: number
   include_offline: boolean
   check_id: string | null
@@ -127,6 +129,8 @@ export interface RuleInput {
   /** null borra el umbral de recuperación (solo PATCH). */
   clear_threshold?: number | null
   duration_seconds: number
+  /** Solo pending_updates (0..365). */
+  duration_days?: number
   resolve_seconds: number
   include_offline?: boolean
   /** Solo service_check (alertar también en advertencia). */

@@ -5,24 +5,25 @@ import { accessLabel, filterGroups, formFromUser, isSameForm, MAX_USER_GROUPS, t
 
 const base: ManagedUser = {
   id: 'u1', username: 'ana', role: 'viewer', must_change_password: false, disabled: false,
-  last_login_at: null, created_at: '2026-01-01T00:00:00Z', all_groups: false, group_ids: ['a', 'b'], can_inventory: true,
+  last_login_at: null, created_at: '2026-01-01T00:00:00Z', all_groups: false, group_ids: ['a', 'b'], can_inventory: true, can_updates: true,
 }
 
 describe('permisos: formulario y payload', () => {
   it('mapea usuario a formulario sin compartir la lista', () => {
     const f = formFromUser(base)
-    expect(f).toEqual({ allGroups: false, groupIds: ['a', 'b'], canInventory: true })
+    expect(f).toEqual({ allGroups: false, groupIds: ['a', 'b'], canInventory: true, canUpdates: true })
     expect(f.groupIds).not.toBe(base.group_ids)
   })
   it('all_groups=true no envía group_ids', () => {
-    expect(toPayload({ allGroups: true, groupIds: ['a'], canInventory: false })).toEqual({ all_groups: true, can_inventory: false })
+    expect(toPayload({ allGroups: true, groupIds: ['a'], canInventory: false, canUpdates: true })).toEqual({ all_groups: true, can_inventory: false, can_updates: true })
   })
   it('restringido envía la lista', () => {
-    expect(toPayload({ allGroups: false, groupIds: ['a'], canInventory: true })).toEqual({ all_groups: false, group_ids: ['a'], can_inventory: true })
+    expect(toPayload({ allGroups: false, groupIds: ['a'], canInventory: true, canUpdates: false })).toEqual({ all_groups: false, group_ids: ['a'], can_inventory: true, can_updates: false })
   })
   it('isSameForm ignora el orden y las listas con all_groups', () => {
-    const a = { allGroups: false, groupIds: ['a', 'b'], canInventory: false }
+    const a = { allGroups: false, groupIds: ['a', 'b'], canInventory: false, canUpdates: false }
     expect(isSameForm(a, { ...a, groupIds: ['b', 'a'] })).toBe(true)
+    expect(isSameForm(a, { ...a, canUpdates: true })).toBe(false)
     expect(isSameForm(a, { ...a, groupIds: ['a'] })).toBe(false)
     expect(isSameForm({ ...a, allGroups: true }, { ...a, allGroups: true, groupIds: [] })).toBe(true)
   })

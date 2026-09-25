@@ -13,6 +13,7 @@ export interface ManagedUser {
   all_groups: boolean
   group_ids: string[]
   can_inventory: boolean
+  can_updates: boolean
 }
 
 export interface UserListResponse {
@@ -34,4 +35,5 @@ export interface UpdateUserInput {
   /** Reemplaza la lista completa; solo con all_groups=false. */
   group_ids?: string[]
   can_inventory?: boolean
+  can_updates?: boolean
 }
