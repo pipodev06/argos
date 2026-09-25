@@ -8,7 +8,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { formatFullDate } from '@/features/hosts/utils/format'
 import { useAlertDetail } from '../hooks/useAlerts'
 import type { Alert, Delivery } from '../types/alert.types'
-import { formatMetricValue, KIND_LABELS, METRIC_LABELS, RESOLVE_REASON_LABELS } from '../utils/format'
+import { exposedPortsText, formatMetricValue, KIND_LABELS, METRIC_LABELS, RESOLVE_REASON_LABELS } from '../utils/format'
 import { AlertActionDialog, type AlertActionKind } from './AlertActionDialog'
 import { AlertStateBadge, SeverityBadge } from './AlertBadges'
 import { HostEventsList } from './HostEventsList'
@@ -41,6 +41,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function ruleDescription(a: Alert): string {
+  if (a.kind === 'exposed_port') return KIND_LABELS.exposed_port
   if (a.kind === 'host_status') return KIND_LABELS.host_status
   if (a.kind === 'no_data') return `${KIND_LABELS.no_data}: umbral de ${formatMetricValue(a.kind, a.metric, a.threshold)} sin reportar`
   const metric = a.metric ? METRIC_LABELS[a.metric] : KIND_LABELS.metric
@@ -104,8 +105,14 @@ export function AlertDetailView({ id }: { id: string }) {
                 </Item>
                 <Item label="Regla al abrir">{ruleDescription(a)}</Item>
                 <Item label="Abierta">{formatFullDate(a.opened_at)}</Item>
-                <Item label="Valor al abrir">{formatMetricValue(a.kind, a.metric, a.trigger_value)}</Item>
-                <Item label="Valor máximo (pico)">{formatMetricValue(a.kind, a.metric, a.peak_value)}</Item>
+                {a.kind === 'exposed_port' ? (
+                  <Item label="Puertos">{exposedPortsText(a)}</Item>
+                ) : (
+                  <>
+                    <Item label="Valor al abrir">{formatMetricValue(a.kind, a.metric, a.trigger_value)}</Item>
+                    <Item label="Valor máximo (pico)">{formatMetricValue(a.kind, a.metric, a.peak_value)}</Item>
+                  </>
+                )}
                 <Item label="Reconocida">
                   {a.acknowledged_at ? `${formatFullDate(a.acknowledged_at)} por ${a.acknowledged_by ?? 'desconocido'}` : '—'}
                 </Item>

@@ -1,4 +1,5 @@
-import type { AlertRule, AlertSeverity, RuleInput, RuleKind, RuleMetric, RuleOp } from '../types/alert.types'
+import type { AlertRule, ExpectedPort, AlertSeverity, RuleInput, RuleKind, RuleMetric, RuleOp } from '../types/alert.types'
+import { formatExpectedPorts, parseExpectedPorts } from './expectedPorts'
 import { isLoadMetric, parseNumber } from './format'
 import { ALL_SCOPE, draftToScope, scopeToDraft, type ScopeDraft } from './scope'
 
@@ -13,6 +14,7 @@ export const KIND_OPTIONS: readonly { value: RuleKind; label: string }[] = [
   { value: 'host_status', label: 'Host caído' },
   { value: 'no_data', label: 'Sin reportar (sin datos)' },
   { value: 'service_check', label: 'Chequeo de servicio' },
+  { value: 'exposed_port', label: 'Puerto nuevo expuesto' },
 ]
 export const OP_OPTIONS: readonly { value: RuleOp; label: string }[] = [
   { value: 'gt', label: 'Mayor que (>)' },
@@ -31,12 +33,13 @@ export interface RuleDraft {
   includeOffline: boolean
   checkId: string
   warnOrDown: boolean
+  expectedPorts: string
   scope: ScopeDraft
   severity: AlertSeverity
   enabled: boolean
 }
 
-export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'resolve' | 'scope' | 'check', string>>
+export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'resolve' | 'scope' | 'check' | 'ports', string>>
 
 const minutesText = (seconds: number) => String(Math.round((seconds / 60) * 100) / 100)
 
@@ -54,6 +57,7 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
       includeOffline: false,
       checkId: '',
       warnOrDown: false,
+      expectedPorts: '',
       scope: ALL_SCOPE,
       severity: 'warn',
       enabled: true,
@@ -71,6 +75,7 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
     includeOffline: rule.include_offline,
     checkId: rule.check_id ?? '',
     warnOrDown: rule.warn_or_down,
+    expectedPorts: formatExpectedPorts(rule.expected_ports ?? []),
     scope: scopeToDraft(rule.scope),
     severity: rule.severity,
     enabled: rule.enabled,
@@ -99,6 +104,13 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
   const scope = inheritsScope ? null : draftToScope(d.scope)
   if (scope && 'error' in scope) errors.scope = scope.error
   if (inheritsScope && !d.checkId) errors.check = 'Elige un chequeo.'
+
+  let expectedPorts: ExpectedPort[] = []
+  if (d.kind === 'exposed_port') {
+    const parsed = parseExpectedPorts(d.expectedPorts)
+    if ('error' in parsed) errors.ports = parsed.error
+    else expectedPorts = parsed.ports
+  }
 
   let threshold: number | undefined
   let clear: number | null = null
@@ -134,6 +146,7 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
     input.include_offline = d.includeOffline
   }
   if (d.kind === 'service_check') input.warn_or_down = d.warnOrDown
+  if (d.kind === 'exposed_port') input.expected_ports = expectedPorts
   if (d.kind === 'no_data') input.threshold = threshold
   if (d.kind === 'metric') {
     input.op = d.op

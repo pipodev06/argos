@@ -5,7 +5,7 @@ import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { Button } from '@/components/ui/button'
 import { formatLastSeen } from '@/features/hosts/utils/format'
 import type { Alert } from '../types/alert.types'
-import { formatAlertValue } from '../utils/format'
+import { exposedPortsText, formatAlertValue } from '../utils/format'
 import type { AlertActionKind } from './AlertActionDialog'
 import { AlertStateBadge, SeverityBadge } from './AlertBadges'
 
@@ -60,7 +60,7 @@ export function AlertsTable({ alerts, now, canAct, onAction }: AlertsTableProps)
             <Cell>
               <AlertStateBadge alert={a} />
             </Cell>
-            <Cell className="tabular-nums">{formatAlertValue(a)}</Cell>
+            <Cell className="tabular-nums">{a.kind === 'exposed_port' ? exposedPortsText(a) : formatAlertValue(a)}</Cell>
             <Cell className="tabular-nums">{formatLastSeen(a.opened_at, now)}</Cell>
             {canAct && (
               <Cell>
