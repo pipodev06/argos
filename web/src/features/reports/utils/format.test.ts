@@ -8,16 +8,16 @@ describe('Report formatters', () => {
     })
 
     it('should format 100% correctly', () => {
-      expect(formatAvailabilityPercent(1.0)).toBe('100.0%')
+      expect(formatAvailabilityPercent(100)).toBe('100.0%')
     })
 
     it('should format 99.5% correctly', () => {
-      expect(formatAvailabilityPercent(0.995)).toBe('99.5%')
+      expect(formatAvailabilityPercent(99.5)).toBe('99.5%')
     })
 
     it('should round to 1 decimal', () => {
-      expect(formatAvailabilityPercent(0.9999)).toBe('100.0%')
-      expect(formatAvailabilityPercent(0.9994)).toBe('99.9%')
+      expect(formatAvailabilityPercent(99.99)).toBe('100.0%')
+      expect(formatAvailabilityPercent(99.94)).toBe('99.9%')
     })
 
     it('should handle 0%', () => {
@@ -64,9 +64,9 @@ describe('Report formatters', () => {
 
   describe('formatCoveragePct', () => {
     it('should format coverage percentage as integer', () => {
-      expect(formatCoveragePct(1)).toBe('100%')
-      expect(formatCoveragePct(0.955)).toBe('96%')
-      expect(formatCoveragePct(0.5)).toBe('50%')
+      expect(formatCoveragePct(100)).toBe('100%')
+      expect(formatCoveragePct(95.5)).toBe('96%')
+      expect(formatCoveragePct(50)).toBe('50%')
     })
   })
 })

@@ -1,33 +1,25 @@
-import type { ComponentType } from 'react'
-import { IconAlertTriangle, IconTrendingDown } from '@tabler/icons-react'
-import { formatAvailabilityPercent, formatSeconds } from '../utils/format'
+import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconHistory } from '@tabler/icons-react'
+import { StatCard, StatValue } from '@/components/ui/stat-card'
+import { AVAILABILITY_TARGET_PCT, formatAvailabilityPercent, formatCoveragePct, formatSeconds } from '../utils/format'
 import type { ReportFleet } from '../types/report.types'
 
-interface ReportSummaryTilesProps {
-  fleet: ReportFleet
-}
-
-type TileIcon = ComponentType<{ className?: string; stroke?: number; 'aria-hidden'?: boolean }>
-
-function SummaryTile({ icon: Icon, label, value, isDowntime }: { icon: TileIcon | null; label: string; value: string; isDowntime?: boolean }) {
-  return (
-    <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-4">
-      <div className="flex items-center gap-2">
-        {Icon && <Icon className="size-4 text-text-muted" stroke={1.5} aria-hidden />}
-        <span className="text-xs text-text-muted">{label}</span>
-      </div>
-      <div className={`text-2xl font-tabular-nums font-semibold ${isDowntime ? 'text-danger' : 'text-text'}`}>{value}</div>
-    </div>
-  )
-}
-
-export function ReportSummaryTiles({ fleet }: ReportSummaryTilesProps) {
+/** Tiles de resumen de flota (patron StatCard: icono de estado + etiqueta xs muted + cifra 2xl tabular). */
+export function ReportSummaryTiles({ fleet }: { fleet: ReportFleet }) {
+  const meets = fleet.availability_pct !== null && fleet.availability_pct >= AVAILABILITY_TARGET_PCT
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <SummaryTile label="Disponibilidad" icon={null} value={formatAvailabilityPercent(fleet.availability_pct)} />
-      <SummaryTile label="Tiempo caído" icon={IconTrendingDown} value={formatSeconds(fleet.down_s)} isDowntime />
-      <SummaryTile label="Incidentes" icon={IconAlertTriangle} value={String(fleet.incidents)} />
-      <SummaryTile label="Cobertura" icon={null} value={`${Math.round(fleet.coverage_pct)}%`} />
+      <StatCard label="Disponibilidad" Icon={IconCircleCheck} iconClassName={meets ? 'text-ok' : undefined}>
+        <StatValue>{fleet.availability_pct === null ? null : formatAvailabilityPercent(fleet.availability_pct)}</StatValue>
+      </StatCard>
+      <StatCard label="Tiempo caído" Icon={IconCircleX} iconClassName="text-danger" alert={fleet.down_s > 0}>
+        <StatValue>{formatSeconds(fleet.down_s)}</StatValue>
+      </StatCard>
+      <StatCard label="Incidentes" Icon={IconAlertTriangle} iconClassName="text-warn">
+        <StatValue>{fleet.incidents.toLocaleString('es-PE')}</StatValue>
+      </StatCard>
+      <StatCard label="Cobertura" Icon={IconHistory}>
+        <StatValue>{formatCoveragePct(fleet.coverage_pct)}</StatValue>
+      </StatCard>
     </div>
   )
 }

@@ -1,9 +1,10 @@
+/** Objetivo de disponibilidad: a partir de aqui el estado es "cumple". */
+export const AVAILABILITY_TARGET_PCT = 99
+
+/** `availability_pct` y `coverage_pct` de la API van en 0-100. */
 export function formatAvailabilityPercent(pct: number | null): string {
   if (pct === null) return 'Sin datos'
-  // pct viene como decimal (0-1), convertir a porcentaje con 1 decimal
-  const percentage = pct * 100
-  const rounded = Math.round(percentage * 10) / 10
-  return `${rounded.toFixed(1)}%`
+  return `${(Math.round(pct * 10) / 10).toFixed(1)}%`
 }
 
 export function formatSeconds(seconds: number): string {
@@ -23,18 +24,12 @@ export function formatSeconds(seconds: number): string {
 }
 
 export function formatCoveragePct(pct: number): string {
-  // pct viene como decimal (0-1), convertir a porcentaje entero (sin decimales)
-  const percentage = pct * 100
-  return `${Math.round(percentage)}%`
+  return `${Math.round(pct)}%`
 }
 
-export const RANGE_LABELS: Record<'7d' | '30d' | '90d', string> = {
-  '7d': '7 días',
-  '30d': '30 días',
-  '90d': '90 días',
-}
 
-export const VIEW_LABELS: Record<'host' | 'group', string> = {
-  host: 'Por host',
-  group: 'Por grupo',
+
+/** Fecha desde la que hay historial ("Desde"); sin dato = guion. */
+export function formatTrackedFrom(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleDateString('es-PE') : '—'
 }

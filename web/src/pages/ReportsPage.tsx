@@ -1,92 +1,65 @@
 import { IconReportAnalytics } from '@tabler/icons-react'
-import { NoResultsState, TableError } from '@/components/data-table/TableStates'
-import { FilterBar } from '@/components/filters/FilterBar'
+import { TableError } from '@/components/data-table/TableStates'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReportAvailabilityTable } from '@/features/reports/components/ReportAvailabilityTable'
 import { ReportServiceChecksTable } from '@/features/reports/components/ReportServiceChecksTable'
 import { ReportSummaryTiles } from '@/features/reports/components/ReportSummaryTiles'
 import { useAvailabilityReport, useServiceChecksReport } from '@/features/reports/hooks/useReports'
-import { REPORT_FIELDS } from '@/features/reports/utils/reportQuery'
 import type { ReportRange, ReportView } from '@/features/reports/types/report.types'
+import { RANGE_OPTIONS, REPORT_FIELDS, TYPE_OPTIONS, VIEW_OPTIONS } from '@/features/reports/utils/reportQuery'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 
+function AvailabilityView({ range, by }: { range: ReportRange; by: ReportView }) {
+  const { data, error, loading, refresh } = useAvailabilityReport(range, by)
+  if (error) return <TableError message={error} onRetry={() => void refresh()} />
+  if (!data) return loading ? <Skeleton className="h-40 w-full" /> : null
+  return (
+    <>
+      <ReportSummaryTiles fleet={data.fleet} />
+      {data.items.length === 0 ? (
+        <EmptyState Icon={IconReportAnalytics} title="Sin hosts en el informe" />
+      ) : (
+        <ReportAvailabilityTable items={data.items} isGroupView={data.by === 'group'} />
+      )}
+    </>
+  )
+}
+
+function ServiceChecksView({ range }: { range: ReportRange }) {
+  const { data, error, loading, refresh } = useServiceChecksReport(range)
+  if (error) return <TableError message={error} onRetry={() => void refresh()} />
+  if (!data) return loading ? <Skeleton className="h-40 w-full" /> : null
+  return data.items.length === 0 ? (
+    <EmptyState Icon={IconReportAnalytics} title="Sin chequeos en el informe" />
+  ) : (
+    <ReportServiceChecksTable items={data.items} />
+  )
+}
+
 export function ReportsPage() {
-  const { filters, setFilters, clear, hasActive } = useUrlFilters(REPORT_FIELDS)
-
-  // Default values
-  const reportType = filters.type[0] || 'availability'
-  const range = (filters.range[0] || '30d') as ReportRange
-  const by = (filters.by[0] || 'host') as ReportView
-  const groupId = undefined // TODO: add group filter
-
-  const { data: availabilityReport, error: availError, loading: availLoading, refresh: refreshAvail } = useAvailabilityReport(range, by, groupId)
-  const { data: checksReport, error: checksError, loading: checksLoading, refresh: refreshChecks } = useServiceChecksReport(range, groupId)
-
-  const showAvailability = reportType === 'availability'
-  const data = showAvailability ? availabilityReport : checksReport
-  const error = showAvailability ? availError : checksError
-  const loading = showAvailability ? availLoading : checksLoading
-  const refresh = showAvailability ? refreshAvail : refreshChecks
-
-  const hasData = data !== undefined
+  const { filters, setFilters } = useUrlFilters(REPORT_FIELDS)
+  const { type, range, by } = filters as { type: string; range: ReportRange; by: ReportView }
 
   return (
     <>
       <PageHeader title="Informes" />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
-        <FilterBar
-          fields={REPORT_FIELDS}
-          values={filters}
-          onChange={setFilters}
-          onClear={clear}
-          itemLabel="informes"
-          total={null}
-          overall={null}
-        />
-
-        {error && <TableError message={error} onRetry={() => void refresh()} />}
-
-        {loading && !hasData && <Skeleton className="h-40 w-full" />}
-
-        {hasData && data && (
-          <>
-            <ReportSummaryTiles fleet={data.fleet} />
-
-            <Tabs defaultValue="availability" value={reportType} onValueChange={(v) => setFilters({ ...filters, type: [v] })}>
-              <TabsList>
-                <TabsTrigger value="availability">Disponibilidad</TabsTrigger>
-                <TabsTrigger value="service-checks">Chequeos</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="availability">
-                {availabilityReport ? (
-                  availabilityReport.items.length === 0 && hasActive ? (
-                    <NoResultsState Icon={IconReportAnalytics} title="Ningún resultado coincide con los filtros." onClear={clear} />
-                  ) : (
-                    <ReportAvailabilityTable items={availabilityReport.items} isGroupView={availabilityReport.by === 'group'} />
-                  )
-                ) : (
-                  <EmptyState Icon={IconReportAnalytics} title="Sin datos de disponibilidad" />
-                )}
-              </TabsContent>
-
-              <TabsContent value="service-checks">
-                {checksReport ? (
-                  checksReport.items.length === 0 && hasActive ? (
-                    <NoResultsState Icon={IconReportAnalytics} title="Ningún resultado coincide con los filtros." onClear={clear} />
-                  ) : (
-                    <ReportServiceChecksTable items={checksReport.items} />
-                  )
-                ) : (
-                  <EmptyState Icon={IconReportAnalytics} title="Sin datos de chequeos" />
-                )}
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl
+            aria-label="Informe"
+            options={TYPE_OPTIONS}
+            value={type as (typeof TYPE_OPTIONS)[number]['value']}
+            onChange={(v) => setFilters({ type: v })}
+          />
+          <SegmentedControl aria-label="Rango de tiempo" options={RANGE_OPTIONS} value={range} onChange={(v) => setFilters({ range: v })} />
+          {type === 'availability' && (
+            <SegmentedControl aria-label="Vista" options={VIEW_OPTIONS} value={by} onChange={(v) => setFilters({ by: v })} />
+          )}
+        </div>
+        {type === 'availability' ? <AvailabilityView range={range} by={by} /> : <ServiceChecksView range={range} />}
       </div>
     </>
   )
