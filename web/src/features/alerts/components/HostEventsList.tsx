@@ -12,7 +12,11 @@ export function HostEventsList({ events }: { events: HostEvent[] }) {
       {events.map((e) => (
         <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-sm">
           <span className="flex items-center gap-2">
-            <HostStatusBadge status={e.from_status} />
+            {e.from_status === '' ? (
+              <span className="text-xs text-text-muted">Primer estado</span>
+            ) : (
+              <HostStatusBadge status={e.from_status} />
+            )}
             <IconArrowRight className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-label="a" />
             <HostStatusBadge status={e.to_status} />
           </span>
