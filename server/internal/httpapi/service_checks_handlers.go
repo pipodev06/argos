@@ -85,13 +85,8 @@ func toServiceCheckDTO(u *sessionUser, d store.ServiceCheckDef) serviceCheckDTO 
 		ID: d.ID, Name: d.Name, Type: d.Type, IntervalSeconds: d.IntervalSeconds, TimeoutMs: d.TimeoutMs, Retries: d.Retries,
 		TargetHost: d.TargetHost, TargetPort: d.TargetPort, URL: d.URL, ExpectStatus: d.ExpectStatus, ExpectText: d.ExpectText,
 		ServiceName: d.ServiceName, WarnMs: d.WarnMs, CritMs: d.CritMs, WarnDays: d.WarnDays, CritDays: d.CritDays,
-		Metric: d.Metric, IfIndex: d.IfIndex, HasSecret: len(d.SecretEnc) > 0, Scope: toScopeDTO(d.Scope, d.GroupName), Enabled: d.Enabled,
+		Metric: d.Metric, IfIndex: d.IfIndex, HasSecret: len(d.SecretEnc) > 0, Scope: toScopeDTO(d.Scope, d.GroupName, d.DeviceName), Enabled: d.Enabled,
 		CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(),
-	}
-	if d.Scope.Type == store.ScopeHost {
-		dto.Scope.HostName = d.DeviceName
-	} else {
-		dto.Scope.DeviceName = d.DeviceName
 	}
 	if admin {
 		dto.HeaderName = d.HeaderName
@@ -487,7 +482,7 @@ func (a *API) createServiceCheck(w http.ResponseWriter, r *http.Request) error {
 		d.Enabled = *req.Enabled
 	}
 	if req.Scope != nil {
-		sc, err := req.Scope.toScopeWith(true)
+		sc, err := req.Scope.toScope()
 		if err != nil {
 			return err
 		}
@@ -673,7 +668,7 @@ func (a *API) updateServiceCheck(w http.ResponseWriter, r *http.Request) error {
 	}
 	var newScope *store.AlertScope
 	if req.Scope != nil {
-		sc, err := req.Scope.toScopeWith(true)
+		sc, err := req.Scope.toScope()
 		if err != nil {
 			return err
 		}

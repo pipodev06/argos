@@ -71,3 +71,11 @@ func (s Scope) sees(a AlertScope) bool {
 	}
 	return a.Type == ScopeGroup && a.GroupID != nil && slices.Contains(s.groupIDs, *a.GroupID)
 }
+
+// configCondHost es configCond mas los objetos de alcance host o dispositivo cuyo host (hostCol) esta en el ambito.
+func (s Scope) configCondHost(typeCol, groupCol, hostCol string, args *argList) string {
+	if s.all {
+		return "TRUE"
+	}
+	return "(" + s.configCond(typeCol, groupCol, args) + " OR (" + typeCol + " IN ('host', 'device') AND " + s.hostCond(hostCol, args) + "))"
+}

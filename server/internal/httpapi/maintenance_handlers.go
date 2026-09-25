@@ -29,7 +29,7 @@ type maintenanceDTO struct {
 
 func toMaintenanceDTO(w store.MaintenanceWindow) maintenanceDTO {
 	return maintenanceDTO{
-		ID: w.ID, Name: w.Name, StartsAt: w.StartsAt.UTC(), EndsAt: w.EndsAt.UTC(), Scope: toScopeDTO(w.Scope, w.GroupName),
+		ID: w.ID, Name: w.Name, StartsAt: w.StartsAt.UTC(), EndsAt: w.EndsAt.UTC(), Scope: toScopeDTO(w.Scope, w.GroupName, w.HostName),
 		Status: w.Status, CreatedBy: w.CreatedByName, CreatedAt: w.CreatedAt.UTC(),
 	}
 }
@@ -52,7 +52,7 @@ func validateWindow(w *store.MaintenanceWindow, now time.Time, checkDates bool) 
 	case span > maxWindowSpan:
 		return badRequest("la ventana no puede durar mas de 31 dias")
 	case w.Scope.Type == store.ScopeAll && span > maxWindowSpanAll:
-		return badRequest("una ventana sobre todos los hosts no puede durar mas de 24 horas: acota el alcance a un grupo o etiqueta")
+		return badRequest("una ventana sobre todos los hosts no puede durar mas de 24 horas: acota el alcance a un grupo, host o dispositivo")
 	}
 	if checkDates {
 		switch {
@@ -72,9 +72,7 @@ func maintenanceAuditDetail(w store.MaintenanceWindow) map[string]any {
 		"name": w.Name, "scope_type": w.Scope.Type,
 		"starts_at": w.StartsAt.UTC().Format(time.RFC3339), "ends_at": w.EndsAt.UTC().Format(time.RFC3339),
 	}
-	if w.Scope.GroupID != nil {
-		d["group_id"] = *w.Scope.GroupID
-	}
+	addScopeAudit(d, w.Scope)
 	return d
 }
 
@@ -117,7 +115,7 @@ func (a *API) createMaintenance(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if req.Scope == nil {
-		return badRequest("scope requerido (el alcance es explicito: all o group)")
+		return badRequest("scope requerido (el alcance es explicito: all, group, host o device)")
 	}
 	scope, err := req.Scope.toScope()
 	if err != nil {

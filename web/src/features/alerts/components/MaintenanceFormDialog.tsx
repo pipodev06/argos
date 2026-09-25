@@ -14,6 +14,7 @@ import {
 } from '../utils/maintenanceForm'
 import { MAX_NAME } from '../utils/ruleForm'
 import { ScopeFields } from './ScopeFields'
+import { MAINTENANCE_SCOPE_TYPES } from '../utils/scope'
 
 interface MaintenanceFormDialogProps {
   /** null = crear; una ventana = editar. */
@@ -85,7 +86,7 @@ function MaintenanceForm({ window: win, onClose, onSaved }: MaintenanceFormDialo
           error={errors.endsAt}
         />
       </div>
-      <ScopeFields id="maint" value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
+      <ScopeFields id="maint" types={MAINTENANCE_SCOPE_TYPES} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>

@@ -2,7 +2,7 @@ import { SelectField } from '@/components/ui/select-field'
 import { useAllDevices, useCollectors } from '@/features/devices/hooks/useDevices'
 import { useGroups } from '@/features/groups/hooks/useGroups'
 import type { ScopeType } from '../types/alert.types'
-import { CHECK_SCOPE_TYPE_OPTIONS, PING_SCOPE_TYPE_OPTIONS, SCOPE_TYPE_OPTIONS, type ScopeDraft } from '../utils/scope'
+import { CHECK_SCOPE_TYPE_OPTIONS, PING_SCOPE_TYPE_OPTIONS, SCOPE_TYPE_OPTIONS, scopeOptions, type ScopeDraft } from '../utils/scope'
 
 interface ScopeFieldsProps {
   /** Prefijo de ids (dos formularios no comparten ids). */
@@ -14,10 +14,12 @@ interface ScopeFieldsProps {
   ping?: boolean
   /** Chequeo de servicio: ademas de todos | grupo, puede apuntar a un host concreto. */
   hostScope?: boolean
+  /** Lista explicita de tipos de alcance (reglas y mantenimiento); tiene prioridad sobre `ping` y `hostScope`. */
+  types?: readonly ScopeType[]
 }
 
 /** Selector de dispositivo; solo se monta con el alcance "Un dispositivo" (carga la lista entonces). */
-function DeviceScopeSelect({ id, value, onChange, error }: Omit<ScopeFieldsProps, 'ping' | 'hostScope'>) {
+function DeviceScopeSelect({ id, value, onChange, error }: Omit<ScopeFieldsProps, 'ping' | 'hostScope' | 'types'>) {
   const { data: devices, error: loadError } = useAllDevices()
   const options = (devices ?? []).map((d) => ({ value: d.id, label: d.name }))
   return (
@@ -34,7 +36,7 @@ function DeviceScopeSelect({ id, value, onChange, error }: Omit<ScopeFieldsProps
 }
 
 /** Selector de host con agente; solo se monta con el alcance "Un host" (carga la lista entonces). */
-function HostScopeSelect({ id, value, onChange, error }: Omit<ScopeFieldsProps, 'ping' | 'hostScope'>) {
+function HostScopeSelect({ id, value, onChange, error }: Omit<ScopeFieldsProps, 'ping' | 'hostScope' | 'types'>) {
   const { data: hosts, error: loadError } = useCollectors()
   const options = (hosts ?? []).map((h) => ({ value: h.id, label: h.name }))
   return (
@@ -51,7 +53,7 @@ function HostScopeSelect({ id, value, onChange, error }: Omit<ScopeFieldsProps, 
 }
 
 /** Selector de alcance (todos | grupo, un dispositivo en ping y un host en chequeos de servicio), compartido por reglas, mantenimiento y chequeos. */
-export function ScopeFields({ id, value, onChange, error, ping = false, hostScope = false }: ScopeFieldsProps) {
+export function ScopeFields({ id, value, onChange, error, ping = false, hostScope = false, types }: ScopeFieldsProps) {
   const { groups } = useGroups()
   const groupOptions = (groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))
 
@@ -62,7 +64,7 @@ export function ScopeFields({ id, value, onChange, error, ping = false, hostScop
         label="Alcance"
         value={value.type}
         onChange={(t) => onChange({ ...value, type: t as ScopeType })}
-        options={ping ? PING_SCOPE_TYPE_OPTIONS : hostScope ? CHECK_SCOPE_TYPE_OPTIONS : SCOPE_TYPE_OPTIONS}
+        options={types ? scopeOptions(types) : ping ? PING_SCOPE_TYPE_OPTIONS : hostScope ? CHECK_SCOPE_TYPE_OPTIONS : SCOPE_TYPE_OPTIONS}
       />
       {value.type === 'group' && (
         <SelectField

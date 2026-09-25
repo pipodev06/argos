@@ -18,7 +18,9 @@ type MaintenanceWindow struct {
 	EndsAt   time.Time
 	Scope    AlertScope
 	// GroupName es el nombre del grupo del alcance (solo lectura).
-	GroupName     *string
+	GroupName *string
+	// HostName es el nombre del host o dispositivo del alcance (solo lectura).
+	HostName      *string
 	CreatedByName *string
 	CreatedAt     time.Time
 	// Status (solo lectura, segun el reloj de la BD): scheduled, active o ended.
@@ -30,14 +32,15 @@ const maintenanceListWindow = "30 days"
 
 const maintenanceSelect = `
 SELECT m.id, m.name, m.starts_at, m.ends_at, m.scope_type, m.scope_group_id,
-       g.name, m.created_by_name, m.created_at,
+       g.name, m.scope_host_id, sh.hostname, m.created_by_name, m.created_at,
        CASE WHEN m.ends_at <= now() THEN 'ended' WHEN m.starts_at > now() THEN 'scheduled' ELSE 'active' END
-  FROM maintenance_windows m LEFT JOIN host_groups g ON g.id = m.scope_group_id`
+  FROM maintenance_windows m LEFT JOIN host_groups g ON g.id = m.scope_group_id
+  LEFT JOIN hosts sh ON sh.id = m.scope_host_id`
 
 func scanWindow(row pgx.Row) (MaintenanceWindow, error) {
 	var w MaintenanceWindow
 	err := row.Scan(&w.ID, &w.Name, &w.StartsAt, &w.EndsAt, &w.Scope.Type, &w.Scope.GroupID,
-		&w.GroupName, &w.CreatedByName, &w.CreatedAt, &w.Status)
+		&w.GroupName, &w.Scope.HostID, &w.HostName, &w.CreatedByName, &w.CreatedAt, &w.Status)
 	return w, err
 }
 
@@ -53,12 +56,12 @@ func windowByID(ctx context.Context, q rowQuerier, id, lock string) (Maintenance
 }
 
 // ListMaintenance devuelve las ventanas activas, programadas y las terminadas en los ultimos 30 dias
-// (las mas recientes primero). Un ambito restringido solo ve las de alcance `all` y las de sus grupos.
+// (las mas recientes primero). Un ambito restringido solo ve las de alcance `all`, las de sus grupos y las de un host o dispositivo de sus grupos.
 func (s *Store) ListMaintenance(ctx context.Context, scope Scope) ([]MaintenanceWindow, error) {
 	args := argList{MaxActiveMaintenance * 4}
 	rows, err := s.pool.Query(ctx,
 		maintenanceSelect+` WHERE m.ends_at > now() - interval '`+maintenanceListWindow+`' AND `+
-			scope.configCond("m.scope_type", "m.scope_group_id", &args)+` ORDER BY m.starts_at DESC, m.id LIMIT $1`,
+			scope.configCondHost("m.scope_type", "m.scope_group_id", "m.scope_host_id", &args)+` ORDER BY m.starts_at DESC, m.id LIMIT $1`,
 		[]any(args)...)
 	if err != nil {
 		return nil, fmt.Errorf("listando ventanas de mantenimiento: %w", err)
@@ -76,8 +79,8 @@ func (s *Store) MaintenanceByID(ctx context.Context, scope Scope, id string) (Ma
 	if err != nil {
 		return MaintenanceWindow{}, err
 	}
-	if !scope.sees(w.Scope) {
-		return MaintenanceWindow{}, ErrNotFound
+	if err := s.requireScopeVisible(ctx, scope, w.Scope); err != nil {
+		return MaintenanceWindow{}, err
 	}
 	return w, nil
 }
@@ -97,16 +100,22 @@ func (s *Store) CreateMaintenance(ctx context.Context, w MaintenanceWindow, user
 		if n >= MaxActiveMaintenance {
 			return ErrTooManyWindows
 		}
+		if err := requireScopeHost(ctx, tx, w.Scope); err != nil {
+			return err
+		}
 		var id string
 		err := tx.QueryRow(ctx,
 			`INSERT INTO maintenance_windows (name, starts_at, ends_at, scope_type, scope_group_id,
-			                                  created_by, created_by_name)
-			 VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::uuid, NULLIF($7, ''))
+			                                  scope_host_id, created_by, created_by_name)
+			 VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::uuid, NULLIF($8, ''))
 			 RETURNING id`,
-			w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID,
+			w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID, w.Scope.HostID,
 			userID, username).Scan(&id)
 		if isFKViolation(err, windowGroupFKey) {
 			return ErrGroupNotFound
+		}
+		if isFKViolation(err, windowHostFKey) {
+			return scopeHostGone(w.Scope)
 		}
 		if err != nil {
 			return fmt.Errorf("insertando ventana de mantenimiento: %w", err)
@@ -132,13 +141,19 @@ func (s *Store) UpdateMaintenance(ctx context.Context, id string, mutate func(*M
 		if err := mutate(&w); err != nil {
 			return err
 		}
+		if err := requireScopeHost(ctx, tx, w.Scope); err != nil {
+			return err
+		}
 		_, err = tx.Exec(ctx,
 			`UPDATE maintenance_windows SET name = $2, starts_at = $3, ends_at = $4, scope_type = $5,
-			        scope_group_id = $6
+			        scope_group_id = $6, scope_host_id = $7
 			  WHERE id = $1`,
-			id, w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID)
+			id, w.Name, w.StartsAt, w.EndsAt, w.Scope.Type, w.Scope.GroupID, w.Scope.HostID)
 		if isFKViolation(err, windowGroupFKey) {
 			return ErrGroupNotFound
+		}
+		if isFKViolation(err, windowHostFKey) {
+			return scopeHostGone(w.Scope)
 		}
 		if err != nil {
 			return fmt.Errorf("actualizando ventana de mantenimiento: %w", err)

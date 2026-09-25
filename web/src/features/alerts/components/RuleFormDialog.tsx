@@ -21,6 +21,7 @@ import {
   type RuleErrors,
 } from '../utils/ruleForm'
 import { ScopeFields } from './ScopeFields'
+import { ALL_SCOPE, ruleScopeTypes } from '../utils/scope'
 
 interface RuleFormDialogProps {
   /** null = crear; una regla = editar. */
@@ -125,7 +126,11 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
         id="rule-kind"
         label="Tipo"
         value={draft.kind}
-        onChange={(v) => set('kind', v as RuleKind)}
+        onChange={(v) => {
+          set('kind', v as RuleKind)
+          // Un alcance que el nuevo tipo no admite (p. ej. dispositivo en una regla de metricas) vuelve a Todos.
+          if (!ruleScopeTypes(v).includes(draft.scope.type)) set('scope', ALL_SCOPE)
+        }}
         options={KIND_OPTIONS}
         disabled={editing}
       />
@@ -230,7 +235,7 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
           error={errors.resolve}
         />
       </div>
-      {!isCheck && <ScopeFields id="rule" value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />}
+      {!isCheck && <ScopeFields id="rule" types={ruleScopeTypes(draft.kind)} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />}
       <SelectField
         id="rule-severity"
         label="Severidad"
