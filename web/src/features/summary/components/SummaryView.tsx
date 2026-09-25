@@ -126,7 +126,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
             </h2>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
               {deviceTiles.map((t) => (
-                <Link key={t.status} to="/dispositivos" className={TILE_LINK}>
+                <Link key={t.status} to={`/dispositivos?status=${t.status}`} className={TILE_LINK}>
                   <StatusTile
                     label={t.label}
                     value={t.value ?? 0}

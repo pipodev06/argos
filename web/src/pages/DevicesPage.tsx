@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { IconRouter } from '@tabler/icons-react'
-import { TableError } from '@/components/data-table/TableStates'
+import { NoResultsState, TableError } from '@/components/data-table/TableStates'
+import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
@@ -21,7 +22,7 @@ export function DevicesPage() {
   const isAdmin = user?.role === 'admin'
   const pagination = useCursorPagination()
   const resetPagination = pagination.reset
-  const { filters, setFilters } = useUrlFilters(DEVICE_FIELDS, { onChange: resetPagination })
+  const { filters, setFilters, clear, hasActive } = useUrlFilters(DEVICE_FIELDS, { onChange: resetPagination })
   const { data, error, errorStatus, loading, refresh } = useDeviceList(buildDeviceQuery(filters, pagination.cursor))
   const [form, setForm] = useState<{ device: Device | null } | null>(null)
   const [deleting, setDeleting] = useState<Device | null>(null)
@@ -37,8 +38,9 @@ export function DevicesPage() {
     else setDeleting(device)
   }
 
-  const empty = data !== null && data.total === 0
-  const showTable = !empty && !(error && data === null)
+  const empty = data !== null && data.total === 0 && !hasActive
+  const noResults = data !== null && data.total === 0 && hasActive
+  const showTable = !empty && !noResults && !(error && data === null)
 
   return (
     <>
@@ -47,7 +49,17 @@ export function DevicesPage() {
         actions={isAdmin && <Button size="sm" onClick={() => setForm({ device: null })}>Nuevo dispositivo</Button>}
       />
       <div className="flex flex-col gap-3" aria-busy={loading}>
+        <FilterBar
+          fields={DEVICE_FIELDS}
+          values={filters}
+          onChange={setFilters}
+          onClear={clear}
+          itemLabel="dispositivos"
+          total={data?.total ?? null}
+          overall={null}
+        />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
+        {noResults && <NoResultsState Icon={IconRouter} title="Ningún dispositivo coincide con los filtros." onClear={clear} />}
         {empty && (
           <EmptyState
             Icon={IconRouter}

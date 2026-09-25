@@ -119,12 +119,12 @@ type hostQuery struct {
 	cursor      string
 }
 
-func parseHostQuery(v url.Values, scope store.Scope) (hostQuery, error) {
-	var f store.HostFilter
-
+// parseQAndStatus lee q (subcadena del nombre) y status (repetible o separado por comas) de una lista.
+// Lo comparten GET /hosts y GET /devices.
+func parseQAndStatus(v url.Values, f *store.HostFilter) error {
 	q := strings.TrimSpace(v.Get("q"))
 	if utf8.RuneCountInString(q) > maxQueryLen || hasControl(q) {
-		return hostQuery{}, badRequest("q excede %d caracteres o tiene caracteres invalidos", maxQueryLen)
+		return badRequest("q excede %d caracteres o tiene caracteres invalidos", maxQueryLen)
 	}
 	f.Q = q
 
@@ -135,7 +135,7 @@ func parseHostQuery(v url.Values, scope store.Scope) (hostQuery, error) {
 				continue
 			}
 			if !validHostStatuses[st] {
-				return hostQuery{}, badRequest("status invalido %q: usa pending, up, down, offline o disabled", st)
+				return badRequest("status invalido %q: usa pending, up, down, offline o disabled", st)
 			}
 			if !slices.Contains(f.Statuses, st) {
 				f.Statuses = append(f.Statuses, st)
@@ -143,6 +143,15 @@ func parseHostQuery(v url.Values, scope store.Scope) (hostQuery, error) {
 		}
 	}
 	slices.Sort(f.Statuses)
+	return nil
+}
+
+func parseHostQuery(v url.Values, scope store.Scope) (hostQuery, error) {
+	var f store.HostFilter
+
+	if err := parseQAndStatus(v, &f); err != nil {
+		return hostQuery{}, err
+	}
 
 	if err := parseGroupFilter(v["group"], &f); err != nil {
 		return hostQuery{}, err

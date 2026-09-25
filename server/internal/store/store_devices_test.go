@@ -156,11 +156,11 @@ func TestDeviceCRUDAndErrors(t *testing.T) {
 	}
 
 	// Lista con cursor, en orden por nombre.
-	p, err := s.ListDevices(ctx, AllScope(), nil, 1)
+	p, err := s.ListDevices(ctx, AllScope(), HostFilter{}, nil, 1)
 	if err != nil || p.Total != 2 || len(p.Items) != 1 || p.NextCursor == nil || p.Items[0].Name != "core" {
 		t.Fatalf("pagina 1: got (%+v, %v)", p, err)
 	}
-	p2, err := s.ListDevices(ctx, AllScope(), p.NextCursor, 1)
+	p2, err := s.ListDevices(ctx, AllScope(), HostFilter{}, p.NextCursor, 1)
 	if err != nil || len(p2.Items) != 1 || p2.Items[0].ID != other.ID || p2.NextCursor != nil {
 		t.Fatalf("pagina 2: got (%+v, %v)", p2, err)
 	}
@@ -347,7 +347,7 @@ func TestDeviceScopeAndPingCheckVisibility(t *testing.T) {
 	pb := mkPing(t, s, "ping-db", AlertScope{Type: ScopeDevice, HostID: &db.ID})
 
 	viewer := GroupScope([]string{ga.ID})
-	if p, err := s.ListDevices(ctx, viewer, nil, 50); err != nil || p.Total != 1 || len(p.Items) != 1 || p.Items[0].ID != da.ID {
+	if p, err := s.ListDevices(ctx, viewer, HostFilter{}, nil, 50); err != nil || p.Total != 1 || len(p.Items) != 1 || p.Items[0].ID != da.ID {
 		t.Errorf("lista del viewer de A: got (%+v, %v), want solo da", p, err)
 	}
 	for _, id := range []string{db.ID, dn.ID, missingUUID} {
@@ -462,5 +462,39 @@ func TestSummaryIgnoresDevices(t *testing.T) {
 	}
 	if sum.Devices.Total() != 1 || sum.Devices.Down != 1 {
 		t.Errorf("los dispositivos van en su propio conteo: %+v", sum.Devices)
+	}
+}
+
+func TestListDevicesFilters(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "col", "up", ago(time.Second))
+	grp := mkGroup(t, s, "lima", false, nil)
+	g := grp.ID
+	a := mkDevice(t, s, "router-a", "192.168.1.1", "col", &g)
+	mkDevice(t, s, "switch-b", "192.168.1.2", "col", nil)
+	if _, err := s.pool.Exec(ctx, `UPDATE hosts SET status = 'down' WHERE id = $1`, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		f    HostFilter
+		want int
+	}{
+		{"sin filtro", HostFilter{}, 2},
+		{"por nombre", HostFilter{Q: "ROUTER"}, 1},
+		{"por estado", HostFilter{Statuses: []string{"down"}}, 1},
+		{"por grupo", HostFilter{GroupIDs: []string{g}}, 1},
+		{"sin grupo", HostFilter{NoGroup: true}, 1},
+		{"estado y grupo sin coincidencia", HostFilter{Statuses: []string{"up"}, GroupIDs: []string{g}}, 0},
+	}
+	for _, tt := range tests {
+		p, err := s.ListDevices(ctx, AllScope(), tt.f, nil, 50)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Total != tt.want || len(p.Items) != tt.want {
+			t.Errorf("%s: total %d, items %d, want %d", tt.name, p.Total, len(p.Items), tt.want)
+		}
 	}
 }

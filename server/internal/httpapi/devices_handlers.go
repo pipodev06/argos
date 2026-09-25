@@ -1,6 +1,9 @@
 package httpapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -88,20 +91,37 @@ func checkUUIDField(field, raw string) (string, error) {
 
 // --- lecturas ---
 
+// deviceFilterKey resume los filtros de la lista: un cursor solo vale para la consulta que lo emitio.
+func deviceFilterKey(f store.HostFilter) string {
+	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup})
+	if err != nil {
+		return "" // solo strings, bools y listas: no deberia ocurrir
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:8])
+}
+
 func (a *API) listDevices(w http.ResponseWriter, r *http.Request) error {
 	u := currentUser(r)
 	limit, err := parseLimit(r.URL.Query())
 	if err != nil {
 		return err
 	}
-	fp := "devices|" + u.Scope.Key()
+	var f store.HostFilter
+	if err := parseQAndStatus(r.URL.Query(), &f); err != nil {
+		return err
+	}
+	if err := parseGroupFilter(r.URL.Query()["group"], &f); err != nil {
+		return err
+	}
+	fp := "devices|" + u.Scope.Key() + "|" + deviceFilterKey(f)
 	var after *store.HostCursor
 	if raw := r.URL.Query().Get("cursor"); raw != "" {
 		if after, err = a.decodeCursor(raw, fp); err != nil {
 			return err
 		}
 	}
-	page, err := a.store.ListDevices(r.Context(), u.Scope, after, limit)
+	page, err := a.store.ListDevices(r.Context(), u.Scope, f, after, limit)
 	if err != nil {
 		return err
 	}
