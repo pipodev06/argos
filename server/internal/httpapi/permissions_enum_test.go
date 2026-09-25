@@ -75,7 +75,7 @@ func TestRequireInventoryGuard(t *testing.T) {
 }
 
 // enumRoute clasifica una ruta GET: public (sin datos de hosts), own (datos propios de la sesion), admin (403 al
-// viewer restringido) o scope (filtra por ambito; paths son las URL a probar, con ids ajenos).
+// viewer restringido), inventory (404 identico sin can_inventory o con host ajeno) o scope (filtra por ambito; paths son las URL a probar, con ids ajenos).
 type enumRoute struct {
 	class string
 	paths func(x *alertScopeEnv, checkB string) []string
@@ -91,6 +91,11 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		return func(*alertScopeEnv, string) []string { return p }
 	}
 	const api = "/api/v1"
+	invPaths := func(suffix string) enumRoute {
+		return enumRoute{"inventory", func(x *alertScopeEnv, _ string) []string {
+			return []string{api + "/hosts/" + x.hostB + suffix, api + "/hosts/" + x.hostNo + suffix, api + "/hosts/" + x.hostA + suffix}
+		}}
+	}
 	// Toda ruta GET nueva DEBE clasificarse aqui; si no, el test falla.
 	table := map[string]enumRoute{
 		"GET /health":                        {"public", fixed("/health")},
@@ -130,6 +135,11 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/hosts/{id}/events": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/events", api + "/hosts/" + x.hostNo + "/events"}
 		}},
+		"GET /api/v1/hosts/{id}/inventory":           invPaths("/inventory"),
+		"GET /api/v1/hosts/{id}/inventory/ports":     invPaths("/inventory/ports"),
+		"GET /api/v1/hosts/{id}/inventory/services":  invPaths("/inventory/services"),
+		"GET /api/v1/hosts/{id}/inventory/processes": invPaths("/inventory/processes"),
+		"GET /api/v1/hosts/{id}/inventory/changes":   invPaths("/inventory/changes"),
 		"GET /api/v1/hosts/{id}/service-checks": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/service-checks", api + "/hosts/" + x.hostNo + "/service-checks"}
 		}},
@@ -191,6 +201,25 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 				if f != "" && strings.Contains(body, f) {
 					t.Errorf("%s (%s): la respuesta contiene dato ajeno %q: %.200s", pattern, path, f, body)
 				}
+			}
+		}
+	}
+
+	// Con can_inventory el viewer restringido ve su host (200) y el resto sigue siendo el mismo 404.
+	x.patchUser(x.vaID, `{"can_inventory":true}`, http.StatusOK, "")
+	for pattern, er := range table {
+		if er.class != "inventory" {
+			continue
+		}
+		suffix := strings.TrimPrefix(pattern, "GET /api/v1/hosts/{id}")
+		missing := x.do("GET", api+"/hosts/"+missingID+suffix, "", withCookie(x.va))
+		for i, path := range er.paths(x, checkB) { // hostB, hostNo, hostA
+			rec := x.do("GET", path, "", withCookie(x.va))
+			if i < 2 && (rec.Code != http.StatusNotFound || rec.Body.String() != missing.Body.String()) {
+				t.Errorf("%s (%s): con permiso y host ajeno got %d %q, want 404 identico", pattern, path, rec.Code, rec.Body.String())
+			}
+			if i == 2 && rec.Code != http.StatusOK {
+				t.Errorf("%s (%s): con permiso y host propio got %d, want 200", pattern, path, rec.Code)
 			}
 		}
 	}

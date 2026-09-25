@@ -68,3 +68,11 @@ Pestaña "Inventario" en `/hosts/:id`, visible solo si `me.role==='admin' || me.
 - Deuda: sin log warn con límite de tasa en rechazos de validación (el diseño lo pedía); los dos módulos con historial comparten el tope diario sin serializarse (dos envíos simultáneos pueden pasarse por unas filas); 401 sin token no probado por separado.
 - Pendiente: tanda 3 (GET + auditoría `inventory_read`) y tanda 4 (UI). Por ahora nada lee lo guardado.
 - Corregido (2026-09-25): el reemplazo atómico de `agent.json` reintenta hasta 6 veces con espera creciente ante errores de permiso (`renameWithRetry` en `agent/internal/state/state.go`); cualquier otro error se devuelve al instante. Con test propio (Windows: archivo retenido).
+
+## Tanda 3 hecha (2026-09-25): lectura + auditoría (contrato)
+Todo en `{"data": ...}`, `Cache-Control: no-store`; 404 sin permiso (`can_inventory`/admin) o host fuera de ámbito (`requireSession` + `requireInventory`).
+- `GET /api/v1/hosts/{id}/inventory` → `{modules:{ports|services|processes:{status, count, truncated, collected_at, updated_at}}}`; `status`: `ok`, `no_data` (el host no reportó ningún módulo) o `disabled` (reporta otros módulos pero nunca este; puede verse un instante en un módulo recién activado); `collected_at`/`updated_at` null sin datos.
+- `GET .../inventory/ports|services|processes` → `{module, status, count, truncated, collected_at, updated_at, items[]}`; ports `{proto, bind, port, proc, owner_known}`, services `{name, display, state, start}`, processes `{name, count, rss_bytes}`.
+- `GET .../inventory/changes?module=ports|services&kind=added|removed|changed|overflow&cursor=&limit=` → `{items:[{id, module, kind, key, before, after, at}], next_cursor}`; `before/after` JSON (null si no aplica; en `overflow`, `after` = `{"dropped":n}`); cursor firmado atado a host, Scope, module y kind (si no coincide, 400 `invalid_cursor`).
+- Auditoría `inventory_read` (clave `module`) solo en éxito, una vez por (usuario, host, módulo) cada 5 min; `authz_denied` por falta de `can_inventory` con tope 1 por usuario y ruta cada 5 min; el host ajeno no se audita. Deuda: los dedup son en memoria (se vacían al reiniciar).
+- Pendiente: tanda 4 (UI).

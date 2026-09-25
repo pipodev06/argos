@@ -59,6 +59,7 @@ const (
 	evAuthzDenied            = "authz_denied"
 	evAgentAuthFail          = "agent_auth_fail"
 	evEnrollFail             = "enroll_fail"
+	evInventoryRead          = "inventory_read"
 )
 
 // auditDetailKeys es la lista blanca de claves permitidas en audit_log.detail.
@@ -78,6 +79,8 @@ var auditDetailKeys = map[string]bool{
 	"type": true, "check_id": true,
 	// Canales: solo el host del destino (nunca la URL completa, que puede llevar un token, ni el secreto HMAC).
 	"host": true,
+	// Lectura de inventario: solo el modulo consultado, nunca contenido.
+	"module": true,
 }
 
 // audit registra un evento sin fallar la solicitud si la escritura falla: se loguea
