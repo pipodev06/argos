@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -130,10 +132,25 @@ func (s *Store) writeAtomic(name string, data []byte) (err error) {
 	if err = tmp.Close(); err != nil {
 		return fmt.Errorf("cerrando archivo temporal: %w", err)
 	}
-	if err = os.Rename(tmpName, filepath.Join(s.dir, name)); err != nil {
+	if err = renameWithRetry(tmpName, filepath.Join(s.dir, name)); err != nil {
 		return fmt.Errorf("moviendo credenciales a su lugar: %w", err)
 	}
 	return nil
+}
+
+// renameWithRetry reemplaza el destino de forma atomica. En Windows el reemplazo falla con "Acceso denegado"
+// mientras un antivirus o indexador retiene el archivo unos instantes: se reintenta brevemente solo ante
+// errores de permiso (cualquier otro error, o agotar los intentos, se devuelve tal cual).
+func renameWithRetry(from, to string) error {
+	const attempts = 6
+	var err error
+	for i := 0; i < attempts; i++ {
+		if err = os.Rename(from, to); err == nil || !errors.Is(err, fs.ErrPermission) {
+			return err
+		}
+		time.Sleep(time.Duration(i+1) * 40 * time.Millisecond)
+	}
+	return err
 }
 
 // Load lee las credenciales. Devuelve ErrNotEnrolled si el archivo no existe.

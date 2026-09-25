@@ -176,6 +176,14 @@ func (a *API) requireInventory(next handlerFunc) handlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		u := currentUser(r)
 		if u == nil || (u.Role != store.RoleAdmin && !u.CanInventory) {
+			// Solo la falta de permiso se audita (no el host ajeno: seria un oraculo y ruido), con tope por usuario y ruta.
+			if u != nil {
+				if ok, _ := a.inventoryDenyDedup.allow(u.ID+"|"+r.Pattern, a.now()); ok {
+					e := actor(u)
+					e.Event, e.Outcome = evAuthzDenied, store.OutcomeDenied
+					a.audit(r, e, map[string]any{"method": r.Method, "route": r.Pattern})
+				}
+			}
 			return store.ErrNotFound
 		}
 		id := r.PathValue("id")

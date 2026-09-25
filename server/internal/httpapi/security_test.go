@@ -254,7 +254,7 @@ func TestPublicAndAgentRoutesAreExactlyTheExpectedOnes(t *testing.T) {
 	if !slices.Equal(public, want) {
 		t.Errorf("rutas publicas got %v, want %v", public, want)
 	}
-	if want := []string{"POST /api/v1/agent/metrics"}; !slices.Equal(agent, want) {
+	if want := []string{"POST /api/v1/agent/metrics", "POST /api/v1/agent/inventory"}; !slices.Equal(agent, want) {
 		t.Errorf("rutas de agente got %v, want %v", agent, want)
 	}
 }
