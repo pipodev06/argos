@@ -67,3 +67,4 @@ Pestaña "Inventario" en `/hosts/:id`, visible solo si `me.role==='admin' || me.
 - Decisiones: elementos repetidos se descartan (SO_REUSEPORT da puertos repetidos legítimos; nombres de servicio pueden chocar al recortarse) en vez de 400.
 - Deuda: sin log warn con límite de tasa en rechazos de validación (el diseño lo pedía); los dos módulos con historial comparten el tope diario sin serializarse (dos envíos simultáneos pueden pasarse por unas filas); 401 sin token no probado por separado.
 - Pendiente: tanda 3 (GET + auditoría `inventory_read`) y tanda 4 (UI). Por ahora nada lee lo guardado.
+- Corregido (2026-09-25): el reemplazo atómico de `agent.json` reintenta hasta 6 veces con espera creciente ante errores de permiso (`renameWithRetry` en `agent/internal/state/state.go`); cualquier otro error se devuelve al instante. Con test propio (Windows: archivo retenido).
