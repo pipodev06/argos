@@ -101,6 +101,10 @@ type Store interface {
 	InsertAudit(ctx context.Context, e store.AuditEntry) error
 	ListAudit(ctx context.Context, f store.AuditFilter) (store.AuditPage, error)
 	AuditEvents(ctx context.Context) ([]string, error)
+
+	// Inventario del host (ingest del agente).
+	IngestInventory(ctx context.Context, hostID string, in store.InventoryFull, now time.Time) error
+	InventoryHeartbeat(ctx context.Context, hostID, module, rev string, now time.Time) error
 }
 
 // WebhookClient es lo que la API necesita del cliente webhook (lo implementa *notify.Client).
@@ -159,13 +163,14 @@ type API struct {
 
 	cmdOrigin string // origen de los comandos de instalacion ("" = no ofrecerlos)
 
-	loginLimiter   *limiter      // por IP: 20 intentos / 10 min
-	distLimiter    *limiter      // por IP: 30 / min (instaladores y descargas)
-	enrollLimiter  *limiter      // por IP: 10 / min
-	metricsLimiter *limiter      // por host: 1 cada 2 s, rafaga 5
-	testLimiter    *limiter      // por usuario: 5 / min (POST /channels/{id}/test)
-	reportSem      chan struct{} // cupos de informes de disponibilidad concurrentes
-	agentFails     failCounter
+	loginLimiter     *limiter      // por IP: 20 intentos / 10 min
+	distLimiter      *limiter      // por IP: 30 / min (instaladores y descargas)
+	enrollLimiter    *limiter      // por IP: 10 / min
+	metricsLimiter   *limiter      // por host: 1 cada 2 s, rafaga 5
+	inventoryLimiter *limiter      // por host: 20 / min (3 modulos con minimo de 30 s entre envios completos)
+	testLimiter      *limiter      // por usuario: 5 / min (POST /channels/{id}/test)
+	reportSem        chan struct{} // cupos de informes de disponibilidad concurrentes
+	agentFails       failCounter
 
 	routes []route
 }
@@ -178,21 +183,22 @@ func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time
 		panic(fmt.Sprintf("leyendo crypto/rand: %v", err))
 	}
 	a := &API{
-		cursorKey:      cursorKey,
-		store:          s,
-		hasher:         hasher,
-		logger:         logger,
-		now:            now,
-		opts:           opts,
-		cookieName:     "__Host-argos_sid",
-		allowedHosts:   map[string]bool{"localhost": true, "127.0.0.1": true, "::1": true},
-		loginLimiter:   newLimiter(20, 10*time.Minute),
-		enrollLimiter:  newLimiter(10, time.Minute),
-		metricsLimiter: newLimiter(5, 10*time.Second),
-		distLimiter:    newLimiter(distLimitBurst, time.Minute),
-		testLimiter:    newLimiter(channelTestsPerMinute, time.Minute),
-		reportSem:      make(chan struct{}, maxConcurrentReports),
-		cmdOrigin:      commandOrigin(opts.PublicURL, opts.Dist != nil),
+		cursorKey:        cursorKey,
+		store:            s,
+		hasher:           hasher,
+		logger:           logger,
+		now:              now,
+		opts:             opts,
+		cookieName:       "__Host-argos_sid",
+		allowedHosts:     map[string]bool{"localhost": true, "127.0.0.1": true, "::1": true},
+		loginLimiter:     newLimiter(20, 10*time.Minute),
+		enrollLimiter:    newLimiter(10, time.Minute),
+		metricsLimiter:   newLimiter(5, 10*time.Second),
+		inventoryLimiter: newLimiter(20, time.Minute),
+		distLimiter:      newLimiter(distLimitBurst, time.Minute),
+		testLimiter:      newLimiter(channelTestsPerMinute, time.Minute),
+		reportSem:        make(chan struct{}, maxConcurrentReports),
+		cmdOrigin:        commandOrigin(opts.PublicURL, opts.Dist != nil),
 	}
 	if opts.InsecureCookies {
 		a.cookieName = "argos_sid"
@@ -245,6 +251,7 @@ func (a *API) Routes() http.Handler {
 	// Agentes.
 	a.route(mux, "POST /api/v1/agent/enroll", accessPublic, a.agentEnroll)
 	a.route(mux, "POST /api/v1/agent/metrics", accessAgent, a.agentMetrics)
+	a.route(mux, "POST /api/v1/agent/inventory", accessAgent, a.agentInventory)
 
 	// Sesion.
 	a.route(mux, "POST /api/v1/auth/login", accessPublic, a.login)
@@ -343,6 +350,8 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusBadRequest, "weak_password", weak.Reason)
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "recurso no encontrado")
+	case errors.Is(err, store.ErrNeedFull):
+		writeError(w, http.StatusConflict, "need_full", "se necesita el inventario completo")
 	case errors.Is(err, store.ErrUserExists):
 		writeError(w, http.StatusConflict, "username_taken", "ese nombre de usuario ya existe")
 	case errors.Is(err, store.ErrInvalidScope):

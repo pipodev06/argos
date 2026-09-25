@@ -42,10 +42,12 @@ const (
 	defaultAlertsRetentionDays        = 365
 	defaultNotificationsRetentionDays = 30
 	defaultServiceEventsRetentionDays = 180
+	defaultInventoryRetentionDays     = 90
 	minHostEventsRetentionDays        = 30
 	minAlertsRetentionDays            = 30
 	minNotificationsRetentionDays     = 7
 	minServiceEventsRetentionDays     = 30
+	minInventoryRetentionDays         = 30
 )
 
 // Config es la configuracion ya validada del servidor.
@@ -97,6 +99,8 @@ type Config struct {
 	NotificationsRetentionDays int
 	// ServiceEventsRetentionDays es cuanto se conserva el historial de transiciones de chequeos de servicio (>= 30).
 	ServiceEventsRetentionDays int
+	// InventoryRetentionDays es cuanto se conserva el historial de cambios del inventario (puertos y servicios, >= 30).
+	InventoryRetentionDays int
 	// AgentDistDir es el directorio con los binarios del agente que se publican en /dl (vacio = no se sirven).
 	AgentDistDir string
 	// WebDir es el build del frontend (index.html + assets/) que el server sirve (vacio = no se sirve).
@@ -135,6 +139,7 @@ func Load(getenv func(string) string) (Config, error) {
 		AlertsRetentionDays:        defaultAlertsRetentionDays,
 		NotificationsRetentionDays: defaultNotificationsRetentionDays,
 		ServiceEventsRetentionDays: defaultServiceEventsRetentionDays,
+		InventoryRetentionDays:     defaultInventoryRetentionDays,
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -220,6 +225,7 @@ func loadRetention(getenv func(string) string, cfg *Config) error {
 		{"ARGOS_ALERTS_RETENTION_DAYS", &cfg.AlertsRetentionDays, minAlertsRetentionDays},
 		{"ARGOS_NOTIFICATIONS_RETENTION_DAYS", &cfg.NotificationsRetentionDays, minNotificationsRetentionDays},
 		{"ARGOS_SERVICE_EVENTS_RETENTION_DAYS", &cfg.ServiceEventsRetentionDays, minServiceEventsRetentionDays},
+		{"ARGOS_INVENTORY_RETENTION_DAYS", &cfg.InventoryRetentionDays, minInventoryRetentionDays},
 	}
 	for _, v := range ints {
 		raw := getenv(v.env)
