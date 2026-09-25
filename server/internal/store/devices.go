@@ -12,8 +12,10 @@ import (
 
 // Dispositivos sin agente (hosts.kind = 'device'): un equipo con IP que sondea un colector (un agente).
 var (
-	// ErrDeviceNotFound: el dispositivo referenciado (en el alcance de un chequeo) no existe.
+	// ErrDeviceNotFound: el dispositivo referenciado (en el alcance device de un chequeo) no existe.
 	ErrDeviceNotFound = errors.New("dispositivo no encontrado")
+	// ErrScopeHostNotFound: el host referenciado en el alcance host de un chequeo no existe o no es un agente.
+	ErrScopeHostNotFound = errors.New("host del alcance no encontrado")
 	// ErrCollectorInvalid: el colector no existe o no es un agente.
 	ErrCollectorInvalid = errors.New("el colector debe ser un host con agente")
 	// ErrDeviceExists: ya hay un dispositivo con esa direccion en ese colector.
@@ -301,17 +303,28 @@ func (s *Store) DeleteDevice(ctx context.Context, id string) (string, error) {
 	return name, nil
 }
 
-// requireDeviceScope comprueba que el alcance de un chequeo que apunta a un dispositivo apunte a uno que existe.
-func requireDeviceScope(ctx context.Context, tx pgx.Tx, sc AlertScope) error {
-	if sc.Type != ScopeDevice || sc.HostID == nil {
+// requireScopeHost comprueba que el alcance de un chequeo que apunta a un host apunte a uno que existe: un
+// dispositivo para el alcance device y un host con agente para el alcance host.
+func requireScopeHost(ctx context.Context, tx pgx.Tx, sc AlertScope) error {
+	var kind string
+	var notFound error
+	switch sc.Type {
+	case ScopeDevice:
+		kind, notFound = "device", ErrDeviceNotFound
+	case ScopeHost:
+		kind, notFound = "agent", ErrScopeHostNotFound
+	default:
+		return nil
+	}
+	if sc.HostID == nil {
 		return nil
 	}
 	var ok bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1 AND kind = 'device')`, *sc.HostID).Scan(&ok); err != nil {
-		return fmt.Errorf("buscando dispositivo: %w", err)
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1 AND kind = $2)`, *sc.HostID, kind).Scan(&ok); err != nil {
+		return fmt.Errorf("buscando host del alcance: %w", err)
 	}
 	if !ok {
-		return ErrDeviceNotFound
+		return notFound
 	}
 	return nil
 }

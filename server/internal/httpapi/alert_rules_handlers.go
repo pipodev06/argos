@@ -35,13 +35,22 @@ type scopeDTO struct {
 	Type      string  `json:"type"`
 	GroupID   *string `json:"group_id"`
 	GroupName *string `json:"group_name"`
-	// DeviceID y DeviceName solo aparecen en chequeos ping con alcance de un dispositivo.
+	// DeviceID y DeviceName solo aparecen en chequeos ping/snmp con alcance de un dispositivo; HostID y HostName,
+	// en chequeos con alcance de un host.
 	DeviceID   *string `json:"device_id,omitempty"`
 	DeviceName *string `json:"device_name,omitempty"`
+	HostID     *string `json:"host_id,omitempty"`
+	HostName   *string `json:"host_name,omitempty"`
 }
 
 func toScopeDTO(s store.AlertScope, groupName *string) scopeDTO {
-	return scopeDTO{Type: s.Type, GroupID: s.GroupID, GroupName: groupName, DeviceID: s.HostID}
+	dto := scopeDTO{Type: s.Type, GroupID: s.GroupID, GroupName: groupName}
+	if s.Type == store.ScopeHost {
+		dto.HostID = s.HostID
+	} else {
+		dto.DeviceID = s.HostID
+	}
+	return dto
 }
 
 // scopeReq es el alcance que manda el cliente (el nombre del grupo solo se devuelve, no se acepta).
@@ -49,28 +58,36 @@ type scopeReq struct {
 	Type     string  `json:"type"`
 	GroupID  *string `json:"group_id"`
 	DeviceID *string `json:"device_id"`
+	HostID   *string `json:"host_id"`
 }
 
 // toScope valida el alcance y lo normaliza: el tipo fija que campos van (los demas deben faltar).
 func (s scopeReq) toScope() (store.AlertScope, error) { return s.toScopeWith(false) }
 
-// toScopeWith es toScope; allowDevice admite el alcance de un dispositivo concreto (solo chequeos ping).
-func (s scopeReq) toScopeWith(allowDevice bool) (store.AlertScope, error) {
-	if s.Type == store.ScopeDevice && allowDevice {
-		if s.GroupID != nil || s.DeviceID == nil || !isUUID(*s.DeviceID) {
+// toScopeWith es toScope; allowTarget admite el alcance de un host o dispositivo concreto (solo chequeos).
+func (s scopeReq) toScopeWith(allowTarget bool) (store.AlertScope, error) {
+	if s.Type == store.ScopeHost && allowTarget {
+		if s.GroupID != nil || s.DeviceID != nil || s.HostID == nil || !isUUID(*s.HostID) {
+			return store.AlertScope{}, badRequest("scope host requiere host_id valido y no admite group_id ni device_id")
+		}
+		id := strings.ToLower(*s.HostID)
+		return store.AlertScope{Type: s.Type, HostID: &id}, nil
+	}
+	if s.Type == store.ScopeDevice && allowTarget {
+		if s.GroupID != nil || s.HostID != nil || s.DeviceID == nil || !isUUID(*s.DeviceID) {
 			return store.AlertScope{}, badRequest("scope device requiere device_id valido y no admite group_id")
 		}
 		id := strings.ToLower(*s.DeviceID)
 		return store.AlertScope{Type: s.Type, HostID: &id}, nil
 	}
 	if !validScopeTypes[s.Type] {
-		if allowDevice {
-			return store.AlertScope{}, badRequest("scope.type debe ser all, group o device")
+		if allowTarget {
+			return store.AlertScope{}, badRequest("scope.type debe ser all, group, host o device")
 		}
 		return store.AlertScope{}, badRequest("scope.type debe ser all o group")
 	}
-	if s.DeviceID != nil {
-		return store.AlertScope{}, badRequest("device_id solo aplica al scope device")
+	if s.DeviceID != nil || s.HostID != nil {
+		return store.AlertScope{}, badRequest("device_id y host_id solo aplican a los scope device y host")
 	}
 	out := store.AlertScope{Type: s.Type}
 	switch s.Type {

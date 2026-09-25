@@ -11,6 +11,7 @@ const MAX_NAMES = 2
  */
 export function checkOrigin(check: Pick<ServiceCheck, 'type' | 'scope'>, devices: readonly Device[] | undefined): string {
   if (!COLLECTOR_TYPES.includes(check.type)) {
+    if (check.scope.type === 'host') return check.scope.host_name ?? 'Host eliminado'
     return check.scope.type === 'group' ? 'Hosts del grupo' : 'Cada host con agente'
   }
   if (!devices) return '—'

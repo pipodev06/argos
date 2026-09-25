@@ -6,7 +6,7 @@ export type RuleKind = 'metric' | 'host_status' | 'no_data' | 'service_check' | 
 export type RuleMetric = 'cpu_pct' | 'mem_pct' | 'disk_max_pct' | 'battery_pct' | 'load1' | 'load5' | 'load15'
 export type RuleOp = 'gt' | 'lt'
 /** `device` solo lo usan los chequeos ping. */
-export type ScopeType = 'all' | 'group' | 'device'
+export type ScopeType = 'all' | 'group' | 'device' | 'host'
 export type ResolveReason = 'recovered' | 'manual' | 'rule_disabled' | 'rule_deleted' | 'host_disabled'
 export type HostEventSource = 'detector' | 'ingest' | 'admin' | 'group_change'
 export type MaintenanceStatus = 'scheduled' | 'active' | 'ended'
@@ -84,6 +84,9 @@ export interface Scope {
   /** Solo chequeos ping con alcance de un dispositivo. */
   device_id?: string
   device_name?: string | null
+  /** Solo chequeos de servicio con alcance de un host con agente. */
+  host_id?: string
+  host_name?: string | null
 }
 
 /** Alcance que se envía al servidor (solo los campos del tipo elegido). */
@@ -91,6 +94,7 @@ export interface ScopeInput {
   type: ScopeType
   group_id?: string
   device_id?: string
+  host_id?: string
 }
 
 export interface AlertRule {

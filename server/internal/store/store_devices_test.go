@@ -460,4 +460,7 @@ func TestSummaryIgnoresDevices(t *testing.T) {
 	if sum.Counts.Total() != 1 || sum.Counts.Down != 0 || len(sum.RecentlyDown) != 0 {
 		t.Errorf("el resumen no debe contar dispositivos: %+v, caidos %v", sum.Counts, sum.RecentlyDown)
 	}
+	if sum.Devices.Total() != 1 || sum.Devices.Down != 1 {
+		t.Errorf("los dispositivos van en su propio conteo: %+v", sum.Devices)
+	}
 }

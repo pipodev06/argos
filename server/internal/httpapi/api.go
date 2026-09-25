@@ -438,6 +438,8 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "check_not_found", "el chequeo indicado no existe")
 	case errors.Is(err, store.ErrDeviceNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "device_not_found", "el dispositivo indicado no existe")
+	case errors.Is(err, store.ErrScopeHostNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "host_not_found", "el host indicado no existe o no tiene agente")
 	case errors.Is(err, store.ErrCollectorInvalid):
 		writeError(w, http.StatusUnprocessableEntity, "collector_invalid", "el colector debe ser un host con agente activo")
 	case errors.Is(err, store.ErrDeviceExists):

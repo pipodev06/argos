@@ -78,6 +78,12 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
     { label: 'Pendientes', value: c?.pending, status: 'pending', Icon: IconClock, icon: 'text-info' },
     { label: 'Deshabilitados', value: c?.disabled, status: 'disabled', Icon: IconCircleOff, icon: 'text-text-muted' },
   ] as const
+  const d = data?.devices
+  const deviceTiles = [
+    { label: 'Activos', value: d?.up, status: 'up', Icon: IconCircleCheck, icon: 'text-ok' },
+    { label: 'Caídos', value: d?.down, status: 'down', Icon: IconCircleX, icon: 'text-danger' },
+    { label: 'Sin conexión', value: d?.offline, status: 'offline', Icon: IconPlugConnectedX, icon: 'text-text-muted' },
+  ] as const
 
   return (
     <>
@@ -112,6 +118,27 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
             ),
           )}
         </div>
+
+        {d && total(d) > 0 && (
+          <section aria-labelledby="summary-devices" className="flex flex-col gap-3">
+            <h2 id="summary-devices" className="text-sm font-semibold">
+              Dispositivos
+            </h2>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+              {deviceTiles.map((t) => (
+                <Link key={t.status} to="/dispositivos" className={TILE_LINK}>
+                  <StatusTile
+                    label={t.label}
+                    value={t.value ?? 0}
+                    Icon={t.Icon}
+                    iconClassName={t.icon}
+                    alert={t.status === 'down' && (t.value ?? 0) > 0}
+                  />
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <AlertsTile />
 

@@ -88,7 +88,11 @@ func toServiceCheckDTO(u *sessionUser, d store.ServiceCheckDef) serviceCheckDTO 
 		Metric: d.Metric, IfIndex: d.IfIndex, HasSecret: len(d.SecretEnc) > 0, Scope: toScopeDTO(d.Scope, d.GroupName), Enabled: d.Enabled,
 		CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(),
 	}
-	dto.Scope.DeviceName = d.DeviceName
+	if d.Scope.Type == store.ScopeHost {
+		dto.Scope.HostName = d.DeviceName
+	} else {
+		dto.Scope.DeviceName = d.DeviceName
+	}
 	if admin {
 		dto.HeaderName = d.HeaderName
 	} else if d.URL != nil {
@@ -151,6 +155,9 @@ func validateCheckDef(d *store.ServiceCheckDef) error {
 	}
 	if d.Scope.Type == store.ScopeDevice && d.Type != store.CheckPing && d.Type != store.CheckSNMP {
 		return badRequest("scope device solo aplica a chequeos ping y snmp")
+	}
+	if d.Scope.Type == store.ScopeHost && (d.Type == store.CheckPing || d.Type == store.CheckSNMP) {
+		return badRequest("scope host no aplica a chequeos ping ni snmp (usa scope device)")
 	}
 	if d.WarnMs != nil && d.CritMs != nil && *d.WarnMs >= *d.CritMs {
 		return badRequest("warn_ms debe ser menor que crit_ms")
@@ -740,7 +747,7 @@ func checkAuditDetail(d store.ServiceCheckDef, fields []string) map[string]any {
 		m["group_id"] = *d.Scope.GroupID
 	}
 	if d.Scope.HostID != nil {
-		m["device_id"] = *d.Scope.HostID
+		m[map[bool]string{true: "host_id", false: "device_id"}[d.Scope.Type == store.ScopeHost]] = *d.Scope.HostID
 	}
 	if d.Metric != nil {
 		m["metric"] = *d.Metric

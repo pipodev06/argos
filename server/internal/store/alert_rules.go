@@ -30,15 +30,17 @@ const (
 const (
 	ScopeAll   = "all"
 	ScopeGroup = "group"
-	// ScopeDevice (solo chequeos ping): un dispositivo concreto.
+	// ScopeDevice (solo chequeos ping y snmp): un dispositivo concreto.
 	ScopeDevice = "device"
+	// ScopeHost (solo chequeos tcp, http, tls_cert y service): un host con agente concreto.
+	ScopeHost = "host"
 )
 
 // AlertScope es el alcance: todos los hosts o los de un grupo.
 type AlertScope struct {
 	Type    string
 	GroupID *string
-	// HostID es el dispositivo (solo ScopeDevice).
+	// HostID es el dispositivo o el host (solo ScopeDevice y ScopeHost).
 	HostID *string
 }
 
