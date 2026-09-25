@@ -10,6 +10,7 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 ### Media
 - Pantallas nuevas sin revisar en navegador (permisos/Acceso, chequeos, mantenimiento, alertas): esperan observaciones del usuario -> [Frontend](#frontend)
 - Buffer offline solo en memoria (120): un reinicio con el server caido pierde datos -> [Agente](#agente-y-servicio)
+- Agente Windows: el reemplazo atómico de `agent.json` puede fallar con "Acceso denegado" si el antivirus o el indexador retienen el archivo (falla intermitente de `TestServiceModeResumesAfterReEnroll`); reintentar brevemente -> [Agente](#agente-y-servicio)
 - Sin firma de binarios ni auto-actualizacion; `install` no pasa config de entorno al servicio -> [Agente](#agente-y-servicio)
 - Estado en memoria mono-instancia (rate limits, clave HMAC de cursores) -> [Seguridad](#seguridad)
 - Auditoria best-effort (no transaccional) -> [Seguridad](#seguridad)

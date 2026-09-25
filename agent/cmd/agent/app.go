@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"argos/agent/internal/agent"
@@ -19,6 +20,7 @@ import (
 	"argos/agent/internal/collector"
 	"argos/agent/internal/config"
 	"argos/agent/internal/enroll"
+	"argos/agent/internal/inventory"
 	"argos/agent/internal/sender"
 	"argos/agent/internal/service"
 	"argos/agent/internal/state"
@@ -387,6 +389,23 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 	a.logger.Info("argos agent iniciado", "version", a.version, "hostname", hostname,
 		"server", serverURL, "interval", cfg.Interval.String(), "disk_interval", cfg.DiskInterval.String(),
 		"host_id", creds.HostID, "token_origin", origin, "service", a.serviceMode)
+	// Inventario: solo si el operador activo modulos; muere junto con el loop de metricas.
+	invCtx, stopInventory := context.WithCancel(ctx)
+	var invWG sync.WaitGroup
+	if len(cfg.InventoryModules) > 0 {
+		a.logger.Info("inventario activado", "modules", cfg.InventoryModules)
+		invWG.Add(1)
+		go func() {
+			defer invWG.Done()
+			inventory.Run(invCtx, inventory.Options{
+				Endpoint:   serverURL,
+				Token:      creds.AgentToken,
+				HTTPClient: client,
+				Modules:    cfg.InventoryModules,
+				Logger:     a.logger,
+			})
+		}()
+	}
 	err = agent.Run(ctx, snd, agent.Options{
 		Hostname:     hostname,
 		Version:      a.version,
@@ -399,6 +418,8 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 		Now:          time.Now,
 		Logger:       a.logger,
 	})
+	stopInventory()
+	invWG.Wait()
 	if err != nil {
 		return creds.AgentToken, err
 	}
