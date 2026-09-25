@@ -30,13 +30,13 @@ const (
 const (
 	ScopeAll   = "all"
 	ScopeGroup = "group"
-	// ScopeDevice (solo chequeos ping y snmp): un dispositivo concreto.
+	// ScopeDevice: un dispositivo concreto (chequeos ping y snmp; reglas host_status; ventanas de mantenimiento).
 	ScopeDevice = "device"
-	// ScopeHost (solo chequeos tcp, http, tls_cert y service): un host con agente concreto.
+	// ScopeHost: un host con agente concreto (chequeos tcp, http, tls_cert y service; reglas que no son service_check; ventanas).
 	ScopeHost = "host"
 )
 
-// AlertScope es el alcance: todos los hosts o los de un grupo.
+// AlertScope es el alcance: todos los hosts, los de un grupo, un host con agente o un dispositivo.
 type AlertScope struct {
 	Type    string
 	GroupID *string
@@ -74,6 +74,8 @@ type AlertRule struct {
 	Scope         AlertScope
 	// GroupName es el nombre del grupo del alcance (solo lectura).
 	GroupName *string
+	// HostName es el nombre del host o dispositivo del alcance (solo lectura).
+	HostName  *string
 	Severity  string
 	Enabled   bool
 	CreatedAt time.Time
@@ -86,11 +88,12 @@ type AlertRule struct {
 
 const alertRuleSelect = `
 SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.duration_seconds, r.duration_days, r.resolve_seconds,
-       r.include_offline, r.scope_type, r.scope_group_id, g.name, r.check_id, cd.name, r.warn_is_breach, r.expected_ports,
+       r.include_offline, r.scope_type, r.scope_group_id, g.name, r.scope_host_id, sh.hostname, r.check_id, cd.name, r.warn_is_breach, r.expected_ports,
        r.severity, r.enabled, r.created_at, r.updated_at,
        (SELECT count(*)::int FROM alerts a WHERE a.rule_id = r.id AND a.state <> 'resolved'),
        COALESCE((SELECT array_agg(rc.channel_id::text ORDER BY rc.channel_id) FROM rule_channels rc WHERE rc.rule_id = r.id), '{}')
   FROM alert_rules r LEFT JOIN host_groups g ON g.id = r.scope_group_id
+  LEFT JOIN hosts sh ON sh.id = r.scope_host_id
   LEFT JOIN service_check_defs cd ON cd.id = r.check_id`
 
 func scanAlertRule(row pgx.Row) (AlertRule, error) {
@@ -98,7 +101,7 @@ func scanAlertRule(row pgx.Row) (AlertRule, error) {
 	var expected []byte
 	err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Metric, &r.Op, &r.Threshold, &r.ClearThreshold, &r.DurationSeconds, &r.DurationDays,
 		&r.ResolveSeconds, &r.IncludeOffline, &r.Scope.Type, &r.Scope.GroupID,
-		&r.GroupName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &expected, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
+		&r.GroupName, &r.Scope.HostID, &r.HostName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &expected, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
 	if err != nil {
 		return r, err
 	}
@@ -112,15 +115,17 @@ func scanAlertRule(row pgx.Row) (AlertRule, error) {
 const (
 	ruleNameKey     = "alert_rules_name_lower_key"
 	ruleGroupFKey   = "alert_rules_scope_group_id_fkey"
+	ruleHostFKey    = "alert_rules_scope_host_id_fkey"
 	windowGroupFKey = "maintenance_windows_scope_group_id_fkey"
+	windowHostFKey  = "maintenance_windows_scope_host_id_fkey"
 )
 
 // ListAlertRules devuelve las reglas por nombre (hay un tope de MaxAlertRules). Un ambito restringido solo ve las
-// de alcance `all` y las de sus grupos, sin canales y con ActiveAlerts contando solo alertas de sus hosts.
+// de alcance `all`, las de sus grupos y las de un host o dispositivo de sus grupos, sin canales y con ActiveAlerts contando solo alertas de sus hosts.
 func (s *Store) ListAlertRules(ctx context.Context, scope Scope) ([]AlertRule, error) {
 	args := argList{MaxAlertRules}
 	rows, err := s.pool.Query(ctx,
-		alertRuleSelect+` WHERE `+scope.configCond("r.scope_type", "r.scope_group_id", &args)+` ORDER BY lower(r.name), r.id LIMIT $1`,
+		alertRuleSelect+` WHERE `+scope.configCondHost("r.scope_type", "r.scope_group_id", "r.scope_host_id", &args)+` ORDER BY lower(r.name), r.id LIMIT $1`,
 		[]any(args)...)
 	if err != nil {
 		return nil, fmt.Errorf("listando reglas de alerta: %w", err)
@@ -148,8 +153,8 @@ func (s *Store) AlertRuleByID(ctx context.Context, scope Scope, id string) (Aler
 	if scope.All() {
 		return r, nil
 	}
-	if !scope.sees(r.Scope) {
-		return AlertRule{}, ErrNotFound
+	if err := s.requireScopeVisible(ctx, scope, r.Scope); err != nil {
+		return AlertRule{}, err
 	}
 	rules := []AlertRule{r}
 	if err := s.narrowRules(ctx, scope, rules); err != nil {
@@ -226,6 +231,9 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		if n >= MaxAlertRules {
 			return ErrTooManyRules
 		}
+		if err := requireScopeHost(ctx, tx, r.Scope); err != nil {
+			return err
+		}
 		expected, err := marshalExpectedPorts(r.ExpectedPorts)
 		if err != nil {
 			return err
@@ -233,15 +241,15 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		var id string
 		err = tx.QueryRow(ctx,
 			`INSERT INTO alert_rules (name, kind, metric, op, threshold, clear_threshold, duration_seconds, resolve_seconds,
-			                          include_offline, scope_type, scope_group_id,
+			                          include_offline, scope_type, scope_group_id, scope_host_id,
 			                          severity, enabled, created_by, check_id, warn_is_breach, expected_ports, duration_days)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, '')::uuid, $15, $16, $17, $18)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NULLIF($15, '')::uuid, $16, $17, $18, $19)
 			 RETURNING id`,
 			r.Name, r.Kind, r.Metric, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds,
-			r.IncludeOffline, r.Scope.Type, r.Scope.GroupID,
+			r.IncludeOffline, r.Scope.Type, r.Scope.GroupID, r.Scope.HostID,
 			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown, expected, r.DurationDays).Scan(&id)
 		if err != nil {
-			return mapRuleErr(err, "insertando regla de alerta")
+			return mapRuleErr(err, "insertando regla de alerta", r.Scope)
 		}
 		out, err = alertRuleByID(ctx, tx, id, "")
 		return err
@@ -264,8 +272,11 @@ func marshalExpectedPorts(p []ExpectedPort) ([]byte, error) {
 	return b, nil
 }
 
-func mapRuleErr(err error, what string) error {
+func mapRuleErr(err error, what string, sc AlertScope) error {
 	switch {
+	case isFKViolation(err, ruleHostFKey):
+		// Solo se llega aqui si el host se borro entre la comprobacion y el insert.
+		return scopeHostGone(sc)
 	case isUniqueViolation(err, ruleNameKey):
 		return ErrRuleExists
 	case isFKViolation(err, ruleGroupFKey):
@@ -288,18 +299,21 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*Ale
 		if err := mutate(&r); err != nil {
 			return err
 		}
+		if err := requireScopeHost(ctx, tx, r.Scope); err != nil {
+			return err
+		}
 		expected, err := marshalExpectedPorts(r.ExpectedPorts)
 		if err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx,
 			`UPDATE alert_rules SET name = $2, op = $3, threshold = $4, clear_threshold = $5, duration_seconds = $6,
-			        resolve_seconds = $7, include_offline = $8, scope_type = $9, scope_group_id = $10,
+			        resolve_seconds = $7, include_offline = $8, scope_type = $9, scope_group_id = $10, scope_host_id = $16,
 			        severity = $11, enabled = $12, warn_is_breach = $13, expected_ports = $14, duration_days = $15, updated_at = now()
 			  WHERE id = $1`,
 			id, r.Name, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds, r.IncludeOffline,
-			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected, r.DurationDays); err != nil {
-			return mapRuleErr(err, "actualizando regla de alerta")
+			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected, r.DurationDays, r.Scope.HostID); err != nil {
+			return mapRuleErr(err, "actualizando regla de alerta", r.Scope)
 		}
 		out, err = alertRuleByID(ctx, tx, id, "")
 		return err

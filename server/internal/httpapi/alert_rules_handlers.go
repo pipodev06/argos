@@ -48,14 +48,29 @@ type scopeDTO struct {
 	HostName   *string `json:"host_name,omitempty"`
 }
 
-func toScopeDTO(s store.AlertScope, groupName *string) scopeDTO {
+// toScopeDTO arma el alcance de salida; hostName es el nombre del host o dispositivo del alcance (si lo hay).
+func toScopeDTO(s store.AlertScope, groupName, hostName *string) scopeDTO {
 	dto := scopeDTO{Type: s.Type, GroupID: s.GroupID, GroupName: groupName}
 	if s.Type == store.ScopeHost {
-		dto.HostID = s.HostID
+		dto.HostID, dto.HostName = s.HostID, hostName
 	} else {
-		dto.DeviceID = s.HostID
+		dto.DeviceID, dto.DeviceName = s.HostID, hostName
 	}
 	return dto
+}
+
+// addScopeAudit anade a un detalle de auditoria los ids del alcance (grupo, host o dispositivo; nunca nombres).
+func addScopeAudit(d map[string]any, sc store.AlertScope) {
+	if sc.GroupID != nil {
+		d["group_id"] = *sc.GroupID
+	}
+	if sc.HostID != nil {
+		if sc.Type == store.ScopeHost {
+			d["host_id"] = *sc.HostID
+		} else {
+			d["device_id"] = *sc.HostID
+		}
+	}
 }
 
 // scopeReq es el alcance que manda el cliente (el nombre del grupo solo se devuelve, no se acepta).
@@ -66,19 +81,17 @@ type scopeReq struct {
 	HostID   *string `json:"host_id"`
 }
 
-// toScope valida el alcance y lo normaliza: el tipo fija que campos van (los demas deben faltar).
-func (s scopeReq) toScope() (store.AlertScope, error) { return s.toScopeWith(false) }
-
-// toScopeWith es toScope; allowTarget admite el alcance de un host o dispositivo concreto (solo chequeos).
-func (s scopeReq) toScopeWith(allowTarget bool) (store.AlertScope, error) {
-	if s.Type == store.ScopeHost && allowTarget {
+// toScope valida el alcance y lo normaliza: el tipo fija que campos van (los demas deben faltar). La compatibilidad
+// con el tipo de regla o chequeo la comprueba quien lo usa.
+func (s scopeReq) toScope() (store.AlertScope, error) {
+	if s.Type == store.ScopeHost {
 		if s.GroupID != nil || s.DeviceID != nil || s.HostID == nil || !isUUID(*s.HostID) {
 			return store.AlertScope{}, badRequest("scope host requiere host_id valido y no admite group_id ni device_id")
 		}
 		id := strings.ToLower(*s.HostID)
 		return store.AlertScope{Type: s.Type, HostID: &id}, nil
 	}
-	if s.Type == store.ScopeDevice && allowTarget {
+	if s.Type == store.ScopeDevice {
 		if s.GroupID != nil || s.HostID != nil || s.DeviceID == nil || !isUUID(*s.DeviceID) {
 			return store.AlertScope{}, badRequest("scope device requiere device_id valido y no admite group_id")
 		}
@@ -86,10 +99,7 @@ func (s scopeReq) toScopeWith(allowTarget bool) (store.AlertScope, error) {
 		return store.AlertScope{Type: s.Type, HostID: &id}, nil
 	}
 	if !validScopeTypes[s.Type] {
-		if allowTarget {
-			return store.AlertScope{}, badRequest("scope.type debe ser all, group, host o device")
-		}
-		return store.AlertScope{}, badRequest("scope.type debe ser all o group")
+		return store.AlertScope{}, badRequest("scope.type debe ser all, group, host o device")
 	}
 	if s.DeviceID != nil || s.HostID != nil {
 		return store.AlertScope{}, badRequest("device_id y host_id solo aplican a los scope device y host")
@@ -142,7 +152,7 @@ func toAlertRuleDTO(r store.AlertRule) alertRuleDTO {
 		ID: r.ID, Name: r.Name, Kind: r.Kind, Metric: r.Metric, Op: r.Op, Threshold: r.Threshold, ClearThreshold: r.ClearThreshold,
 		DurationSeconds: r.DurationSeconds, DurationDays: r.DurationDays, ResolveSeconds: r.ResolveSeconds, IncludeOffline: r.IncludeOffline,
 		CheckID: r.CheckID, CheckName: r.CheckName, WarnOrDown: r.WarnOrDown, ExpectedPorts: toExpectedPortDTOs(r.ExpectedPorts),
-		Scope: toScopeDTO(r.Scope, r.GroupName), Severity: r.Severity, Enabled: r.Enabled, ActiveAlerts: r.ActiveAlerts, ChannelIDs: r.ChannelIDs,
+		Scope: toScopeDTO(r.Scope, r.GroupName, r.HostName), Severity: r.Severity, Enabled: r.Enabled, ActiveAlerts: r.ActiveAlerts, ChannelIDs: r.ChannelIDs,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 	}
 }
@@ -167,7 +177,26 @@ func validateRule(r *store.AlertRule) error {
 	if r.ResolveSeconds < 0 || r.ResolveSeconds > maxRuleSeconds {
 		return badRequest("resolve_seconds debe estar entre 0 y %d", maxRuleSeconds)
 	}
+	if err := validateRuleScope(r); err != nil {
+		return err
+	}
 	return validateRuleCondition(r)
+}
+
+// validateRuleScope comprueba que el alcance sirva al tipo de regla (alineado con alert_rules_scope_kind_check, 00029): una
+// regla service_check solo admite all o group (su alcance sale del chequeo) y solo host_status admite un dispositivo
+// (el resto de tipos necesita agente).
+func validateRuleScope(r *store.AlertRule) error {
+	if r.Scope.Type != store.ScopeHost && r.Scope.Type != store.ScopeDevice {
+		return nil
+	}
+	switch {
+	case r.Kind == "service_check":
+		return badRequest("una regla service_check solo admite scope all o group: su alcance sale del chequeo")
+	case r.Scope.Type == store.ScopeDevice && r.Kind != "host_status":
+		return badRequest("scope device solo aplica a reglas host_status: el resto de reglas necesita un host con agente (scope host)")
+	}
+	return nil
 }
 
 func validateRuleCondition(r *store.AlertRule) error {
@@ -485,9 +514,7 @@ func ruleAuditDetail(r store.AlertRule, fields []string) map[string]any {
 	if r.CheckID != nil {
 		d["check_id"] = *r.CheckID
 	}
-	if r.Scope.GroupID != nil {
-		d["group_id"] = *r.Scope.GroupID
-	}
+	addScopeAudit(d, r.Scope)
 	if fields != nil {
 		d["fields"] = fields
 	}

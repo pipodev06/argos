@@ -227,7 +227,8 @@ hs AS (
   SELECT hs.id AS host_id, range_agg(tstzrange(greatest(m.starts_at, ` + fromP + `), least(m.ends_at, ` + toP + `))) AS mr
     FROM hs JOIN maintenance_windows m ON m.ends_at > ` + fromP + ` AND m.starts_at < ` + toP + `
      AND (m.scope_type = 'all'
-          OR (m.scope_type = 'group' AND m.scope_group_id = hs.group_id))
+          OR (m.scope_type = 'group' AND m.scope_group_id = hs.group_id)
+          OR (m.scope_type IN ('host', 'device') AND m.scope_host_id = hs.id))
    GROUP BY hs.id
 )`
 }

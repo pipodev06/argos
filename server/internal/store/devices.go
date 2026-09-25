@@ -346,3 +346,23 @@ func requireScopeHost(ctx context.Context, tx pgx.Tx, sc AlertScope) error {
 	}
 	return nil
 }
+
+// scopeHostGone es el error de dominio cuando el host o dispositivo del alcance desaparece antes de guardar.
+func scopeHostGone(sc AlertScope) error {
+	if sc.Type == ScopeDevice {
+		return ErrDeviceNotFound
+	}
+	return ErrScopeHostNotFound
+}
+
+// requireScopeVisible devuelve ErrNotFound si el ambito no ve un objeto de configuracion con ese alcance: los de
+// un host o dispositivo se ven si ese host esta en un grupo del ambito.
+func (s *Store) requireScopeVisible(ctx context.Context, scope Scope, a AlertScope) error {
+	if scope.sees(a) {
+		return nil
+	}
+	if (a.Type != ScopeDevice && a.Type != ScopeHost) || a.HostID == nil {
+		return ErrNotFound
+	}
+	return s.requireHost(ctx, scope, *a.HostID)
+}

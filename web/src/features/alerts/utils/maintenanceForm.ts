@@ -65,7 +65,7 @@ export function buildMaintenanceInput(
     if (span <= 0) errors.endsAt = 'El fin debe ser posterior al inicio.'
     else if (span > MAX_SPAN) errors.endsAt = 'La ventana no puede durar más de 31 días.'
     else if (d.scope.type === 'all' && span > MAX_SPAN_ALL) {
-      errors.endsAt = 'Sobre todos los hosts no puede durar más de 24 horas: acota el alcance a un grupo.'
+      errors.endsAt = 'Sobre todos los hosts no puede durar más de 24 horas: acota el alcance a un grupo, host o dispositivo.'
     } else if (datesChanged) {
       if (end.getTime() <= now) errors.endsAt = 'El fin ya pasó.'
       else if (start.getTime() < now - MAX_PAST_START) errors.startsAt = 'El inicio no puede ser anterior a 1 hora atrás.'
