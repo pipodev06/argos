@@ -362,7 +362,9 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 	if err != nil {
 		return creds.AgentToken, fmt.Errorf("cliente http: %w", err)
 	}
-	runner := checks.NewRunner(checks.Options{Policy: cfg.CheckAllow, Logger: a.logger})
+	runner := checks.NewRunner(checks.Options{
+		Policy: cfg.CheckAllow, ProbeAllow: cfg.ProbeAllow, MaxChecks: cfg.ProbeMaxChecks, Logger: a.logger,
+	})
 	defer runner.Close()
 	snd, err := sender.New(sender.Options{
 		Endpoint:   serverURL,

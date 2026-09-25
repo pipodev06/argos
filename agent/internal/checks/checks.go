@@ -1,4 +1,4 @@
-// Package checks ejecuta los chequeos de servicios (tcp, http, tls_cert, service)
+// Package checks ejecuta los chequeos de servicios (tcp, http, tls_cert, service, ping)
 // que el servidor asigna al host. Los ejecuta solo el agente, con una politica
 // local de destinos (ARGOS_CHECK_ALLOW) que el servidor no puede ampliar.
 package checks
@@ -14,6 +14,7 @@ const (
 	TypeHTTP    = "http"
 	TypeTLSCert = "tls_cert"
 	TypeService = "service"
+	TypePing    = "ping"
 )
 
 // Estados de un resultado.
@@ -78,6 +79,9 @@ type Check struct {
 	CritDays float64 `json:"crit_days"` // tls_cert
 
 	ServiceName string `json:"service_name"` // service
+
+	Target   string `json:"target"`    // ping: IP literal (nunca hostname); usa warn_ms y crit_ms
+	DeviceID string `json:"device_id"` // ping: solo informativo
 }
 
 // LogValue evita que un slog.Any(check) filtre el secreto.

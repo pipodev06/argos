@@ -23,6 +23,14 @@ type Options struct {
 	Resolve     func(ctx context.Context, host string) ([]netip.Addr, error)
 	OwnIPs      func() []netip.Addr
 	Service     ServiceProber
+
+	// ProbeAllow es la allowlist del colector ping (ARGOS_PROBE_ALLOW); nil o vacia = desactivado.
+	ProbeAllow *ProbePolicy
+	// Pinger envia los echos ICMP; nil = ICMP sin privilegios del SO y, si no, el `ping` del SO.
+	Pinger Pinger
+	// MaxChecks es el tope de chequeos ejecutados; 0 = MaxChecks (20). Un colector con
+	// muchos devices lo sube explicitamente (ARGOS_PROBE_MAX_CHECKS).
+	MaxChecks int
 }
 
 // job es un chequeo en ejecucion periodica.
@@ -44,6 +52,10 @@ type Runner struct {
 	client      *http.Client
 	service     ServiceProber
 	sem         chan struct{}
+	pingSem     chan struct{}
+	maxChecks   int
+	probeAllow  *ProbePolicy
+	pinger      Pinger
 
 	wg sync.WaitGroup
 
@@ -62,6 +74,10 @@ func NewRunner(o Options) *Runner {
 		roots:       o.Roots,
 		service:     o.Service,
 		sem:         make(chan struct{}, MaxConcurrent),
+		pingSem:     make(chan struct{}, MaxPingConcurrent),
+		maxChecks:   o.MaxChecks,
+		probeAllow:  o.ProbeAllow,
+		pinger:      o.Pinger,
 		jobs:        map[string]*job{},
 	}
 	if r.logger == nil {
@@ -72,6 +88,12 @@ func NewRunner(o Options) *Runner {
 	}
 	if r.minInterval <= 0 {
 		r.minInterval = MinInterval * time.Second
+	}
+	if r.maxChecks <= 0 {
+		r.maxChecks = MaxChecks
+	}
+	if r.pinger == nil && r.probeAllow.Enabled() {
+		r.pinger = newSystemPinger()
 	}
 	if r.service == nil {
 		r.service = newServiceProber()
@@ -149,9 +171,9 @@ func (r *Runner) Apply(ctx context.Context, set Set) {
 			delete(r.jobs, id)
 		}
 	}
-	if len(order) > MaxChecks {
+	if len(order) > r.maxChecks {
 		r.logger.Warn("el servidor asigno mas chequeos que el limite, los excedentes se reportan unknown",
-			"assigned", len(order), "limit", MaxChecks)
+			"assigned", len(order), "limit", r.maxChecks)
 	}
 	for i, id := range order {
 		if _, running := r.jobs[id]; running {
@@ -160,7 +182,7 @@ func (r *Runner) Apply(ctx context.Context, set Set) {
 		jctx, cancel := context.WithCancel(ctx)
 		r.jobs[id] = &job{check: want[id], cancel: cancel}
 		r.wg.Add(1)
-		go r.loop(jctx, want[id], i >= MaxChecks)
+		go r.loop(jctx, want[id], i >= r.maxChecks)
 	}
 	r.rev = set.Rev
 }
@@ -191,9 +213,13 @@ func (r *Runner) runOnce(ctx context.Context, c Check, overLimit bool) {
 	if overLimit {
 		out = unknown(DetailUnsupported)
 	} else {
+		sem := r.sem
+		if c.Type == TypePing {
+			sem = r.pingSem
+		}
 		select {
-		case r.sem <- struct{}{}:
-			defer func() { <-r.sem }()
+		case sem <- struct{}{}:
+			defer func() { <-sem }()
 		case <-ctx.Done():
 			return
 		}
