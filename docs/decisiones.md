@@ -54,3 +54,5 @@
 
 - [vigente] Etiquetas de host ELIMINADAS (migracion 00018): reemplaza las decisiones de etiquetas; los grupos se conservan -> [decisiones/2026-09-24-fases-2-y-3.md](decisiones/2026-09-24-fases-2-y-3.md)
 - [2026-09-25 Permisos por grupo](decisiones/2026-09-25-permisos-por-grupo.md) — ámbito por usuario/grupo, tanda 1 hecha (hosts/resumen/grupos/usuarios), tandas 2 y 3 pendientes
+- [2026-09-25 SLA y CSV](decisiones/2026-09-25-sla-csv.md) — diseño aprobado del punto 7 (host_events, disponibilidad, informes CSV); implementación en 3 tandas
+- [2026-09-25 Ping y SNMP](decisiones/2026-09-25-ping-snmp.md) — diseño aprobado del punto 8 (dispositivos sin agente, agente colector, SNMP v3, gosnmp); se implementa después del 7
