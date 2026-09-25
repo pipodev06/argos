@@ -444,9 +444,16 @@ func TestUpdatesModuleSchedule(t *testing.T) {
 
 func TestUnsupportedStatus(t *testing.T) {
 	t.Parallel()
+	// Modulos de siempre: solo 404/405.
+	for code, want := range map[int]bool{404: true, 405: true, 400: false, 413: false, 422: false, 401: false, 403: false, 409: false, 429: false, 500: false, 204: false} {
+		if got := unsupportedStatus(code, false); got != want {
+			t.Errorf("modulo estrecho, status %d: got %t, want %t", code, got, want)
+		}
+	}
+	// updates: cualquier 4xx no transitorio.
 	for code, want := range map[int]bool{400: true, 404: true, 405: true, 413: true, 422: true, 401: false, 403: false, 408: false, 409: false, 429: false, 500: false, 503: false, 204: false} {
-		if got := unsupportedStatus(code); got != want {
-			t.Errorf("status %d: got %t, want %t", code, got, want)
+		if got := unsupportedStatus(code, true); got != want {
+			t.Errorf("updates, status %d: got %t, want %t", code, got, want)
 		}
 	}
 }

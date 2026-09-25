@@ -221,7 +221,7 @@ func (w *worker) handle(ctx context.Context, status int, err error, wasFull bool
 		w.sent, w.lastRev, w.lastSend, w.needFull = true, rev, now, false
 		w.unsupported, w.failing = 0, false
 		return w.every()
-	case unsupportedStatus(status):
+	case unsupportedStatus(status, w.mod.name == ModuleUpdates):
 		w.unsupported++
 		d := backoff(unsupportedBase, unsupportedMax, w.unsupported-1)
 		if w.unsupported == 1 {
@@ -239,12 +239,17 @@ func (w *worker) handle(ctx context.Context, status int, err error, wasFull bool
 	}
 }
 
-// unsupportedStatus: un 4xx que no es transitorio (401/403 credenciales, 408, 429) ni el 409 de
-// need_full significa que el servidor no acepta este modulo (404/405 si es viejo, 400/413/422 si no
-// conoce el modulo): se desactiva con backoff largo en vez de reintentar a cada rato.
-func unsupportedStatus(status int) bool {
+// unsupportedStatus decide si la respuesta significa "el servidor no acepta este modulo": se desactiva con
+// backoff largo en vez de reintentar a cada rato. Para los modulos de siempre (puertos, servicios, procesos)
+// solo cuentan 404/405 (servidor viejo): un 400/413/422 es un fallo del envio y se reintenta como cualquier
+// otro. `broad` (solo el modulo nuevo `updates`) amplia a cualquier 4xx no transitorio, porque un servidor que
+// aun no conoce el modulo responde 400/422.
+func unsupportedStatus(status int, broad bool) bool {
 	if status < 400 || status > 499 {
 		return false
+	}
+	if !broad {
+		return status == http.StatusNotFound || status == http.StatusMethodNotAllowed
 	}
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests:
