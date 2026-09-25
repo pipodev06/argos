@@ -23,7 +23,7 @@ import (
 // Limites de los parametros de la lista de hosts.
 const (
 	maxQueryLen = 128
-	// maxFilterValues acota los valores repetidos de group, os y tag.
+	// maxFilterValues acota los valores repetidos de group y os.
 	maxFilterValues = 20
 	maxCursorLen    = 2048
 	defaultSort     = "severity"
@@ -56,7 +56,6 @@ type hostItemDTO struct {
 	StatusChangedAt time.Time    `json:"status_changed_at"`
 	LastSeenAt      *time.Time   `json:"last_seen_at"`
 	Group           *groupRefDTO `json:"group"`
-	Tags            []string     `json:"tags"`
 	OS              string       `json:"os"`
 	OSName          *string      `json:"os_name"`
 	OSVersion       *string      `json:"os_version"`
@@ -71,7 +70,7 @@ type hostItemDTO struct {
 func toHostItemDTO(h store.HostRow) hostItemDTO {
 	dto := hostItemDTO{
 		ID: h.ID, Hostname: h.Hostname, Status: h.Status, StatusChangedAt: h.StatusChangedAt.UTC(), LastSeenAt: utcPtr(h.LastSeenAt),
-		Group: toGroupRefDTO(h.Group), Tags: nonNilTags(h.Tags), OS: h.OS, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
+		Group: toGroupRefDTO(h.Group), OS: h.OS, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
 		CPUPct: round1(h.CPUPct),
 	}
 	if h.MemUsedMB != nil && h.MemTotalMB != nil && *h.MemTotalMB > 0 {
@@ -152,12 +151,6 @@ func parseHostQuery(v url.Values) (hostQuery, error) {
 		return hostQuery{}, err
 	}
 	f.OSes = oses
-
-	tags, err := parseTagFilter(v["tag"])
-	if err != nil {
-		return hostQuery{}, err
-	}
-	f.Tags = tags
 
 	if f.CPUGt, err = parsePctFilter(v, "cpu_gt"); err != nil {
 		return hostQuery{}, err
@@ -274,7 +267,7 @@ func parsePctFilter(v url.Values, name string) (*float64, error) {
 
 // fingerprint resume filtros, orden y direccion (no el limite: se puede cambiar entre paginas).
 func fingerprint(f store.HostFilter) string {
-	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup, f.OSes, f.Tags, f.Sort, f.Desc,
+	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup, f.OSes, f.Sort, f.Desc,
 		f.CPUGt, f.MemGt, f.DiskGt, f.BatteryLt, f.SeenBefore})
 	if err != nil {
 		return "" // solo strings, bools y listas: no deberia ocurrir
@@ -358,28 +351,3 @@ func (a *API) listHosts(w http.ResponseWriter, r *http.Request) error {
 
 // roundPct redondea un porcentaje a 1 decimal (los DTO de resumen usan value ya redondeado).
 func roundPct(v float64) float64 { return math.Round(v*10) / 10 }
-
-// parseTagFilter valida los filtros tag repetidos (AND): sin distinguir mayusculas, sin repetidos, ordenados.
-func parseTagFilter(raw []string) ([]string, error) {
-	if len(raw) > maxFilterValues {
-		return nil, invalidFilter("maximo %d filtros tag", maxFilterValues)
-	}
-	out := make([]string, 0, len(raw))
-	for _, r := range raw {
-		t, err := checkTag(r)
-		if err != nil {
-			return nil, invalidFilter("tag invalido")
-		}
-		out = append(out, strings.ToLower(t))
-	}
-	slices.Sort(out)
-	return slices.Compact(out), nil
-}
-
-// nonNilTags devuelve siempre una lista (nunca null) pa que el cliente no tenga que distinguirlo.
-func nonNilTags(t []string) []string {
-	if t == nil {
-		return []string{}
-	}
-	return t
-}

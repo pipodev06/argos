@@ -24,7 +24,7 @@ var (
 	validRuleKinds   = map[string]bool{"metric": true, "host_status": true, "no_data": true, "service_check": true}
 	validRuleMetrics = map[string]bool{"cpu_pct": true, "mem_pct": true, "disk_max_pct": true, "battery_pct": true, "load1": true, "load5": true, "load15": true}
 	validRuleOps     = map[string]bool{"gt": true, "lt": true}
-	validScopeTypes  = map[string]bool{store.ScopeAll: true, store.ScopeGroup: true, store.ScopeTag: true}
+	validScopeTypes  = map[string]bool{store.ScopeAll: true, store.ScopeGroup: true}
 )
 
 // --- alcance (regla y ventana de mantenimiento) ---
@@ -33,52 +33,35 @@ type scopeDTO struct {
 	Type      string  `json:"type"`
 	GroupID   *string `json:"group_id"`
 	GroupName *string `json:"group_name"`
-	Tag       *string `json:"tag"`
 }
 
 func toScopeDTO(s store.AlertScope, groupName *string) scopeDTO {
-	return scopeDTO{Type: s.Type, GroupID: s.GroupID, GroupName: groupName, Tag: s.Tag}
+	return scopeDTO{Type: s.Type, GroupID: s.GroupID, GroupName: groupName}
 }
 
 // scopeReq es el alcance que manda el cliente (el nombre del grupo solo se devuelve, no se acepta).
 type scopeReq struct {
 	Type    string  `json:"type"`
 	GroupID *string `json:"group_id"`
-	Tag     *string `json:"tag"`
 }
 
 // toScope valida el alcance y lo normaliza: el tipo fija que campos van (los demas deben faltar).
 func (s scopeReq) toScope() (store.AlertScope, error) {
 	if !validScopeTypes[s.Type] {
-		return store.AlertScope{}, badRequest("scope.type debe ser all, group o tag")
+		return store.AlertScope{}, badRequest("scope.type debe ser all o group")
 	}
 	out := store.AlertScope{Type: s.Type}
 	switch s.Type {
 	case store.ScopeAll:
-		if s.GroupID != nil || s.Tag != nil {
-			return store.AlertScope{}, badRequest("scope all no admite group_id ni etiqueta")
+		if s.GroupID != nil {
+			return store.AlertScope{}, badRequest("scope all no admite group_id")
 		}
 	case store.ScopeGroup:
 		if s.GroupID == nil || !isUUID(*s.GroupID) {
 			return store.AlertScope{}, badRequest("scope.group_id requerido y debe ser un id valido")
 		}
-		if s.Tag != nil {
-			return store.AlertScope{}, badRequest("scope group no admite etiqueta")
-		}
 		id := strings.ToLower(*s.GroupID)
 		out.GroupID = &id
-	case store.ScopeTag:
-		if s.Tag == nil {
-			return store.AlertScope{}, badRequest("scope.tag requerido")
-		}
-		if s.GroupID != nil {
-			return store.AlertScope{}, badRequest("scope tag no admite group_id")
-		}
-		t, err := checkTag(*s.Tag)
-		if err != nil {
-			return store.AlertScope{}, err
-		}
-		out.Tag = &t
 	}
 	return out, nil
 }
@@ -406,9 +389,6 @@ func ruleAuditDetail(r store.AlertRule, fields []string) map[string]any {
 	}
 	if r.Scope.GroupID != nil {
 		d["group_id"] = *r.Scope.GroupID
-	}
-	if r.Scope.Tag != nil {
-		d["tag"] = *r.Scope.Tag
 	}
 	if fields != nil {
 		d["fields"] = fields

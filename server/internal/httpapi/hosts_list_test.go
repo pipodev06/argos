@@ -61,12 +61,6 @@ func TestListHostsQueryParsing(t *testing.T) {
 				t.Errorf("group got %+v", f)
 			}
 		}},
-		{"tags AND", "tag=Prod&tag=sede%20lima&tag=PROD", "", func(t *testing.T, f store.HostFilter) {
-			want := []string{"prod", "sede lima"}
-			if !slices.Equal(f.Tags, want) {
-				t.Errorf("tags got %v, want %v", f.Tags, want)
-			}
-		}},
 		{"os", "os=Windows", "", func(t *testing.T, f store.HostFilter) {
 			if !slices.Equal(f.OSes, []string{"windows"}) {
 				t.Errorf("os got %v", f.OSes)
@@ -137,10 +131,6 @@ func TestListHostsQueryParsing(t *testing.T) {
 		{"seen_before decimal", "seen_before=60.5", "invalid_filter", nil},
 		{"status invalido", "status=roto", "invalid_body", nil},
 		{"group invalido", "group=xyz", "invalid_filter", nil},
-		{"tag vacio", "tag=", "invalid_filter", nil},
-		{"tag largo", "tag=" + strings.Repeat("x", 33), "invalid_filter", nil},
-		{"tag con control", "tag=a%09b", "invalid_filter", nil},
-		{"demasiados tags", strings.Repeat("tag=a&", 21), "invalid_filter", nil},
 		{"sort invalido", "sort=uptime", "invalid_sort", nil},
 		{"dir invalido", "dir=arriba", "invalid_body", nil},
 		{"limit cero", "limit=0", "invalid_body", nil},
@@ -180,7 +170,7 @@ func TestListHostsResponseShape(t *testing.T) {
 	charging := true
 	rows := []store.HostRow{
 		{ID: "id-1", Hostname: "laptop", Status: "up", StatusChangedAt: seen, LastSeenAt: &seen, Group: &store.GroupRef{ID: groupUUID, Name: "Laptops"},
-			Tags: []string{"prod"}, OS: "windows", OSName: &osName, OSVersion: &osVersion,
+			OS: "windows", OSName: &osName, OSVersion: &osVersion,
 			IPs: []netip.Addr{netip.MustParseAddr("127.0.0.1"), netip.MustParseAddr("192.168.1.25")}, CPUPct: &cpu, MemUsedMB: &used, MemTotalMB: &total,
 			DiskPct: &disk, DiskMount: &mount, BootTime: &boot, BatteryPct: &bp, BatteryCharging: &charging},
 		{ID: "id-2", Hostname: "vacio", Status: "pending", StatusChangedAt: seen},
@@ -204,7 +194,7 @@ func TestListHostsResponseShape(t *testing.T) {
 	if data.Total != 2 || len(data.Items) != 2 || data.NextCursor == nil || *data.NextCursor == "" {
 		t.Fatalf("data got %+v", data)
 	}
-	keys := []string{"id", "hostname", "status", "status_changed_at", "last_seen_at", "group", "tags", "os", "os_name", "os_version", "ip", "cpu_pct", "mem_pct", "disk", "boot_time", "battery"}
+	keys := []string{"id", "hostname", "status", "status_changed_at", "last_seen_at", "group", "os", "os_name", "os_version", "ip", "cpu_pct", "mem_pct", "disk", "boot_time", "battery"}
 	wantKeys(t, "item", data.Items[0], keys...)
 	wantKeys(t, "item vacio", data.Items[1], keys...)
 	full := data.Items[0]
@@ -217,17 +207,14 @@ func TestListHostsResponseShape(t *testing.T) {
 	}
 	wantKeys(t, "battery", full["battery"].(map[string]any), "pct", "charging")
 	wantKeys(t, "group", full["group"].(map[string]any), "id", "name")
-	if full["boot_time"] != "2026-09-21T12:00:00Z" || len(full["tags"].([]any)) != 1 {
-		t.Errorf("boot_time/tags got %v / %v", full["boot_time"], full["tags"])
+	if full["boot_time"] != "2026-09-21T12:00:00Z" {
+		t.Errorf("boot_time got %v", full["boot_time"])
 	}
 	empty := data.Items[1]
 	for _, k := range []string{"group", "os_name", "os_version", "ip", "cpu_pct", "mem_pct", "disk", "boot_time", "battery", "last_seen_at"} {
 		if empty[k] != nil {
 			t.Errorf("%s got %v, want null", k, empty[k])
 		}
-	}
-	if l, ok := empty["tags"].([]any); !ok || len(l) != 0 {
-		t.Errorf("tags debe ser [] y no null: %v", empty["tags"])
 	}
 
 	// Ultima pagina: next_cursor null, items [] no nulo.
@@ -360,7 +347,7 @@ func TestHostDetailNewSections(t *testing.T) {
 	fs := &fakeStore{
 		detail: store.HostDetail{
 			ID: detailHostID, Hostname: "srv", Status: "up", StatusChangedAt: fixedNow, CreatedAt: fixedNow,
-			Group: &store.GroupRef{ID: groupUUID, Name: "Srv"}, Tags: []string{"prod"},
+			Group: &store.GroupRef{ID: groupUUID, Name: "Srv"},
 			Info: store.HostInfo{BootTime: &boot, CPUModel: &model, CPUCores: &cores, MemTotalMB: &mem,
 				IPs: []netip.Addr{netip.MustParseAddr("10.0.0.5"), netip.MustParseAddr("fe80::1")}},
 		},
@@ -386,7 +373,7 @@ func TestHostDetailNewSections(t *testing.T) {
 	if err := json.Unmarshal(resp.Data, &d); err != nil {
 		t.Fatal(err)
 	}
-	if d.Host["group"].(map[string]any)["name"] != "Srv" || len(d.Host["tags"].([]any)) != 1 {
+	if d.Host["group"].(map[string]any)["name"] != "Srv" {
 		t.Errorf("host got %v", d.Host)
 	}
 	if d.Info["cpu_model"] != "Ryzen 7" || d.Info["cpu_cores"] != 8.0 || d.Info["mem_total_mb"] != 16000.0 || d.Info["os_name"] != nil ||
@@ -449,5 +436,22 @@ func TestHostFingerprintCoversMultiValueFilters(t *testing.T) {
 		if parse(q) == base {
 			t.Errorf("%q debe dar otra huella (un cursor no vale entre filtros distintos)", q)
 		}
+	}
+}
+
+// tag= (parametro de la funcion de etiquetas eliminada) se ignora como cualquier parametro desconocido: un
+// marcador o enlace viejo sigue funcionando y no filtra nada.
+func TestHostListIgnoresRemovedTagParam(t *testing.T) {
+	t.Parallel()
+	with, err := parseHostQuery(url.Values{"tag": {"prod", "x"}})
+	if err != nil {
+		t.Fatalf("tag= debe ignorarse, got %v", err)
+	}
+	without, err := parseHostQuery(url.Values{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if with.fingerprint != without.fingerprint {
+		t.Error("tag= no debe alterar filtro ni huella del cursor")
 	}
 }

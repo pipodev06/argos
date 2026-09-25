@@ -40,6 +40,10 @@ for mod in "${MODS[@]}"; do
   fmt_out="$(gofmt -l . 2>&1)"
   if [ -z "$fmt_out" ]; then echo "OK   $mod/gofmt"; else FAILED=1; echo "FAIL $mod/gofmt (sin formatear):"; echo "$fmt_out" | head -10; fi
   step "$mod" vet 15 -- go vet "$PKG"
+  # compilacion cruzada: un archivo con sufijo _windows/_linux/_darwin en el nombre solo compila en ese SO (bug real: maintenance_windows.go)
+  for goos in linux darwin; do
+    step "$mod" "vet-$goos" 15 -- env GOOS=$goos GOARCH=amd64 CGO_ENABLED=0 go vet "$PKG"
+  done
   if [ "$FAST" -eq 0 ]; then
     step "$mod" lint 20 -- golangci-lint run
   fi

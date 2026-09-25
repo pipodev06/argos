@@ -75,9 +75,6 @@ func maintenanceAuditDetail(w store.MaintenanceWindow) map[string]any {
 	if w.Scope.GroupID != nil {
 		d["group_id"] = *w.Scope.GroupID
 	}
-	if w.Scope.Tag != nil {
-		d["tag"] = *w.Scope.Tag
-	}
 	return d
 }
 
@@ -120,7 +117,7 @@ func (a *API) createMaintenance(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if req.Scope == nil {
-		return badRequest("scope requerido (el alcance es explicito: all, group o tag)")
+		return badRequest("scope requerido (el alcance es explicito: all o group)")
 	}
 	scope, err := req.Scope.toScope()
 	if err != nil {

@@ -197,7 +197,10 @@ func TestCheckValidation(t *testing.T) {
 		fmt.Sprintf(`{"name":"g2","type":"tcp","target_host":"h","target_port":1,"scope":{"type":"group","group_id":%q}}`, anyUUID),
 		withCookie(e.admin)), http.StatusUnprocessableEntity, "group_not_found")
 	e.create(fmt.Sprintf(`{"name":"g3","type":"service","service_name":"nginx.service","scope":{"type":"group","group_id":%q}}`, g))
-	e.create(`{"name":"t","type":"tls_cert","target_host":"h","target_port":443,"warn_days":30,"crit_days":7,"scope":{"type":"tag","tag":"web"}}`)
+	e.create(`{"name":"t","type":"tls_cert","target_host":"h","target_port":443,"warn_days":30,"crit_days":7,"scope":{"type":"all"}}`)
+	// El alcance por etiqueta ya no existe.
+	e.wantStatus(e.do("POST", "/api/v1/service-checks",
+		`{"name":"etq","type":"tcp","target_host":"h","target_port":1,"scope":{"type":"tag","tag":"web"}}`, withCookie(e.admin)), http.StatusBadRequest, "")
 }
 
 func TestCheckPatchKeepsShapeConsistent(t *testing.T) {
@@ -308,7 +311,7 @@ func TestChecksDeliveryAndRevision(t *testing.T) {
 	if r3.Checks == nil || r3.Checks.Rev == r2.Checks.Rev {
 		t.Fatal("rotar el secreto debe cambiar la revision")
 	}
-	// Sensible al alcance resuelto: sacar el chequeo de grupo (alcance all -> tag sin match) cambia la lista.
+	// Sensible al alcance resuelto: sacar el chequeo de grupo (alcance all -> group sin match) cambia la lista.
 	// Y al desasignar el host del grupo.
 	mustExec(t, `UPDATE hosts SET group_id = NULL WHERE id = $1`, hostA)
 	r4 := e.report(tokA, r3.Checks.Rev, "")

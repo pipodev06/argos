@@ -2,7 +2,6 @@ import type { FilterField, FiltersOf, NumericUnit } from '@/components/filters/t
 import { serializeFilters } from '@/components/filters/urlState'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/pagination'
 import { useGroupOptions } from '../hooks/useGroupOptions'
-import { useTagOptions } from '../hooks/useTagOptions'
 import type { HostStatus } from '../types/host.types'
 import { OS_LABELS } from './os'
 import { HOST_STATUS_LABELS } from './status'
@@ -33,7 +32,7 @@ const SEEN_UNITS: readonly NumericUnit[] = [
 
 /**
  * Campos de filtro de Hosts (orden = orden de la fila y de la URL). Filtros, orden y tamano de pagina
- * viven en la URL (el cursor no). Nombres de parametro: status, group, tag, os, cpu_gt, mem_gt, disk_gt,
+ * viven en la URL (el cursor no). Nombres de parametro: status, group, os, cpu_gt, mem_gt, disk_gt,
  * battery_lt, seen_before, q, sort, dir, limit.
  */
 export const HOST_FIELDS = [
@@ -47,16 +46,6 @@ export const HOST_FIELDS = [
   },
   /** Ids de grupo o "none" (sin grupo). */
   { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions },
-  /** Etiquetas (AND: el host debe tener todas). Parametro repetido `tag=a&tag=b`. */
-  {
-    kind: 'multi',
-    key: 'tags',
-    param: 'tag',
-    label: 'Etiqueta',
-    plural: 'etiquetas',
-    useOptions: useTagOptions,
-    searchAbove: 8,
-  },
   {
     kind: 'multi',
     key: 'os',

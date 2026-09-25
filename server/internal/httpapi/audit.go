@@ -38,7 +38,6 @@ const (
 	evGroupUpdated        = "group_updated"
 	evGroupDeleted        = "group_deleted"
 	evHostGroupSet        = "host_group_set"
-	evHostTagsSet         = "host_tags_set"
 	evHostsBulk           = "hosts_bulk"
 	evAlertAcked          = "alert_acked"
 	evAlertResolved       = "alert_resolved"
@@ -66,8 +65,8 @@ const (
 var auditDetailKeys = map[string]bool{
 	"reason": true, "locked": true, "role": true, "disabled": true,
 	"method": true, "route": true, "count": true, "hostname": true,
-	// Grupos, etiquetas y acciones masivas. De las etiquetas se audita su nombre (no es sensible).
-	"action": true, "group_id": true, "name": true, "always_on": true, "down_after_seconds": true, "tag": true,
+	// Grupos y acciones masivas.
+	"action": true, "group_id": true, "name": true, "always_on": true, "down_after_seconds": true,
 	// Alertas, reglas y mantenimiento: nombres y ajustes, nunca secretos.
 	"severity": true, "kind": true, "metric": true, "enabled": true, "scope_type": true,
 	"starts_at": true, "ends_at": true, "fields": true,

@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -103,6 +104,20 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 		return err
 	}
 	dist := loadDist(logger, cfg.AgentDistDir)
+	var web fs.FS
+	if cfg.WebDir != "" {
+		root, err := httpapi.OpenWebDir(cfg.WebDir)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := root.Close(); err != nil {
+				logger.Warn("cerrando ARGOS_WEB_DIR", "err", err)
+			}
+		}()
+		web = root.FS()
+		logger.Info("frontend servido desde ARGOS_WEB_DIR", "dir", cfg.WebDir)
+	}
 	api := httpapi.New(st, hasher, logger, time.Now, httpapi.Options{
 		PublicURL:       cfg.PublicURL,
 		TrustedProxies:  cfg.TrustedProxies,
@@ -111,6 +126,7 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 		Dist:            dist,
 		Secrets:         nd.box,
 		Webhook:         nd.client,
+		Web:             web,
 	})
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

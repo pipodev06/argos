@@ -17,7 +17,6 @@ const EVENT_LABELS: Record<string, string> = {
   group_updated: 'Grupo actualizado',
   group_deleted: 'Grupo eliminado',
   host_group_set: 'Grupo de host asignado',
-  host_tags_set: 'Etiquetas de host asignadas',
   hosts_bulk: 'Acción masiva de hosts',
   alert_acked: 'Alerta reconocida',
   alert_resolved: 'Alerta resuelta',

@@ -92,7 +92,6 @@ export function describeCondition(
 
 export function scopeLabel(s: Scope): string {
   if (s.type === 'group') return `Grupo: ${s.group_name ?? 'eliminado'}`
-  if (s.type === 'tag') return `Etiqueta: ${s.tag ?? ''}`
   return 'Todos los hosts'
 }
 

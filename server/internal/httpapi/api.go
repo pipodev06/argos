@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/netip"
@@ -35,14 +36,12 @@ type Store interface {
 	RevokeHost(ctx context.Context, hostID string) error
 	Summary(ctx context.Context) (store.Summary, error)
 
-	// Grupos y etiquetas.
+	// Grupos.
 	ListGroups(ctx context.Context) (groups []store.Group, ungrouped int, err error)
 	CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool) (store.Group, error)
 	UpdateGroup(ctx context.Context, id string, ch store.GroupChange) (store.Group, error)
 	DeleteGroup(ctx context.Context, id string) error
 	SetHostGroup(ctx context.Context, hostID string, groupID *string) (store.HostGroupResult, error)
-	SetHostTags(ctx context.Context, hostID string, tags []string) ([]string, error)
-	ListTags(ctx context.Context) ([]store.TagCount, error)
 	BulkHosts(ctx context.Context, b store.Bulk) (int, error)
 
 	// Alertas, reglas, mantenimiento y eventos de host.
@@ -126,6 +125,8 @@ type Options struct {
 	Secrets *notify.Box
 	// Webhook valida y envia los webhooks (con la politica anti-SSRF); nil = igual que Secrets nil.
 	Webhook WebhookClient
+	// Web es el build del frontend (ARGOS_WEB_DIR, ya acotado por os.Root); nil = el server no sirve la SPA.
+	Web fs.FS
 }
 
 // Politica de sesion y bloqueo (decisiones aprobadas).
@@ -255,11 +256,9 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/hosts/bulk", accessAdmin, a.bulkHosts)
 	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
 	a.route(mux, "PUT /api/v1/hosts/{id}/group", accessAdmin, a.setHostGroup)
-	a.route(mux, "PUT /api/v1/hosts/{id}/tags", accessAdmin, a.setHostTags)
 	a.route(mux, "GET /api/v1/hosts/{id}/events", accessSession, a.hostEvents)
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks", accessSession, a.hostServiceChecks)
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks/{check_id}/events", accessSession, a.hostCheckEvents)
-	a.route(mux, "GET /api/v1/tags", accessSession, a.listTags)
 	a.route(mux, "GET /api/v1/summary", accessSession, a.summary)
 	a.route(mux, "GET /api/v1/groups", accessSession, a.listGroups)
 	a.route(mux, "POST /api/v1/groups", accessAdmin, a.createGroup)
@@ -305,6 +304,9 @@ func (a *API) Routes() http.Handler {
 	// Instaladores y descargas del agente (fuera de /api/).
 	a.registerDist(mux)
 
+	// Frontend compilado (ARGOS_WEB_DIR): al final, es el fallback de todo lo que no reclama otra ruta.
+	a.registerWeb(mux)
+
 	return a.securityHeaders(a.hostAllowlist(a.crossOrigin()(a.requireJSON(mux))))
 }
 
@@ -349,9 +351,6 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusConflict, "group_not_empty", "el grupo tiene hosts: muevelos a otro grupo antes de borrarlo")
 	case errors.Is(err, store.ErrTooManyGroups):
 		writeError(w, http.StatusConflict, "too_many_groups", fmt.Sprintf("se alcanzo el maximo de %d grupos", store.MaxGroups))
-	case errors.Is(err, store.ErrTooManyTags):
-		writeError(w, http.StatusUnprocessableEntity, "too_many_tags",
-			fmt.Sprintf("un host admite como maximo %d etiquetas", store.MaxTagsPerHost))
 	case errors.Is(err, store.ErrAlertResolved):
 		writeError(w, http.StatusConflict, "alert_resolved", "la alerta ya esta resuelta")
 	case errors.Is(err, store.ErrRuleExists):

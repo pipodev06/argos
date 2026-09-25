@@ -24,7 +24,6 @@ export interface Host {
   status_changed_at: string
   last_seen_at: string | null
   group: GroupRef | null
-  tags: string[]
   os: string
   os_name?: string | null
   os_version?: string | null
@@ -68,7 +67,6 @@ export interface HostDetail {
   status_changed_at: string
   created_at: string
   group: GroupRef | null
-  tags: string[]
 }
 
 /** Inventario; todo null si el agente no lo mando. */
@@ -138,16 +136,9 @@ export interface HostMetrics {
   points: MetricSample[]
 }
 
-// --- Grupos y etiquetas en mutaciones ---
+// --- Grupo en mutaciones ---
 
 export type BulkRequest =
   | { ids: string[]; action: 'set_group'; group_id: string | null }
-  | { ids: string[]; action: 'add_tag'; tag: string }
-  | { ids: string[]; action: 'remove_tag'; tag: string }
   | { ids: string[]; action: 'disable' }
 
-/** Etiqueta existente con su numero de hosts (GET /tags). */
-export interface TagCount {
-  name: string
-  count: number
-}

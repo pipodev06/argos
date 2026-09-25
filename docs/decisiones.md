@@ -51,3 +51,5 @@
 - [vigente] Alertas y notificaciones (diseno aprobado, en revision de seguridad) -> [decisiones/2026-09-24-alertas.md](decisiones/2026-09-24-alertas.md)
 
 - [vigente] Chequeos de servicios: diseno aprobado y tanda 1 (servidor+agente) implementada -> [decisiones/2026-09-24-chequeos-servicios.md](decisiones/2026-09-24-chequeos-servicios.md)
+
+- [vigente] Etiquetas de host ELIMINADAS (migracion 00018): reemplaza las decisiones de etiquetas; los grupos se conservan -> [decisiones/2026-09-24-fases-2-y-3.md](decisiones/2026-09-24-fases-2-y-3.md)

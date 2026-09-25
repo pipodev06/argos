@@ -46,7 +46,6 @@ func TestHostChecksResolvesScope(t *testing.T) {
 	g1, g2 := mkGroup(t, s, "g1", false, nil), mkGroup(t, s, "g2", false, nil)
 	seedHost(t, "in-g1", "up", ago(time.Second))
 	seedHost(t, "in-g2", "up", ago(time.Second))
-	seedHost(t, "tagged", "up", ago(time.Second))
 	seedHost(t, "bare", "up", ago(time.Second))
 	if _, err := s.SetHostGroup(ctx, hostID(t, "in-g1"), &g1.ID); err != nil {
 		t.Fatal(err)
@@ -54,23 +53,18 @@ func TestHostChecksResolvesScope(t *testing.T) {
 	if _, err := s.SetHostGroup(ctx, hostID(t, "in-g2"), &g2.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SetHostTags(ctx, hostID(t, "tagged"), []string{"Web"}); err != nil {
-		t.Fatal(err)
-	}
 
 	mkCheck(t, s, "all", AlertScope{Type: ScopeAll})
 	mkCheck(t, s, "grp1", AlertScope{Type: ScopeGroup, GroupID: &g1.ID})
-	mkCheck(t, s, "tagweb", AlertScope{Type: ScopeTag, Tag: sptr("web")}) // sin distinguir mayusculas
 	off := mkCheck(t, s, "off", AlertScope{Type: ScopeAll})
 	if _, err := s.UpdateServiceCheck(ctx, off.ID, func(d *ServiceCheckDef) error { d.Enabled = false; return nil }); err != nil {
 		t.Fatal(err)
 	}
 
 	for host, want := range map[string][]string{
-		"in-g1":  {"all", "grp1"},
-		"in-g2":  {"all"},
-		"tagged": {"all", "tagweb"},
-		"bare":   {"all"},
+		"in-g1": {"all", "grp1"},
+		"in-g2": {"all"},
+		"bare":  {"all"},
 	} {
 		got, err := s.HostChecks(ctx, hostID(t, host))
 		if err != nil {

@@ -232,6 +232,7 @@ func TestLoadAlertSettings(t *testing.T) {
 		{name: "notify valido", env: "ARGOS_NOTIFY_INTERVAL", raw: "1s", get: func(c Config) any { return c.NotifyInterval }, want: time.Second},
 		{name: "notify bajo el minimo", env: "ARGOS_NOTIFY_INTERVAL", raw: "200ms", wantErr: true},
 		{name: "notify invalido", env: "ARGOS_NOTIFY_INTERVAL", raw: "seguido", wantErr: true},
+		{name: "web dir", env: "ARGOS_WEB_DIR", raw: "/srv/web", get: func(c Config) any { return c.WebDir }, want: "/srv/web"},
 		{name: "clave de secretos", env: "ARGOS_SECRET_KEY", raw: "abc", get: func(c Config) any { return c.SecretKey }, want: "abc"},
 		{name: "allowlist de webhooks", env: "ARGOS_WEBHOOK_ALLOW_HOSTS", raw: "hooks.internal,10.0.0.0/8", get: func(c Config) any { return c.WebhookAllowHosts }, want: "hooks.internal,10.0.0.0/8"},
 		{name: "CA de webhooks", env: "ARGOS_WEBHOOK_CA_FILE", raw: "/etc/ca.pem", get: func(c Config) any { return c.WebhookCAFile }, want: "/etc/ca.pem"},

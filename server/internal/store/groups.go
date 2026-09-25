@@ -1,12 +1,9 @@
 package store
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -239,150 +236,10 @@ func (s *Store) SetHostGroup(ctx context.Context, hostID string, groupID *string
 	return res, nil
 }
 
-// SetHostTags reemplaza TODAS las etiquetas del host en una transaccion y devuelve las guardadas (orden
-// alfabetico sin distinguir mayusculas). Quien llama valida formato y quita repetidos (sin distinguir
-// mayusculas); aqui se serializa por host (lock de la fila del host) pa que dos reemplazos concurrentes no
-// choquen, cada etiqueta se canonicaliza contra la grafia ya existente en cualquier host y el trigger de la
-// BD es la ultima defensa del limite. ErrNotFound si el host no existe; ErrTooManyTags si supera MaxTagsPerHost.
-func (s *Store) SetHostTags(ctx context.Context, hostID string, tags []string) ([]string, error) {
-	var out []string
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var one int
-		err := tx.QueryRow(ctx, `SELECT 1 FROM hosts WHERE id = $1 FOR NO KEY UPDATE`, hostID).Scan(&one)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return fmt.Errorf("bloqueando host: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM host_tags WHERE host_id = $1`, hostID); err != nil {
-			return fmt.Errorf("borrando etiquetas: %w", err)
-		}
-		if len(tags) == 0 {
-			out = []string{}
-			return nil
-		}
-		canon, err := canonicalTags(ctx, tx, tags)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO host_tags (host_id, tag) SELECT $1, t FROM unnest($2::text[]) AS t`, hostID, canon); err != nil {
-			return mapTagsErr(err, "insertando etiquetas")
-		}
-		out = canon
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	sortTags(out)
-	return out, nil
-}
-
-// sortTags ordena alfabeticamente sin distinguir mayusculas (desempata por grafia).
-func sortTags(tags []string) {
-	slices.SortFunc(tags, func(a, b string) int {
-		if c := cmp.Compare(strings.ToLower(a), strings.ToLower(b)); c != 0 {
-			return c
-		}
-		return cmp.Compare(a, b)
-	})
-}
-
-// canonicalTags devuelve cada etiqueta con la grafia que ya existe (sin distinguir mayusculas) en cualquier
-// host, o tal cual si es nueva. Toma un lock transaccional por etiqueta (en orden) pa que dos transacciones
-// que crean "Ventas" y "ventas" a la vez no fijen dos grafias distintas.
-func canonicalTags(ctx context.Context, tx pgx.Tx, tags []string) ([]string, error) {
-	lowers := make([]string, len(tags))
-	for i, t := range tags {
-		lowers[i] = strings.ToLower(t)
-	}
-	order := slices.Clone(lowers)
-	slices.Sort(order)
-	order = slices.Compact(order)
-	for _, l := range order {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('argos.tag:' || $1, 0))`, l); err != nil {
-			return nil, fmt.Errorf("bloqueando etiqueta: %w", err)
-		}
-	}
-	rows, err := tx.Query(ctx,
-		`SELECT DISTINCT ON (lower(tag)) lower(tag), tag FROM host_tags WHERE lower(tag) = ANY($1) ORDER BY lower(tag), tag`, lowers)
-	if err != nil {
-		return nil, fmt.Errorf("buscando grafia de etiquetas: %w", err)
-	}
-	existing := make(map[string]string, len(tags))
-	for rows.Next() {
-		var l, t string
-		if err := rows.Scan(&l, &t); err != nil {
-			rows.Close()
-			return nil, fmt.Errorf("leyendo etiqueta: %w", err)
-		}
-		existing[l] = t
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterando etiquetas: %w", err)
-	}
-	out := make([]string, len(tags))
-	for i, t := range tags {
-		if c, ok := existing[lowers[i]]; ok {
-			out[i] = c
-		} else {
-			out[i] = t
-		}
-	}
-	return out, nil
-}
-
-// mapTagsErr traduce el limite de etiquetas del trigger (check_violation host_tags_max_per_host).
-func mapTagsErr(err error, what string) error {
-	if isPgConstraint(err, sqlstateCheckViolation, "host_tags_max_per_host") {
-		return ErrTooManyTags
-	}
-	return fmt.Errorf("%s: %w", what, err)
-}
-
-// TagCount es una etiqueta en uso con la cantidad de hosts que la tienen.
-type TagCount struct {
-	Name  string
-	Count int
-}
-
-// maxTagsListed acota ListTags: la respuesta es pa sugerir y filtrar, no un inventario.
-const maxTagsListed = 500
-
-// ListTags devuelve las etiquetas en uso (agrupadas sin distinguir mayusculas) con su conteo de hosts, por
-// conteo descendente y luego nombre, hasta maxTagsListed.
-func (s *Store) ListTags(ctx context.Context) ([]TagCount, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT min(tag), count(*)::int FROM host_tags GROUP BY lower(tag) ORDER BY count(*) DESC, lower(min(tag)), min(tag) LIMIT $1`,
-		maxTagsListed)
-	if err != nil {
-		return nil, fmt.Errorf("listando etiquetas: %w", err)
-	}
-	defer rows.Close()
-
-	tags := []TagCount{}
-	for rows.Next() {
-		var t TagCount
-		if err := rows.Scan(&t.Name, &t.Count); err != nil {
-			return nil, fmt.Errorf("leyendo etiqueta: %w", err)
-		}
-		tags = append(tags, t)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterando etiquetas: %w", err)
-	}
-	return tags, nil
-}
-
 // Acciones de BulkHosts.
 const (
-	BulkSetGroup  = "set_group"
-	BulkAddTag    = "add_tag"
-	BulkRemoveTag = "remove_tag"
-	BulkDisable   = "disable"
+	BulkSetGroup = "set_group"
+	BulkDisable  = "disable"
 )
 
 // Bulk describe una accion masiva sobre hosts (ids ya validados y sin repetir).
@@ -391,13 +248,10 @@ type Bulk struct {
 	Action string
 	// GroupID (set_group): nil = dejar sin grupo.
 	GroupID *string
-	// Tag (add_tag / remove_tag; remove_tag no distingue mayusculas).
-	Tag string
 }
 
 // BulkHosts aplica la accion a todos los hosts en una transaccion (todo o nada) y devuelve cuantos hosts
-// cambiaron de verdad. ErrUnknownHosts si alguno no existe; ErrGroupNotFound (set_group); ErrTooManyTags
-// (add_tag) si algun host superaria el maximo.
+// cambiaron de verdad. ErrUnknownHosts si alguno no existe; ErrGroupNotFound (set_group).
 func (s *Store) BulkHosts(ctx context.Context, b Bulk) (int, error) {
 	var affected int
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -433,24 +287,6 @@ func (s *Store) BulkHosts(ctx context.Context, b Bulk) (int, error) {
 			}
 			if _, err := tx.Exec(ctx, reclassifyHostsSQL, b.IDs); err != nil {
 				return fmt.Errorf("reclasificando hosts: %w", err)
-			}
-		case BulkAddTag:
-			canon, err := canonicalTags(ctx, tx, []string{b.Tag})
-			if err != nil {
-				return err
-			}
-			tag, err = tx.Exec(ctx,
-				`INSERT INTO host_tags (host_id, tag) SELECT u, $2 FROM unnest($1::uuid[]) AS u
-				 ON CONFLICT (host_id, lower(tag)) DO NOTHING`,
-				b.IDs, canon[0])
-			if err != nil {
-				return mapTagsErr(err, "agregando etiqueta")
-			}
-		case BulkRemoveTag:
-			tag, err = tx.Exec(ctx,
-				`DELETE FROM host_tags WHERE host_id = ANY($1) AND lower(tag) = lower($2)`, b.IDs, b.Tag)
-			if err != nil {
-				return fmt.Errorf("quitando etiqueta: %w", err)
 			}
 		case BulkDisable:
 			if err := tx.QueryRow(ctx, disableHostsSQL, b.IDs).Scan(&affected); err != nil {

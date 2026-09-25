@@ -303,9 +303,7 @@ func TestAlertRuleCRUDAndValidation(t *testing.T) {
 		"scope group sin id":     `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"group"}}`,
 		"scope group id malo":    `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"group","group_id":"x"}}`,
 		"scope all con grupo":    `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"all","group_id":"` + g + `"}}`,
-		"scope tag sin tag":      `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"tag"}}`,
-		"scope tag vacia":        `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"tag","tag":"  "}}`,
-		"scope tag con grupo":    `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"tag","tag":"dev","group_id":"` + g + `"}}`,
+		"scope tag ya no vale":   `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"tag","tag":"dev"}}`,
 		"scope all con tag":      `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"all","tag":"dev"}}`,
 		"scope label ya no vale": `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"label","label_key":"env","label_value":"dev"}}`,
 		"campo desconocido":      `{"name":"x","kind":"host_status","duration_seconds":0,"severity":"info","admin":true}`,
@@ -322,9 +320,9 @@ func TestAlertRuleCRUDAndValidation(t *testing.T) {
 	e.wantStatus(e.do("POST", "/api/v1/alert-rules",
 		`{"name":"g","kind":"host_status","duration_seconds":0,"severity":"info","scope":{"type":"group","group_id":"`+missingID+`"}}`, withCookie(e.admin)),
 		http.StatusUnprocessableEntity, "group_not_found")
-	// Alcance por grupo y por etiqueta validos.
+	// Alcance por grupo y global validos.
 	e.createRule(`{"name":"g","kind":"host_status","duration_seconds":120,"severity":"warn","enabled":false,"scope":{"type":"group","group_id":"` + g + `"}}`)
-	e.createRule(`{"name":"l","kind":"no_data","threshold":300,"duration_seconds":0,"severity":"warn","scope":{"type":"tag","tag":"dev"}}`)
+	e.createRule(`{"name":"l","kind":"no_data","threshold":300,"duration_seconds":0,"severity":"warn","scope":{"type":"all"}}`)
 
 	// PATCH: parcial, kind/metric inmutables, clear_threshold null lo borra, validacion sobre el resultado fusionado.
 	patch := func(path, body string) *httptest.ResponseRecorder {
@@ -452,9 +450,9 @@ func TestMaintenanceCRUDAndValidation(t *testing.T) {
 	}
 	e.wantStatus(e.do("POST", "/api/v1/maintenance", `{"name":"x","scope":{"type":"all"},"starts_at":"ayer","ends_at":"hoy"}`, withCookie(e.admin)), http.StatusBadRequest, "invalid_body")
 	e.wantStatus(post(`{"name":"g","scope":{"type":"group","group_id":"`+missingID+`"}}`, now, time.Hour), http.StatusUnprocessableEntity, "group_not_found")
-	// Grupo y etiqueta admiten mas de 24 h.
+	// Grupo admite mas de 24 h.
 	e.wantStatus(post(`{"name":"g","scope":{"type":"group","group_id":"`+g+`"}}`, now, 72*time.Hour), http.StatusCreated, "")
-	id := e.createWindow(`{"name":"l","scope":{"type":"tag","tag":"dev"}}`, 48*time.Hour)
+	id := e.createWindow(`{"name":"l","scope":{"type":"group","group_id":"`+g+`"}}`, 48*time.Hour)
 
 	rec := e.do("GET", "/api/v1/maintenance", "", withCookie(e.viewer))
 	e.wantStatus(rec, http.StatusOK, "")
@@ -567,9 +565,9 @@ func TestHostEventsEndpoint(t *testing.T) {
 
 func TestAuditOfAlertingChangesOnlyKnownKeys(t *testing.T) {
 	e := newAlertEnv(t)
-	const tagName = "etiqueta-auditada"
-	e.createRule(`{"name":"por etiqueta","kind":"no_data","threshold":300,"duration_seconds":0,"severity":"warn","scope":{"type":"tag","tag":"` + tagName + `"}}`)
-	e.createWindow(`{"name":"vent","scope":{"type":"tag","tag":"`+tagName+`"}}`, time.Hour)
+	g := e.newGroup(e.admin, `{"name":"prod"}`)
+	e.createRule(`{"name":"por grupo","kind":"no_data","threshold":300,"duration_seconds":0,"severity":"warn","scope":{"type":"group","group_id":"` + g + `"}}`)
+	e.createWindow(`{"name":"vent","scope":{"type":"group","group_id":"`+g+`"}}`, time.Hour)
 	rules := e.do("GET", "/api/v1/alert-rules", "", withCookie(e.admin))
 	var list struct {
 		Items []struct{ ID string } `json:"items"`
@@ -588,8 +586,8 @@ func TestAuditOfAlertingChangesOnlyKnownKeys(t *testing.T) {
 		`SELECT coalesce(string_agg(detail::text, ' '), '') FROM audit_log WHERE event LIKE 'alert_rule%' OR event LIKE 'maintenance%'`).Scan(&details); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(details, tagName) || strings.Contains(details, "label") {
-		t.Errorf("la auditoria debe llevar el nombre de la etiqueta en la clave tag: %s", details)
+	if !strings.Contains(details, g) || strings.Contains(details, `"tag"`) {
+		t.Errorf("la auditoria debe llevar el grupo en group_id y ninguna clave tag: %s", details)
 	}
 	if !strings.Contains(details, `"fields": ["severity"]`) && !strings.Contains(details, `"fields":["severity"]`) {
 		t.Errorf("el patch debe auditar los campos cambiados: %s", details)

@@ -37,17 +37,12 @@ var (
 	ErrGroupNotEmpty = errors.New("el grupo tiene hosts")
 	// ErrTooManyGroups: ya hay MaxGroups grupos.
 	ErrTooManyGroups = errors.New("demasiados grupos")
-	// ErrTooManyTags: un host superaria MaxTagsPerHost etiquetas.
-	ErrTooManyTags = errors.New("demasiadas etiquetas en un host")
 	// ErrUnknownHosts: alguno de los hosts pedidos no existe.
 	ErrUnknownHosts = errors.New("algun host no existe")
 )
 
-// Limites de grupos y etiquetas. El de etiquetas por host tambien lo fuerza el trigger de la migracion 00016.
-const (
-	MaxGroups      = 200
-	MaxTagsPerHost = 20
-)
+// MaxGroups es el maximo de grupos.
+const MaxGroups = 200
 
 // sqlstateCheckViolation es 23514. Un INSERT sin particion destino falla con este codigo pero sin
 // nombre de constraint; un CHECK real (p. ej. service_checks_status_check) si lo trae.
