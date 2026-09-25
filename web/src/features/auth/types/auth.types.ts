@@ -5,6 +5,9 @@ export interface User {
   username: string
   role: Role
   must_change_password: boolean
+  /** false = viewer restringido a sus grupos. */
+  all_groups: boolean
+  can_inventory: boolean
 }
 
 export interface LoginCredentials {
