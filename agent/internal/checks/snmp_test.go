@@ -304,8 +304,8 @@ func TestSNMPProbeOutcomes(t *testing.T) {
 		{"timeout", snmpCheck("reachable", 0), failing(ErrSNMPTimeout), StatusDown, DetailTimeout, nil, ""},
 		{"auth", snmpCheck("reachable", 0), failing(ErrSNMPAuth), StatusUnknown, DetailAuthFailed, nil, ""},
 		{"no such", snmpCheck("if_oper", 9), failing(ErrSNMPNoSuchObject), StatusUnknown, DetailNoSuchObject, nil, ""},
-		{"giant", snmpCheck("reachable", 0), failing(ErrSNMPTooLarge), StatusUnknown, DetailUnsupported, nil, ""},
-		{"otro error", snmpCheck("reachable", 0), failing(errors.New("boom 192.0.2.10 s3cr3t")), StatusUnknown, DetailUnsupported, nil, ""},
+		{"giant", snmpCheck("reachable", 0), failing(ErrSNMPTooLarge), StatusUnknown, DetailBadResponse, nil, ""},
+		{"otro error", snmpCheck("reachable", 0), failing(errors.New("boom 192.0.2.10 s3cr3t")), StatusUnknown, DetailBadResponse, nil, ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

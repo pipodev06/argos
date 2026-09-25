@@ -29,7 +29,7 @@ const (
 var validCheckDetail = map[string]bool{
 	"": true, "timeout": true, "refused": true, "blocked": true, "tls": true, "not_found": true, "denied": true,
 	"unsupported": true, "status_mismatch": true, "text_mismatch": true, "expired": true, "ok": true,
-	"auth_failed": true, "no_such_object": true,
+	"auth_failed": true, "no_such_object": true, "bad_response": true,
 }
 
 // --- resultados (reporte del agente) ---

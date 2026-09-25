@@ -41,6 +41,9 @@ const (
 	DetailOK             = "ok"
 	DetailAuthFailed     = "auth_failed"
 	DetailNoSuchObject   = "no_such_object"
+	// DetailBadResponse: el equipo respondio pero la respuesta es inutilizable (mal formada, demasiado grande,
+	// tipo inesperado); distinto de "unsupported" (el chequeo mismo no es valido o no se puede ejecutar aqui).
+	DetailBadResponse = "bad_response"
 )
 
 // Limites obligatorios del agente.

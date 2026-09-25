@@ -174,7 +174,7 @@ func (r *Runner) probeSNMP(ctx context.Context, c Check) outcome {
 		return outcome{status: StatusUnknown, detail: DetailNoSuchObject, ms: ms}
 	default: // incluye ErrSNMPTooLarge y respuestas mal formadas
 		r.recordSNMP(d, true)
-		return outcome{status: StatusUnknown, detail: DetailUnsupported, ms: ms}
+		return outcome{status: StatusUnknown, detail: DetailBadResponse, ms: ms}
 	}
 }
 
