@@ -34,6 +34,7 @@ type DeliveryJob struct {
 	Severity     string
 	TriggerValue *float64
 	Threshold    *float64
+	Detail       *string
 
 	ChannelName    string
 	ChannelKind    string
@@ -61,7 +62,7 @@ WITH due AS (
   RETURNING d.id, d.alert_id, d.channel_id, d.event, d.seq, d.attempts, d.created_at
 )
 SELECT up.id, up.alert_id, up.channel_id, up.event, up.seq, up.attempts, up.created_at,
-       h.hostname, a.rule_name, a.severity, a.trigger_value, a.threshold,
+       h.hostname, a.rule_name, a.severity, a.trigger_value, a.threshold, a.detail,
        c.name, c.kind, c.enabled, c.secret_enc, c.secret_key_id
   FROM up
   JOIN alerts a ON a.id = up.alert_id
@@ -78,7 +79,7 @@ func (s *Store) ClaimDeliveries(ctx context.Context, limit int, warnDelay, lease
 	jobs, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (DeliveryJob, error) {
 		var j DeliveryJob
 		err := row.Scan(&j.ID, &j.AlertID, &j.ChannelID, &j.Event, &j.Seq, &j.Attempts, &j.CreatedAt,
-			&j.Hostname, &j.RuleName, &j.Severity, &j.TriggerValue, &j.Threshold,
+			&j.Hostname, &j.RuleName, &j.Severity, &j.TriggerValue, &j.Threshold, &j.Detail,
 			&j.ChannelName, &j.ChannelKind, &j.ChannelEnabled, &j.SecretEnc, &j.SecretKeyID)
 		return j, err
 	})

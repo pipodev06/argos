@@ -63,7 +63,7 @@ func TestBuildMessageIsValidJSONWithOnlyTheAllowedFields(t *testing.T) {
 	alert := m["alerts"].([]any)[0].(map[string]any)
 	for k := range alert {
 		switch k {
-		case "event", "state", "hostname", "rule", "severity", "value", "threshold", "url":
+		case "event", "state", "hostname", "rule", "severity", "value", "threshold", "detail", "url":
 		default:
 			t.Errorf("campo inesperado en la alerta: %q", k)
 		}
@@ -75,7 +75,7 @@ func TestBuildMessageIsValidJSONWithOnlyTheAllowedFields(t *testing.T) {
 	if got := alert["url"]; got != "https://argos.example.com/alertas/11111111-1111-4111-8111-111111111111" {
 		t.Errorf("url got %v", got)
 	}
-	if strings.ContainsAny(alert["hostname"].(string), "\r\n") || strings.ContainsRune(alert["rule"].(string), '‮') {
+	if strings.ContainsAny(alert["hostname"].(string), "\r\n") || strings.ContainsRune(alert["rule"].(string), rune(0x202e)) {
 		t.Errorf("caracteres de control o bidi en el mensaje: %v", alert)
 	}
 	if alert["state"] != "firing" {
@@ -127,5 +127,37 @@ func TestBuildTestMessageCarriesNoAlertData(t *testing.T) {
 	}
 	if err := json.Unmarshal(raw, &m); err != nil || m.Kind != "test" || len(m.Alerts) != 0 {
 		t.Errorf("got %+v, %v", m, err)
+	}
+}
+
+func TestBuildMessageIncludesCleanedDetailInAlertAndText(t *testing.T) {
+	t.Parallel()
+	raw, err := BuildMessage([]Item{{Event: "opened", Hostname: "srv", Rule: "puertos", Severity: "warn", Value: f64(2),
+		Detail: "tcp/22,\r\n" + string(rune(0x202e)) + "tcp/80"}}, 0, "", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct {
+		Text   string `json:"text"`
+		Alerts []struct {
+			Detail string `json:"detail"`
+		} `json:"alerts"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Alerts[0].Detail; got != "tcp/22,tcp/80" || strings.ContainsAny(got, "\r\n"+string(rune(0x202e))) {
+		t.Errorf("detail got %q, want limpio", got)
+	}
+	if !strings.Contains(m.Text, "puertos: tcp/22") || strings.Count(m.Text, "\n") != 0 {
+		t.Errorf("text got %q", m.Text)
+	}
+	// Sin detalle, el campo no aparece.
+	raw, err = BuildMessage([]Item{{Event: "opened", Hostname: "srv", Rule: "cpu", Severity: "warn"}}, 0, "", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"detail"`) {
+		t.Errorf("no debe haber detail sin detalle: %s", raw)
 	}
 }

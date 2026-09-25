@@ -16,12 +16,14 @@ const (
 	defaultResolveSecs = 60
 	minNoDataSeconds   = 60
 	maxNoDataSeconds   = 30 * 24 * 3600
-	maxPctThreshold    = 100
-	maxLoadThreshold   = 1e6
+	// maxRuleBodyBytes: 100 puertos esperados en JSON (con espacios) no caben en maxSmallBodyBytes (4 KiB).
+	maxRuleBodyBytes = 16 << 10
+	maxPctThreshold  = 100
+	maxLoadThreshold = 1e6
 )
 
 var (
-	validRuleKinds   = map[string]bool{"metric": true, "host_status": true, "no_data": true, "service_check": true}
+	validRuleKinds   = map[string]bool{"metric": true, "host_status": true, "no_data": true, "service_check": true, "exposed_port": true}
 	validRuleMetrics = map[string]bool{"cpu_pct": true, "mem_pct": true, "disk_max_pct": true, "battery_pct": true, "load1": true, "load5": true, "load15": true}
 	validRuleOps     = map[string]bool{"gt": true, "lt": true}
 	validScopeTypes  = map[string]bool{store.ScopeAll: true, store.ScopeGroup: true}
@@ -69,33 +71,34 @@ func (s scopeReq) toScope() (store.AlertScope, error) {
 // --- reglas ---
 
 type alertRuleDTO struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Kind            string    `json:"kind"`
-	Metric          *string   `json:"metric"`
-	Op              *string   `json:"op"`
-	Threshold       *float64  `json:"threshold"`
-	ClearThreshold  *float64  `json:"clear_threshold"`
-	DurationSeconds int       `json:"duration_seconds"`
-	ResolveSeconds  int       `json:"resolve_seconds"`
-	IncludeOffline  bool      `json:"include_offline"`
-	CheckID         *string   `json:"check_id"`
-	CheckName       *string   `json:"check_name"`
-	WarnOrDown      bool      `json:"warn_or_down"`
-	Scope           scopeDTO  `json:"scope"`
-	Severity        string    `json:"severity"`
-	Enabled         bool      `json:"enabled"`
-	ActiveAlerts    int       `json:"active_alerts"`
-	ChannelIDs      []string  `json:"channel_ids"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	Kind            string            `json:"kind"`
+	Metric          *string           `json:"metric"`
+	Op              *string           `json:"op"`
+	Threshold       *float64          `json:"threshold"`
+	ClearThreshold  *float64          `json:"clear_threshold"`
+	DurationSeconds int               `json:"duration_seconds"`
+	ResolveSeconds  int               `json:"resolve_seconds"`
+	IncludeOffline  bool              `json:"include_offline"`
+	CheckID         *string           `json:"check_id"`
+	CheckName       *string           `json:"check_name"`
+	WarnOrDown      bool              `json:"warn_or_down"`
+	ExpectedPorts   []expectedPortDTO `json:"expected_ports"`
+	Scope           scopeDTO          `json:"scope"`
+	Severity        string            `json:"severity"`
+	Enabled         bool              `json:"enabled"`
+	ActiveAlerts    int               `json:"active_alerts"`
+	ChannelIDs      []string          `json:"channel_ids"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
 func toAlertRuleDTO(r store.AlertRule) alertRuleDTO {
 	return alertRuleDTO{
 		ID: r.ID, Name: r.Name, Kind: r.Kind, Metric: r.Metric, Op: r.Op, Threshold: r.Threshold, ClearThreshold: r.ClearThreshold,
 		DurationSeconds: r.DurationSeconds, ResolveSeconds: r.ResolveSeconds, IncludeOffline: r.IncludeOffline,
-		CheckID: r.CheckID, CheckName: r.CheckName, WarnOrDown: r.WarnOrDown,
+		CheckID: r.CheckID, CheckName: r.CheckName, WarnOrDown: r.WarnOrDown, ExpectedPorts: toExpectedPortDTOs(r.ExpectedPorts),
 		Scope: toScopeDTO(r.Scope, r.GroupName), Severity: r.Severity, Enabled: r.Enabled, ActiveAlerts: r.ActiveAlerts, ChannelIDs: r.ChannelIDs,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 	}
@@ -110,7 +113,7 @@ func validateRule(r *store.AlertRule) error {
 	}
 	r.Name = name
 	if !validRuleKinds[r.Kind] {
-		return badRequest("kind debe ser metric, host_status, no_data o service_check")
+		return badRequest("kind debe ser metric, host_status, no_data, service_check o exposed_port")
 	}
 	if !validAlertSeverity[r.Severity] {
 		return badRequest("severity debe ser info, warn o critical")
@@ -125,6 +128,9 @@ func validateRule(r *store.AlertRule) error {
 }
 
 func validateRuleCondition(r *store.AlertRule) error {
+	if r.Kind != "exposed_port" && len(r.ExpectedPorts) > 0 {
+		return badRequest("expected_ports solo aplica a reglas exposed_port")
+	}
 	if r.Kind != "service_check" && (r.CheckID != nil || r.WarnOrDown) {
 		return badRequest("check_id y warn_or_down solo aplican a reglas service_check")
 	}
@@ -136,6 +142,11 @@ func validateRuleCondition(r *store.AlertRule) error {
 		if r.CheckID == nil || !isUUID(*r.CheckID) {
 			return badRequest("check_id requerido y debe ser un id valido")
 		}
+	case "exposed_port":
+		if r.Metric != nil || r.Op != nil || r.Threshold != nil || r.ClearThreshold != nil {
+			return badRequest("una regla exposed_port no admite metric, op, threshold ni clear_threshold")
+		}
+		return validateExpectedPorts(r.ExpectedPorts)
 	case "host_status":
 		if r.Metric != nil || r.Op != nil || r.Threshold != nil || r.ClearThreshold != nil {
 			return badRequest("una regla host_status no admite metric, op, threshold ni clear_threshold")
@@ -202,25 +213,26 @@ func (a *API) getAlertRule(w http.ResponseWriter, r *http.Request) error {
 }
 
 type createAlertRuleReq struct {
-	Name            string    `json:"name"`
-	Kind            string    `json:"kind"`
-	Metric          *string   `json:"metric"`
-	Op              *string   `json:"op"`
-	Threshold       *float64  `json:"threshold"`
-	ClearThreshold  *float64  `json:"clear_threshold"`
-	DurationSeconds *int      `json:"duration_seconds"`
-	ResolveSeconds  *int      `json:"resolve_seconds"`
-	IncludeOffline  bool      `json:"include_offline"`
-	CheckID         *string   `json:"check_id"`
-	WarnOrDown      bool      `json:"warn_or_down"`
-	Scope           *scopeReq `json:"scope"`
-	Severity        string    `json:"severity"`
-	Enabled         *bool     `json:"enabled"`
+	Name            string            `json:"name"`
+	Kind            string            `json:"kind"`
+	Metric          *string           `json:"metric"`
+	Op              *string           `json:"op"`
+	Threshold       *float64          `json:"threshold"`
+	ClearThreshold  *float64          `json:"clear_threshold"`
+	DurationSeconds *int              `json:"duration_seconds"`
+	ResolveSeconds  *int              `json:"resolve_seconds"`
+	IncludeOffline  bool              `json:"include_offline"`
+	CheckID         *string           `json:"check_id"`
+	WarnOrDown      bool              `json:"warn_or_down"`
+	ExpectedPorts   []expectedPortDTO `json:"expected_ports"`
+	Scope           *scopeReq         `json:"scope"`
+	Severity        string            `json:"severity"`
+	Enabled         *bool             `json:"enabled"`
 }
 
 func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 	var req createAlertRuleReq
-	if err := decodeJSON(w, r, &req, maxSmallBodyBytes, true); err != nil {
+	if err := decodeJSON(w, r, &req, maxRuleBodyBytes, true); err != nil {
 		return err
 	}
 	if req.DurationSeconds == nil {
@@ -229,7 +241,7 @@ func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 	rule := store.AlertRule{
 		Name: req.Name, Kind: req.Kind, Metric: req.Metric, Op: req.Op, Threshold: req.Threshold, ClearThreshold: req.ClearThreshold,
 		DurationSeconds: *req.DurationSeconds, ResolveSeconds: defaultResolveSecs, IncludeOffline: req.IncludeOffline,
-		CheckID: req.CheckID, WarnOrDown: req.WarnOrDown,
+		CheckID: req.CheckID, WarnOrDown: req.WarnOrDown, ExpectedPorts: fromExpectedPortDTOs(req.ExpectedPorts),
 		Scope: store.AlertScope{Type: store.ScopeAll}, Severity: req.Severity, Enabled: true,
 	}
 	if rule.CheckID != nil {
@@ -269,17 +281,18 @@ func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 // updateAlertRuleReq: PATCH parcial. kind, metric y check_id no se pueden cambiar (campo desconocido = 400): una regla con
 // alertas abiertas no cambia de naturaleza; se crea otra.
 type updateAlertRuleReq struct {
-	Name            *string           `json:"name"`
-	Op              *string           `json:"op"`
-	Threshold       *float64          `json:"threshold"`
-	ClearThreshold  optional[float64] `json:"clear_threshold"`
-	DurationSeconds *int              `json:"duration_seconds"`
-	ResolveSeconds  *int              `json:"resolve_seconds"`
-	IncludeOffline  *bool             `json:"include_offline"`
-	WarnOrDown      *bool             `json:"warn_or_down"`
-	Scope           *scopeReq         `json:"scope"`
-	Severity        *string           `json:"severity"`
-	Enabled         *bool             `json:"enabled"`
+	Name            *string            `json:"name"`
+	Op              *string            `json:"op"`
+	Threshold       *float64           `json:"threshold"`
+	ClearThreshold  optional[float64]  `json:"clear_threshold"`
+	DurationSeconds *int               `json:"duration_seconds"`
+	ResolveSeconds  *int               `json:"resolve_seconds"`
+	IncludeOffline  *bool              `json:"include_offline"`
+	WarnOrDown      *bool              `json:"warn_or_down"`
+	ExpectedPorts   *[]expectedPortDTO `json:"expected_ports"`
+	Scope           *scopeReq          `json:"scope"`
+	Severity        *string            `json:"severity"`
+	Enabled         *bool              `json:"enabled"`
 }
 
 func (a *API) updateAlertRule(w http.ResponseWriter, r *http.Request) error {
@@ -288,7 +301,7 @@ func (a *API) updateAlertRule(w http.ResponseWriter, r *http.Request) error {
 		return badRequest("id invalido")
 	}
 	var req updateAlertRuleReq
-	if err := decodeJSON(w, r, &req, maxSmallBodyBytes, true); err != nil {
+	if err := decodeJSON(w, r, &req, maxRuleBodyBytes, true); err != nil {
 		return err
 	}
 	fields := changedRuleFields(req)
@@ -344,6 +357,9 @@ func applyRulePatch(rule *store.AlertRule, req updateAlertRuleReq, scope *store.
 	if req.WarnOrDown != nil {
 		rule.WarnOrDown = *req.WarnOrDown
 	}
+	if req.ExpectedPorts != nil {
+		rule.ExpectedPorts = fromExpectedPortDTOs(*req.ExpectedPorts)
+	}
 	if scope != nil {
 		rule.Scope = *scope
 	}
@@ -371,6 +387,7 @@ func changedRuleFields(req updateAlertRuleReq) []string {
 	add(req.ResolveSeconds != nil, "resolve_seconds")
 	add(req.IncludeOffline != nil, "include_offline")
 	add(req.WarnOrDown != nil, "warn_or_down")
+	add(req.ExpectedPorts != nil, "expected_ports")
 	add(req.Scope != nil, "scope")
 	add(req.Severity != nil, "severity")
 	add(req.Enabled != nil, "enabled")
@@ -409,5 +426,49 @@ func (a *API) deleteAlertRule(w http.ResponseWriter, r *http.Request) error {
 	e.Event, e.Outcome, e.TargetType, e.TargetID = evAlertRuleDeleted, store.OutcomeOK, "alert_rule", id
 	a.audit(r, e, map[string]any{"name": name})
 	writeJSON(w, http.StatusOK, map[string]any{})
+	return nil
+}
+
+// --- puertos esperados (kind exposed_port) ---
+
+type expectedPortDTO struct {
+	Proto string `json:"proto"`
+	Port  int    `json:"port"`
+}
+
+func toExpectedPortDTOs(in []store.ExpectedPort) []expectedPortDTO {
+	out := make([]expectedPortDTO, len(in))
+	for i, p := range in {
+		out[i] = expectedPortDTO{Proto: p.Proto, Port: p.Port}
+	}
+	return out
+}
+
+func fromExpectedPortDTOs(in []expectedPortDTO) []store.ExpectedPort {
+	out := make([]store.ExpectedPort, len(in))
+	for i, p := range in {
+		out[i] = store.ExpectedPort{Proto: p.Proto, Port: p.Port}
+	}
+	return out
+}
+
+// validateExpectedPorts: max 100, proto tcp|udp, puerto 1-65535, sin repetidos.
+func validateExpectedPorts(ports []store.ExpectedPort) error {
+	if len(ports) > store.MaxExpectedPorts {
+		return badRequest("expected_ports admite como maximo %d puertos", store.MaxExpectedPorts)
+	}
+	seen := make(map[store.ExpectedPort]bool, len(ports))
+	for _, p := range ports {
+		if p.Proto != "tcp" && p.Proto != "udp" {
+			return badRequest("expected_ports[].proto debe ser tcp o udp")
+		}
+		if p.Port < 1 || p.Port > 65535 {
+			return badRequest("expected_ports[].port debe estar entre 1 y 65535")
+		}
+		if seen[p] {
+			return badRequest("expected_ports no admite puertos repetidos")
+		}
+		seen[p] = true
+	}
 	return nil
 }

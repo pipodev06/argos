@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -20,6 +21,7 @@ var (
 
 // Topes de cardinalidad.
 const (
+	MaxExpectedPorts     = 100
 	MaxAlertRules        = 200
 	MaxActiveMaintenance = 50
 )
@@ -34,6 +36,12 @@ const (
 type AlertScope struct {
 	Type    string
 	GroupID *string
+}
+
+// ExpectedPort es un puerto que una regla exposed_port ignora (proto tcp|udp).
+type ExpectedPort struct {
+	Proto string `json:"proto"`
+	Port  int    `json:"port"`
 }
 
 // AlertRule es una regla de alerta.
@@ -53,7 +61,9 @@ type AlertRule struct {
 	CheckName *string
 	// WarnOrDown (solo service_check): tambien incumple con warn, no solo con down.
 	WarnOrDown bool
-	Scope      AlertScope
+	// ExpectedPorts (solo kind exposed_port): puertos que la regla ignora (max MaxExpectedPorts).
+	ExpectedPorts []ExpectedPort
+	Scope         AlertScope
 	// GroupName es el nombre del grupo del alcance (solo lectura).
 	GroupName *string
 	Severity  string
@@ -68,7 +78,7 @@ type AlertRule struct {
 
 const alertRuleSelect = `
 SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.duration_seconds, r.resolve_seconds,
-       r.include_offline, r.scope_type, r.scope_group_id, g.name, r.check_id, cd.name, r.warn_is_breach,
+       r.include_offline, r.scope_type, r.scope_group_id, g.name, r.check_id, cd.name, r.warn_is_breach, r.expected_ports,
        r.severity, r.enabled, r.created_at, r.updated_at,
        (SELECT count(*)::int FROM alerts a WHERE a.rule_id = r.id AND a.state <> 'resolved'),
        COALESCE((SELECT array_agg(rc.channel_id::text ORDER BY rc.channel_id) FROM rule_channels rc WHERE rc.rule_id = r.id), '{}')
@@ -77,10 +87,17 @@ SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.d
 
 func scanAlertRule(row pgx.Row) (AlertRule, error) {
 	var r AlertRule
+	var expected []byte
 	err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Metric, &r.Op, &r.Threshold, &r.ClearThreshold, &r.DurationSeconds,
 		&r.ResolveSeconds, &r.IncludeOffline, &r.Scope.Type, &r.Scope.GroupID,
-		&r.GroupName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
-	return r, err
+		&r.GroupName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &expected, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
+	if err != nil {
+		return r, err
+	}
+	if err := json.Unmarshal(expected, &r.ExpectedPorts); err != nil {
+		return r, fmt.Errorf("leyendo expected_ports: %w", err)
+	}
+	return r, nil
 }
 
 // Nombres de constraint que se traducen a errores de dominio.
@@ -201,16 +218,20 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		if n >= MaxAlertRules {
 			return ErrTooManyRules
 		}
+		expected, err := marshalExpectedPorts(r.ExpectedPorts)
+		if err != nil {
+			return err
+		}
 		var id string
-		err := tx.QueryRow(ctx,
+		err = tx.QueryRow(ctx,
 			`INSERT INTO alert_rules (name, kind, metric, op, threshold, clear_threshold, duration_seconds, resolve_seconds,
 			                          include_offline, scope_type, scope_group_id,
-			                          severity, enabled, created_by, check_id, warn_is_breach)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, '')::uuid, $15, $16)
+			                          severity, enabled, created_by, check_id, warn_is_breach, expected_ports)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, '')::uuid, $15, $16, $17)
 			 RETURNING id`,
 			r.Name, r.Kind, r.Metric, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds,
 			r.IncludeOffline, r.Scope.Type, r.Scope.GroupID,
-			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown).Scan(&id)
+			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown, expected).Scan(&id)
 		if err != nil {
 			return mapRuleErr(err, "insertando regla de alerta")
 		}
@@ -221,6 +242,18 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		return AlertRule{}, err
 	}
 	return out, nil
+}
+
+// marshalExpectedPorts serializa la lista (nil = arreglo vacio, nunca null: la columna es NOT NULL).
+func marshalExpectedPorts(p []ExpectedPort) ([]byte, error) {
+	if p == nil {
+		p = []ExpectedPort{}
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("serializando expected_ports: %w", err)
+	}
+	return b, nil
 }
 
 func mapRuleErr(err error, what string) error {
@@ -236,7 +269,7 @@ func mapRuleErr(err error, what string) error {
 }
 
 // UpdateAlertRule bloquea la regla, deja que mutate la modifique (validando; su error se devuelve tal cual) y
-// guarda los campos editables (no kind, metric ni check_id). ErrNotFound, ErrRuleExists o ErrGroupNotFound segun el caso.
+// guarda los campos editables (no kind, metric ni check_id; si expected_ports). ErrNotFound, ErrRuleExists o ErrGroupNotFound segun el caso.
 func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*AlertRule) error) (AlertRule, error) {
 	var out AlertRule
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -247,13 +280,17 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*Ale
 		if err := mutate(&r); err != nil {
 			return err
 		}
+		expected, err := marshalExpectedPorts(r.ExpectedPorts)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx,
 			`UPDATE alert_rules SET name = $2, op = $3, threshold = $4, clear_threshold = $5, duration_seconds = $6,
 			        resolve_seconds = $7, include_offline = $8, scope_type = $9, scope_group_id = $10,
-			        severity = $11, enabled = $12, warn_is_breach = $13, updated_at = now()
+			        severity = $11, enabled = $12, warn_is_breach = $13, expected_ports = $14, updated_at = now()
 			  WHERE id = $1`,
 			id, r.Name, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds, r.IncludeOffline,
-			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown); err != nil {
+			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected); err != nil {
 			return mapRuleErr(err, "actualizando regla de alerta")
 		}
 		out, err = alertRuleByID(ctx, tx, id, "")
