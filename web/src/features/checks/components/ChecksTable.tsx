@@ -2,9 +2,9 @@ import { IconKey, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from 
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
-import { formatSeconds, scopeLabel } from '@/features/alerts/utils/format'
+import { formatSeconds } from '@/features/alerts/utils/format'
 import type { ServiceCheck } from '../types/check.types'
-import { checkTarget, CHECK_TYPE_LABELS } from '../utils/format'
+import { checkScopeLabel, checkTarget, CHECK_TYPE_LABELS } from '../utils/format'
 
 export type CheckAction = 'edit' | 'toggle' | 'delete'
 
@@ -42,7 +42,7 @@ export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps
               {checkTarget(c)}
             </Cell>
             <Cell className="tabular-nums">{formatSeconds(c.interval_seconds)}</Cell>
-            <Cell className="max-w-48 truncate">{scopeLabel(c.scope)}</Cell>
+            <Cell className="max-w-48 truncate">{checkScopeLabel(c)}</Cell>
             <Cell>
               <RuleEnabledBadge enabled={c.enabled} />
             </Cell>

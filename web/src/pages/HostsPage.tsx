@@ -63,7 +63,7 @@ export function HostsPage() {
   function toggleAll(on: boolean) {
     setSelected((prev) => {
       const next = new Set(prev)
-      data?.items.forEach((h) => (on ? next.add(h.id) : next.delete(h.id)))
+      data?.items.filter((h) => h.kind === 'agent').forEach((h) => (on ? next.add(h.id) : next.delete(h.id)))
       return next
     })
   }

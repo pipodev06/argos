@@ -6,6 +6,7 @@ import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import { ScopeFields } from '@/features/alerts/components/ScopeFields'
+import { ALL_SCOPE } from '@/features/alerts/utils/scope'
 import { mapChannelError } from '@/features/channels/utils/errors'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { createCheck, updateCheck } from '../services/checks.service'
@@ -66,6 +67,11 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
     if (ok) onSaved()
   }
 
+  // El alcance de un dispositivo solo vale para ping: al cambiar a otro tipo vuelve a "todos".
+  function changeType(type: string) {
+    setDraft((d) => ({ ...d, type: type as CheckType, scope: d.scope.type === 'device' && type !== 'ping' ? ALL_SCOPE : d.scope }))
+  }
+
   const hasSecret = check?.has_secret ?? false
 
   return (
@@ -73,7 +79,7 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
       <DialogHeader>
         <DialogTitle>{editing ? 'Editar chequeo' : 'Nuevo chequeo'}</DialogTitle>
         <DialogDescription>
-          Por seguridad el agente solo comprueba el propio equipo salvo que el host tenga una lista de permitidos local (ARGOS_CHECK_ALLOW).
+          Por seguridad el agente solo comprueba el propio equipo salvo que el host tenga una lista de permitidos local (ARGOS_CHECK_ALLOW; para ping, ARGOS_PROBE_ALLOW).
         </DialogDescription>
       </DialogHeader>
       <FormField id="check-name" label="Nombre" maxLength={MAX_NAME} autoComplete="off" autoFocus {...text('name')} />
@@ -81,7 +87,7 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
         id="check-type"
         label="Tipo"
         value={draft.type}
-        onChange={(v) => set('type', v as CheckType)}
+        onChange={changeType}
         options={CHECK_TYPE_OPTIONS}
         disabled={editing}
         hint={editing ? 'El tipo no se puede cambiar; crea otro chequeo si lo necesitas distinto.' : undefined}
@@ -129,7 +135,7 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
       )}
       {draft.type === 'service' && <FormField id="check-service" label="Nombre del servicio" autoComplete="off" {...text('serviceName')} />}
 
-      {(draft.type === 'tcp' || draft.type === 'http') && (
+      {(draft.type === 'tcp' || draft.type === 'http' || draft.type === 'ping') && (
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField id="check-warn-ms" label="Advertencia (ms)" inputMode="numeric" hint="Opcional." autoComplete="off" {...text('warnMs')} />
           <FormField id="check-crit-ms" label="Crítico (ms)" inputMode="numeric" hint="Opcional." autoComplete="off" {...text('critMs')} />
@@ -184,7 +190,7 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
         <FormField id="check-timeout" label="Timeout (ms)" inputMode="numeric" autoComplete="off" hint="200 a 30 000." {...text('timeout')} />
         <FormField id="check-retries" label="Reintentos" inputMode="numeric" autoComplete="off" hint="0 a 3." {...text('retries')} />
       </div>
-      <ScopeFields id="check" value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
+      <ScopeFields id="check" ping={draft.type === 'ping'} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
       <label htmlFor="check-enabled" className="flex items-start gap-2 text-sm">
         <Checkbox id="check-enabled" className="mt-0.5" checked={draft.enabled} onCheckedChange={(v) => set('enabled', v === true)} />
         <span>

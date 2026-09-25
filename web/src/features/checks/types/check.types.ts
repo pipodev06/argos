@@ -1,6 +1,6 @@
 import type { Scope, ScopeInput } from '@/features/alerts/types/alert.types'
 
-export type CheckType = 'tcp' | 'http' | 'tls_cert' | 'service'
+export type CheckType = 'tcp' | 'http' | 'tls_cert' | 'service' | 'ping'
 export type CheckStatus = 'up' | 'down' | 'warn' | 'unknown'
 
 export interface ServiceCheck {

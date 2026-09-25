@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { InlineError } from '@/components/ui/inline-error'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { DeviceDetailView } from '@/features/devices/components/DeviceDetailView'
 import { HostEventsSection } from '@/features/alerts/components/HostEventsSection'
 import { HostChecksSection } from '@/features/checks/components/HostChecksSection'
 import { HostInventorySummary } from '@/features/inventory/components/HostInventorySummary'
@@ -19,11 +20,26 @@ import { HostSystemInfo } from './HostSystemInfo'
 
 const RANGE_OPTIONS = RANGES.map(({ value, label, ariaLabel }) => ({ value, label, ariaLabel }))
 
+/** Un dispositivo sin agente tiene su propia vista (sin metricas ni inventario); el resto es un host con agente. */
 export function HostDetailView({ id }: { id: string }) {
+  const detail = useHostDetail(id)
+  if (detail.data?.host.kind === 'device') return <DeviceDetailView id={id} />
+  // Hasta conocer el tipo no se monta la vista de agente (pediria metricas que un dispositivo no tiene).
+  if (detail.loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <BackToHostsLink />
+        <p className="text-sm text-text-muted">Cargando…</p>
+      </div>
+    )
+  }
+  return <AgentHostDetail id={id} detail={detail} />
+}
+
+function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof useHostDetail> }) {
   const { user } = useAuth()
   const [range, setRange] = useState<MetricRange>('1h')
   const [editing, setEditing] = useState(false)
-  const detail = useHostDetail(id)
   const metrics = useHostMetrics(id, range)
 
   // 400 (id invalido) y 404 son definitivos: no hay nada mas que mostrar.

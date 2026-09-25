@@ -1,4 +1,4 @@
-import { IconBell, IconFolders, IconHeartRateMonitor, IconHistory, IconLayoutDashboard, IconListCheck, IconReportAnalytics, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
+import { IconBell, IconFolders, IconHeartRateMonitor, IconHistory, IconLayoutDashboard, IconListCheck, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
 import type { Role } from '@/features/auth/types/auth.types'
 
 export interface NavItem {
@@ -21,6 +21,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Resumen', Icon: IconLayoutDashboard, section: 'Monitoreo', end: true },
   { to: '/hosts', label: 'Hosts', Icon: IconServer2, section: 'Monitoreo' },
+  { to: '/dispositivos', label: 'Dispositivos', Icon: IconRouter, section: 'Monitoreo' },
   { to: '/grupos', label: 'Grupos', Icon: IconFolders, section: 'Monitoreo' },
   { to: '/chequeos', label: 'Chequeos', Icon: IconHeartRateMonitor, section: 'Monitoreo' },
   { to: '/informes', label: 'Informes', Icon: IconReportAnalytics, section: 'Monitoreo' },
