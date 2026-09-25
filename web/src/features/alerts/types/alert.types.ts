@@ -2,13 +2,18 @@ import type { HostStatus } from '@/features/hosts/types/host.types'
 
 export type AlertSeverity = 'info' | 'warn' | 'critical'
 export type AlertState = 'open' | 'acknowledged' | 'resolved'
-export type RuleKind = 'metric' | 'host_status' | 'no_data' | 'service_check'
+export type RuleKind = 'metric' | 'host_status' | 'no_data' | 'service_check' | 'exposed_port'
 export type RuleMetric = 'cpu_pct' | 'mem_pct' | 'disk_max_pct' | 'battery_pct' | 'load1' | 'load5' | 'load15'
 export type RuleOp = 'gt' | 'lt'
 export type ScopeType = 'all' | 'group'
 export type ResolveReason = 'recovered' | 'manual' | 'rule_disabled' | 'rule_deleted' | 'host_disabled'
 export type HostEventSource = 'detector' | 'ingest' | 'admin' | 'group_change'
 export type MaintenanceStatus = 'scheduled' | 'active' | 'ended'
+
+export interface ExpectedPort {
+  proto: 'tcp' | 'udp'
+  port: number
+}
 
 export interface Alert {
   id: string
@@ -22,6 +27,8 @@ export interface Alert {
   suppressed: boolean
   opened_at: string
   trigger_value: number | null
+  /** exposed_port: "tcp/22, udp/53" (máx 5); null sin permiso de inventario. */
+  detail?: string | null
   peak_value: number | null
   host: { id: string; hostname: string }
   acknowledged_by: string | null
@@ -100,6 +107,8 @@ export interface AlertRule {
   enabled: boolean
   active_alerts: number
   channel_ids: string[]
+  /** Solo exposed_port; otros tipos devuelven []. */
+  expected_ports?: ExpectedPort[]
 }
 
 export interface RuleInput {
@@ -115,6 +124,8 @@ export interface RuleInput {
   warn_or_down?: boolean
   /** Una regla service_check hereda el alcance del chequeo: no se envía. */
   scope?: ScopeInput
+  /** Solo exposed_port; en PATCH reemplaza la lista. */
+  expected_ports?: ExpectedPort[]
   severity: AlertSeverity
   enabled: boolean
 }

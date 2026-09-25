@@ -80,8 +80,8 @@ ON CONFLICT DO NOTHING`
 	// Dentro de una ventana de mantenimiento la alerta se abre igual (visible) con sus entregas `suppressed`.
 	openAlertsSQL = `
 WITH new AS (
-  INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed)
-  SELECT r.id, c.host_id, r.name, r.kind, r.metric, r.threshold, r.severity, c.value, c.value, c.in_maintenance
+  INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed, detail)
+  SELECT r.id, c.host_id, r.name, r.kind, r.metric, r.threshold, r.severity, c.value, c.value, c.in_maintenance, c.detail
     FROM alert_pending p
     JOIN alert_candidates c ON c.rule_id = p.rule_id AND c.host_id = p.host_id AND c.breach
     JOIN alert_rules r ON r.id = p.rule_id
@@ -103,18 +103,19 @@ SELECT count(*) FROM new`
 
 	// 5. Alertas activas: pico y desde cuando el valor esta del lado sano. Solo escribe si algo cambio.
 	touchAlertsSQL = `
-UPDATE alerts a SET peak_value = u.peak, clear_since = u.clr
+UPDATE alerts a SET peak_value = u.peak, clear_since = u.clr, detail = u.dt
   FROM (SELECT a2.id,
                CASE WHEN c.value IS NULL THEN a2.peak_value
                     WHEN a2.peak_value IS NULL THEN c.value
                     WHEN r.op = 'lt' THEN LEAST(a2.peak_value, c.value)
                     ELSE GREATEST(a2.peak_value, c.value) END AS peak,
+               COALESCE(c.detail, a2.detail) AS dt,
                CASE WHEN c.clear THEN COALESCE(a2.clear_since, now()) END AS clr
           FROM alerts a2
           JOIN alert_candidates c ON c.rule_id = a2.rule_id AND c.host_id = a2.host_id
           JOIN alert_rules r ON r.id = a2.rule_id
          WHERE a2.state <> 'resolved') u
- WHERE a.id = u.id AND (a.peak_value IS DISTINCT FROM u.peak OR a.clear_since IS DISTINCT FROM u.clr)`
+ WHERE a.id = u.id AND (a.peak_value IS DISTINCT FROM u.peak OR a.clear_since IS DISTINCT FROM u.clr OR a.detail IS DISTINCT FROM u.dt)`
 
 	// 6. Resolver las que llevan resolve_seconds del lado sano.
 	resolveRecoveredSQL = `

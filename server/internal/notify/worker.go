@@ -243,7 +243,7 @@ func (w *Worker) send(ctx context.Context, jobs []store.DeliveryJob) (int, error
 	items := make([]Item, len(jobs))
 	for i, j := range jobs {
 		items[i] = Item{AlertID: j.AlertID, Event: j.Event, Hostname: j.Hostname, Rule: j.RuleName,
-			Severity: j.Severity, Value: j.TriggerValue, Threshold: j.Threshold}
+			Severity: j.Severity, Value: j.TriggerValue, Threshold: j.Threshold, Detail: deref(j.Detail)}
 	}
 	body, err := BuildMessage(items, 0, w.baseURL, w.now())
 	if err != nil {
@@ -255,4 +255,11 @@ func (w *Worker) send(ctx context.Context, jobs []store.DeliveryJob) (int, error
 		return status, errors.New("fallo de envio")
 	}
 	return status, err
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

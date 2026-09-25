@@ -34,6 +34,8 @@ type Alert struct {
 	TriggerValue *float64
 	PeakValue    *float64
 	Suppressed   bool
+	// Detail: hasta 5 proto/puerto de una alerta exposed_port (dato de inventario: quien lo muestre exige can_inventory).
+	Detail *string
 
 	HostID   string
 	Hostname string
@@ -110,14 +112,14 @@ type AlertSummary struct {
 
 const alertSelect = `
 SELECT a.id, a.rule_id, a.rule_name, a.rule_kind, a.metric, a.threshold, a.severity, a.state, a.opened_at,
-       a.trigger_value, a.peak_value, a.suppressed, a.host_id, h.hostname,
+       a.trigger_value, a.peak_value, a.suppressed, a.detail, a.host_id, h.hostname,
        a.acknowledged_by_name, a.acknowledged_at, a.resolved_at, a.resolved_by_name, a.resolve_reason
   FROM alerts a JOIN hosts h ON h.id = a.host_id`
 
 func scanAlert(row pgx.Row) (Alert, error) {
 	var a Alert
 	err := row.Scan(&a.ID, &a.RuleID, &a.RuleName, &a.RuleKind, &a.Metric, &a.Threshold, &a.Severity, &a.State, &a.OpenedAt,
-		&a.TriggerValue, &a.PeakValue, &a.Suppressed, &a.HostID, &a.Hostname,
+		&a.TriggerValue, &a.PeakValue, &a.Suppressed, &a.Detail, &a.HostID, &a.Hostname,
 		&a.AcknowledgedByName, &a.AcknowledgedAt, &a.ResolvedAt, &a.ResolvedByName, &a.ResolveReason)
 	return a, err
 }

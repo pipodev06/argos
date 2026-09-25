@@ -153,6 +153,18 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
           />
         </>
       )}
+      {draft.kind === 'exposed_port' && (
+        <FormField
+          id="rule-ports"
+          label="Puertos esperados"
+          value={draft.expectedPorts}
+          onChange={(e) => set('expectedPorts', e.target.value)}
+          placeholder="tcp/22, udp/53"
+          autoComplete="off"
+          hint="Los puertos de la primera foto del host no alertan; aquí lista los puertos nuevos que sí son normales. Separa con comas o espacios."
+          error={errors.ports}
+        />
+      )}
       {(isMetric || draft.kind === 'no_data') && (
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField

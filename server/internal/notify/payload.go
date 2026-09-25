@@ -16,6 +16,7 @@ const (
 
 	maxHostnameLen = 100
 	maxRuleLen     = 80
+	maxDetailLen   = 200
 	payloadVersion = 1
 )
 
@@ -29,6 +30,8 @@ type Item struct {
 	Severity  string
 	Value     *float64
 	Threshold *float64
+	// Detail: hasta 5 proto/puerto (alertas exposed_port); ya viene acotado y sin datos de proceso.
+	Detail string
 }
 
 type alertJSON struct {
@@ -39,6 +42,7 @@ type alertJSON struct {
 	Severity  string   `json:"severity"`
 	Value     *float64 `json:"value"`
 	Threshold *float64 `json:"threshold"`
+	Detail    string   `json:"detail,omitempty"`
 	URL       string   `json:"url,omitempty"`
 }
 
@@ -107,7 +111,7 @@ func BuildMessage(items []Item, omitted int, baseURL string, now time.Time) ([]b
 		a := alertJSON{
 			Event: Clean(it.Event, 16), State: stateOf(it.Event),
 			Hostname: Clean(it.Hostname, maxHostnameLen), Rule: Clean(it.Rule, maxRuleLen), Severity: Clean(it.Severity, 16),
-			Value: finiteOrNil(it.Value), Threshold: finiteOrNil(it.Threshold),
+			Value: finiteOrNil(it.Value), Threshold: finiteOrNil(it.Threshold), Detail: Clean(it.Detail, maxDetailLen),
 		}
 		if baseURL != "" && it.AlertID != "" {
 			a.URL = strings.TrimRight(baseURL, "/") + "/alertas/" + Clean(it.AlertID, 40)
@@ -119,6 +123,9 @@ func BuildMessage(items []Item, omitted int, baseURL string, now time.Time) ([]b
 		}
 		lines = append(lines, fmt.Sprintf("[%s] %s %s en %s (valor %s, umbral %s)",
 			strings.ToUpper(a.Severity), verb, a.Rule, a.Hostname, fmtNum(a.Value), fmtNum(a.Threshold)))
+		if a.Detail != "" {
+			lines[len(lines)-1] += " - puertos: " + a.Detail
+		}
 	}
 	if omitted > 0 {
 		lines = append(lines, fmt.Sprintf("y %d alertas mas (ver el dashboard)", omitted))

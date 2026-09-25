@@ -75,3 +75,4 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - Ping y SNMP para equipos sin agente (punto 8): `decisiones/2026-09-25-ping-snmp.md` (agente colector con `ARGOS_PROBE_ALLOW`, `hosts.kind='device'`, SNMP v3 por defecto, `gosnmp` aprobado, solo interfaces marcadas). Se implementa despues del SLA.
 - Inventario de procesos/servicios/puertos (permiso `can_inventory` y guard `requireInventory` ya listos; falta el agente y el endpoint) y estado de parches/vulnerabilidades del SO: siguientes tras 7 y 8.
 - Canal de correo (SMTP): no por ahora (decision del usuario).
+- Corregido (2026-09-25): `TestLatestMetricsAndSeriesIncludeNewColumns` fallaba en el CI entre :00 y :01 de cada hora (4 muestras cruzaban el límite de la hora); ahora se alinea a la hora anterior. Revisar otros tests con "ahora ± N" si aparece otro fallo horario.

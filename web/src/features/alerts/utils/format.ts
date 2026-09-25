@@ -19,6 +19,7 @@ export const KIND_LABELS: Record<RuleKind, string> = {
   host_status: 'Estado del host',
   no_data: 'Sin datos',
   service_check: 'Chequeo',
+  exposed_port: 'Puerto nuevo expuesto',
 }
 export const METRIC_LABELS: Record<RuleMetric, string> = {
   cpu_pct: 'CPU',
@@ -66,6 +67,7 @@ export function formatSeconds(seconds: number): string {
 /** Valor con su unidad: porcentaje, segundos sin reportar o carga (sin unidad). */
 export function formatMetricValue(kind: RuleKind, metric: RuleMetric | null, value: number | null): string {
   if (value === null) return '—'
+  if (kind === 'exposed_port') return `${formatNumber(value, 0)} ${value === 1 ? 'puerto' : 'puertos'}`
   if (kind === 'no_data') return formatSeconds(Math.round(value))
   if (kind === 'metric' && !isLoadMetric(metric)) return `${formatNumber(value, 2)} %`
   return formatNumber(value, 2)
@@ -78,12 +80,21 @@ export function formatAlertValue(a: Pick<Alert, 'kind' | 'metric' | 'trigger_val
   return `${base} (pico ${formatMetricValue(a.kind, a.metric, a.peak_value)})`
 }
 
+/** Texto de una alerta de puertos: la lista si el servidor la envía; si no, solo el conteo. */
+export function exposedPortsText(a: Pick<Alert, 'trigger_value' | 'detail'>): string {
+  if (a.detail) return `Puertos: ${a.detail}`
+  const n = a.trigger_value ?? 0
+  return `${formatNumber(n, 0)} ${n === 1 ? 'puerto nuevo expuesto' : 'puertos nuevos expuestos'}`
+}
+
 /** Condición legible de una regla: "CPU > 90 % durante 10 min". */
 export function describeCondition(
-  r: Pick<AlertRule, 'kind' | 'metric' | 'op' | 'threshold' | 'duration_seconds'> & Partial<Pick<AlertRule, 'check_name' | 'warn_or_down'>>,
+  r: Pick<AlertRule, 'kind' | 'metric' | 'op' | 'threshold' | 'duration_seconds'> &
+    Partial<Pick<AlertRule, 'check_name' | 'warn_or_down' | 'expected_ports'>>,
 ): string {
   const during = r.duration_seconds > 0 ? ` durante ${formatSeconds(r.duration_seconds)}` : ''
   if (r.kind === 'service_check') return `Chequeo ${r.check_name ?? 'eliminado'} ${r.warn_or_down ? 'en advertencia o caído' : 'caído'}${during}`
+  if (r.kind === 'exposed_port') return `Puerto nuevo expuesto (${r.expected_ports?.length ?? 0} esperados)`
   if (r.kind === 'host_status') return `Host caído${during}`
   if (r.kind === 'no_data') return `Sin reportar por más de ${formatSeconds(Math.round(r.threshold ?? 0))}${during}`
   const label = r.metric ? METRIC_LABELS[r.metric] : 'Métrica'

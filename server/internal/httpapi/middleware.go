@@ -112,6 +112,11 @@ type sessionUser struct {
 	sessionHash  []byte
 }
 
+// seesInventory: un admin o un usuario con can_inventory puede ver datos de inventario (p. ej. los puertos de una alerta).
+func (u *sessionUser) seesInventory() bool {
+	return u != nil && (u.Role == store.RoleAdmin || u.CanInventory)
+}
+
 type ctxKey struct{}
 
 func currentUser(r *http.Request) *sessionUser {

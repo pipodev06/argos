@@ -31,17 +31,19 @@ type hostRefDTO struct {
 }
 
 type alertDTO struct {
-	ID            string     `json:"id"`
-	RuleID        *string    `json:"rule_id"`
-	RuleName      string     `json:"rule_name"`
-	Kind          string     `json:"kind"`
-	Metric        *string    `json:"metric"`
-	Threshold     *float64   `json:"threshold"`
-	Severity      string     `json:"severity"`
-	State         string     `json:"state"`
-	Suppressed    bool       `json:"suppressed"`
-	OpenedAt      time.Time  `json:"opened_at"`
-	TriggerValue  *float64   `json:"trigger_value"`
+	ID           string    `json:"id"`
+	RuleID       *string   `json:"rule_id"`
+	RuleName     string    `json:"rule_name"`
+	Kind         string    `json:"kind"`
+	Metric       *string   `json:"metric"`
+	Threshold    *float64  `json:"threshold"`
+	Severity     string    `json:"severity"`
+	State        string    `json:"state"`
+	Suppressed   bool      `json:"suppressed"`
+	OpenedAt     time.Time `json:"opened_at"`
+	TriggerValue *float64  `json:"trigger_value"`
+	// Detail (alertas exposed_port: hasta 5 proto/puerto) solo va con permiso de inventario; sin el, null y queda el conteo en trigger_value.
+	Detail        *string    `json:"detail"`
 	PeakValue     *float64   `json:"peak_value"`
 	Host          hostRefDTO `json:"host"`
 	AckedBy       *string    `json:"acknowledged_by"`
@@ -51,11 +53,15 @@ type alertDTO struct {
 	ResolveReason *string    `json:"resolve_reason"`
 }
 
-func toAlertDTO(a store.Alert) alertDTO {
+func toAlertDTO(a store.Alert, seesInventory bool) alertDTO {
+	var detail *string
+	if seesInventory {
+		detail = a.Detail
+	}
 	return alertDTO{
 		ID: a.ID, RuleID: a.RuleID, RuleName: a.RuleName, Kind: a.RuleKind, Metric: a.Metric, Threshold: a.Threshold,
 		Severity: a.Severity, State: a.State, Suppressed: a.Suppressed, OpenedAt: a.OpenedAt.UTC(),
-		TriggerValue: round2(a.TriggerValue), PeakValue: round2(a.PeakValue),
+		TriggerValue: round2(a.TriggerValue), Detail: detail, PeakValue: round2(a.PeakValue),
 		Host:    hostRefDTO{ID: a.HostID, Hostname: a.Hostname},
 		AckedBy: a.AcknowledgedByName, AckedAt: utcPtr(a.AcknowledgedAt),
 		ResolvedAt: utcPtr(a.ResolvedAt), ResolvedBy: a.ResolvedByName, ResolveReason: a.ResolveReason,
@@ -245,7 +251,7 @@ func (a *API) listAlerts(w http.ResponseWriter, r *http.Request) error {
 	}
 	items := make([]alertDTO, 0, len(page.Items))
 	for _, al := range page.Items {
-		items = append(items, toAlertDTO(al))
+		items = append(items, toAlertDTO(al, currentUser(r).seesInventory()))
 	}
 	var next *string
 	if page.NextCursor != nil {
@@ -274,7 +280,7 @@ func (a *API) getAlert(w http.ResponseWriter, r *http.Request) error {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"alert": toAlertDTO(d.Alert), "deliveries": deliveries, "host_events": toHostEventDTOs(d.HostEvents),
+		"alert": toAlertDTO(d.Alert, currentUser(r).seesInventory()), "deliveries": deliveries, "host_events": toHostEventDTOs(d.HostEvents),
 	})
 	return nil
 }
@@ -304,7 +310,7 @@ func (a *API) alertAction(w http.ResponseWriter, r *http.Request, event string,
 	e := actor(u)
 	e.Event, e.Outcome, e.TargetType, e.TargetID = event, store.OutcomeOK, "alert", id
 	a.audit(r, e, map[string]any{"name": al.RuleName, "severity": al.Severity, "hostname": al.Hostname})
-	writeJSON(w, http.StatusOK, map[string]any{"alert": toAlertDTO(al)})
+	writeJSON(w, http.StatusOK, map[string]any{"alert": toAlertDTO(al, u.seesInventory())})
 	return nil
 }
 
