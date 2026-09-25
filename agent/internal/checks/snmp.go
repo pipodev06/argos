@@ -96,6 +96,7 @@ type snmpDevice struct {
 	slot      chan struct{} // capacidad 1: una solicitud en vuelo por dispositivo
 	fails     int           // fallos seguidos (protegido por Runner.snmpMu)
 	openUntil time.Time
+	lastFail  outcome // ultimo fallo REAL (con el breaker abierto se repite este, no un timeout inventado)
 }
 
 func (r *Runner) snmpDevice(ip netip.Addr) *snmpDevice {
@@ -109,11 +110,29 @@ func (r *Runner) snmpDevice(ip netip.Addr) *snmpDevice {
 	return d
 }
 
-// breakerOpen dice si el dispositivo esta en espera tras fallos seguidos.
-func (r *Runner) breakerOpen(d *snmpDevice) bool {
+// breakerState dice si el breaker esta abierto y, si lo esta, cual fue el ultimo fallo real: se repite ese (por
+// ejemplo auth_failed) en vez de fabricar un timeout que oculta la causa.
+func (r *Runner) breakerState(d *snmpDevice) (bool, outcome) {
 	r.snmpMu.Lock()
 	defer r.snmpMu.Unlock()
-	return r.now().Before(d.openUntil)
+	if !r.now().Before(d.openUntil) {
+		return false, outcome{}
+	}
+	if d.lastFail.detail == "" {
+		return true, outcome{status: StatusDown, detail: DetailTimeout}
+	}
+	last := d.lastFail
+	last.ms = 0
+	return true, last
+}
+
+// failSNMP anota un fallo real (para el breaker y para repetirlo mientras esta abierto) y lo devuelve.
+func (r *Runner) failSNMP(d *snmpDevice, out outcome) outcome {
+	r.recordSNMP(d, true)
+	r.snmpMu.Lock()
+	d.lastFail = out
+	r.snmpMu.Unlock()
+	return out
 }
 
 // recordSNMP anota el resultado: un exito cierra el breaker; 3 fallos seguidos lo abren
@@ -153,8 +172,8 @@ func (r *Runner) probeSNMP(ctx context.Context, c Check) outcome {
 	case <-ctx.Done():
 		return unknown(DetailTimeout)
 	}
-	if r.breakerOpen(d) {
-		return outcome{status: StatusDown, detail: DetailTimeout}
+	if open, last := r.breakerState(d); open {
+		return last
 	}
 	start := r.now()
 	v, err := r.snmp.Get(ctx, snmpRequest{IP: ip, Params: c.SNMP, OID: oid, Timeout: min(timeoutOf(c), snmpMaxTimeout)})
@@ -164,17 +183,14 @@ func (r *Runner) probeSNMP(ctx context.Context, c Check) outcome {
 		r.recordSNMP(d, false)
 		return snmpValueOutcome(c.Metric, v, ms)
 	case errors.Is(err, ErrSNMPTimeout):
-		r.recordSNMP(d, true)
-		return outcome{status: StatusDown, detail: DetailTimeout, ms: ms}
+		return r.failSNMP(d, outcome{status: StatusDown, detail: DetailTimeout, ms: ms})
 	case errors.Is(err, ErrSNMPAuth):
-		r.recordSNMP(d, true)
-		return outcome{status: StatusUnknown, detail: DetailAuthFailed, ms: ms}
+		return r.failSNMP(d, outcome{status: StatusUnknown, detail: DetailAuthFailed, ms: ms})
 	case errors.Is(err, ErrSNMPNoSuchObject):
 		r.recordSNMP(d, false) // el dispositivo respondio: el breaker se cierra
 		return outcome{status: StatusUnknown, detail: DetailNoSuchObject, ms: ms}
 	default: // incluye ErrSNMPTooLarge y respuestas mal formadas
-		r.recordSNMP(d, true)
-		return outcome{status: StatusUnknown, detail: DetailBadResponse, ms: ms}
+		return r.failSNMP(d, outcome{status: StatusUnknown, detail: DetailBadResponse, ms: ms})
 	}
 }
 

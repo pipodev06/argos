@@ -531,3 +531,23 @@ func TestSNMPSecretsNeverLeak(t *testing.T) {
 		t.Error("resultado con IP")
 	}
 }
+
+// Con el breaker abierto se repite el ULTIMO FALLO REAL (p. ej. auth_failed), no un timeout inventado: antes un
+// perfil con clave equivocada alternaba "Autenticacion fallida" y "Tiempo de espera agotado".
+func TestSNMPBreakerRepeatsTheLastRealFailure(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	g := &fakeSNMP{fn: func(snmpRequest) (int64, error) { return 0, ErrSNMPAuth }}
+	r := newSNMPRunner(t, g, func() time.Time { return now })
+	c := snmpCheck("reachable", 0)
+	for range snmpBreakerFails {
+		if out := r.probe(context.Background(), c); out.status != StatusUnknown || out.detail != DetailAuthFailed {
+			t.Fatalf("fallo real: %+v", out)
+		}
+	}
+	calls := g.calls()
+	out := r.probe(context.Background(), c)
+	if out.status != StatusUnknown || out.detail != DetailAuthFailed || g.calls() != calls {
+		t.Fatalf("breaker abierto debe repetir auth_failed sin trafico: %+v calls=%d/%d", out, g.calls(), calls)
+	}
+}

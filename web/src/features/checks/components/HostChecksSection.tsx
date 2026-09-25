@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatSeconds } from '@/features/alerts/utils/format'
 import { formatElapsed, formatFullDate } from '@/features/hosts/utils/format'
 import { usePolledFetch } from '@/hooks/usePolledFetch'
 import { useNow } from '@/hooks/useNow'
@@ -91,6 +92,8 @@ function CheckRow({ n, hostId, item, now, targetFallback }: { n: number; hostId:
         <Cell className="max-w-64 truncate" title={detailLabel(state?.detail ?? null)}>
           {detailLabel(state?.detail ?? null)}
         </Cell>
+        <Cell className="tabular-nums">{formatSeconds(check.interval_s)}</Cell>
+        <Cell className="tabular-nums">{state ? `hace ${formatElapsed(state.ts, now)}` : 'Sin resultados'}</Cell>
         <Cell className="tabular-nums">{state ? `hace ${formatElapsed(state.status_changed_at, now)}` : '—'}</Cell>
         <Cell>
           <Button
@@ -107,7 +110,7 @@ function CheckRow({ n, hostId, item, now, targetFallback }: { n: number; hostId:
       </Row>
       {open && (
         <tr>
-          <td colSpan={9} className="border-t border-border bg-bg px-3 py-3">
+          <td colSpan={11} className="border-t border-border bg-bg px-3 py-3">
             <EventsPanel hostId={hostId} checkId={check.id} />
           </td>
         </tr>
@@ -123,7 +126,7 @@ function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallb
   if (!data) return <Skeleton className="h-16 w-full" />
   if (data.length === 0) return <EmptyState Icon={IconHeartRateMonitor} title="Este host no tiene chequeos asignados" />
   return (
-    <DataTable caption="Chequeos del host" className="min-w-[56rem]">
+    <DataTable caption="Chequeos del host" className="min-w-[68rem]">
       <thead>
         <HeadRow>
           <RowNumberHeadCell />
@@ -133,6 +136,8 @@ function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallb
           <HeadCell>Destino</HeadCell>
           <HeadCell>Latencia / valor</HeadCell>
           <HeadCell>Detalle</HeadCell>
+          <HeadCell>Cada</HeadCell>
+          <HeadCell>Último resultado</HeadCell>
           <HeadCell>Estado desde</HeadCell>
           <HeadCell>Transiciones</HeadCell>
         </HeadRow>
