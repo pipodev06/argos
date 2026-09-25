@@ -76,3 +76,7 @@ Todo en `{"data": ...}`, `Cache-Control: no-store`; 404 sin permiso (`can_invent
 - `GET .../inventory/changes?module=ports|services&kind=added|removed|changed|overflow&cursor=&limit=` → `{items:[{id, module, kind, key, before, after, at}], next_cursor}`; `before/after` JSON (null si no aplica; en `overflow`, `after` = `{"dropped":n}`); cursor firmado atado a host, Scope, module y kind (si no coincide, 400 `invalid_cursor`).
 - Auditoría `inventory_read` (clave `module`) solo en éxito, una vez por (usuario, host, módulo) cada 5 min; `authz_denied` por falta de `can_inventory` con tope 1 por usuario y ruta cada 5 min; el host ajeno no se audita. Deuda: los dedup son en memoria (se vacían al reiniciar).
 - Pendiente: tanda 4 (UI).
+
+## Tanda 4 hecha (2026-09-25): UI
+- Sección "Inventario" apilada en `/hosts/:id` (`web/src/features/inventory/`), visible solo con admin o `can_inventory` (un 404 la oculta). `SegmentedControl` Puertos/Servicios/Procesos/Cambios con estado en la URL (`inv`, `inv_module`, `inv_kind`, `inv_state`); una consulta por sub-sección activa, refresco 60 s (manual en Cambios); `DataTable` centrada, badges icono + texto, `Pagination` por cursor, "Actualizado hace X", aviso "Lista truncada", vacíos `disabled`/`no_data`.
+- Expuesto = bind distinto de loopback (127.0.0.0/8, ::1); un bind vacío o ilegible cuenta como expuesto. Filtro de estado de servicios en cliente; sin ordenamiento de columnas. 17 tests Vitest nuevos. Pendiente: revisión visual en navegador y prueba contra un agente real con `ARGOS_INVENTORY_MODULES` activo.
