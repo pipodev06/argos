@@ -1,3 +1,4 @@
+import type { SnmpProfileRef } from '@/features/snmp-profiles/types/snmpProfile.types'
 import type { GroupRef, HostStatus } from '@/features/hosts/types/host.types'
 
 export interface CollectorRef {
@@ -13,6 +14,8 @@ export interface Device {
   address?: string
   collector?: CollectorRef
   group: GroupRef | null
+  /** Solo un admin; null = sin perfil. */
+  snmp_profile?: SnmpProfileRef | null
   status: HostStatus
   status_changed_at: string
   last_seen_at: string | null
@@ -33,4 +36,5 @@ export interface DeviceInput {
   address?: string
   collector_id?: string
   group_id?: string | null
+  snmp_profile_id?: string | null
 }

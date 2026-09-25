@@ -3,8 +3,10 @@ import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCe
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
 import { formatSeconds } from '@/features/alerts/utils/format'
+import type { Device } from '@/features/devices/types/device.types'
 import type { ServiceCheck } from '../types/check.types'
-import { checkScopeLabel, checkTarget, CHECK_TYPE_LABELS } from '../utils/format'
+import { checkScopeLabel, checkTarget, checkTypeLabel } from '../utils/format'
+import { checkOrigin } from '../utils/origin'
 
 export type CheckAction = 'edit' | 'toggle' | 'delete'
 
@@ -13,12 +15,14 @@ interface ChecksTableProps {
   /** Solo admin ve la columna de acciones. */
   canAct: boolean
   busy: boolean
+  /** Dispositivos (para saber el colector de los ping/snmp); undefined mientras cargan. */
+  devices?: Device[]
   onAction: (action: CheckAction, check: ServiceCheck) => void
 }
 
-export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps) {
+export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksTableProps) {
   return (
-    <DataTable caption="Chequeos de servicios" className="min-w-[60rem]">
+    <DataTable caption="Chequeos de servicios" className="min-w-[68rem]">
       <thead>
         <HeadRow>
           <RowNumberHeadCell />
@@ -27,6 +31,7 @@ export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps
           <HeadCell>Destino</HeadCell>
           <HeadCell>Intervalo</HeadCell>
           <HeadCell>Alcance</HeadCell>
+          <HeadCell>Origen</HeadCell>
           <HeadCell>Activo</HeadCell>
           <HeadCell>Secreto</HeadCell>
           {canAct && <HeadCell>Acciones</HeadCell>}
@@ -37,12 +42,15 @@ export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps
           <Row key={c.id}>
             <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
-            <Cell>{CHECK_TYPE_LABELS[c.type]}</Cell>
+            <Cell className="max-w-56 truncate">{checkTypeLabel(c)}</Cell>
             <Cell className="max-w-64 truncate tabular-nums" title={checkTarget(c)}>
               {checkTarget(c)}
             </Cell>
             <Cell className="tabular-nums">{formatSeconds(c.interval_seconds)}</Cell>
             <Cell className="max-w-48 truncate">{checkScopeLabel(c)}</Cell>
+            <Cell className="max-w-48 truncate" title={checkOrigin(c, devices)}>
+              {checkOrigin(c, devices)}
+            </Cell>
             <Cell>
               <RuleEnabledBadge enabled={c.enabled} />
             </Cell>

@@ -17,6 +17,7 @@ import {
   checkToDraft,
   HEADER_OPTIONS,
   MAX_EXPECT_TEXT,
+  MAX_IF_INDEX,
   MAX_NAME,
   MAX_SECRET,
   MAX_URL,
@@ -24,6 +25,7 @@ import {
   type CheckDraft,
   type CheckErrors,
 } from '../utils/checkForm'
+import { isDeviceCheck, SNMP_METRIC_OPTIONS } from '../utils/format'
 
 interface CheckFormDialogProps {
   /** null = crear; un chequeo = editar. */
@@ -69,7 +71,7 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
 
   // El alcance de un dispositivo solo vale para ping: al cambiar a otro tipo vuelve a "todos".
   function changeType(type: string) {
-    setDraft((d) => ({ ...d, type: type as CheckType, scope: d.scope.type === 'device' && type !== 'ping' ? ALL_SCOPE : d.scope }))
+    setDraft((d) => ({ ...d, type: type as CheckType, scope: d.scope.type === 'device' && !isDeviceCheck(type as CheckType) ? ALL_SCOPE : d.scope }))
   }
 
   const hasSecret = check?.has_secret ?? false
@@ -133,6 +135,31 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
           </div>
         </>
       )}
+      {draft.type === 'snmp' && (
+        <>
+          <SelectField
+            id="check-metric"
+            label="Métrica"
+            value={draft.metric}
+            onChange={(v) => set('metric', v)}
+            options={SNMP_METRIC_OPTIONS}
+            error={errors.metric}
+          />
+          {draft.metric === 'if_oper' && (
+            <FormField
+              id="check-if-index"
+              label="Índice de interfaz (ifIndex)"
+              inputMode="numeric"
+              autoComplete="off"
+              hint={`Entero de 1 a ${MAX_IF_INDEX}.`}
+              {...text('ifIndex')}
+            />
+          )}
+          <p className="text-xs text-text-muted">
+            Un dispositivo sin perfil SNMP no recibe este chequeo: asígnale un perfil en su formulario. No lleva umbrales.
+          </p>
+        </>
+      )}
       {draft.type === 'service' && <FormField id="check-service" label="Nombre del servicio" autoComplete="off" {...text('serviceName')} />}
 
       {(draft.type === 'tcp' || draft.type === 'http' || draft.type === 'ping') && (
@@ -190,7 +217,7 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
         <FormField id="check-timeout" label="Timeout (ms)" inputMode="numeric" autoComplete="off" hint="200 a 30 000." {...text('timeout')} />
         <FormField id="check-retries" label="Reintentos" inputMode="numeric" autoComplete="off" hint="0 a 3." {...text('retries')} />
       </div>
-      <ScopeFields id="check" ping={draft.type === 'ping'} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
+      <ScopeFields id="check" ping={isDeviceCheck(draft.type)} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
       <label htmlFor="check-enabled" className="flex items-start gap-2 text-sm">
         <Checkbox id="check-enabled" className="mt-0.5" checked={draft.enabled} onCheckedChange={(v) => set('enabled', v === true)} />
         <span>

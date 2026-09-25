@@ -96,6 +96,29 @@ func (f *fakeStore) BulkHosts(_ context.Context, b store.Bulk) (int, error) {
 	return f.x.affected, f.x.err
 }
 
+// Perfiles SNMP y chequeos snmp: el fake no los tiene (sus tests usan la BD real).
+func (f *fakeStore) CollectorSNMP(context.Context, string) ([]store.SNMPAssignment, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) ListSNMPProfiles(context.Context) ([]store.SNMPProfile, error) { return nil, nil }
+
+func (f *fakeStore) SNMPProfileByID(context.Context, string) (store.SNMPProfile, error) {
+	return store.SNMPProfile{}, store.ErrNotFound
+}
+
+func (f *fakeStore) CreateSNMPProfile(context.Context, store.SNMPProfile, string) (store.SNMPProfile, error) {
+	return store.SNMPProfile{}, f.x.err
+}
+
+func (f *fakeStore) UpdateSNMPProfile(context.Context, string, func(*store.SNMPProfile) error) (store.SNMPProfile, error) {
+	return store.SNMPProfile{}, f.x.err
+}
+
+func (f *fakeStore) DeleteSNMPProfile(context.Context, string) (string, error) {
+	return "", f.x.err
+}
+
 // CollectorPings: el fake no tiene dispositivos (los tests de dispositivos usan la BD real).
 func (f *fakeStore) CollectorPings(context.Context, string) ([]store.PingAssignment, error) {
 	return nil, nil

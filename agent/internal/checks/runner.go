@@ -28,6 +28,8 @@ type Options struct {
 	ProbeAllow *ProbePolicy
 	// Pinger envia los echos ICMP; nil = ICMP sin privilegios del SO y, si no, el `ping` del SO.
 	Pinger Pinger
+	// SNMP hace las consultas SNMP; nil = cliente gosnmp real (solo si ProbeAllow esta activa).
+	SNMP SNMPGetter
 	// MaxChecks es el tope de chequeos ejecutados; 0 = MaxChecks (20). Un colector con
 	// muchos devices lo sube explicitamente (ARGOS_PROBE_MAX_CHECKS).
 	MaxChecks int
@@ -53,6 +55,10 @@ type Runner struct {
 	service     ServiceProber
 	sem         chan struct{}
 	pingSem     chan struct{}
+	snmpSem     chan struct{}
+	snmp        SNMPGetter
+	snmpMu      sync.Mutex
+	snmpDevs    map[netip.Addr]*snmpDevice
 	maxChecks   int
 	probeAllow  *ProbePolicy
 	pinger      Pinger
@@ -78,6 +84,9 @@ func NewRunner(o Options) *Runner {
 		maxChecks:   o.MaxChecks,
 		probeAllow:  o.ProbeAllow,
 		pinger:      o.Pinger,
+		snmpSem:     make(chan struct{}, MaxSNMPConcurrent),
+		snmp:        o.SNMP,
+		snmpDevs:    map[netip.Addr]*snmpDevice{},
 		jobs:        map[string]*job{},
 	}
 	if r.logger == nil {
@@ -94,6 +103,9 @@ func NewRunner(o Options) *Runner {
 	}
 	if r.pinger == nil && r.probeAllow.Enabled() {
 		r.pinger = newSystemPinger()
+	}
+	if r.snmp == nil && r.probeAllow.Enabled() {
+		r.snmp = newGosnmpClient()
 	}
 	if r.service == nil {
 		r.service = newServiceProber()
@@ -238,6 +250,9 @@ func (r *Runner) runOnce(ctx context.Context, c Check, overLimit bool) {
 // resultado sea down; unknown (sin dato) no se reintenta ni se declara down.
 func (r *Runner) attempts(ctx context.Context, c Check) outcome {
 	tries := 1 + min(max(c.Retries, 0), maxRetries)
+	if c.Type == TypeSNMP {
+		tries = 1 // el reintento (1) ya lo hace el wrapper con su propio timeout
+	}
 	var out outcome
 	for i := 0; i < tries; i++ {
 		out = r.probe(ctx, c)

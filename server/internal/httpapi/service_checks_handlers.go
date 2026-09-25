@@ -28,6 +28,7 @@ const (
 	maxCheckLatencyMs   = 60000
 	maxCheckWarnDays    = 365
 	maxCheckSecretLen   = 512
+	maxSNMPIfIndex      = 65535
 	defaultCheckStatus  = "200-399"
 )
 
@@ -36,7 +37,7 @@ var (
 	checkServiceRe = regexp.MustCompile(`^[A-Za-z0-9@._:-]{1,64}$`)
 	checkStatusRe  = regexp.MustCompile(`^([0-9]{3})(?:-([0-9]{3}))?$`)
 
-	validCheckTypes   = map[string]bool{store.CheckTCP: true, store.CheckHTTP: true, store.CheckTLSCert: true, store.CheckService: true, store.CheckPing: true}
+	validCheckTypes   = map[string]bool{store.CheckTCP: true, store.CheckHTTP: true, store.CheckTLSCert: true, store.CheckService: true, store.CheckPing: true, store.CheckSNMP: true}
 	validCheckHeaders = map[string]bool{"Authorization": true, "X-API-Key": true, "X-Auth-Token": true}
 
 	// secretQueryKeys son fragmentos de nombre de parametro de query que delatan una credencial: el token va en el
@@ -69,6 +70,8 @@ type serviceCheckDTO struct {
 	WarnDays        *int      `json:"warn_days"`
 	CritDays        *int      `json:"crit_days"`
 	HeaderName      *string   `json:"header_name,omitempty"`
+	Metric          *string   `json:"metric"`
+	IfIndex         *int      `json:"if_index"`
 	HasSecret       bool      `json:"has_secret"`
 	Scope           scopeDTO  `json:"scope"`
 	Enabled         bool      `json:"enabled"`
@@ -82,7 +85,7 @@ func toServiceCheckDTO(u *sessionUser, d store.ServiceCheckDef) serviceCheckDTO 
 		ID: d.ID, Name: d.Name, Type: d.Type, IntervalSeconds: d.IntervalSeconds, TimeoutMs: d.TimeoutMs, Retries: d.Retries,
 		TargetHost: d.TargetHost, TargetPort: d.TargetPort, URL: d.URL, ExpectStatus: d.ExpectStatus, ExpectText: d.ExpectText,
 		ServiceName: d.ServiceName, WarnMs: d.WarnMs, CritMs: d.CritMs, WarnDays: d.WarnDays, CritDays: d.CritDays,
-		HasSecret: len(d.SecretEnc) > 0, Scope: toScopeDTO(d.Scope, d.GroupName), Enabled: d.Enabled,
+		Metric: d.Metric, IfIndex: d.IfIndex, HasSecret: len(d.SecretEnc) > 0, Scope: toScopeDTO(d.Scope, d.GroupName), Enabled: d.Enabled,
 		CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(),
 	}
 	dto.Scope.DeviceName = d.DeviceName
@@ -129,7 +132,7 @@ func validateCheckDef(d *store.ServiceCheckDef) error {
 	}
 	d.Name = name
 	if !validCheckTypes[d.Type] {
-		return badRequest("type debe ser tcp, http, tls_cert, service o ping")
+		return badRequest("type debe ser tcp, http, tls_cert, service, ping o snmp")
 	}
 	if d.IntervalSeconds < minCheckInterval || d.IntervalSeconds > maxCheckInterval {
 		return badRequest("interval_seconds debe estar entre %d y %d", minCheckInterval, maxCheckInterval)
@@ -146,8 +149,8 @@ func validateCheckDef(d *store.ServiceCheckDef) error {
 	if err := validateCheckShape(d); err != nil {
 		return err
 	}
-	if d.Scope.Type == store.ScopeDevice && d.Type != store.CheckPing {
-		return badRequest("scope device solo aplica a chequeos ping")
+	if d.Scope.Type == store.ScopeDevice && d.Type != store.CheckPing && d.Type != store.CheckSNMP {
+		return badRequest("scope device solo aplica a chequeos ping y snmp")
 	}
 	if d.WarnMs != nil && d.CritMs != nil && *d.WarnMs >= *d.CritMs {
 		return badRequest("warn_ms debe ser menor que crit_ms")
@@ -180,6 +183,9 @@ func validateCheckShape(d *store.ServiceCheckDef) error {
 		}
 		return out
 	}
+	if d.Type != store.CheckSNMP && (d.Metric != nil || d.IfIndex != nil) {
+		return badRequest("metric e if_index solo aplican a chequeos snmp")
+	}
 	switch d.Type {
 	case store.CheckPing:
 		// El destino es la direccion del dispositivo (nunca un campo del chequeo).
@@ -187,6 +193,12 @@ func validateCheckShape(d *store.ServiceCheckDef) error {
 			return err
 		}
 		return validateLatency(d)
+	case store.CheckSNMP:
+		// El destino es la direccion del dispositivo y las credenciales salen de su perfil SNMP.
+		if err := absent(merge(target, latency, days, httpOnly, svc)); err != nil {
+			return err
+		}
+		return validateSNMP(d)
 	case store.CheckTCP:
 		if err := absent(merge(days, httpOnly, svc)); err != nil {
 			return err
@@ -220,6 +232,26 @@ func validateCheckShape(d *store.ServiceCheckDef) error {
 		if d.ServiceName == nil || !checkServiceRe.MatchString(*d.ServiceName) {
 			return badRequest("service_name requerido: 1 a %d caracteres A-Z a-z 0-9 @ . _ : -", maxCheckServiceName)
 		}
+	}
+	return nil
+}
+
+// validateSNMP comprueba la metrica de un chequeo snmp: reachable (sin if_index) o if_oper (con if_index 1-65535).
+func validateSNMP(d *store.ServiceCheckDef) error {
+	if d.Metric == nil {
+		return badRequest("metric requerido: reachable o if_oper")
+	}
+	switch *d.Metric {
+	case store.SNMPMetricReachable:
+		if d.IfIndex != nil {
+			return badRequest("if_index no aplica a la metrica reachable")
+		}
+	case store.SNMPMetricIfOper:
+		if d.IfIndex == nil || *d.IfIndex < 1 || *d.IfIndex > maxSNMPIfIndex {
+			return badRequest("if_index requerido entre 1 y %d con la metrica if_oper", maxSNMPIfIndex)
+		}
+	default:
+		return badRequest("metric debe ser reachable o if_oper")
 	}
 	return nil
 }
@@ -413,6 +445,8 @@ type createServiceCheckReq struct {
 	CritDays        *int      `json:"crit_days"`
 	HeaderName      *string   `json:"header_name"`
 	Secret          *string   `json:"secret"`
+	Metric          *string   `json:"metric"`
+	IfIndex         *int      `json:"if_index"`
 	Scope           *scopeReq `json:"scope"`
 	Enabled         *bool     `json:"enabled"`
 }
@@ -430,7 +464,7 @@ func (a *API) createServiceCheck(w http.ResponseWriter, r *http.Request) error {
 		ID: id, Name: req.Name, Type: req.Type, IntervalSeconds: 60, TimeoutMs: 5000, Retries: 1,
 		TargetHost: req.TargetHost, TargetPort: req.TargetPort, URL: req.URL, ExpectStatus: req.ExpectStatus,
 		ExpectText: req.ExpectText, ServiceName: req.ServiceName, WarnMs: req.WarnMs, CritMs: req.CritMs,
-		WarnDays: req.WarnDays, CritDays: req.CritDays, HeaderName: req.HeaderName,
+		WarnDays: req.WarnDays, CritDays: req.CritDays, HeaderName: req.HeaderName, Metric: req.Metric, IfIndex: req.IfIndex,
 		Scope: store.AlertScope{Type: store.ScopeAll}, Enabled: true,
 	}
 	if req.IntervalSeconds != nil {
@@ -521,6 +555,8 @@ type updateServiceCheckReq struct {
 	CritDays        *int             `json:"crit_days"`
 	HeaderName      *string          `json:"header_name"`
 	Secret          optional[string] `json:"secret"`
+	Metric          *string          `json:"metric"`
+	IfIndex         optional[int]    `json:"if_index"`
 	Scope           *scopeReq        `json:"scope"`
 	Enabled         *bool            `json:"enabled"`
 }
@@ -548,6 +584,8 @@ func (req updateServiceCheckReq) changedFields() []string {
 	add(req.CritDays != nil, "crit_days")
 	add(req.HeaderName != nil, "header_name")
 	add(req.Secret.Set, "secret")
+	add(req.Metric != nil, "metric")
+	add(req.IfIndex.Set, "if_index")
 	add(req.Scope != nil, "scope")
 	add(req.Enabled != nil, "enabled")
 	return out
@@ -597,6 +635,12 @@ func applyCheckPatch(d *store.ServiceCheckDef, req updateServiceCheckReq, scope 
 	setInt(&d.CritDays, req.CritDays)
 	if req.HeaderName != nil {
 		d.HeaderName = req.HeaderName
+	}
+	if req.Metric != nil {
+		d.Metric = req.Metric
+	}
+	if req.IfIndex.Set {
+		d.IfIndex = req.IfIndex.Value
 	}
 	if scope != nil {
 		d.Scope = *scope
@@ -698,6 +742,12 @@ func checkAuditDetail(d store.ServiceCheckDef, fields []string) map[string]any {
 	if d.Scope.HostID != nil {
 		m["device_id"] = *d.Scope.HostID
 	}
+	if d.Metric != nil {
+		m["metric"] = *d.Metric
+	}
+	if d.IfIndex != nil {
+		m["if_index"] = *d.IfIndex
+	}
 	if fields != nil {
 		m["fields"] = fields
 	}
@@ -730,6 +780,9 @@ type hostCheckDTO struct {
 		Type      string `json:"type"`
 		Target    string `json:"target"`
 		IntervalS int    `json:"interval_s"`
+		// Metric e IfIndex solo en los chequeos snmp.
+		Metric  *string `json:"metric,omitempty"`
+		IfIndex *int    `json:"if_index,omitempty"`
 	} `json:"check"`
 	State *checkStateDTO `json:"state"`
 }
@@ -757,6 +810,7 @@ func (a *API) hostServiceChecks(w http.ResponseWriter, r *http.Request) error {
 		var dto hostCheckDTO
 		dto.Check.ID, dto.Check.Name, dto.Check.Type = c.Def.ID, c.Def.Name, c.Def.Type
 		dto.Check.Target, dto.Check.IntervalS = checkTarget(c.Def), c.Def.IntervalSeconds
+		dto.Check.Metric, dto.Check.IfIndex = c.Def.Metric, c.Def.IfIndex
 		if c.State != nil {
 			dto.State = &checkStateDTO{Status: c.State.Status, StatusChangedAt: c.State.StatusChangedAt.UTC(), TS: c.State.TS.UTC(),
 				ResponseMs: c.State.ResponseMs, Value: c.State.Value, Detail: c.State.Detail}

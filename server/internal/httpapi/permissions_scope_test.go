@@ -24,7 +24,13 @@ type scopeEnv struct {
 
 func newScopeEnv(t *testing.T) *scopeEnv {
 	t.Helper()
-	e := newEnv(t, Options{HostDownAfter: 2 * time.Minute})
+	return newScopeEnvWith(t, Options{HostDownAfter: 2 * time.Minute})
+}
+
+// newScopeEnvWith es newScopeEnv con opciones propias (p. ej. la clave de secretos).
+func newScopeEnvWith(t *testing.T, opts Options) *scopeEnv {
+	t.Helper()
+	e := newEnv(t, opts)
 	s := &scopeEnv{env: e, admin: e.adminCookie()}
 	s.groupA = e.newGroup(s.admin, `{"name":"A"}`)
 	s.groupB = e.newGroup(s.admin, `{"name":"B"}`)

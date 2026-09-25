@@ -43,13 +43,15 @@ export interface DeviceDraft {
   collectorId: string
   /** '' = sin grupo. */
   groupId: string
+  /** '' = sin perfil SNMP. */
+  snmpProfileId: string
 }
 
 export type DeviceErrors = Partial<Record<keyof DeviceDraft, string>>
 
 export function deviceToDraft(d: Device | null): DeviceDraft {
-  if (!d) return { name: '', address: '', collectorId: '', groupId: '' }
-  return { name: d.name, address: d.address ?? '', collectorId: d.collector?.id ?? '', groupId: d.group?.id ?? '' }
+  if (!d) return { name: '', address: '', collectorId: '', groupId: '', snmpProfileId: '' }
+  return { name: d.name, address: d.address ?? '', collectorId: d.collector?.id ?? '', groupId: d.group?.id ?? '', snmpProfileId: d.snmp_profile?.id ?? '' }
 }
 
 /** Valida el borrador y arma el cuerpo. Editar (`original`): solo envia lo que cambio (el servidor exige al menos un campo). */
@@ -67,6 +69,7 @@ export function buildDeviceInput(d: DeviceDraft, original: Device | null): { inp
   if (!original) {
     const input: DeviceInput = { name, address, collector_id: d.collectorId }
     if (d.groupId) input.group_id = d.groupId
+    if (d.snmpProfileId) input.snmp_profile_id = d.snmpProfileId
     return { input }
   }
   const input: DeviceInput = {}
@@ -74,6 +77,7 @@ export function buildDeviceInput(d: DeviceDraft, original: Device | null): { inp
   if (address !== (original.address ?? '')) input.address = address
   if (d.collectorId !== (original.collector?.id ?? '')) input.collector_id = d.collectorId
   if (d.groupId !== (original.group?.id ?? '')) input.group_id = d.groupId || null
+  if (d.snmpProfileId !== (original.snmp_profile?.id ?? '')) input.snmp_profile_id = d.snmpProfileId || null
   if (Object.keys(input).length === 0) return { errors: { name: 'No hay cambios que guardar.' } }
   return { input }
 }
@@ -89,6 +93,8 @@ export function mapDeviceError(err: ApiError): string | null {
       return 'El colector no es válido: debe ser un host con agente que no esté deshabilitado.'
     case 'group_not_found':
       return 'El grupo elegido ya no existe.'
+    case 'profile_not_found':
+      return 'El perfil SNMP elegido ya no existe.'
     case 'device_not_found':
       return 'El dispositivo ya no existe.'
     default:

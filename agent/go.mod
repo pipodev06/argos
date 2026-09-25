@@ -3,6 +3,7 @@ module argos/agent
 go 1.27.0
 
 require (
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/shirou/gopsutil/v4 v4.26.8
 	golang.org/x/sys v0.48.0
 )

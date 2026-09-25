@@ -18,6 +18,13 @@ type collectorRefDTO struct {
 	Name string `json:"name"`
 }
 
+// profileRefDTO es la referencia a un perfil SNMP (sin secretos).
+type profileRefDTO struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version int    `json:"version"`
+}
+
 // deviceDTO es un dispositivo sin agente. address y collector solo los ve un admin: son datos de la red interna y
 // el colector puede estar fuera del ambito de un viewer restringido. evaluated es false si el colector no esta up
 // (el estado del dispositivo no se esta evaluando).
@@ -27,6 +34,7 @@ type deviceDTO struct {
 	Kind            string           `json:"kind"`
 	Address         *string          `json:"address,omitempty"`
 	Collector       *collectorRefDTO `json:"collector,omitempty"`
+	SNMPProfile     *profileRefDTO   `json:"snmp_profile,omitempty"`
 	Group           *groupRefDTO     `json:"group"`
 	Status          string           `json:"status"`
 	StatusChangedAt time.Time        `json:"status_changed_at"`
@@ -45,6 +53,9 @@ func toDeviceDTO(u *sessionUser, d store.Device) deviceDTO {
 		addr := d.Address.String()
 		dto.Address = &addr
 		dto.Collector = &collectorRefDTO{ID: d.CollectorID, Name: d.CollectorName}
+		if d.Profile != nil {
+			dto.SNMPProfile = &profileRefDTO{ID: d.Profile.ID, Name: d.Profile.Name, Version: d.Profile.Version}
+		}
 	}
 	return dto
 }
@@ -176,6 +187,8 @@ type updateDeviceReq struct {
 	Address     *string          `json:"address"`
 	CollectorID *string          `json:"collector_id"`
 	GroupID     optional[string] `json:"group_id"`
+	// SNMPProfileID: un id asigna el perfil y null lo quita.
+	SNMPProfileID optional[string] `json:"snmp_profile_id"`
 }
 
 func (a *API) updateDevice(w http.ResponseWriter, r *http.Request) error {
@@ -224,8 +237,20 @@ func (a *API) updateDevice(w http.ResponseWriter, r *http.Request) error {
 		}
 		fields = append(fields, "group_id")
 	}
+	var profileAudit string
+	if req.SNMPProfileID.Set {
+		ch.SetProfile = true
+		if req.SNMPProfileID.Value != nil {
+			pid, err := checkUUIDField("snmp_profile_id", *req.SNMPProfileID.Value)
+			if err != nil {
+				return err
+			}
+			ch.ProfileID, profileAudit = &pid, pid
+		}
+		fields = append(fields, "snmp_profile_id")
+	}
 	if len(fields) == 0 {
-		return badRequest("nada que cambiar: envia name, address, collector_id o group_id")
+		return badRequest("nada que cambiar: envia name, address, collector_id, group_id o snmp_profile_id")
 	}
 	d, err := a.store.UpdateDevice(r.Context(), strings.ToLower(id), ch)
 	if err != nil {
@@ -234,7 +259,11 @@ func (a *API) updateDevice(w http.ResponseWriter, r *http.Request) error {
 	u := currentUser(r)
 	e := actor(u)
 	e.Event, e.Outcome, e.TargetType, e.TargetID = evDeviceUpdated, store.OutcomeOK, "device", d.ID
-	a.audit(r, e, map[string]any{"name": d.Name, "fields": fields})
+	detail := map[string]any{"name": d.Name, "fields": fields}
+	if profileAudit != "" {
+		detail["snmp_profile_id"] = profileAudit
+	}
+	a.audit(r, e, detail)
 	writeJSON(w, http.StatusOK, map[string]any{"device": toDeviceDTO(u, d)})
 	return nil
 }

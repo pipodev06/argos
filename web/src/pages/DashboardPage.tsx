@@ -17,6 +17,7 @@ import { RulesPage } from './RulesPage'
 import { SummaryPage } from './SummaryPage'
 import { UsersPage } from './UsersPage'
 import { AuditPage } from './AuditPage'
+import { SnmpProfilesPage } from './SnmpProfilesPage'
 
 export function DashboardPage() {
   const { pathname } = useLocation()
@@ -43,6 +44,7 @@ export function DashboardPage() {
         <Route path="alertas/canales" element={<ChannelsPage />} />
         <Route path="alertas/:id" element={<AlertDetailPage />} />
         <Route path="usuarios" element={<UsersPage />} />
+        <Route path="perfiles-snmp" element={<SnmpProfilesPage />} />
         <Route path="auditoria" element={<AuditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

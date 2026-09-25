@@ -30,7 +30,7 @@ describe('isIpAddress', () => {
 })
 
 describe('buildDeviceInput', () => {
-  const draft = { name: ' Switch ', address: ' 10.0.0.5 ', collectorId: 'c1', groupId: '' }
+  const draft = { name: ' Switch ', address: ' 10.0.0.5 ', collectorId: 'c1', groupId: '', snmpProfileId: '' }
 
   it('crear: cuerpo completo sin group_id si no hay grupo', () => {
     expect(buildDeviceInput(draft, null)).toEqual({ input: { name: 'Switch', address: '10.0.0.5', collector_id: 'c1' } })
@@ -41,7 +41,7 @@ describe('buildDeviceInput', () => {
     })
   })
   it('valida nombre, IP y colector', () => {
-    const r = buildDeviceInput({ name: '', address: 'router', collectorId: '', groupId: '' }, null)
+    const r = buildDeviceInput({ name: '', address: 'router', collectorId: '', groupId: '', snmpProfileId: '' }, null)
     expect(r).toHaveProperty('errors')
     if ('errors' in r) expect(Object.keys(r.errors).sort()).toEqual(['address', 'collectorId', 'name'])
     const long = buildDeviceInput({ ...draft, name: 'x'.repeat(MAX_NAME + 1) }, null)
@@ -49,12 +49,20 @@ describe('buildDeviceInput', () => {
   })
   it('editar: solo envia lo que cambio y group_id null quita el grupo', () => {
     expect(buildDeviceInput({ ...draft, address: '10.0.0.6', groupId: 'g1' }, device)).toEqual({ input: { address: '10.0.0.6' } })
-    expect(buildDeviceInput({ name: 'Switch', address: '10.0.0.5', collectorId: 'c1', groupId: '' }, device)).toEqual({
+    expect(buildDeviceInput({ name: 'Switch', address: '10.0.0.5', collectorId: 'c1', groupId: '', snmpProfileId: '' }, device)).toEqual({
       input: { group_id: null },
     })
   })
+  it('perfil SNMP: crear lo envía; editar envía uuid o null para quitarlo', () => {
+    expect(buildDeviceInput({ ...draft, snmpProfileId: 'p1' }, null)).toEqual({
+      input: { name: 'Switch', address: '10.0.0.5', collector_id: 'c1', snmp_profile_id: 'p1' },
+    })
+    const withProfile = { ...device, snmp_profile: { id: 'p1', name: 'Core', version: 3 as const } }
+    expect(buildDeviceInput({ ...draft, groupId: 'g1', snmpProfileId: 'p2' }, withProfile)).toEqual({ input: { snmp_profile_id: 'p2' } })
+    expect(buildDeviceInput({ ...draft, groupId: 'g1', snmpProfileId: '' }, withProfile)).toEqual({ input: { snmp_profile_id: null } })
+  })
   it('editar sin cambios: error, no un PATCH vacio', () => {
-    expect(buildDeviceInput({ name: 'Switch', address: '10.0.0.5', collectorId: 'c1', groupId: 'g1' }, device)).toHaveProperty('errors')
+    expect(buildDeviceInput({ name: 'Switch', address: '10.0.0.5', collectorId: 'c1', groupId: 'g1', snmpProfileId: '' }, device)).toHaveProperty('errors')
   })
 })
 

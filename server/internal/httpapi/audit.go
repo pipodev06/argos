@@ -53,6 +53,9 @@ const (
 	evDeviceCreated          = "device_created"
 	evDeviceUpdated          = "device_updated"
 	evDeviceDeleted          = "device_deleted"
+	evSNMPProfileCreated     = "snmp_profile_created"
+	evSNMPProfileUpdated     = "snmp_profile_updated"
+	evSNMPProfileDeleted     = "snmp_profile_deleted"
 	evServiceCheckCreated    = "service_check_created"
 	evServiceCheckUpdated    = "service_check_updated"
 	evServiceCheckDeleted    = "service_check_deleted"
@@ -83,6 +86,8 @@ var auditDetailKeys = map[string]bool{
 	"type": true, "check_id": true, "device_id": true,
 	// Dispositivos: el colector que los sondea (nunca la direccion IP).
 	"collector_id": true,
+	// SNMP: version del perfil, perfil asignado a un dispositivo e interfaz del chequeo (nunca contrasenas ni comunidad).
+	"version": true, "snmp_profile_id": true, "if_index": true,
 	// Canales: solo el host del destino (nunca la URL completa, que puede llevar un token, ni el secreto HMAC).
 	"host": true,
 	// Lectura de inventario: solo el modulo consultado, nunca contenido.

@@ -1,4 +1,5 @@
 import { draftToScope, scopeToDraft, ALL_SCOPE, type ScopeDraft } from '@/features/alerts/utils/scope'
+import { isDeviceCheck } from './format'
 import type { CheckInput, CheckType, ServiceCheck } from '../types/check.types'
 
 export const MAX_NAME = 80
@@ -11,6 +12,7 @@ export const MAX_LATENCY = 60000
 export const MAX_DAYS = 365
 export const MAX_URL = 512
 export const MAX_EXPECT_TEXT = 100
+export const MAX_IF_INDEX = 65535
 export const MAX_SECRET = 512
 export const HEADER_OPTIONS = ['Authorization', 'X-API-Key', 'X-Auth-Token'] as const
 
@@ -26,6 +28,7 @@ export const CHECK_TYPE_OPTIONS: readonly { value: CheckType; label: string }[] 
   { value: 'tls_cert', label: 'Certificado TLS' },
   { value: 'service', label: 'Servicio del sistema' },
   { value: 'ping', label: 'Ping (dispositivo)' },
+  { value: 'snmp', label: 'SNMP (dispositivo)' },
 ]
 
 export interface CheckDraft {
@@ -48,6 +51,9 @@ export interface CheckDraft {
   /** Solo escritura: nunca se rellena con el valor guardado. */
   secret: string
   removeSecret: boolean
+  /** Solo snmp: `reachable` | `if_oper`. */
+  metric: string
+  ifIndex: string
   scope: ScopeDraft
   enabled: boolean
 }
@@ -76,6 +82,8 @@ export function checkToDraft(c: ServiceCheck | null): CheckDraft {
     headerName: '',
     secret: '',
     removeSecret: false,
+    metric: 'reachable',
+    ifIndex: '',
     scope: ALL_SCOPE,
     enabled: true,
   }
@@ -98,6 +106,8 @@ export function checkToDraft(c: ServiceCheck | null): CheckDraft {
     warnDays: c.warn_days === null ? base.warnDays : String(c.warn_days),
     critDays: c.crit_days === null ? base.critDays : String(c.crit_days),
     headerName: c.header_name ?? '',
+    metric: c.metric ?? 'reachable',
+    ifIndex: txt(c.if_index ?? null),
     scope: scopeToDraft(c.scope),
     enabled: c.enabled,
   }
@@ -168,7 +178,7 @@ export function buildCheckInput(d: CheckDraft, original: ServiceCheck | null): {
   if (retries !== null) input.retries = retries
   if ('scope' in scope) input.scope = scope.scope
   if (!editing) input.type = d.type
-  if (d.scope.type === 'device' && d.type !== 'ping') errors.scope = 'El alcance de un dispositivo solo vale para chequeos ping.'
+  if (d.scope.type === 'device' && !isDeviceCheck(d.type)) errors.scope = 'El alcance de un dispositivo solo vale para chequeos ping y snmp.'
 
   const hostPort = () => {
     const host = d.host.trim()
@@ -228,6 +238,16 @@ export function buildCheckInput(d: CheckDraft, original: ServiceCheck | null): {
     case 'ping':
       // Sin destino propio: el ping va a la direccion de cada dispositivo del alcance.
       latency()
+      break
+    case 'snmp':
+      // Sin destino ni umbrales: el colector consulta la dirección de cada dispositivo con su perfil SNMP.
+      if (d.metric === 'if_oper') {
+        const idx = int(d.ifIndex, 1, MAX_IF_INDEX)
+        if (idx === null) errors.ifIndex = `Índice de interfaz: entero entre 1 y ${MAX_IF_INDEX}.`
+        else input.if_index = idx
+      } else if (editing) input.if_index = null
+      if (d.metric !== 'reachable' && d.metric !== 'if_oper') errors.metric = 'Elige una métrica.'
+      else input.metric = d.metric
       break
     case 'service': {
       const svc = d.serviceName.trim()
