@@ -138,3 +138,24 @@ func TestPurgeInBatchesStopsWhenContextIsCancelled(t *testing.T) {
 		t.Errorf("got (total=%d, err=%v, calls=%d), want una sola vuelta", total, err, calls)
 	}
 }
+
+// Regresion: con una retencion de alertas corta, las ventanas de mantenimiento se conservan lo que necesita el
+// informe de SLA de 90 d; con una larga manda la retencion de alertas.
+func TestPurgeAllKeepsMaintenanceWindowsForSLAReports(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+	for name, tc := range map[string]struct{ alerts, want time.Duration }{
+		"alertas cortas":  {30 * 24 * time.Hour, minMaintenanceKeep},
+		"alertas largas":  {365 * 24 * time.Hour, 365 * 24 * time.Hour},
+		"justo el minimo": {minMaintenanceKeep, minMaintenanceKeep},
+	} {
+		f := &fakePurger{}
+		purgeAll(context.Background(), slog.New(slog.NewJSONHandler(io.Discard, nil)), f, now, retentionPolicy{Alerts: tc.alerts})
+		if got, want := f.before["windows"], now.Add(-tc.want); !got.Equal(want) {
+			t.Errorf("%s: corte de ventanas got %v, want %v", name, got, want)
+		}
+		if minMaintenanceKeep < 90*24*time.Hour {
+			t.Fatalf("minMaintenanceKeep %v no cubre el informe de 90 d", minMaintenanceKeep)
+		}
+	}
+}

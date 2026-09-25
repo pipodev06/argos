@@ -60,6 +60,7 @@ const (
 	evAgentAuthFail          = "agent_auth_fail"
 	evEnrollFail             = "enroll_fail"
 	evInventoryRead          = "inventory_read"
+	evReportExported         = "report_exported"
 )
 
 // auditDetailKeys es la lista blanca de claves permitidas en audit_log.detail.
@@ -81,6 +82,8 @@ var auditDetailKeys = map[string]bool{
 	"host": true,
 	// Lectura de inventario: solo el modulo consultado, nunca contenido.
 	"module": true,
+	// Exportacion de informes: tipo, rango y filas escritas, nunca contenido.
+	"report": true, "range": true, "rows": true,
 }
 
 // audit registra un evento sin fallar la solicitud si la escritura falla: se loguea

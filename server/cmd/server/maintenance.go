@@ -16,6 +16,9 @@ const (
 	// Los enroll tokens vencidos se conservan 7 dias (rastro de quien intento usar uno vencido).
 	enrollTokenGrace  = 7 * 24 * time.Hour
 	finalFlushTimeout = 3 * time.Second
+	// minMaintenanceKeep es lo minimo que se conserva de las ventanas de mantenimiento terminadas: el informe de
+	// SLA mas largo (90 d) las necesita aunque la retencion de alertas sea menor (90 d + 10 d de margen).
+	minMaintenanceKeep = 100 * 24 * time.Hour
 )
 
 // purger es lo que el mantenimiento necesita del store.
@@ -36,7 +39,7 @@ type purger interface {
 type retentionPolicy struct {
 	Audit         time.Duration
 	HostEvents    time.Duration
-	Alerts        time.Duration // alertas resueltas y ventanas de mantenimiento terminadas
+	Alerts        time.Duration // alertas resueltas y ventanas de mantenimiento terminadas (estas, al menos minMaintenanceKeep)
 	Notifications time.Duration // entregas terminadas
 	CheckEvents   time.Duration // transiciones de chequeos de servicio
 	Inventory     time.Duration // cambios del inventario (puertos y servicios)
@@ -78,7 +81,9 @@ func purgeAll(ctx context.Context, logger *slog.Logger, st purger, now time.Time
 		{"enroll_tokens", func() (int, error) { return st.PurgeEnrollTokens(ctx, now.Add(-enrollTokenGrace), purgeBatch) }},
 		{"host_events", func() (int, error) { return st.PurgeHostEvents(ctx, now.Add(-keep.HostEvents), purgeBatch) }},
 		{"alerts", func() (int, error) { return st.PurgeResolvedAlerts(ctx, now.Add(-keep.Alerts), purgeBatch) }},
-		{"maintenance_windows", func() (int, error) { return st.PurgeMaintenanceWindows(ctx, now.Add(-keep.Alerts), purgeBatch) }},
+		{"maintenance_windows", func() (int, error) {
+			return st.PurgeMaintenanceWindows(ctx, now.Add(-max(keep.Alerts, minMaintenanceKeep)), purgeBatch)
+		}},
 		{"notification_deliveries", func() (int, error) { return st.PurgeDeliveries(ctx, now.Add(-keep.Notifications), purgeBatch) }},
 		{"service_check_events", func() (int, error) { return st.PurgeCheckEvents(ctx, now.Add(-keep.CheckEvents), purgeBatch) }},
 		{"inventory_changes", func() (int, error) { return st.PurgeInventoryChanges(ctx, now.Add(-keep.Inventory), purgeBatch) }},

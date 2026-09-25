@@ -256,13 +256,13 @@ func reportGroupExists(ctx context.Context, tx pgx.Tx, scope Scope, groupID stri
 }
 
 // reportTx abre una transaccion de solo lectura con statement_timeout y ejecuta fn.
-func (s *Store) reportTx(ctx context.Context, groupID *string, scope Scope, fn func(tx pgx.Tx) error) error {
+func (s *Store) reportTx(ctx context.Context, timeout time.Duration, groupID *string, scope Scope, fn func(tx pgx.Tx) error) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return fmt.Errorf("abriendo transaccion de informe: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }() // tras un error o un Commit el Rollback es inocuo
-	if _, err := tx.Exec(ctx, fmt.Sprintf(`SET LOCAL statement_timeout = %d`, ReportStatementTimeout.Milliseconds())); err != nil {
+	if _, err := tx.Exec(ctx, fmt.Sprintf(`SET LOCAL statement_timeout = %d`, timeout.Milliseconds())); err != nil {
 		return fmt.Errorf("fijando statement_timeout: %w", err)
 	}
 	if groupID != nil {
@@ -312,7 +312,7 @@ SELECT hs.id, hs.hostname, hs.group_id, hs.gname,
  ORDER BY lower(hs.hostname), hs.id`
 
 	var out []HostAvailability
-	err := s.reportTx(ctx, groupID, scope, func(tx pgx.Tx) error {
+	err := s.reportTx(ctx, ReportStatementTimeout, groupID, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, sql, []any(args)...)
 		if err != nil {
 			return fmt.Errorf("consultando disponibilidad: %w", err)
@@ -395,7 +395,7 @@ SELECT hs.id, hs.hostname, hs.group_id, hs.gname, p.check_id, p.cname,
 
 	var out []CheckAvailability
 	tooManyHosts := false
-	err := s.reportTx(ctx, groupID, scope, func(tx pgx.Tx) error {
+	err := s.reportTx(ctx, ReportStatementTimeout, groupID, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, sql, []any(args)...)
 		if err != nil {
 			return fmt.Errorf("consultando chequeos: %w", err)

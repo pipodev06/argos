@@ -10,7 +10,7 @@
 | Tests, cobertura, e2e, regresiones, verificacion contra Postgres real | qa-testing-engineer |
 | CI (`-race`), Dockerfiles, empaquetado, firma de binarios, despliegue, proxy/TLS | devops-engineer |
 | Amenazas, hardening, revision de auth/servicio | security-engineer |
-| Estado, decisiones, deuda, coherencia de `docs/` | project-overseer |
-| Evaluar librerias/herramientas nuevas | tech-scout |
+| Estado, decisiones, deuda, coherencia de `docs/` | orquestador (Claude principal) |
+| Evaluar librerias/herramientas nuevas | orquestador, con el usuario (WebSearch), o security-engineer si es de seguridad |
 
 Reglas: los agentes no escriben en `docs/`; devuelven "notas para docs" y el orquestador las vuelca. Leer `docs/decisiones.md` (indice) primero y abrir solo los temas de la tarea.
