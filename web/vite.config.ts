@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -11,6 +12,8 @@ export default defineConfig({
     // changeOrigin false: el Host debe seguir siendo el del navegador pa que el CSRF del server (Origin == Host) pase
     proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: false } },
   },
+  // entorno node por defecto; los tests de hooks piden jsdom con `// @vitest-environment jsdom`
+  test: { globals: false },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),

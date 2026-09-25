@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$ROOT/.check"
 cd "$ROOT/web" || exit 2
 FAILED=0
-for name in build lint; do
+for name in build lint test; do
   log="$ROOT/.check/web-$name.log"; t0=$SECONDS
   if npm run "$name" >"$log" 2>&1; then
     warns="$(grep -ci 'warning' "$log")"
