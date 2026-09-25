@@ -32,7 +32,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
           const self = u.id === currentUserId
           return (
             <Row key={u.id}>
-              <Cell className="font-mono font-semibold">
+              <Cell className="font-semibold">
                 {u.username}
                 {self && <span className="font-sans font-normal text-text-muted"> (tú)</span>}
               </Cell>
