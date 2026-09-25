@@ -115,6 +115,8 @@ func mapSNMPError(ctx context.Context, err error) error {
 	case errors.Is(err, gosnmp.ErrUnknownUsername), errors.Is(err, gosnmp.ErrWrongDigest),
 		errors.Is(err, gosnmp.ErrDecryption), errors.Is(err, gosnmp.ErrUnknownSecurityLevel):
 		return ErrSNMPAuth
+	case strings.Contains(msg, "not authentic"): // gosnmp: el digest HMAC de la respuesta no coincide (clave de autenticacion distinta)
+		return ErrSNMPAuth
 	case strings.Contains(msg, "response buffer too small"): // gosnmp: datagrama >= 65535 bytes
 		return ErrSNMPTooLarge
 	case errors.Is(err, context.DeadlineExceeded), ctx.Err() != nil,

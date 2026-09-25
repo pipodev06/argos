@@ -128,6 +128,20 @@ function PermissionsForm({ user, onClose, onSaved }: PermissionsDialogProps & { 
           Dato sensible. Solo aplica a los hosts que el usuario puede ver.
         </p>
       </div>
+      <div className="grid gap-1">
+        <label htmlFor="perm-updates" className="flex items-center gap-2 text-sm font-medium text-text">
+          <Checkbox
+            id="perm-updates"
+            aria-describedby="perm-updates-hint"
+            checked={form.canUpdates}
+            onCheckedChange={(v) => setForm({ ...form, canUpdates: v === true })}
+          />
+          Ver parches del SO
+        </label>
+        <p id="perm-updates-hint" className="text-xs text-text-muted">
+          Dato sensible: revela la exposición de cada host (parches de seguridad pendientes, fin de vida). Solo aplica a los hosts que el usuario puede ver.
+        </p>
+      </div>
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>

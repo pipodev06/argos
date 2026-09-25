@@ -32,6 +32,7 @@ type purger interface {
 	PurgeDeliveries(ctx context.Context, before time.Time, batch int) (int, error)
 	PurgeCheckEvents(ctx context.Context, before time.Time, batch int) (int, error)
 	PurgeInventoryChanges(ctx context.Context, before time.Time, batch int) (int, error)
+	PurgeUpdatesHistory(ctx context.Context, before time.Time, batch int) (int, error)
 	PurgeStaleCheckState(ctx context.Context, now time.Time, batch int) (int, error)
 }
 
@@ -43,6 +44,7 @@ type retentionPolicy struct {
 	Notifications time.Duration // entregas terminadas
 	CheckEvents   time.Duration // transiciones de chequeos de servicio
 	Inventory     time.Duration // cambios del inventario (puertos y servicios)
+	Updates       time.Duration // historial de parches del SO
 }
 
 // runMaintenance corre hasta que ctx se cancele: vuelca cada minuto los fallos de
@@ -87,6 +89,7 @@ func purgeAll(ctx context.Context, logger *slog.Logger, st purger, now time.Time
 		{"notification_deliveries", func() (int, error) { return st.PurgeDeliveries(ctx, now.Add(-keep.Notifications), purgeBatch) }},
 		{"service_check_events", func() (int, error) { return st.PurgeCheckEvents(ctx, now.Add(-keep.CheckEvents), purgeBatch) }},
 		{"inventory_changes", func() (int, error) { return st.PurgeInventoryChanges(ctx, now.Add(-keep.Inventory), purgeBatch) }},
+		{"updates_history", func() (int, error) { return st.PurgeUpdatesHistory(ctx, now.Add(-keep.Updates), purgeBatch) }},
 		{"service_check_state", func() (int, error) { return st.PurgeStaleCheckState(ctx, now, purgeBatch) }},
 	}
 	for _, step := range steps {

@@ -66,6 +66,7 @@ const (
 	evAgentAuthFail          = "agent_auth_fail"
 	evEnrollFail             = "enroll_fail"
 	evInventoryRead          = "inventory_read"
+	evUpdatesRead            = "updates_read"
 	evReportExported         = "report_exported"
 )
 
@@ -75,7 +76,7 @@ var auditDetailKeys = map[string]bool{
 	"reason": true, "locked": true, "role": true, "disabled": true,
 	"method": true, "route": true, "count": true, "hostname": true,
 	// Permisos por grupo de un usuario: valores antes (prev_*) y despues; group_ids solo si son pocos.
-	"all_groups": true, "prev_all_groups": true, "can_inventory": true, "prev_can_inventory": true,
+	"all_groups": true, "prev_all_groups": true, "can_inventory": true, "prev_can_inventory": true, "can_updates": true, "prev_can_updates": true,
 	"group_ids": true, "group_count": true, "prev_group_count": true,
 	// Grupos y acciones masivas.
 	"action": true, "group_id": true, "name": true, "always_on": true, "down_after_seconds": true,
@@ -91,7 +92,7 @@ var auditDetailKeys = map[string]bool{
 	// Canales: solo el host del destino (nunca la URL completa, que puede llevar un token, ni el secreto HMAC).
 	"host": true,
 	// Lectura de inventario: solo el modulo consultado, nunca contenido.
-	"module": true,
+	"module": true, "scope": true,
 	// Exportacion de informes: tipo, rango y filas escritas, nunca contenido.
 	"report": true, "range": true, "rows": true,
 }

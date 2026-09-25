@@ -27,10 +27,12 @@ type Item struct {
 	Event     string // opened | resolved | reminder
 	Hostname  string
 	Rule      string
+	Kind      string // tipo de regla: decide como se rotula Detail en el texto
 	Severity  string
 	Value     *float64
 	Threshold *float64
-	// Detail: hasta 5 proto/puerto (alertas exposed_port); ya viene acotado y sin datos de proceso.
+	// Detail: texto corto ya acotado (exposed_port: hasta 5 proto/puerto sin datos de proceso; parches: conteos,
+	// fecha y version del SO; nunca listas de paquetes ni avisos).
 	Detail string
 }
 
@@ -124,7 +126,11 @@ func BuildMessage(items []Item, omitted int, baseURL string, now time.Time) ([]b
 		lines = append(lines, fmt.Sprintf("[%s] %s %s en %s (valor %s, umbral %s)",
 			strings.ToUpper(a.Severity), verb, a.Rule, a.Hostname, fmtNum(a.Value), fmtNum(a.Threshold)))
 		if a.Detail != "" {
-			lines[len(lines)-1] += " - puertos: " + a.Detail
+			label := " - "
+			if it.Kind == "exposed_port" {
+				label = " - puertos: "
+			}
+			lines[len(lines)-1] += label + a.Detail
 		}
 	}
 	if omitted > 0 {

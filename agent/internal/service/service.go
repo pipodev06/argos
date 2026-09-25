@@ -41,6 +41,9 @@ var ErrAlreadyInstalled = errors.New("el servicio ya esta instalado: ejecuta pri
 type InstallOptions struct {
 	// CAFile es la CA privada (PEM) del servidor; se copia al directorio de estado como ca.pem.
 	CAFile string
+	// Privileged (--privileged) da al agente la visibilidad completa con el minimo privilegio del SO
+	// (Linux: capacidades + sudoers acotado; Windows: LocalSystem; macOS: root). Por defecto, sin privilegios.
+	Privileged bool
 	// Out recibe los avisos de progreso.
 	Out io.Writer
 	// Logger recibe los avisos del almacen de estado (p. ej. si no se pudo endurecer un permiso).

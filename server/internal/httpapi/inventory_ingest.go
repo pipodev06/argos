@@ -103,6 +103,18 @@ func (a *API) agentInventory(w http.ResponseWriter, r *http.Request) error {
 	if at := *req.CollectedAt; at.Before(now.Add(-maxTimestampAge)) || at.After(now.Add(maxTimestampSkew)) {
 		return badRequest("collected_at fuera de rango")
 	}
+	if req.Module == store.InventoryUpdates {
+		// El permiso can_updates aplica a la lectura, no a este envio: el agente solo escribe su propio host.
+		snap, err := validateUpdates(req.Items, req.Rev, req.Truncated, *req.CollectedAt, now)
+		if err != nil {
+			return err
+		}
+		if err := a.store.IngestUpdates(r.Context(), hostID, snap, now); err != nil {
+			return err
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
 	items, err := validateInventoryItems(req.Module, req.Items)
 	if err != nil {
 		return err

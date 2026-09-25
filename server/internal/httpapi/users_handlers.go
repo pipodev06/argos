@@ -25,6 +25,7 @@ type adminUserDTO struct {
 	AllGroups    bool     `json:"all_groups"`
 	GroupIDs     []string `json:"group_ids"`
 	CanInventory bool     `json:"can_inventory"`
+	CanUpdates   bool     `json:"can_updates"`
 }
 
 func toAdminUserDTO(u store.User) adminUserDTO {
@@ -35,7 +36,7 @@ func toAdminUserDTO(u store.User) adminUserDTO {
 	return adminUserDTO{
 		ID: u.ID, Username: u.Username, Role: u.Role, MustChangePassword: u.MustChangePassword,
 		Disabled: u.DisabledAt != nil, LastLoginAt: u.LastLoginAt, CreatedAt: u.CreatedAt,
-		AllGroups: u.AllGroups, GroupIDs: groupIDs, CanInventory: u.CanInventory,
+		AllGroups: u.AllGroups, GroupIDs: groupIDs, CanInventory: u.CanInventory, CanUpdates: u.CanUpdates,
 	}
 }
 
@@ -103,6 +104,7 @@ type updateUserReq struct {
 	AllGroups    *bool     `json:"all_groups"`
 	GroupIDs     *[]string `json:"group_ids"`
 	CanInventory *bool     `json:"can_inventory"`
+	CanUpdates   *bool     `json:"can_updates"`
 }
 
 // maxUserGroups acota group_ids de un usuario.
@@ -151,13 +153,13 @@ func (a *API) updateUser(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if req.Role == nil && req.Disabled == nil && req.NewPassword == nil &&
-		req.AllGroups == nil && req.GroupIDs == nil && req.CanInventory == nil {
-		return badRequest("nada que cambiar: envia role, disabled, new_password, all_groups, group_ids o can_inventory")
+		req.AllGroups == nil && req.GroupIDs == nil && req.CanInventory == nil && req.CanUpdates == nil {
+		return badRequest("nada que cambiar: envia role, disabled, new_password, all_groups, group_ids, can_inventory o can_updates")
 	}
 	if req.Role != nil && !validRole(*req.Role) {
 		return badRequest("role debe ser admin o viewer")
 	}
-	change := store.UserChange{Role: req.Role, Disabled: req.Disabled, AllGroups: req.AllGroups, CanInventory: req.CanInventory}
+	change := store.UserChange{Role: req.Role, Disabled: req.Disabled, AllGroups: req.AllGroups, CanInventory: req.CanInventory, CanUpdates: req.CanUpdates}
 	if req.GroupIDs != nil {
 		ids, err := normalizeGroupIDs(*req.GroupIDs)
 		if err != nil {
@@ -208,7 +210,7 @@ func (a *API) updateUser(w http.ResponseWriter, r *http.Request) error {
 	if req.NewPassword != nil {
 		emit(evUserPasswordReset, nil)
 	}
-	if before.AllGroups != u.AllGroups || before.CanInventory != u.CanInventory || !slices.Equal(before.GroupIDs, u.GroupIDs) {
+	if before.AllGroups != u.AllGroups || before.CanInventory != u.CanInventory || before.CanUpdates != u.CanUpdates || !slices.Equal(before.GroupIDs, u.GroupIDs) {
 		emit(evUserPermissionsChanged, permissionsDetail(before, u))
 	}
 
@@ -222,6 +224,7 @@ func permissionsDetail(before, after store.User) map[string]any {
 	d := map[string]any{
 		"prev_all_groups": before.AllGroups, "all_groups": after.AllGroups,
 		"prev_can_inventory": before.CanInventory, "can_inventory": after.CanInventory,
+		"prev_can_updates": before.CanUpdates, "can_updates": after.CanUpdates,
 		"prev_group_count": len(before.GroupIDs), "group_count": len(after.GroupIDs),
 	}
 	if len(after.GroupIDs) <= maxAuditGroupIDs {

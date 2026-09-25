@@ -10,7 +10,7 @@ import { ChannelPicker } from '@/features/channels/components/ChannelPicker'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { createRule, setRuleChannels, updateRule } from '../services/alerts.service'
 import type { AlertRule, AlertSeverity, RuleKind, RuleMetric, RuleOp } from '../types/alert.types'
-import { isLoadMetric, METRIC_LABELS, SEVERITY_LABELS } from '../utils/format'
+import { isLoadMetric, isUpdatesKind, METRIC_LABELS, SEVERITY_LABELS } from '../utils/format'
 import {
   buildRuleInput,
   KIND_OPTIONS,
@@ -40,6 +40,13 @@ export function RuleFormDialog(props: RuleFormDialogProps) {
       <DialogContent className="max-h-[90dvh] overflow-y-auto">{props.open && <RuleForm {...props} />}</DialogContent>
     </Dialog>
   )
+}
+
+const THRESHOLD_LABELS: Partial<Record<RuleKind, string>> = {
+  no_data: 'Segundos sin reportar',
+  pending_updates: 'Pendientes de seguridad (mínimo)',
+  reboot_pending: 'Días con reinicio pendiente',
+  os_eol: 'Días de antelación al fin de vida',
 }
 
 function CheckField({ id, label, hint, checked, onChange }: { id: string; label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -93,7 +100,8 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
 
   const isMetric = draft.kind === 'metric'
   const isCheck = draft.kind === 'service_check'
-  const thresholdLabel = draft.kind === 'no_data' ? 'Segundos sin reportar' : isLoadMetric(draft.metric) ? 'Umbral' : 'Umbral (%)'
+  const updates = isUpdatesKind(draft.kind)
+  const thresholdLabel = THRESHOLD_LABELS[draft.kind] ?? (isLoadMetric(draft.metric) ? 'Umbral' : 'Umbral (%)')
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate>
@@ -165,7 +173,7 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
           error={errors.ports}
         />
       )}
-      {(isMetric || draft.kind === 'no_data') && (
+      {(isMetric || draft.kind === 'no_data' || updates) && (
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField
             id="rule-threshold"
@@ -189,15 +197,29 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
-        <FormField
-          id="rule-duration"
-          label="Duración (minutos)"
-          inputMode="decimal"
-          value={draft.durationMin}
-          onChange={(e) => set('durationMin', e.target.value)}
-          hint="Tiempo que debe mantenerse la condición. 0 = de inmediato."
-          error={errors.duration}
-        />
+        {draft.kind === 'pending_updates' ? (
+          <FormField
+            id="rule-duration-days"
+            label="Duración (días)"
+            inputMode="numeric"
+            value={draft.durationDays}
+            onChange={(e) => set('durationDays', e.target.value)}
+            hint="Días que deben mantenerse los pendientes. 0 = de inmediato."
+            error={errors.durationDays}
+          />
+        ) : (
+          !updates && (
+            <FormField
+              id="rule-duration"
+              label="Duración (minutos)"
+              inputMode="decimal"
+              value={draft.durationMin}
+              onChange={(e) => set('durationMin', e.target.value)}
+              hint="Tiempo que debe mantenerse la condición. 0 = de inmediato."
+              error={errors.duration}
+            />
+          )
+        )}
         <FormField
           id="rule-resolve"
           label="Espera de resolución (minutos)"

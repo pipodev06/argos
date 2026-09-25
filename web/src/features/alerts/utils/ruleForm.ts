@@ -1,6 +1,6 @@
 import type { AlertRule, ExpectedPort, AlertSeverity, RuleInput, RuleKind, RuleMetric, RuleOp } from '../types/alert.types'
 import { formatExpectedPorts, parseExpectedPorts } from './expectedPorts'
-import { isLoadMetric, parseNumber } from './format'
+import { isLoadMetric, isUpdatesKind, parseNumber } from './format'
 import { ALL_SCOPE, draftToScope, scopeToDraft, type ScopeDraft } from './scope'
 
 export const MAX_NAME = 80
@@ -8,6 +8,9 @@ const MAX_MINUTES = 1440 // 24 h (tope del servidor: 86 400 s)
 const MIN_NO_DATA = 60
 const MAX_NO_DATA = 30 * 24 * 3600
 const MAX_LOAD = 1e6
+const MAX_PENDING = 10_000
+const MAX_DAYS = 365
+const MAX_EOL_LEAD_DAYS = 730
 
 export const KIND_OPTIONS: readonly { value: RuleKind; label: string }[] = [
   { value: 'metric', label: 'Métrica sobre umbral' },
@@ -15,6 +18,9 @@ export const KIND_OPTIONS: readonly { value: RuleKind; label: string }[] = [
   { value: 'no_data', label: 'Sin reportar (sin datos)' },
   { value: 'service_check', label: 'Chequeo de servicio' },
   { value: 'exposed_port', label: 'Puerto nuevo expuesto' },
+  { value: 'pending_updates', label: 'Actualizaciones de seguridad pendientes' },
+  { value: 'reboot_pending', label: 'Reinicio pendiente' },
+  { value: 'os_eol', label: 'Fin de vida del SO' },
 ]
 export const OP_OPTIONS: readonly { value: RuleOp; label: string }[] = [
   { value: 'gt', label: 'Mayor que (>)' },
@@ -29,6 +35,8 @@ export interface RuleDraft {
   threshold: string
   clear: string
   durationMin: string
+  /** Solo pending_updates. */
+  durationDays: string
   resolveMin: string
   includeOffline: boolean
   checkId: string
@@ -39,7 +47,7 @@ export interface RuleDraft {
   enabled: boolean
 }
 
-export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'resolve' | 'scope' | 'check' | 'ports', string>>
+export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'durationDays' | 'resolve' | 'scope' | 'check' | 'ports', string>>
 
 const minutesText = (seconds: number) => String(Math.round((seconds / 60) * 100) / 100)
 
@@ -53,6 +61,7 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
       threshold: '',
       clear: '',
       durationMin: '5',
+      durationDays: '0',
       resolveMin: '1',
       includeOffline: false,
       checkId: '',
@@ -71,6 +80,7 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
     threshold: rule.threshold === null ? '' : String(rule.threshold),
     clear: rule.clear_threshold === null ? '' : String(rule.clear_threshold),
     durationMin: minutesText(rule.duration_seconds),
+    durationDays: String(rule.duration_days ?? 0),
     resolveMin: minutesText(rule.resolve_seconds),
     includeOffline: rule.include_offline,
     checkId: rule.check_id ?? '',
@@ -95,7 +105,9 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
   if (!name) errors.name = 'Ingresa un nombre.'
   else if (name.length > MAX_NAME) errors.name = `Máximo ${MAX_NAME} caracteres.`
 
-  const duration = minutes(d.durationMin, 'Duración')
+  // Reglas de parches: su duracion (si aplica) va en dias; `duration_seconds` se envia en 0.
+  const updates = isUpdatesKind(d.kind)
+  const duration = updates ? { seconds: 0 } : minutes(d.durationMin, 'Duración')
   if ('error' in duration) errors.duration = duration.error
   const resolve = minutes(d.resolveMin, 'Espera de resolución')
   if ('error' in resolve) errors.resolve = resolve.error
@@ -114,11 +126,27 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
 
   let threshold: number | undefined
   let clear: number | null = null
+  let durationDays = 0
   if (d.kind === 'no_data') {
     const n = parseNumber(d.threshold)
     if (n === null || n < MIN_NO_DATA || n > MAX_NO_DATA) {
       errors.threshold = `Segundos sin reportar: entre ${MIN_NO_DATA} y ${MAX_NO_DATA.toLocaleString('es-PE')}.`
     } else threshold = n
+  } else if (updates) {
+    const [min, max, label] =
+      d.kind === 'pending_updates'
+        ? [1, MAX_PENDING, 'Pendientes de seguridad']
+        : d.kind === 'reboot_pending'
+          ? [1, MAX_DAYS, 'Días con reinicio pendiente']
+          : [0, MAX_EOL_LEAD_DAYS, 'Días de antelación']
+    const n = parseNumber(d.threshold)
+    if (n === null || !Number.isInteger(n) || n < min || n > max) errors.threshold = `${label}: un entero entre ${min} y ${max.toLocaleString('es-PE')}.`
+    else threshold = n
+    if (d.kind === 'pending_updates') {
+      const days = parseNumber(d.durationDays)
+      if (days === null || !Number.isInteger(days) || days < 0 || days > MAX_DAYS) errors.durationDays = `Duración: un entero de días entre 0 y ${MAX_DAYS}.`
+      else durationDays = days
+    }
   } else if (d.kind === 'metric') {
     const max = isLoadMetric(d.metric) ? MAX_LOAD : 100
     const n = parseNumber(d.threshold)
@@ -147,7 +175,8 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
   }
   if (d.kind === 'service_check') input.warn_or_down = d.warnOrDown
   if (d.kind === 'exposed_port') input.expected_ports = expectedPorts
-  if (d.kind === 'no_data') input.threshold = threshold
+  if (d.kind === 'no_data' || updates) input.threshold = threshold
+  if (d.kind === 'pending_updates') input.duration_days = durationDays
   if (d.kind === 'metric') {
     input.op = d.op
     input.threshold = threshold

@@ -16,10 +16,14 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"argos/agent/internal/inventory"
 )
 
 func TestRenderSystemdUnit(t *testing.T) {
@@ -76,7 +80,7 @@ func TestRenderRejectsUnsafeExecPaths(t *testing.T) {
 		if _, err := RenderSystemdUnit(p); err == nil {
 			t.Errorf("systemd: la ruta %q debio rechazarse", p)
 		}
-		if _, err := RenderLaunchdPlist(p); err == nil {
+		if _, err := RenderLaunchdPlist(p, false); err == nil {
 			t.Errorf("launchd: la ruta %q debio rechazarse", p)
 		}
 	}
@@ -85,7 +89,7 @@ func TestRenderRejectsUnsafeExecPaths(t *testing.T) {
 func TestRenderLaunchdPlist(t *testing.T) {
 	t.Parallel()
 
-	plist, err := RenderLaunchdPlist("/usr/local/libexec/argos-agent/argos-agent")
+	plist, err := RenderLaunchdPlist("/usr/local/libexec/argos-agent/argos-agent", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,5 +264,199 @@ func TestEventLogHandlerMapsLevelsAndKeepsAttrs(t *testing.T) {
 	}
 	if strings.Contains(sink.got[0], "time=") {
 		t.Errorf("el evento no debe repetir la hora: %q", sink.got[0])
+	}
+}
+
+func unitLines(unit string) map[string]bool {
+	m := map[string]bool{}
+	for _, l := range strings.Split(unit, "\n") {
+		m[l] = true
+	}
+	return m
+}
+
+// Sin --privileged la unit es la de siempre: nada de Environment, sudo ni capacidades.
+func TestRenderSystemdUnitDefaultIsUnprivileged(t *testing.T) {
+	t.Parallel()
+	got, err := RenderSystemdUnitOpts("/opt/argos-agent/argos-agent", UnitOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := RenderSystemdUnit("/opt/argos-agent/argos-agent")
+	if err != nil || got != want {
+		t.Fatalf("UnitOptions{} debe ser identica a RenderSystemdUnit (err %v)", err)
+	}
+	for _, bad := range []string{"Environment=", "CAP_", "@privileged", "NoNewPrivileges=false"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("la unit sin privilegios no debe contener %q", bad)
+		}
+	}
+}
+
+func TestRenderSystemdUnitPrivileged(t *testing.T) {
+	t.Parallel()
+	const exe = "/opt/argos-agent/argos-agent"
+	caps := func(unit, key string) string {
+		for _, l := range strings.Split(unit, "\n") {
+			if v, ok := strings.CutPrefix(l, key+"="); ok {
+				return v
+			}
+		}
+		return "<falta>"
+	}
+	// Solo capacidades (sin sudoers): las dos, iguales en bounding y ambient; NoNewPrivileges sigue true.
+	u, err := RenderSystemdUnitOpts(exe, UnitOptions{Privileged: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const two = "CAP_DAC_READ_SEARCH CAP_SYS_PTRACE"
+	if caps(u, "AmbientCapabilities") != two || caps(u, "CapabilityBoundingSet") != two {
+		t.Errorf("caps got ambient=%q bounding=%q, want %q en ambas", caps(u, "AmbientCapabilities"), caps(u, "CapabilityBoundingSet"), two)
+	}
+	l := unitLines(u)
+	for _, want := range []string{"NoNewPrivileges=true", "User=argos-agent", "SystemCallFilter=@system-service", "ProtectSystem=strict"} {
+		if !l[want] {
+			t.Errorf("falta %q sin sudoers", want)
+		}
+	}
+	if strings.Contains(u, "ARGOS_UPDATES_SUDO") {
+		t.Error("sin sudoers no debe activar ARGOS_UPDATES_SUDO")
+	}
+	// Con sudoers: sudo necesita NoNewPrivileges=false y SETUID/SETGID/AUDIT_WRITE solo en el bounding set.
+	u, err = RenderSystemdUnitOpts(exe, UnitOptions{Privileged: true, Sudo: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l = unitLines(u)
+	for _, want := range []string{
+		"NoNewPrivileges=false", "Environment=ARGOS_UPDATES_SUDO=true",
+		"CapabilityBoundingSet=" + two + " CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE",
+		"AmbientCapabilities=" + two, "SystemCallFilter=@system-service @privileged",
+	} {
+		if !l[want] {
+			t.Errorf("falta la linea %q con sudoers:\n%s", want, u)
+		}
+	}
+	for _, bad := range []string{"CAP_SYS_ADMIN", "CAP_NET_RAW", "CAP_SYS_MODULE", "CAP_DAC_OVERRIDE", "CAP_SYS_RAWIO"} {
+		if strings.Contains(u, bad) {
+			t.Errorf("capacidad de mas: %s", bad)
+		}
+	}
+	// Sudo sin Privileged no hace nada.
+	u, _ = RenderSystemdUnitOpts(exe, UnitOptions{Sudo: true})
+	if strings.Contains(u, "CAP_") || strings.Contains(u, "ARGOS_UPDATES_SUDO") {
+		t.Error("Sudo sin Privileged debe ser inerte")
+	}
+}
+
+func TestRenderSudoersGolden(t *testing.T) {
+	t.Parallel()
+	cmds := inventory.PrivilegedCommands()
+	got, err := RenderSudoers("argos-agent", cmds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	for _, l := range strings.Split(strings.TrimSpace(got), "\n") {
+		if !strings.HasPrefix(l, "#") {
+			lines = append(lines, l)
+		}
+	}
+	if len(lines) != len(cmds) || len(lines) != 6 {
+		t.Fatalf("got %d lineas, want 6 (una por comando)", len(lines))
+	}
+	for i, l := range lines {
+		want := "argos-agent ALL=(root) NOPASSWD: " + strings.Join(cmds[i], " ")
+		if l != want {
+			t.Errorf("linea %d got %q, want %q", i, l, want)
+		}
+		cmd := strings.TrimPrefix(l, "argos-agent ALL=(root) NOPASSWD: ")
+		if !strings.HasPrefix(cmd, "/usr/bin/") || strings.ContainsAny(cmd, `*?[],:=!\`) ||
+			slices.ContainsFunc(strings.Fields(cmd), func(f string) bool { return f == "ALL" || strings.HasSuffix(f, "/sh") || strings.HasSuffix(f, "/bash") }) {
+			t.Errorf("comando no exacto o con comodin/shell/ALL: %q", cmd)
+		}
+	}
+	if strings.Contains(got, "SETENV") || strings.Contains(got, "EXEC") {
+		t.Error("no debe habilitar SETENV ni EXEC")
+	}
+}
+
+func TestRenderSudoersRejectsUnsafe(t *testing.T) {
+	t.Parallel()
+	bad := [][][]string{
+		{{"/usr/bin/dnf", "*"}},
+		{{"/usr/bin/dnf", "a,b"}},
+		{{"dnf", "check-update"}},
+		{{"/usr/bin/dnf", "ALL"}},
+		{{"/bin/sh", "-c", "id"}, {"/usr/bin/dnf x"}},
+		{},
+	}
+	for _, cmds := range bad {
+		if _, err := RenderSudoers("argos-agent", cmds); err == nil {
+			t.Errorf("%v: esperaba error", cmds)
+		}
+	}
+	if _, err := RenderSudoers("argos agent", [][]string{{"/usr/bin/dnf"}}); err == nil {
+		t.Error("usuario invalido: esperaba error")
+	}
+}
+
+func TestInstallSudoersFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Validacion aprobada: queda el archivo final (0440 en Unix) y ningun temporal.
+	var validated string
+	err := installSudoersFile(dir, SudoersName, []byte("x\n"), func(p string) error { validated = p; return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(validated) != dir || !strings.Contains(filepath.Base(validated), ".") {
+		t.Errorf("el temporal debe estar en el dir y con punto (sudo lo ignora): %q", validated)
+	}
+	fi, err := os.Stat(filepath.Join(dir, SudoersName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o440 {
+		t.Errorf("modo got %v, want 0440", fi.Mode().Perm())
+	}
+	// Validacion rechazada (visudo falla): no se instala nada nuevo ni queda temporal.
+	dir2 := t.TempDir()
+	err = installSudoersFile(dir2, SudoersName, []byte("x\n"), func(string) error { return errors.New("visudo dijo no") })
+	if err == nil {
+		t.Fatal("esperaba error si visudo rechaza")
+	}
+	if ents, _ := os.ReadDir(dir2); len(ents) != 0 {
+		t.Errorf("no debe quedar nada tras un rechazo: %v", ents)
+	}
+}
+
+func TestRenderLaunchdPlistPrivilegedRunsAsRoot(t *testing.T) {
+	t.Parallel()
+	const exe = "/usr/local/libexec/argos-agent/argos-agent"
+	p, err := RenderLaunchdPlist(exe, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(p, "UserName") || strings.Contains(p, "GroupName") || !strings.Contains(p, "<key>RunAtLoad</key>") {
+		t.Errorf("privileged: sin UserName/GroupName (root):\n%s", p)
+	}
+	d, _ := RenderLaunchdPlist(exe, false)
+	if !strings.Contains(d, "<key>UserName</key>\n\t<string>_argos</string>\n\t<key>GroupName</key>\n\t<string>_argos</string>\n\t<key>RunAtLoad</key>") {
+		t.Errorf("por defecto: usuario _argos:\n%s", d)
+	}
+}
+
+func TestHasRPMManager(t *testing.T) {
+	t.Parallel()
+	cmds := inventory.PrivilegedCommands()
+	only := func(p string) func(string) bool { return func(x string) bool { return x == p } }
+	for _, p := range []string{"/usr/bin/dnf", "/usr/bin/yum", "/usr/bin/zypper"} {
+		if !hasRPMManager(cmds, only(p)) {
+			t.Errorf("%s debe detectarse como gestor RPM", p)
+		}
+	}
+	if hasRPMManager(cmds, only("/usr/bin/apt-get")) {
+		t.Error("apt no es gestor RPM: sin sudoers")
 	}
 }

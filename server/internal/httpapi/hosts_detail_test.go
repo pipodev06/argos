@@ -150,7 +150,7 @@ func TestHostDetailShape(t *testing.T) {
 		}
 		wantKeys(t, "data", raw, "host", "info", "latest", "disks")
 		data := map[string]map[string]any{"host": raw["host"].(map[string]any), "latest": raw["latest"].(map[string]any), "info": raw["info"].(map[string]any)}
-		wantKeys(t, "info", data["info"], "boot_time", "cpu_model", "cpu_cores", "cpu_threads", "os_name", "os_version", "kernel_version", "agent_version", "ips", "mem_total_mb")
+		wantKeys(t, "info", data["info"], "boot_time", "cpu_model", "cpu_cores", "cpu_threads", "os_name", "os_version", "kernel_version", "agent_version", "privilege", "ips", "mem_total_mb")
 		wantKeys(t, "host", data["host"], "id", "hostname", "kind", "os", "arch", "status", "last_seen_at", "status_changed_at", "created_at", "group")
 		wantKeys(t, "latest", data["latest"], latestKeys...)
 		if got := data["host"]["status_changed_at"]; got != "2026-09-23T10:00:00Z" {

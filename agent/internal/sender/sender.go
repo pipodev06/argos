@@ -89,6 +89,7 @@ type HostInfo struct {
 	OSVersion     string   `json:"os_version,omitempty"`
 	KernelVersion string   `json:"kernel_version,omitempty"`
 	AgentVersion  string   `json:"agent_version,omitempty"`
+	Privilege     string   `json:"privilege,omitempty"` // "elevated" | "user"; vacio = no se pudo determinar
 	IPs           []string `json:"ips,omitempty"`
 }
 
@@ -105,7 +106,7 @@ func (h HostInfo) Equal(o HostInfo) bool {
 	}
 	return h.CPUModel == o.CPUModel && h.CPUCores == o.CPUCores && h.CPUThreads == o.CPUThreads &&
 		h.OSName == o.OSName && h.OSVersion == o.OSVersion && h.KernelVersion == o.KernelVersion &&
-		h.AgentVersion == o.AgentVersion && slices.Equal(h.IPs, o.IPs)
+		h.AgentVersion == o.AgentVersion && h.Privilege == o.Privilege && slices.Equal(h.IPs, o.IPs)
 }
 
 // ErrTokenRejected: el servidor respondio 401, el agent token es invalido o fue

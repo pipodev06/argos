@@ -60,8 +60,10 @@ type AlertRule struct {
 	Threshold       *float64
 	ClearThreshold  *float64
 	DurationSeconds int
-	ResolveSeconds  int
-	IncludeOffline  bool
+	// DurationDays (solo pending_updates): dias minimos con pendientes de seguridad antes de incumplir.
+	DurationDays   int
+	ResolveSeconds int
+	IncludeOffline bool
 	// CheckID (solo kind service_check) es el chequeo que vigila la regla; CheckName es su nombre (solo lectura).
 	CheckID   *string
 	CheckName *string
@@ -83,7 +85,7 @@ type AlertRule struct {
 }
 
 const alertRuleSelect = `
-SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.duration_seconds, r.resolve_seconds,
+SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.duration_seconds, r.duration_days, r.resolve_seconds,
        r.include_offline, r.scope_type, r.scope_group_id, g.name, r.check_id, cd.name, r.warn_is_breach, r.expected_ports,
        r.severity, r.enabled, r.created_at, r.updated_at,
        (SELECT count(*)::int FROM alerts a WHERE a.rule_id = r.id AND a.state <> 'resolved'),
@@ -94,7 +96,7 @@ SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.d
 func scanAlertRule(row pgx.Row) (AlertRule, error) {
 	var r AlertRule
 	var expected []byte
-	err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Metric, &r.Op, &r.Threshold, &r.ClearThreshold, &r.DurationSeconds,
+	err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Metric, &r.Op, &r.Threshold, &r.ClearThreshold, &r.DurationSeconds, &r.DurationDays,
 		&r.ResolveSeconds, &r.IncludeOffline, &r.Scope.Type, &r.Scope.GroupID,
 		&r.GroupName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &expected, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
 	if err != nil {
@@ -232,12 +234,12 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		err = tx.QueryRow(ctx,
 			`INSERT INTO alert_rules (name, kind, metric, op, threshold, clear_threshold, duration_seconds, resolve_seconds,
 			                          include_offline, scope_type, scope_group_id,
-			                          severity, enabled, created_by, check_id, warn_is_breach, expected_ports)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, '')::uuid, $15, $16, $17)
+			                          severity, enabled, created_by, check_id, warn_is_breach, expected_ports, duration_days)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, '')::uuid, $15, $16, $17, $18)
 			 RETURNING id`,
 			r.Name, r.Kind, r.Metric, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds,
 			r.IncludeOffline, r.Scope.Type, r.Scope.GroupID,
-			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown, expected).Scan(&id)
+			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown, expected, r.DurationDays).Scan(&id)
 		if err != nil {
 			return mapRuleErr(err, "insertando regla de alerta")
 		}
@@ -293,10 +295,10 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*Ale
 		if _, err := tx.Exec(ctx,
 			`UPDATE alert_rules SET name = $2, op = $3, threshold = $4, clear_threshold = $5, duration_seconds = $6,
 			        resolve_seconds = $7, include_offline = $8, scope_type = $9, scope_group_id = $10,
-			        severity = $11, enabled = $12, warn_is_breach = $13, expected_ports = $14, updated_at = now()
+			        severity = $11, enabled = $12, warn_is_breach = $13, expected_ports = $14, duration_days = $15, updated_at = now()
 			  WHERE id = $1`,
 			id, r.Name, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds, r.IncludeOffline,
-			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected); err != nil {
+			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected, r.DurationDays); err != nil {
 			return mapRuleErr(err, "actualizando regla de alerta")
 		}
 		out, err = alertRuleByID(ctx, tx, id, "")

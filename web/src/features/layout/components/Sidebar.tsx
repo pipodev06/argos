@@ -11,7 +11,7 @@ import { OpenAlertsCount } from '@/features/alerts/components/OpenAlertsCount'
 import { UserMenu } from '@/features/auth/components/UserMenu'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { ThemeToggle } from '@/features/theme/components/ThemeToggle'
-import { NAV_ITEMS, groupBySection, type NavItem } from '../nav-items'
+import { NAV_ITEMS, groupBySection, isNavItemVisible, type NavItem } from '../nav-items'
 
 interface SidebarNavLinkProps {
   item: NavItem
@@ -65,9 +65,7 @@ interface SidebarContentProps {
 // Contenido unico del sidebar: lo usan el aside de escritorio y el drawer (Sheet) movil.
 export function SidebarContent({ collapsed = false, onToggleCollapsed, onNavigate }: SidebarContentProps) {
   const { user } = useAuth()
-  const items = NAV_ITEMS.filter(
-    (item) => (!item.roles || (user !== null && item.roles.includes(user.role))) && (!item.fullScope || user?.all_groups === true),
-  )
+  const items = NAV_ITEMS.filter((item) => isNavItemVisible(item, user))
   const CollapseIcon = collapsed ? IconLayoutSidebarLeftExpand : IconLayoutSidebarLeftCollapse
   const collapseLabel = collapsed ? 'Expandir menú' : 'Contraer menú'
 

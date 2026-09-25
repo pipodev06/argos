@@ -27,6 +27,11 @@ const (
 	// privilegios de LocalSystem. Windows la crea sola al arrancar el servicio.
 	serviceAccount = `NT SERVICE\` + Name
 
+	// systemAccount es LocalSystem (install --privileged): no hay permiso intermedio pa leer
+	// procesos de otros usuarios. Sin contrasena. El ACL del estado no cambia: ya da control
+	// total a SYSTEM, asi que LocalSystem lee y escribe el estado sin ajustes.
+	systemAccount = "LocalSystem"
+
 	stopTimeout = 30 * time.Second
 )
 
@@ -92,13 +97,17 @@ func quotedBinaryPath(exe string) (string, error) {
 // automatico retardado y cuenta virtual NT SERVICE\argos-agent sin contrasena
 // (CreateService exige NULL, y mgr manda NULL con Password vacio). El SID no
 // restringido del servicio hace que la ACL del estado por SID surta efecto.
-func serviceConfig() mgr.Config {
+func serviceConfig(privileged bool) mgr.Config {
+	account := serviceAccount
+	if privileged {
+		account = systemAccount
+	}
 	return mgr.Config{
 		ServiceType:      windows.SERVICE_WIN32_OWN_PROCESS,
 		StartType:        mgr.StartAutomatic,
 		DelayedAutoStart: true,
 		ErrorControl:     mgr.ErrorNormal,
-		ServiceStartName: serviceAccount,
+		ServiceStartName: account,
 		DisplayName:      DisplayName,
 		Description:      Description,
 		SidType:          windows.SERVICE_SID_TYPE_UNRESTRICTED,
@@ -160,7 +169,7 @@ func (m Manager) Install(_ context.Context, o InstallOptions) error {
 	}
 	printf(o.Out, "binario instalado en %s\n", dst)
 
-	s, err := scm.CreateService(Name, dst, serviceConfig())
+	s, err := scm.CreateService(Name, dst, serviceConfig(o.Privileged))
 	if err != nil {
 		return fmt.Errorf("creando el servicio: %w", err)
 	}
@@ -203,7 +212,12 @@ func (m Manager) finishInstall(s *mgr.Service, ca []byte, o InstallOptions) erro
 		}
 		printf(o.Out, "CA copiada a %s\n", filepath.Join(m.StateDir(), state.CAFileName))
 	}
-	printf(o.Out, "servicio %q instalado (cuenta %s, inicio automatico), estado en %s\n", Name, serviceAccount, m.StateDir())
+	account := serviceAccount
+	if o.Privileged {
+		account = systemAccount
+		printf(o.Out, "ADVERTENCIA (--privileged): el servicio corre como LocalSystem. Gana: ver el proceso dueno de cada puerto y los procesos de otros usuarios. Arriesga: un fallo del agente o de una dependencia se ejecutaria con el maximo privilegio local (sin cuenta virtual ni aislamiento). Para volver: `argos-agent uninstall --keep-state` y reinstala sin --privileged.\n")
+	}
+	printf(o.Out, "servicio %q instalado (cuenta %s, inicio automatico), estado en %s\n", Name, account, m.StateDir())
 	return nil
 }
 

@@ -85,6 +85,8 @@ func TestAgentMetricsNewFieldsValidation(t *testing.T) {
 		{"agent_version de 32", metricsBody("", `"host_info":{"agent_version":"`+strings.Repeat("1", 32)+`"}`), 200},
 		{"agent_version de 33", metricsBody("", `"host_info":{"agent_version":"`+strings.Repeat("1", 33)+`"}`), 400},
 		{"texto con NUL", metricsBody("", `"host_info":{"os_name":"a\u0000"}`), 400},
+		{"privilege elevated", metricsBody("", `"host_info":{"os_name":"Ubuntu","privilege":"elevated"}`), 200},
+		{"privilege invalido", metricsBody("", `"host_info":{"os_name":"Ubuntu","privilege":"root"}`), 400},
 		{"16 ips", metricsBody("", manyIPs(16)), 200},
 		{"17 ips", metricsBody("", manyIPs(17)), 400},
 		{"ip no parseable", metricsBody("", `"host_info":{"ips":["999.1.1.1"]}`), 400},

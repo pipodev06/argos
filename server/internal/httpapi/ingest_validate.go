@@ -29,15 +29,17 @@ type diskPayload struct {
 }
 
 type hostInfoPayload struct {
-	BootTime      int64    `json:"boot_time"`
-	CPUModel      string   `json:"cpu_model"`
-	CPUCores      int      `json:"cpu_cores"`
-	CPUThreads    int      `json:"cpu_threads"`
-	OSName        string   `json:"os_name"`
-	OSVersion     string   `json:"os_version"`
-	KernelVersion string   `json:"kernel_version"`
-	AgentVersion  string   `json:"agent_version"`
-	IPs           []string `json:"ips"`
+	BootTime      int64  `json:"boot_time"`
+	CPUModel      string `json:"cpu_model"`
+	CPUCores      int    `json:"cpu_cores"`
+	CPUThreads    int    `json:"cpu_threads"`
+	OSName        string `json:"os_name"`
+	OSVersion     string `json:"os_version"`
+	KernelVersion string `json:"kernel_version"`
+	AgentVersion  string `json:"agent_version"`
+	// Privilege: nivel con el que corre el agente ("user" | "elevated"); vacio = agente que aun no lo reporta.
+	Privilege string   `json:"privilege"`
+	IPs       []string `json:"ips"`
 }
 
 // validateExtras valida swap, load y bateria y los copia al sample (ausente = nil). Cada campo es opcional
@@ -154,9 +156,12 @@ func validateHostInfo(in *hostInfoPayload, now time.Time) (*store.HostInfoUpdate
 			return nil, err
 		}
 	}
+	if in.Privilege != "" && in.Privilege != "user" && in.Privilege != "elevated" {
+		return nil, badRequest("host_info.privilege debe ser user o elevated")
+	}
 	out := &store.HostInfoUpdate{
 		CPUModel: in.CPUModel, OSName: in.OSName, OSVersion: in.OSVersion,
-		KernelVersion: in.KernelVersion, AgentVersion: in.AgentVersion,
+		KernelVersion: in.KernelVersion, AgentVersion: in.AgentVersion, Privilege: in.Privilege,
 	}
 
 	if in.CPUCores < 0 || in.CPUCores > maxCPUCores {

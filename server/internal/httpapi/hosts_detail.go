@@ -55,6 +55,7 @@ type hostInfoDTO struct {
 	OSVersion     *string    `json:"os_version"`
 	KernelVersion *string    `json:"kernel_version"`
 	AgentVersion  *string    `json:"agent_version"`
+	Privilege     *string    `json:"privilege"`
 	IPs           []string   `json:"ips"`
 	MemTotalMB    *int       `json:"mem_total_mb"`
 }
@@ -62,7 +63,7 @@ type hostInfoDTO struct {
 func toHostInfoDTO(i store.HostInfo) hostInfoDTO {
 	dto := hostInfoDTO{
 		CPUModel: i.CPUModel, CPUCores: i.CPUCores, CPUThreads: i.CPUThreads, OSName: i.OSName, OSVersion: i.OSVersion,
-		KernelVersion: i.KernelVersion, AgentVersion: i.AgentVersion, MemTotalMB: i.MemTotalMB, IPs: make([]string, 0, len(i.IPs)),
+		KernelVersion: i.KernelVersion, AgentVersion: i.AgentVersion, Privilege: i.Privilege, MemTotalMB: i.MemTotalMB, IPs: make([]string, 0, len(i.IPs)),
 	}
 	if i.BootTime != nil {
 		t := i.BootTime.UTC()

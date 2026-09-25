@@ -11,6 +11,7 @@ import { ReportsPage } from './ReportsPage'
 import { HostDetailPage } from './HostDetailPage'
 import { HostsPage } from './HostsPage'
 import { InventoryPage } from './InventoryPage'
+import { UpdatesPage } from './UpdatesPage'
 import { MaintenancePage } from './MaintenancePage'
 import { NotFoundPage } from './NotFoundPage'
 import { RulesPage } from './RulesPage'
@@ -34,6 +35,7 @@ export function DashboardPage() {
         <Route path="hosts" element={<HostsPage />} />
         <Route path="hosts/:id" element={<HostDetailPage />} />
         <Route path="hosts/:id/inventario" element={<InventoryPage />} />
+        <Route path="parches" element={<UpdatesPage />} />
         <Route path="dispositivos" element={<DevicesPage />} />
         <Route path="grupos" element={<GroupsPage />} />
         <Route path="chequeos" element={<ChecksPage />} />

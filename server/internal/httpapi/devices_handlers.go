@@ -159,6 +159,8 @@ type createDeviceReq struct {
 	Address     string  `json:"address"`
 	CollectorID string  `json:"collector_id"`
 	GroupID     *string `json:"group_id"`
+	// SNMPProfileID: perfil SNMP opcional (el formulario de alta lo envia junto al resto).
+	SNMPProfileID *string `json:"snmp_profile_id"`
 }
 
 func (a *API) createDevice(w http.ResponseWriter, r *http.Request) error {
@@ -186,9 +188,24 @@ func (a *API) createDevice(w http.ResponseWriter, r *http.Request) error {
 		}
 		groupID = &g
 	}
+	var profileID *string
+	if req.SNMPProfileID != nil {
+		pid, err := checkUUIDField("snmp_profile_id", *req.SNMPProfileID)
+		if err != nil {
+			return err
+		}
+		profileID = &pid
+	}
 	d, err := a.store.CreateDevice(r.Context(), name, addr, collector, groupID)
 	if err != nil {
 		return err
+	}
+	if profileID != nil {
+		// Un perfil inexistente devuelve 422 profile_not_found: el dispositivo ya quedo creado (sin perfil) y el
+		// admin puede asignarlo despues con PATCH.
+		if d, err = a.store.UpdateDevice(r.Context(), d.ID, store.DeviceChange{SetProfile: true, ProfileID: profileID}); err != nil {
+			return err
+		}
 	}
 	u := currentUser(r)
 	e := actor(u)
@@ -196,6 +213,9 @@ func (a *API) createDevice(w http.ResponseWriter, r *http.Request) error {
 	detail := map[string]any{"name": d.Name, "collector_id": d.CollectorID}
 	if d.Group != nil {
 		detail["group_id"] = d.Group.ID
+	}
+	if profileID != nil {
+		detail["snmp_profile_id"] = *profileID
 	}
 	a.audit(r, e, detail)
 	writeJSON(w, http.StatusCreated, map[string]any{"device": toDeviceDTO(u, d)})

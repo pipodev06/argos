@@ -60,6 +60,10 @@ type Config struct {
 	// InventoryModules son los modulos de inventario activados localmente (ARGOS_INVENTORY_MODULES:
 	// ports, services, processes). Vacio = apagado (defecto). El servidor no puede activarlos.
 	InventoryModules []string
+	// Updates configura el modulo "updates" del inventario (ARGOS_UPDATES_INTERVAL entre 1h y 24h,
+	// defecto 6h; ARGOS_UPDATES_WINDOWS_ONLINE auto|never|always, defecto auto; ARGOS_UPDATES_SUDO lo
+	// fija `install --privileged` en Linux).
+	Updates inventory.UpdatesConfig
 }
 
 // Load lee la configuracion con getenv (os.Getenv en produccion). defaultStateDir
@@ -129,9 +133,30 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 	}
 	mods, err := inventory.ParseModules(getenv("ARGOS_INVENTORY_MODULES"))
 	if err != nil {
-		return Config{}, fmt.Errorf("ARGOS_INVENTORY_MODULES invalida (lista separada por comas de ports, services, processes): %w", err)
+		return Config{}, fmt.Errorf("ARGOS_INVENTORY_MODULES invalida (lista separada por comas de ports, services, processes, updates): %w", err)
 	}
 	cfg.InventoryModules = mods
+	cfg.Updates.Interval = inventory.DefaultUpdatesInterval
+	if raw := getenv("ARGOS_UPDATES_INTERVAL"); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("ARGOS_UPDATES_INTERVAL invalida (ej. 6h): %w", err)
+		}
+		if d < inventory.MinUpdatesInterval || d > inventory.MaxUpdatesInterval {
+			return Config{}, fmt.Errorf("ARGOS_UPDATES_INTERVAL debe estar entre %s y %s, se recibio %s", inventory.MinUpdatesInterval, inventory.MaxUpdatesInterval, d)
+		}
+		cfg.Updates.Interval = d
+	}
+	cfg.Updates.WindowsOnline, err = inventory.ParseWindowsOnline(getenv("ARGOS_UPDATES_WINDOWS_ONLINE"))
+	if err != nil {
+		return Config{}, fmt.Errorf("ARGOS_UPDATES_WINDOWS_ONLINE invalida: %w", err)
+	}
+	if raw := strings.TrimSpace(getenv("ARGOS_UPDATES_SUDO")); raw != "" {
+		cfg.Updates.UseSudo, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("ARGOS_UPDATES_SUDO invalida (true o false): %w", err)
+		}
+	}
 	if cfg.StateDir == "" {
 		dir, err := defaultStateDir()
 		if err != nil {

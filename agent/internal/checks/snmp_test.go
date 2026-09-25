@@ -206,6 +206,7 @@ func TestMapSNMPError(t *testing.T) {
 		err  error
 		want error
 	}{
+		{errors.New("incoming packet is not authentic, discarding"), ErrSNMPAuth},
 		{fmt.Errorf("x: %w", gosnmp.ErrWrongDigest), ErrSNMPAuth},
 		{gosnmp.ErrUnknownUsername, ErrSNMPAuth},
 		{gosnmp.ErrDecryption, ErrSNMPAuth},

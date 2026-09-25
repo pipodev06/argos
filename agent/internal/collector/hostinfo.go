@@ -141,6 +141,7 @@ func readInterfaces() ([]ifaceAddrs, error) {
 func readStaticInfo(ctx context.Context) (sender.HostInfo, []error) {
 	var info sender.HostInfo
 	var errs []error
+	info.Privilege = detectPrivilege()
 
 	if h, err := host.InfoWithContext(ctx); err != nil {
 		errs = append(errs, fmt.Errorf("leyendo datos del SO: %w", err))

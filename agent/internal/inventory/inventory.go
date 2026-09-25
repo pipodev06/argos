@@ -83,12 +83,12 @@ func ParseModules(raw string) ([]string, error) {
 		m = strings.ToLower(strings.TrimSpace(m))
 		switch m {
 		case "":
-		case ModulePorts, ModuleServices, ModuleProcesses:
+		case ModulePorts, ModuleServices, ModuleProcesses, ModuleUpdates:
 			if !slices.Contains(out, m) {
 				out = append(out, m)
 			}
 		default:
-			return nil, fmt.Errorf("modulo desconocido %q (validos: %s, %s, %s)", m, ModulePorts, ModuleServices, ModuleProcesses)
+			return nil, fmt.Errorf("modulo desconocido %q (validos: %s, %s, %s, %s)", m, ModulePorts, ModuleServices, ModuleProcesses, ModuleUpdates)
 		}
 	}
 	return out, nil

@@ -20,10 +20,15 @@ const (
 	maxRuleBodyBytes = 16 << 10
 	maxPctThreshold  = 100
 	maxLoadThreshold = 1e6
+	// Reglas de parches (migracion 00028): pendientes de seguridad, dias (duracion, reinicio) y antelacion al EOL.
+	maxPendingUpdates = 10000
+	maxUpdatesDays    = 365
+	maxEOLLeadDays    = 730
 )
 
 var (
-	validRuleKinds   = map[string]bool{"metric": true, "host_status": true, "no_data": true, "service_check": true, "exposed_port": true}
+	validRuleKinds = map[string]bool{"metric": true, "host_status": true, "no_data": true, "service_check": true, "exposed_port": true,
+		"pending_updates": true, "reboot_pending": true, "os_eol": true}
 	validRuleMetrics = map[string]bool{"cpu_pct": true, "mem_pct": true, "disk_max_pct": true, "battery_pct": true, "load1": true, "load5": true, "load15": true}
 	validRuleOps     = map[string]bool{"gt": true, "lt": true}
 	validScopeTypes  = map[string]bool{store.ScopeAll: true, store.ScopeGroup: true}
@@ -116,6 +121,7 @@ type alertRuleDTO struct {
 	Threshold       *float64          `json:"threshold"`
 	ClearThreshold  *float64          `json:"clear_threshold"`
 	DurationSeconds int               `json:"duration_seconds"`
+	DurationDays    int               `json:"duration_days"`
 	ResolveSeconds  int               `json:"resolve_seconds"`
 	IncludeOffline  bool              `json:"include_offline"`
 	CheckID         *string           `json:"check_id"`
@@ -134,7 +140,7 @@ type alertRuleDTO struct {
 func toAlertRuleDTO(r store.AlertRule) alertRuleDTO {
 	return alertRuleDTO{
 		ID: r.ID, Name: r.Name, Kind: r.Kind, Metric: r.Metric, Op: r.Op, Threshold: r.Threshold, ClearThreshold: r.ClearThreshold,
-		DurationSeconds: r.DurationSeconds, ResolveSeconds: r.ResolveSeconds, IncludeOffline: r.IncludeOffline,
+		DurationSeconds: r.DurationSeconds, DurationDays: r.DurationDays, ResolveSeconds: r.ResolveSeconds, IncludeOffline: r.IncludeOffline,
 		CheckID: r.CheckID, CheckName: r.CheckName, WarnOrDown: r.WarnOrDown, ExpectedPorts: toExpectedPortDTOs(r.ExpectedPorts),
 		Scope: toScopeDTO(r.Scope, r.GroupName), Severity: r.Severity, Enabled: r.Enabled, ActiveAlerts: r.ActiveAlerts, ChannelIDs: r.ChannelIDs,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
@@ -150,7 +156,7 @@ func validateRule(r *store.AlertRule) error {
 	}
 	r.Name = name
 	if !validRuleKinds[r.Kind] {
-		return badRequest("kind debe ser metric, host_status, no_data, service_check o exposed_port")
+		return badRequest("kind debe ser metric, host_status, no_data, service_check, exposed_port, pending_updates, reboot_pending u os_eol")
 	}
 	if !validAlertSeverity[r.Severity] {
 		return badRequest("severity debe ser info, warn o critical")
@@ -171,7 +177,19 @@ func validateRuleCondition(r *store.AlertRule) error {
 	if r.Kind != "service_check" && (r.CheckID != nil || r.WarnOrDown) {
 		return badRequest("check_id y warn_or_down solo aplican a reglas service_check")
 	}
+	if r.Kind != "pending_updates" && r.DurationDays != 0 {
+		return badRequest("duration_days solo aplica a reglas pending_updates")
+	}
 	switch r.Kind {
+	case "pending_updates":
+		if r.DurationDays < 0 || r.DurationDays > maxUpdatesDays {
+			return badRequest("duration_days debe estar entre 0 y %d", maxUpdatesDays)
+		}
+		return validateUpdatesThreshold(r, "pendientes de seguridad", 1, maxPendingUpdates)
+	case "reboot_pending":
+		return validateUpdatesThreshold(r, "dias con reinicio pendiente", 1, maxUpdatesDays)
+	case "os_eol":
+		return validateUpdatesThreshold(r, "dias de antelacion al fin de vida", 0, maxEOLLeadDays)
 	case "service_check":
 		if r.Metric != nil || r.Op != nil || r.Threshold != nil || r.ClearThreshold != nil {
 			return badRequest("una regla service_check no admite metric, op, threshold ni clear_threshold")
@@ -221,6 +239,26 @@ func validateRuleCondition(r *store.AlertRule) error {
 	return nil
 }
 
+// validateUpdatesThreshold valida una regla de parches: sin metric/op/clear_threshold y threshold entero en [lo, hi]
+// (alineado con alert_rules_shape_check de la migracion 00028).
+func validateUpdatesThreshold(r *store.AlertRule, what string, lo, hi int) error {
+	if r.Metric != nil || r.Op != nil || r.ClearThreshold != nil {
+		return badRequest("una regla %s no admite metric, op ni clear_threshold", r.Kind)
+	}
+	if r.Threshold == nil || !finite(*r.Threshold) || *r.Threshold != math.Trunc(*r.Threshold) ||
+		*r.Threshold < float64(lo) || *r.Threshold > float64(hi) {
+		return badRequest("threshold (%s) debe ser un entero entre %d y %d", what, lo, hi)
+	}
+	return nil
+}
+
+func intOrZero(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 func (a *API) listAlertRules(w http.ResponseWriter, r *http.Request) error {
@@ -257,6 +295,7 @@ type createAlertRuleReq struct {
 	Threshold       *float64          `json:"threshold"`
 	ClearThreshold  *float64          `json:"clear_threshold"`
 	DurationSeconds *int              `json:"duration_seconds"`
+	DurationDays    *int              `json:"duration_days"`
 	ResolveSeconds  *int              `json:"resolve_seconds"`
 	IncludeOffline  bool              `json:"include_offline"`
 	CheckID         *string           `json:"check_id"`
@@ -277,7 +316,7 @@ func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 	}
 	rule := store.AlertRule{
 		Name: req.Name, Kind: req.Kind, Metric: req.Metric, Op: req.Op, Threshold: req.Threshold, ClearThreshold: req.ClearThreshold,
-		DurationSeconds: *req.DurationSeconds, ResolveSeconds: defaultResolveSecs, IncludeOffline: req.IncludeOffline,
+		DurationSeconds: *req.DurationSeconds, DurationDays: intOrZero(req.DurationDays), ResolveSeconds: defaultResolveSecs, IncludeOffline: req.IncludeOffline,
 		CheckID: req.CheckID, WarnOrDown: req.WarnOrDown, ExpectedPorts: fromExpectedPortDTOs(req.ExpectedPorts),
 		Scope: store.AlertScope{Type: store.ScopeAll}, Severity: req.Severity, Enabled: true,
 	}
@@ -323,6 +362,7 @@ type updateAlertRuleReq struct {
 	Threshold       *float64           `json:"threshold"`
 	ClearThreshold  optional[float64]  `json:"clear_threshold"`
 	DurationSeconds *int               `json:"duration_seconds"`
+	DurationDays    *int               `json:"duration_days"`
 	ResolveSeconds  *int               `json:"resolve_seconds"`
 	IncludeOffline  *bool              `json:"include_offline"`
 	WarnOrDown      *bool              `json:"warn_or_down"`
@@ -385,6 +425,9 @@ func applyRulePatch(rule *store.AlertRule, req updateAlertRuleReq, scope *store.
 	if req.DurationSeconds != nil {
 		rule.DurationSeconds = *req.DurationSeconds
 	}
+	if req.DurationDays != nil {
+		rule.DurationDays = *req.DurationDays
+	}
 	if req.ResolveSeconds != nil {
 		rule.ResolveSeconds = *req.ResolveSeconds
 	}
@@ -421,6 +464,7 @@ func changedRuleFields(req updateAlertRuleReq) []string {
 	add(req.Threshold != nil, "threshold")
 	add(req.ClearThreshold.Set, "clear_threshold")
 	add(req.DurationSeconds != nil, "duration_seconds")
+	add(req.DurationDays != nil, "duration_days")
 	add(req.ResolveSeconds != nil, "resolve_seconds")
 	add(req.IncludeOffline != nil, "include_offline")
 	add(req.WarnOrDown != nil, "warn_or_down")

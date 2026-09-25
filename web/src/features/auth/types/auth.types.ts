@@ -8,6 +8,7 @@ export interface User {
   /** false = viewer restringido a sus grupos. */
   all_groups: boolean
   can_inventory: boolean
+  can_updates: boolean
 }
 
 export interface LoginCredentials {
