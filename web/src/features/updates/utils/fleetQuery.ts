@@ -21,7 +21,7 @@ const FLAGS = [
 
 /** Filtros de la flota de parches (URL: q, group, os, flags, eol_days, sort, dir, limit). `flags` se combina con AND. */
 export const FLEET_FIELDS = [
-  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar hosts', placeholder: 'Buscar (/)' },
+  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar hosts', placeholder: 'Buscar' },
   { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions },
   { kind: 'multi', key: 'os', label: 'SO', plural: 'sistemas', options: OS_VALUES.map((o) => ({ id: o, name: OS_LABELS[o] })) },
   { kind: 'multi', key: 'flags', label: 'Condición', plural: 'condiciones', options: FLAGS },

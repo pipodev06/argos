@@ -9,7 +9,7 @@ const DEVICE_STATUSES: readonly HostStatus[] = ['up', 'down', 'offline', 'pendin
 
 /** Filtros de Dispositivos (estado en la URL, igual que Hosts): q, status, group y limit. */
 export const DEVICE_FIELDS = [
-  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar dispositivos', placeholder: 'Buscar (/)' },
+  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar dispositivos', placeholder: 'Buscar' },
   {
     kind: 'multi',
     key: 'status',
