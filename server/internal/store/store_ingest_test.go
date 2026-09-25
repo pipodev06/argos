@@ -246,7 +246,9 @@ func TestLatestMetricsAndSeriesIncludeNewColumns(t *testing.T) {
 	ctx := context.Background()
 	seedHost(t, "h", "up", ago(time.Second))
 	id := hostID(t, "h")
-	base := time.Now().Truncate(time.Minute).Add(-10 * time.Minute)
+	// Media hora antes del inicio de la hora actual: las 4 muestras (90 s) caen siempre en UN bucket horario y en el pasado
+	// (con "ahora - 10 min" cruzaban el limite de la hora entre :00 y :01 de cada hora y el test fallaba en el CI).
+	base := time.Now().Truncate(time.Hour).Add(-30 * time.Minute)
 	for i := range 4 {
 		smp := Sample{Timestamp: base.Add(time.Duration(i) * 30 * time.Second), CPUPct: 10, MemUsedMB: 100, MemTotalMB: 200,
 			NetRxBytes: int64(i * 100), NetTxBytes: int64(i * 10),
