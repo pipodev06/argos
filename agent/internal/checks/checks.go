@@ -1,4 +1,4 @@
-// Package checks ejecuta los chequeos de servicios (tcp, http, tls_cert, service, ping)
+// Package checks ejecuta los chequeos de servicios (tcp, http, tls_cert, service, ping, snmp)
 // que el servidor asigna al host. Los ejecuta solo el agente, con una politica
 // local de destinos (ARGOS_CHECK_ALLOW) que el servidor no puede ampliar.
 package checks
@@ -15,6 +15,7 @@ const (
 	TypeTLSCert = "tls_cert"
 	TypeService = "service"
 	TypePing    = "ping"
+	TypeSNMP    = "snmp"
 )
 
 // Estados de un resultado.
@@ -38,6 +39,8 @@ const (
 	DetailTextMismatch   = "text_mismatch"
 	DetailExpired        = "expired"
 	DetailOK             = "ok"
+	DetailAuthFailed     = "auth_failed"
+	DetailNoSuchObject   = "no_such_object"
 )
 
 // Limites obligatorios del agente.
@@ -81,7 +84,11 @@ type Check struct {
 	ServiceName string `json:"service_name"` // service
 
 	Target   string `json:"target"`    // ping: IP literal (nunca hostname); usa warn_ms y crit_ms
-	DeviceID string `json:"device_id"` // ping: solo informativo
+	DeviceID string `json:"device_id"` // ping y snmp: solo informativo
+
+	Metric  string     `json:"metric"`   // snmp: reachable | if_oper
+	IfIndex int        `json:"if_index"` // snmp if_oper: 1-65535
+	SNMP    SNMPParams `json:"snmp"`     // snmp: credenciales (secretas, ver SNMPParams)
 }
 
 // LogValue evita que un slog.Any(check) filtre el secreto.

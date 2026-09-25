@@ -21,7 +21,11 @@ var allowedHeaders = map[string]bool{"Authorization": true, "X-Api-Key": true, "
 
 // probe hace UN intento del chequeo (sin reintentos).
 func (r *Runner) probe(ctx context.Context, c Check) outcome {
-	ctx, cancel := context.WithTimeout(ctx, timeoutOf(c))
+	timeout := timeoutOf(c)
+	if c.Type == TypeSNMP {
+		timeout = snmpOverallTimeout(timeout)
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	switch c.Type {
 	case TypeTCP:
@@ -34,6 +38,8 @@ func (r *Runner) probe(ctx context.Context, c Check) outcome {
 		return r.probeService(ctx, c)
 	case TypePing:
 		return r.probePing(ctx, c)
+	case TypeSNMP:
+		return r.probeSNMP(ctx, c)
 	default:
 		return unknown(DetailUnsupported)
 	}
