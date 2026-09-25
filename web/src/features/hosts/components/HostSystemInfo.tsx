@@ -47,6 +47,7 @@ export function HostSystemInfo({ host, info }: { host: HostDetail; info: HostInf
             {info.ips.length > 0 ? <span className="text-sm">{info.ips.join(', ')}</span> : null}
           </Item>
           <Item term="Versión del agente">{info.agent_version}</Item>
+          <Item term="Privilegios del agente">{info.privilege === 'elevated' ? 'Privilegiado (acceso completo)' : info.privilege === 'user' ? 'Sin privilegios' : null}</Item>
           <Item term="Enrolado">{formatFullDate(host.created_at)}</Item>
           <Item term="ID">
             <span className="inline-flex flex-wrap items-center gap-2">

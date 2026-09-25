@@ -84,6 +84,8 @@ export interface HostInfo {
   os_version: string | null
   kernel_version: string | null
   agent_version: string | null
+  /** Nivel con el que corre el agente; null = aun no lo reporta. */
+  privilege: 'user' | 'elevated' | null
   ips: string[]
   mem_total_mb: number | null
 }
