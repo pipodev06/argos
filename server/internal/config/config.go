@@ -38,7 +38,7 @@ const (
 	defaultNotifyInterval             = 5 * time.Second
 	minNotifyInterval                 = time.Second
 	minAlertEvalInterval              = time.Second
-	defaultHostEventsRetentionDays    = 180
+	defaultHostEventsRetentionDays    = 400
 	defaultAlertsRetentionDays        = 365
 	defaultNotificationsRetentionDays = 30
 	defaultServiceEventsRetentionDays = 180

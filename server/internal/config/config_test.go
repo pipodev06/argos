@@ -215,7 +215,7 @@ func TestLoadAlertSettings(t *testing.T) {
 		{name: "intervalo valido", env: "ARGOS_ALERT_EVAL_INTERVAL", raw: "5s", get: func(c Config) any { return c.AlertEvalInterval }, want: 5 * time.Second},
 		{name: "intervalo bajo el minimo", env: "ARGOS_ALERT_EVAL_INTERVAL", raw: "500ms", wantErr: true},
 		{name: "intervalo invalido", env: "ARGOS_ALERT_EVAL_INTERVAL", raw: "rapido", wantErr: true},
-		{name: "eventos default", get: func(c Config) any { return c.HostEventsRetentionDays }, want: 180},
+		{name: "eventos default", get: func(c Config) any { return c.HostEventsRetentionDays }, want: 400},
 		{name: "eventos minimo", env: "ARGOS_HOST_EVENTS_RETENTION_DAYS", raw: "30", get: func(c Config) any { return c.HostEventsRetentionDays }, want: 30},
 		{name: "eventos bajo el minimo", env: "ARGOS_HOST_EVENTS_RETENTION_DAYS", raw: "29", wantErr: true},
 		{name: "eventos de chequeos default", get: func(c Config) any { return c.ServiceEventsRetentionDays }, want: 180},

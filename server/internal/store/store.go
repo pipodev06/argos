@@ -147,6 +147,10 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 		).Scan(&hostID); err != nil {
 			return fmt.Errorf("creando host: %w", err)
 		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO host_events (host_id, from_status, to_status, source) VALUES ($1, NULL, 'up', 'enroll')`, hostID); err != nil {
+			return fmt.Errorf("registrando evento inicial del host: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `UPDATE enroll_tokens SET used_at = now() WHERE token_hash = $1`, enrollTokenHash); err != nil {
 			return fmt.Errorf("marcando enroll token usado: %w", err)
 		}

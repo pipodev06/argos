@@ -526,6 +526,8 @@ func TestHostEventsEndpoint(t *testing.T) {
 	e := newAlertEnv(t)
 	id := e.host("srv", 1)
 	other := e.host("otro", 1)
+	// El alta ya dejo su evento inicial (enroll): se quita pa probar solo la paginacion de las tres transiciones.
+	mustExec(t, `DELETE FROM host_events WHERE source = 'enroll'`)
 	// Tres transiciones reales del host: detector, ingest, revocacion.
 	mustExec(t, `INSERT INTO host_events (host_id, from_status, to_status, at, source) VALUES
 		($1, 'up', 'offline', now() - interval '3 hours', 'detector'),

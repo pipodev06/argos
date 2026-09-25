@@ -15,7 +15,7 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - Auditoria best-effort (no transaccional) -> [Seguridad](#seguridad)
 - Tests de frontend parciales (Vitest, 55 tests: sin `ruleForm`, `checkForm`, `chart`, `alertQuery` ni componentes) y sin probar contra la API real (30d/90d/1y) -> [Frontend](#frontend)
 - Lista/resumen sin medir con 1000 hosts; serie de 7d ~115 ms/host; filtro de ambito de alertas sin EXPLAIN con volumen (el indice `alerts_host_idx` ya existe desde 00015, no hace falta otro) -> [Datos](#datos-y-api)
-- `host_events` (historial de transiciones) diseñado y en implementacion (SLA, punto 7); `DETACH` aplazado no alerta -> [Datos](#datos-y-api)
+- `host_events` ya existe (00014; extendido en 00020, retencion 400 d); faltan API y pantalla de SLA (punto 7, tandas 2 y 3); `DETACH` aplazado no alerta -> [Datos](#datos-y-api)
 - Webhook: Discord solo funciona con el sufijo `/slack` en la URL (el payload lleva `text`, no `content`); sin formato nativo de Discord -> [Operacion](#operacion)
 ### Baja
 - Bloqueo por cuenta permite bloquear a un usuario ajeno; sin tests del prompt de `create-admin` -> [Seguridad](#seguridad)
