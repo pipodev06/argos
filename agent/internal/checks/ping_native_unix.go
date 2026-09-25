@@ -35,7 +35,7 @@ func (p *icmpPinger) Ping(ctx context.Context, ip netip.Addr) (time.Duration, er
 	defer func() { _ = unix.Close(fd) }() // cierre best-effort del socket propio
 	unix.CloseOnExec(fd)
 
-	seq := uint16(p.seq.Add(1))
+	seq := uint16(p.seq.Add(1) & 0xffff) // contador que envuelve a 16 bits a proposito
 	start := time.Now()
 	if err := unix.Sendto(fd, echoRequest(seq), 0, &unix.SockaddrInet4{Addr: ip.As4()}); err != nil {
 		if errors.Is(err, unix.EPERM) || errors.Is(err, unix.EACCES) {

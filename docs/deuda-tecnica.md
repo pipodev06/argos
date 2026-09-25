@@ -76,3 +76,4 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - Inventario de procesos/servicios/puertos (permiso `can_inventory` y guard `requireInventory` ya listos; falta el agente y el endpoint) y estado de parches/vulnerabilidades del SO: siguientes tras 7 y 8.
 - Canal de correo (SMTP): no por ahora (decision del usuario).
 - Corregido (2026-09-25): `TestLatestMetricsAndSeriesIncludeNewColumns` fallaba en el CI entre :00 y :01 de cada hora (4 muestras cruzaban el límite de la hora); ahora se alinea a la hora anterior. Revisar otros tests con "ahora ± N" si aparece otro fallo horario.
+- Corregido (2026-09-25): el CI del agente falló 2 veces por `G115` (gosec) en `ping_native_unix.go`, invisible en el lint local de Windows; `scripts/check-go.sh` ahora corre `golangci-lint` también con `GOOS=linux` y `darwin` (pasos `lint-linux`/`lint-darwin`).
