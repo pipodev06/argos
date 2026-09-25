@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,8 +13,10 @@ import (
 
 // Dispositivos sin agente (hosts.kind = 'device'): un equipo con IP que sondea un colector (un agente).
 var (
-	// ErrDeviceNotFound: el dispositivo referenciado (en el alcance de un chequeo) no existe.
+	// ErrDeviceNotFound: el dispositivo referenciado (en el alcance device de un chequeo) no existe.
 	ErrDeviceNotFound = errors.New("dispositivo no encontrado")
+	// ErrScopeHostNotFound: el host referenciado en el alcance host de un chequeo no existe o no es un agente.
+	ErrScopeHostNotFound = errors.New("host del alcance no encontrado")
 	// ErrCollectorInvalid: el colector no existe o no es un agente.
 	ErrCollectorInvalid = errors.New("el colector debe ser un host con agente")
 	// ErrDeviceExists: ya hay un dispositivo con esa direccion en ese colector.
@@ -109,10 +112,27 @@ type DevicePage struct {
 
 // ListDevices devuelve los dispositivos del ambito por nombre e id, con cursor keyset (LName e ID de HostCursor).
 // limit se acota a 1..maxDeviceListLimit.
-func (s *Store) ListDevices(ctx context.Context, scope Scope, after *HostCursor, limit int) (DevicePage, error) {
+func (s *Store) ListDevices(ctx context.Context, scope Scope, f HostFilter, after *HostCursor, limit int) (DevicePage, error) {
 	limit = min(max(limit, 1), maxDeviceListLimit)
 	var args argList
 	where := "h.kind = 'device' AND " + scope.groupCond("h.group_id", &args)
+	// Filtros de la lista (mismos que GET /hosts): nombre, estado y grupo (o sin grupo).
+	if f.Q != "" {
+		where += fmt.Sprintf(` AND strpos(lower(h.hostname), lower(%s)) > 0`, args.add(f.Q))
+	}
+	if len(f.Statuses) > 0 {
+		where += fmt.Sprintf(` AND h.status = ANY(%s::text[])`, args.add(f.Statuses))
+	}
+	var groupConds []string
+	if len(f.GroupIDs) > 0 {
+		groupConds = append(groupConds, fmt.Sprintf(`h.group_id = ANY(%s::uuid[])`, args.add(f.GroupIDs)))
+	}
+	if f.NoGroup {
+		groupConds = append(groupConds, `h.group_id IS NULL`)
+	}
+	if len(groupConds) > 0 {
+		where += " AND (" + strings.Join(groupConds, " OR ") + ")"
+	}
 	totalArgs := append(argList(nil), args...)
 	var total int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*)::int FROM hosts h WHERE `+where, []any(totalArgs)...).Scan(&total); err != nil {
@@ -301,17 +321,28 @@ func (s *Store) DeleteDevice(ctx context.Context, id string) (string, error) {
 	return name, nil
 }
 
-// requireDeviceScope comprueba que el alcance de un chequeo que apunta a un dispositivo apunte a uno que existe.
-func requireDeviceScope(ctx context.Context, tx pgx.Tx, sc AlertScope) error {
-	if sc.Type != ScopeDevice || sc.HostID == nil {
+// requireScopeHost comprueba que el alcance de un chequeo que apunta a un host apunte a uno que existe: un
+// dispositivo para el alcance device y un host con agente para el alcance host.
+func requireScopeHost(ctx context.Context, tx pgx.Tx, sc AlertScope) error {
+	var kind string
+	var notFound error
+	switch sc.Type {
+	case ScopeDevice:
+		kind, notFound = "device", ErrDeviceNotFound
+	case ScopeHost:
+		kind, notFound = "agent", ErrScopeHostNotFound
+	default:
+		return nil
+	}
+	if sc.HostID == nil {
 		return nil
 	}
 	var ok bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1 AND kind = 'device')`, *sc.HostID).Scan(&ok); err != nil {
-		return fmt.Errorf("buscando dispositivo: %w", err)
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1 AND kind = $2)`, *sc.HostID, kind).Scan(&ok); err != nil {
+		return fmt.Errorf("buscando host del alcance: %w", err)
 	}
 	if !ok {
-		return ErrDeviceNotFound
+		return notFound
 	}
 	return nil
 }

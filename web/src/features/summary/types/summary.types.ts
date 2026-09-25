@@ -26,9 +26,19 @@ export interface RecentDown {
   group: GroupRef | null
 }
 
+export interface StatusCounts {
+  up: number
+  down: number
+  offline: number
+  pending: number
+  disabled: number
+}
+
 export interface Summary {
   generated_at: string
-  counts: { up: number; down: number; offline: number; pending: number; disabled: number }
+  counts: StatusCounts
+  /** Dispositivos sin agente (viven en /dispositivos), aparte de los hosts. */
+  devices: StatusCounts
   by_group: SummaryGroup[]
   top_cpu: TopHost[]
   top_mem: TopHost[]

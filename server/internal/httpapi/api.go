@@ -85,7 +85,7 @@ type Store interface {
 	ListCheckEvents(ctx context.Context, scope store.Scope, hostID, checkID string, after *store.EventCursor, limit int) (store.CheckEventPage, error)
 
 	// Dispositivos sin agente (kind device).
-	ListDevices(ctx context.Context, scope store.Scope, after *store.HostCursor, limit int) (store.DevicePage, error)
+	ListDevices(ctx context.Context, scope store.Scope, f store.HostFilter, after *store.HostCursor, limit int) (store.DevicePage, error)
 	DeviceByID(ctx context.Context, scope store.Scope, id string) (store.Device, error)
 	CreateDevice(ctx context.Context, name string, addr netip.Addr, collectorID string, groupID *string) (store.Device, error)
 	UpdateDevice(ctx context.Context, id string, ch store.DeviceChange) (store.Device, error)
@@ -438,6 +438,8 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "check_not_found", "el chequeo indicado no existe")
 	case errors.Is(err, store.ErrDeviceNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "device_not_found", "el dispositivo indicado no existe")
+	case errors.Is(err, store.ErrScopeHostNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "host_not_found", "el host indicado no existe o no tiene agente")
 	case errors.Is(err, store.ErrCollectorInvalid):
 		writeError(w, http.StatusUnprocessableEntity, "collector_invalid", "el colector debe ser un host con agente activo")
 	case errors.Is(err, store.ErrDeviceExists):

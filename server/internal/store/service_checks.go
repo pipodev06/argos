@@ -31,11 +31,11 @@ const (
 	// CheckSampleEvery es cada cuanto se guarda una muestra de latencia sin transicion.
 	CheckSampleEvery = 15 * time.Minute
 
-	checkNameKey     = "scd_name_lower_key"
-	checkGroupFKey   = "service_check_defs_scope_group_id_fkey"
-	checkDeviceFKey  = "service_check_defs_scope_host_id_fkey"
-	ruleCheckFKey    = "alert_rules_check_id_fkey"
-	checkStateMaxAge = 3 * 24 * time.Hour
+	checkNameKey       = "scd_name_lower_key"
+	checkGroupFKey     = "service_check_defs_scope_group_id_fkey"
+	checkScopeHostFKey = "service_check_defs_scope_host_id_fkey"
+	ruleCheckFKey      = "alert_rules_check_id_fkey"
+	checkStateMaxAge   = 3 * 24 * time.Hour
 )
 
 // Tipos de chequeo.
@@ -81,7 +81,7 @@ type ServiceCheckDef struct {
 	Scope   AlertScope
 	// GroupName es el nombre del grupo del alcance (solo lectura).
 	GroupName *string
-	// DeviceName es el nombre del dispositivo del alcance (solo lectura).
+	// DeviceName es el nombre del host o dispositivo del alcance (solo lectura).
 	DeviceName *string
 	Enabled    bool
 	CreatedAt  time.Time
@@ -112,7 +112,7 @@ func scanCheckDef(row pgx.Row, extra ...any) (ServiceCheckDef, error) {
 // snmp solo aplican a dispositivos y el resto solo a agentes.
 const hostInScopeSQL = `((d.type IN ('ping', 'snmp')) = (h.kind = 'device') AND (d.scope_type = 'all'
   OR (d.scope_type = 'group' AND d.scope_group_id = h.group_id)
-  OR (d.scope_type = 'device' AND d.scope_host_id = h.id)))`
+  OR (d.scope_type IN ('device', 'host') AND d.scope_host_id = h.id)))`
 
 // ListServiceChecks devuelve las definiciones por nombre (tope MaxServiceChecks). Un ambito restringido solo ve
 // las de alcance `all` y las de sus grupos.
@@ -120,8 +120,8 @@ func (s *Store) ListServiceChecks(ctx context.Context, scope Scope) ([]ServiceCh
 	args := argList{MaxServiceChecks}
 	cond := scope.configCond("d.scope_type", "d.scope_group_id", &args)
 	if !scope.All() {
-		// Un chequeo ping de un dispositivo concreto se ve si el dispositivo esta en el ambito.
-		cond = "(" + cond + " OR (d.scope_type = 'device' AND " + scope.hostCond("d.scope_host_id", &args) + "))"
+		// Un chequeo de un host o dispositivo concreto se ve si ese host esta en el ambito.
+		cond = "(" + cond + " OR (d.scope_type IN ('device', 'host') AND " + scope.hostCond("d.scope_host_id", &args) + "))"
 	}
 	rows, err := s.pool.Query(ctx,
 		checkDefSelect+` WHERE `+cond+` ORDER BY lower(d.name), d.id LIMIT $1`,
@@ -143,7 +143,7 @@ func (s *Store) ServiceCheckByID(ctx context.Context, scope Scope, id string) (S
 		return ServiceCheckDef{}, err
 	}
 	if !scope.sees(d.Scope) {
-		if d.Scope.Type != ScopeDevice || d.Scope.HostID == nil {
+		if (d.Scope.Type != ScopeDevice && d.Scope.Type != ScopeHost) || d.Scope.HostID == nil {
 			return ServiceCheckDef{}, ErrNotFound
 		}
 		if err := s.requireHost(ctx, scope, *d.Scope.HostID); err != nil {
@@ -170,8 +170,9 @@ func mapCheckErr(err error, what string) error {
 		return ErrCheckExists
 	case isFKViolation(err, checkGroupFKey):
 		return ErrGroupNotFound
-	case isFKViolation(err, checkDeviceFKey):
-		return ErrDeviceNotFound
+	case isFKViolation(err, checkScopeHostFKey):
+		// Solo se llega aqui si el host se borro entre la comprobacion y el insert.
+		return ErrScopeHostNotFound
 	}
 	return fmt.Errorf("%s: %w", what, err)
 }
@@ -191,7 +192,7 @@ func (s *Store) CreateServiceCheck(ctx context.Context, d ServiceCheckDef, creat
 		if n >= MaxServiceChecks {
 			return ErrTooManyChecks
 		}
-		if err := requireDeviceScope(ctx, tx, d.Scope); err != nil {
+		if err := requireScopeHost(ctx, tx, d.Scope); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx,
@@ -228,7 +229,7 @@ func (s *Store) UpdateServiceCheck(ctx context.Context, id string, mutate func(*
 		if err := mutate(&d); err != nil {
 			return err
 		}
-		if err := requireDeviceScope(ctx, tx, d.Scope); err != nil {
+		if err := requireScopeHost(ctx, tx, d.Scope); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx,

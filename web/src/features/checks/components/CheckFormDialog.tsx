@@ -217,7 +217,7 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
         <FormField id="check-timeout" label="Timeout (ms)" inputMode="numeric" autoComplete="off" hint="200 a 30 000." {...text('timeout')} />
         <FormField id="check-retries" label="Reintentos" inputMode="numeric" autoComplete="off" hint="0 a 3." {...text('retries')} />
       </div>
-      <ScopeFields id="check" ping={isDeviceCheck(draft.type)} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
+      <ScopeFields id="check" ping={isDeviceCheck(draft.type)} hostScope={!isDeviceCheck(draft.type)} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
       <label htmlFor="check-enabled" className="flex items-start gap-2 text-sm">
         <Checkbox id="check-enabled" className="mt-0.5" checked={draft.enabled} onCheckedChange={(v) => set('enabled', v === true)} />
         <span>

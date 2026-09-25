@@ -59,7 +59,9 @@ type RecentDown struct {
 
 // Summary es la foto de la flota pa el dashboard.
 type Summary struct {
-	Counts       StatusCounts
+	Counts StatusCounts
+	// Devices cuenta los dispositivos sin agente (`kind='device'`), aparte de los hosts.
+	Devices      StatusCounts
 	ByGroup      []GroupCounts
 	TopCPU       []TopHost
 	TopMem       []TopHost
@@ -117,6 +119,26 @@ func (s *Store) Summary(ctx context.Context, scope Scope) (Summary, error) {
 	}
 	rows.Close()
 	sum.ByGroup = orderedGroups(byGroup, order)
+
+	var devArgs argList
+	devRows, err := s.pool.Query(ctx,
+		`SELECT h.status, count(*)::int FROM hosts h WHERE h.kind = 'device' AND `+scope.groupCond("h.group_id", &devArgs)+` GROUP BY h.status`, []any(devArgs)...)
+	if err != nil {
+		return Summary{}, fmt.Errorf("contando dispositivos: %w", err)
+	}
+	defer devRows.Close()
+	for devRows.Next() {
+		var status string
+		var n int
+		if err := devRows.Scan(&status, &n); err != nil {
+			return Summary{}, fmt.Errorf("leyendo conteo de dispositivos: %w", err)
+		}
+		sum.Devices.add(status, n)
+	}
+	if err := devRows.Err(); err != nil {
+		return Summary{}, fmt.Errorf("iterando dispositivos: %w", err)
+	}
+	devRows.Close()
 
 	if sum.TopCPU, err = s.top(ctx, scope, `l.cpu_pct::float8`, `l.cpu_pct IS NOT NULL`, false); err != nil {
 		return Summary{}, err

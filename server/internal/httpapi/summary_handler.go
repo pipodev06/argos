@@ -71,6 +71,10 @@ func (a *API) summary(w http.ResponseWriter, r *http.Request) error {
 			"up": sum.Counts.Up, "down": sum.Counts.Down, "offline": sum.Counts.Offline,
 			"pending": sum.Counts.Pending, "disabled": sum.Counts.Disabled,
 		},
+		"devices": map[string]int{
+			"up": sum.Devices.Up, "down": sum.Devices.Down, "offline": sum.Devices.Offline,
+			"pending": sum.Devices.Pending, "disabled": sum.Devices.Disabled,
+		},
 		"by_group":      byGroup,
 		"top_cpu":       toTopDTOs(sum.TopCPU),
 		"top_mem":       toTopDTOs(sum.TopMem),

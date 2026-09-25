@@ -27,6 +27,9 @@ describe('checkOrigin', () => {
     expect(checkOrigin(chk('ping', { type: 'device', device_id: 'r1' }), [dev('r1', undefined)])).toBe('—')
     expect(checkOrigin(chk('ping', { type: 'all' }), undefined)).toBe('—')
   })
+  it('alcance host: el propio host', () => {
+    expect(checkOrigin(chk('tcp', { type: 'host', host_id: 'h1', host_name: 'mi-pc' } as never), devices)).toBe('mi-pc')
+  })
   it('otros tipos: los propios hosts del alcance', () => {
     expect(checkOrigin(chk('tcp', { type: 'all' }), devices)).toBe('Cada host con agente')
     expect(checkOrigin(chk('http', { type: 'group', group_id: 'g1' }), devices)).toBe('Hosts del grupo')

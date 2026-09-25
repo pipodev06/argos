@@ -83,7 +83,7 @@ var auditDetailKeys = map[string]bool{
 	"severity": true, "kind": true, "metric": true, "enabled": true, "scope_type": true,
 	"starts_at": true, "ends_at": true, "fields": true,
 	// Chequeos de servicio: tipo y ajustes, nunca el secreto, la cabecera ni la URL.
-	"type": true, "check_id": true, "device_id": true,
+	"type": true, "check_id": true, "device_id": true, "host_id": true,
 	// Dispositivos: el colector que los sondea (nunca la direccion IP).
 	"collector_id": true,
 	// SNMP: version del perfil, perfil asignado a un dispositivo e interfaz del chequeo (nunca contrasenas ni comunidad).

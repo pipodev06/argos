@@ -6,6 +6,8 @@ export interface ScopeDraft {
   groupId: string
   /** Solo chequeos ping. */
   deviceId?: string
+  /** Solo chequeos de servicio (no ping/snmp). */
+  hostId?: string
 }
 
 export const ALL_SCOPE: ScopeDraft = { type: 'all', groupId: '' }
@@ -13,6 +15,13 @@ export const ALL_SCOPE: ScopeDraft = { type: 'all', groupId: '' }
 export const SCOPE_TYPE_OPTIONS: readonly { value: ScopeType; label: string }[] = [
   { value: 'all', label: 'Todos los hosts' },
   { value: 'group', label: 'Un grupo' },
+]
+
+/** Alcance de un chequeo de servicio (tcp, http, tls, servicio): puede apuntar a un host concreto con agente. */
+export const CHECK_SCOPE_TYPE_OPTIONS: readonly { value: ScopeType; label: string }[] = [
+  { value: 'all', label: 'Todos los hosts' },
+  { value: 'group', label: 'Un grupo' },
+  { value: 'host', label: 'Un host' },
 ]
 
 /** Alcance de un chequeo ping: sus objetivos son dispositivos, no hosts con agente. */
@@ -23,7 +32,7 @@ export const PING_SCOPE_TYPE_OPTIONS: readonly { value: ScopeType; label: string
 ]
 
 export function scopeToDraft(s: Scope): ScopeDraft {
-  return { type: s.type, groupId: s.group_id ?? '', deviceId: s.device_id }
+  return { type: s.type, groupId: s.group_id ?? '', deviceId: s.device_id, hostId: s.host_id }
 }
 
 export function draftToScope(d: ScopeDraft): { scope: ScopeInput } | { error: string } {
@@ -32,6 +41,9 @@ export function draftToScope(d: ScopeDraft): { scope: ScopeInput } | { error: st
   }
   if (d.type === 'device') {
     return d.deviceId ? { scope: { type: 'device', device_id: d.deviceId } } : { error: 'Elige un dispositivo.' }
+  }
+  if (d.type === 'host') {
+    return d.hostId ? { scope: { type: 'host', host_id: d.hostId } } : { error: 'Elige un host.' }
   }
   return { scope: { type: 'all' } }
 }
