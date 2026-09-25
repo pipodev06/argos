@@ -1,4 +1,4 @@
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { AvailabilityBadge } from './AvailabilityBadge'
 import { formatCoveragePct, formatSeconds } from '../utils/format'
 import type { ServiceCheckItem } from '../types/report.types'
@@ -12,6 +12,7 @@ export function ReportServiceChecksTable({ items }: ReportServiceChecksTableProp
     <DataTable caption="Disponibilidad de chequeos de servicio" className="min-w-[80rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Host</HeadCell>
           <HeadCell>Chequeo</HeadCell>
           <HeadCell>Disponibilidad</HeadCell>
@@ -22,10 +23,11 @@ export function ReportServiceChecksTable({ items }: ReportServiceChecksTableProp
         </HeadRow>
       </thead>
       <tbody>
-        {items.map((item) => {
+        {items.map((item, i) => {
 
           return (
             <Row key={`${item.host_id}-${item.check_id}`}>
+              <RowNumberCell n={i + 1} />
               <Cell className="max-w-56 truncate font-semibold">{item.hostname}</Cell>
               <Cell className="max-w-56 truncate">{item.check_name}</Cell>
               <Cell>

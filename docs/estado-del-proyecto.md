@@ -2,7 +2,7 @@
 Detalle por tema en `decisiones/` (índice: `decisiones.md`; abre solo el tema de tu tarea). Deuda: `deuda-tecnica.md`. Historia: git. Reglas del orquestador y lecciones de agentes: memoria del proyecto y `~/.claude/agents/*.md`.
 
 ## Qué es
-Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/Postgres 18 (`server/`, goose 00001–00021) + dashboard React (`web/`, Vite, Tailwind v4, shadcn, estilo Slate congelado en `CLAUDE.md`). Repo privado `pipodev06/argos` (rama `main`; CI de GitHub Actions verde: web, go server, go agent con `-race` en Linux).
+Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/Postgres 18 (`server/`, goose 00001–00023) + dashboard React (`web/`, Vite, Tailwind v4, shadcn, estilo Slate congelado en `CLAUDE.md`). Repo privado `pipodev06/argos` (rama `main`; CI de GitHub Actions verde (último commit revisado 3468a13): web, go server, go agent con `-race` en Linux).
 
 ## Hecho (implementado y probado con tests; lo visual NO está probado en navegador)
 - Server: auth (admin/viewer, cookies, CSRF, auditoría), enroll de agentes, ingest, detector de caídos, grupos, resumen, retención y particionado; motor de alertas (reglas metric/host_status/no_data/service_check, mantenimiento, canales webhook con `/slack` para Discord); chequeos de servicios (tcp/http/tls/servicio, ejecutados por el agente); permisos por grupo (`store.Scope` obligatorio; viewers restringidos; canales/auditoría solo admin); `host_events` (00014 + 00020, retención 400 d); informes de disponibilidad (`/reports/*`, CSV); inventario del host (ingest 00021 + lectura con `can_inventory`); frontend servido por el server con `ARGOS_WEB_DIR`; etiquetas eliminadas.
@@ -10,11 +10,10 @@ Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/P
 - Web: hosts (filtros, detalle, inventario), grupos, chequeos, alertas/reglas/mantenimiento/canales, usuarios con permisos, auditoría, Informes (`/informes`); Vitest (72+ tests).
 
 ## En curso / siguiente (orden acordado)
-1. Botones "Exportar CSV" y filtro por grupo en Informes (`web/`; contrato en `decisiones/2026-09-25-sla-csv.md`).
+Hecho desde la versión anterior de este archivo: Informes con exportar CSV y filtro por grupo; inventario en ruta propia (`/hosts/:id/inventario`, 15 filas por página; tamaños de página globales 15/30/50/100); servicios de Linux; alerta "puerto nuevo expuesto" (00022, regla `exposed_port` con `expected_ports`); ping + dispositivos sin agente (00023, agente colector con `ARGOS_PROBE_ALLOW`).
+1. Punto 8, tanda 2: SNMP v3 (`gosnmp` aprobado; `decisiones/2026-09-25-ping-snmp.md`). Tanda 3: pantallas (alta de dispositivos/perfiles, colectores, alertas). Partir las tandas grandes en dos agentes.
 2. Punto 2: parches/vulnerabilidades del SO (falta diseño).
-3. Punto 8: ping/SNMP para equipos sin agente (diseño aprobado: `decisiones/2026-09-25-ping-snmp.md`, `gosnmp` aprobado, 3 tandas).
-4. Alerta "puerto nuevo expuesto" (diseñada; ver `decisiones/2026-09-25-inventario.md`). Servicios Linux del inventario: hecho.
-Aplazado por el usuario: canal SMTP, despliegue/dominio, separar roles de BD, firma de binarios. Sin probar: instalación real del agente (Windows/Linux/macOS), systemd sin privilegios, revisión visual de pantallas nuevas (la hace el usuario).
+Aplazado por el usuario: canal SMTP, despliegue/dominio, separar roles de BD, firma de binarios. Sin probar: instalación real del agente (Windows/Linux/macOS), servicios/ping reales en Linux/macOS, systemd sin privilegios, revisión visual de pantallas nuevas (la hace el usuario). El server local puede estar apagado (Claude Code lo mata bajo presión de memoria); BD real `argos` migrada hasta 00022 (00023 se aplica al arrancar el server nuevo; respaldos en `C:Userspiter.argos-devackups`).
 
 ## Cómo trabajar y verificar
 - Verificar: `bash scripts/check-go.sh <server|agent> [--fast] [--pkg ./ruta]` y `bash scripts/check-web.sh`. Los tests de BD se SALTAN sin `ARGOS_TEST_DATABASE_URL=postgres://argos:argos@localhost:5432/argos_test?sslmode=disable` (BD `argos_test` ya existe en el Postgres local): definirla SIEMPRE.

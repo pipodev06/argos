@@ -32,6 +32,8 @@ func (r *Runner) probe(ctx context.Context, c Check) outcome {
 		return r.probeTLS(ctx, c)
 	case TypeService:
 		return r.probeService(ctx, c)
+	case TypePing:
+		return r.probePing(ctx, c)
 	default:
 		return unknown(DetailUnsupported)
 	}

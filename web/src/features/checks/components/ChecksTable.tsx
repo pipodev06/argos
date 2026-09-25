@@ -1,10 +1,10 @@
 import { IconKey, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
-import { formatSeconds, scopeLabel } from '@/features/alerts/utils/format'
+import { formatSeconds } from '@/features/alerts/utils/format'
 import type { ServiceCheck } from '../types/check.types'
-import { checkTarget, CHECK_TYPE_LABELS } from '../utils/format'
+import { checkScopeLabel, checkTarget, CHECK_TYPE_LABELS } from '../utils/format'
 
 export type CheckAction = 'edit' | 'toggle' | 'delete'
 
@@ -21,6 +21,7 @@ export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps
     <DataTable caption="Chequeos de servicios" className="min-w-[60rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
           <HeadCell>Destino</HeadCell>
@@ -32,15 +33,16 @@ export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps
         </HeadRow>
       </thead>
       <tbody>
-        {checks.map((c) => (
+        {checks.map((c, i) => (
           <Row key={c.id}>
+            <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
             <Cell>{CHECK_TYPE_LABELS[c.type]}</Cell>
             <Cell className="max-w-64 truncate tabular-nums" title={checkTarget(c)}>
               {checkTarget(c)}
             </Cell>
             <Cell className="tabular-nums">{formatSeconds(c.interval_seconds)}</Cell>
-            <Cell className="max-w-48 truncate">{scopeLabel(c.scope)}</Cell>
+            <Cell className="max-w-48 truncate">{checkScopeLabel(c)}</Cell>
             <Cell>
               <RuleEnabledBadge enabled={c.enabled} />
             </Cell>

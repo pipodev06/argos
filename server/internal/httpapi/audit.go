@@ -50,6 +50,9 @@ const (
 	evChannelDeleted         = "channel_deleted"
 	evChannelTested          = "channel_tested"
 	evRuleChannelsSet        = "alert_rule_channels_set"
+	evDeviceCreated          = "device_created"
+	evDeviceUpdated          = "device_updated"
+	evDeviceDeleted          = "device_deleted"
 	evServiceCheckCreated    = "service_check_created"
 	evServiceCheckUpdated    = "service_check_updated"
 	evServiceCheckDeleted    = "service_check_deleted"
@@ -77,7 +80,9 @@ var auditDetailKeys = map[string]bool{
 	"severity": true, "kind": true, "metric": true, "enabled": true, "scope_type": true,
 	"starts_at": true, "ends_at": true, "fields": true,
 	// Chequeos de servicio: tipo y ajustes, nunca el secreto, la cabecera ni la URL.
-	"type": true, "check_id": true,
+	"type": true, "check_id": true, "device_id": true,
+	// Dispositivos: el colector que los sondea (nunca la direccion IP).
+	"collector_id": true,
 	// Canales: solo el host del destino (nunca la URL completa, que puede llevar un token, ni el secreto HMAC).
 	"host": true,
 	// Lectura de inventario: solo el modulo consultado, nunca contenido.

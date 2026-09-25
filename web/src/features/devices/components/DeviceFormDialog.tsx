@@ -1,0 +1,121 @@
+import { useState, type FormEvent } from 'react'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { FormField } from '@/components/ui/form-field'
+import { InlineError } from '@/components/ui/inline-error'
+import { SelectField } from '@/components/ui/select-field'
+import { useGroups } from '@/features/groups/hooks/useGroups'
+import { useUserMutation } from '@/features/users/hooks/useUserMutation'
+import { useCollectors } from '../hooks/useDevices'
+import { createDevice, updateDevice } from '../services/devices.service'
+import type { Device } from '../types/device.types'
+import { buildDeviceInput, deviceToDraft, mapDeviceError, MAX_NAME, type DeviceDraft, type DeviceErrors } from '../utils/deviceForm'
+
+interface DeviceFormDialogProps {
+  /** null = crear; un dispositivo = editar. */
+  device: Device | null
+  open: boolean
+  onClose: () => void
+  onSaved: () => void
+}
+
+const NO_GROUP = '__none__'
+
+export function DeviceFormDialog(props: DeviceFormDialogProps) {
+  // El formulario solo existe con el dialogo abierto: cada apertura empieza limpia y recarga colectores y grupos.
+  return (
+    <Dialog open={props.open} onOpenChange={(next) => !next && props.onClose()}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">{props.open && <DeviceForm {...props} />}</DialogContent>
+    </Dialog>
+  )
+}
+
+function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
+  const editing = device !== null
+  const [draft, setDraft] = useState<DeviceDraft>(() => deviceToDraft(device))
+  const [errors, setErrors] = useState<DeviceErrors>({})
+  const { error, busy, run } = useUserMutation()
+  const collectors = useCollectors()
+  const { groups } = useGroups()
+  const set = <K extends keyof DeviceDraft>(key: K, value: DeviceDraft[K]) => setDraft((d) => ({ ...d, [key]: value }))
+
+  // El colector actual se conserva como opcion aunque ya no sea elegible (p. ej. deshabilitado): el servidor decide.
+  const collectorOptions = (collectors.data ?? []).map((c) => ({ value: c.id, label: c.name }))
+  if (device?.collector && !collectorOptions.some((o) => o.value === device.collector?.id)) {
+    collectorOptions.unshift({ value: device.collector.id, label: device.collector.name })
+  }
+  const noCollectors = collectors.data !== null && collectorOptions.length === 0
+  const groupOptions = [{ value: NO_GROUP, label: 'Sin grupo' }, ...(groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))]
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const built = buildDeviceInput(draft, device)
+    if ('errors' in built) return setErrors(built.errors)
+    setErrors({})
+    const { input } = built
+    if (await run(() => (device ? updateDevice(device.id, input) : createDevice(input)), mapDeviceError)) onSaved()
+  }
+
+  return (
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate autoComplete="off">
+      <DialogHeader>
+        <DialogTitle>{editing ? 'Editar dispositivo' : 'Nuevo dispositivo'}</DialogTitle>
+        <DialogDescription>
+          Un dispositivo no lleva agente: un host con agente (el colector) le hace ping y el estado depende de sus respuestas.
+        </DialogDescription>
+      </DialogHeader>
+      <FormField
+        id="device-name"
+        label="Nombre"
+        value={draft.name}
+        onChange={(e) => set('name', e.target.value)}
+        maxLength={MAX_NAME}
+        autoComplete="off"
+        autoFocus
+        error={errors.name}
+      />
+      <FormField
+        id="device-address"
+        label="Dirección IP"
+        value={draft.address}
+        onChange={(e) => set('address', e.target.value)}
+        placeholder="192.168.1.10"
+        autoComplete="off"
+        hint="IPv4 o IPv6, no un nombre. Debe estar en la lista de permitidos (ARGOS_PROBE_ALLOW) del colector."
+        error={errors.address}
+      />
+      <SelectField
+        id="device-collector"
+        label="Colector"
+        value={draft.collectorId}
+        onChange={(v) => set('collectorId', v)}
+        options={collectorOptions}
+        placeholder={collectors.data ? 'Elige un colector' : 'Cargando…'}
+        hint="Host con agente que hará el ping."
+        error={errors.collectorId}
+      />
+      {noCollectors && (
+        <InlineError>
+          No hay hosts con agente que puedan hacer de colector. Enrola un host y define ARGOS_PROBE_ALLOW en su agente (las IP o redes que puede sondear).
+        </InlineError>
+      )}
+      {collectors.error && <InlineError>{collectors.error}</InlineError>}
+      <SelectField
+        id="device-group"
+        label="Grupo"
+        value={draft.groupId || NO_GROUP}
+        onChange={(v) => set('groupId', v === NO_GROUP ? '' : v)}
+        options={groupOptions}
+      />
+      {error && <InlineError>{error}</InlineError>}
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={busy || noCollectors}>
+          {busy ? 'Guardando...' : 'Guardar'}
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}

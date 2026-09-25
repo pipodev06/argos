@@ -1,25 +1,29 @@
 import { Fragment, useState } from 'react'
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { rowNumber } from '@/lib/pagination'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import type { AuditEntry } from '../types/audit.types'
 import { eventLabel, formatAuditDate, formatDetailValue } from '../utils/labels'
 import { AuditTarget } from './AuditTarget'
 import { OutcomeBadge } from './OutcomeBadge'
 
-const COLS = 6
+const COLS = 7
 
 interface AuditTableProps {
   /** null = cargando. */
   entries: AuditEntry[] | null
+  page: number
+  pageSize: number
 }
 
-export function AuditTable({ entries }: AuditTableProps) {
+export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
   const [openId, setOpenId] = useState<number | null>(null)
   return (
     <DataTable caption="Registro de auditoría" className="min-w-[56rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Fecha</HeadCell>
           <HeadCell>Evento</HeadCell>
           <HeadCell>Resultado</HeadCell>
@@ -30,7 +34,7 @@ export function AuditTable({ entries }: AuditTableProps) {
       </thead>
       <tbody>
         {entries === null && <SkeletonRows colSpan={COLS} />}
-        {entries?.map((e) => {
+        {entries?.map((e, i) => {
           const open = openId === e.id
           const panelId = `audit-detail-${e.id}`
           const Chevron = open ? IconChevronDown : IconChevronRight
@@ -38,6 +42,7 @@ export function AuditTable({ entries }: AuditTableProps) {
           return (
             <Fragment key={e.id}>
               <Row>
+                <RowNumberCell n={rowNumber(page, pageSize, i)} />
                 <Cell className="tabular-nums">
                   <button
                     type="button"

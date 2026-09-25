@@ -58,3 +58,8 @@ export function pageWindow(total: number, page: number, pageSize: number): { pag
   const start = (safe - 1) * pageSize
   return { page: safe, start, end: Math.min(start + pageSize, total) }
 }
+
+/** Numero de fila mostrado (desde 1), continuo entre paginas. `page` desde 1, `index` desde 0 dentro de la pagina. */
+export function rowNumber(page: number, pageSize: number, index: number): number {
+  return (page - 1) * pageSize + index + 1
+}

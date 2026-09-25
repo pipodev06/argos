@@ -1,0 +1,110 @@
+import { useEffect, useState } from 'react'
+import { IconRouter } from '@tabler/icons-react'
+import { TableError } from '@/components/data-table/TableStates'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
+import { Pagination } from '@/components/ui/pagination'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import { DeleteDeviceConfirm } from '@/features/devices/components/DeleteDeviceConfirm'
+import { DeviceFormDialog } from '@/features/devices/components/DeviceFormDialog'
+import { DeviceTable, type DeviceAction } from '@/features/devices/components/DeviceTable'
+import { useDeviceList } from '@/features/devices/hooks/useDevices'
+import type { Device } from '@/features/devices/types/device.types'
+import { buildDeviceQuery, DEVICE_FIELDS } from '@/features/devices/utils/deviceQuery'
+import { useCursorPagination } from '@/hooks/useCursorPagination'
+import { useUrlFilters } from '@/hooks/useUrlFilters'
+import type { PageSize } from '@/lib/pagination'
+
+export function DevicesPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const pagination = useCursorPagination()
+  const resetPagination = pagination.reset
+  const { filters, setFilters } = useUrlFilters(DEVICE_FIELDS, { onChange: resetPagination })
+  const { data, error, errorStatus, loading, refresh } = useDeviceList(buildDeviceQuery(filters, pagination.cursor))
+  const [form, setForm] = useState<{ device: Device | null } | null>(null)
+  const [deleting, setDeleting] = useState<Device | null>(null)
+
+  // El cursor es opaco y se invalida al reiniciar el servidor (400 invalid_cursor): se vuelve a la 1a pagina.
+  const staleCursor = errorStatus === 400 && pagination.cursor !== null
+  useEffect(() => {
+    if (staleCursor) resetPagination()
+  }, [staleCursor, resetPagination])
+
+  function handleAction(action: DeviceAction, device: Device) {
+    if (action === 'edit') setForm({ device })
+    else setDeleting(device)
+  }
+
+  const empty = data !== null && data.total === 0
+  const showTable = !empty && !(error && data === null)
+
+  return (
+    <>
+      <PageHeader
+        title="Dispositivos"
+        actions={isAdmin && <Button size="sm" onClick={() => setForm({ device: null })}>Nuevo dispositivo</Button>}
+      />
+      <div className="flex flex-col gap-3" aria-busy={loading}>
+        {error && <TableError message={error} onRetry={() => void refresh()} />}
+        {empty && (
+          <EmptyState
+            Icon={IconRouter}
+            title="Sin dispositivos"
+            description={
+              isAdmin
+                ? 'Un dispositivo (router, switch, impresora...) no lleva agente: un host con agente lo sondea por ping. Crea el primero con "Nuevo dispositivo".'
+                : 'Un administrador debe agregar el primero.'
+            }
+          />
+        )}
+        {showTable && (
+          <>
+            <DeviceTable
+              devices={data?.items ?? null}
+              page={pagination.page}
+              pageSize={filters.limit}
+              isAdmin={isAdmin}
+              onAction={handleAction}
+            />
+            <Pagination
+              page={pagination.page}
+              pageSize={filters.limit}
+              count={data?.items.length ?? 0}
+              total={data?.total}
+              itemLabel="dispositivos"
+              hasPrev={pagination.hasPrev}
+              hasNext={data?.next_cursor != null}
+              onPrev={pagination.prev}
+              onNext={() => data?.next_cursor && pagination.next(data.next_cursor)}
+              onPageSizeChange={(size: PageSize) => setFilters({ limit: size })}
+              loading={loading}
+            />
+          </>
+        )}
+      </div>
+      {isAdmin && (
+        <>
+          <DeviceFormDialog
+            device={form?.device ?? null}
+            open={form !== null}
+            onClose={() => setForm(null)}
+            onSaved={() => {
+              setForm(null)
+              void refresh()
+            }}
+          />
+          <DeleteDeviceConfirm
+            device={deleting}
+            onClose={() => setDeleting(null)}
+            onDeleted={() => {
+              setDeleting(null)
+              void refresh()
+            }}
+          />
+        </>
+      )}
+    </>
+  )
+}

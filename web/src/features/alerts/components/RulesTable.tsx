@@ -1,5 +1,5 @@
 import { IconCircleCheck, IconCircleOff, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import type { AlertRule } from '../types/alert.types'
 import { describeCondition, KIND_LABELS, METRIC_LABELS, scopeLabel } from '../utils/format'
@@ -32,6 +32,7 @@ export function RulesTable({ rules, canAct, busy, onAction }: RulesTableProps) {
     <DataTable caption="Reglas de alerta" className="min-w-[60rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
           <HeadCell>Condición</HeadCell>
@@ -44,8 +45,9 @@ export function RulesTable({ rules, canAct, busy, onAction }: RulesTableProps) {
         </HeadRow>
       </thead>
       <tbody>
-        {rules.map((r) => (
+        {rules.map((r, i) => (
           <Row key={r.id}>
+            <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{r.name}</Cell>
             <Cell>{r.metric ? `${KIND_LABELS[r.kind]} · ${METRIC_LABELS[r.metric]}` : KIND_LABELS[r.kind]}</Cell>
             <Cell className="tabular-nums">{describeCondition(r)}</Cell>

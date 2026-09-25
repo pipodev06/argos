@@ -52,6 +52,7 @@ type batteryDTO struct {
 type hostItemDTO struct {
 	ID              string       `json:"id"`
 	Hostname        string       `json:"hostname"`
+	Kind            string       `json:"kind"`
 	Status          string       `json:"status"`
 	StatusChangedAt time.Time    `json:"status_changed_at"`
 	LastSeenAt      *time.Time   `json:"last_seen_at"`
@@ -69,7 +70,7 @@ type hostItemDTO struct {
 
 func toHostItemDTO(h store.HostRow) hostItemDTO {
 	dto := hostItemDTO{
-		ID: h.ID, Hostname: h.Hostname, Status: h.Status, StatusChangedAt: h.StatusChangedAt.UTC(), LastSeenAt: utcPtr(h.LastSeenAt),
+		ID: h.ID, Hostname: h.Hostname, Kind: h.Kind, Status: h.Status, StatusChangedAt: h.StatusChangedAt.UTC(), LastSeenAt: utcPtr(h.LastSeenAt),
 		Group: toGroupRefDTO(h.Group), OS: h.OS, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
 		CPUPct: round1(h.CPUPct),
 	}
@@ -151,6 +152,9 @@ func parseHostQuery(v url.Values, scope store.Scope) (hostQuery, error) {
 		return hostQuery{}, err
 	}
 	f.OSes = oses
+	if f.Kinds, err = parseKindFilter(v["kind"]); err != nil {
+		return hostQuery{}, err
+	}
 
 	if f.CPUGt, err = parsePctFilter(v, "cpu_gt"); err != nil {
 		return hostQuery{}, err
@@ -229,6 +233,25 @@ func parseGroupFilter(raw []string, f *store.HostFilter) error {
 }
 
 // parseOSFilter lee os repetido: windows, linux o darwin (sin distinguir mayusculas), unicos y ordenados.
+// parseKindFilter valida ?kind= (agent | device, repetible, sin duplicados).
+func parseKindFilter(raw []string) ([]string, error) {
+	if len(raw) > maxFilterValues {
+		return nil, invalidFilter("maximo %d valores en kind", maxFilterValues)
+	}
+	var out []string
+	for _, k := range raw {
+		k = strings.ToLower(strings.TrimSpace(k))
+		if k != "agent" && k != "device" {
+			return nil, invalidFilter("kind debe ser agent o device")
+		}
+		if !slices.Contains(out, k) {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
 func parseOSFilter(raw []string) ([]string, error) {
 	if len(raw) > maxFilterValues {
 		return nil, invalidFilter("maximo %d valores en os", maxFilterValues)
@@ -267,7 +290,7 @@ func parsePctFilter(v url.Values, name string) (*float64, error) {
 
 // fingerprint resume filtros, orden, direccion y ambito del usuario (no el limite: se puede cambiar entre paginas).
 func fingerprint(f store.HostFilter, scope store.Scope) string {
-	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup, f.OSes, f.Sort, f.Desc,
+	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup, f.OSes, f.Kinds, f.Sort, f.Desc,
 		f.CPUGt, f.MemGt, f.DiskGt, f.BatteryLt, f.SeenBefore, scope.Key()})
 	if err != nil {
 		return "" // solo strings, bools y listas: no deberia ocurrir

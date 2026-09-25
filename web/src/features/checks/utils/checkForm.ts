@@ -25,6 +25,7 @@ export const CHECK_TYPE_OPTIONS: readonly { value: CheckType; label: string }[] 
   { value: 'http', label: 'HTTP (URL)' },
   { value: 'tls_cert', label: 'Certificado TLS' },
   { value: 'service', label: 'Servicio del sistema' },
+  { value: 'ping', label: 'Ping (dispositivo)' },
 ]
 
 export interface CheckDraft {
@@ -167,6 +168,7 @@ export function buildCheckInput(d: CheckDraft, original: ServiceCheck | null): {
   if (retries !== null) input.retries = retries
   if ('scope' in scope) input.scope = scope.scope
   if (!editing) input.type = d.type
+  if (d.scope.type === 'device' && d.type !== 'ping') errors.scope = 'El alcance de un dispositivo solo vale para chequeos ping.'
 
   const hostPort = () => {
     const host = d.host.trim()
@@ -223,6 +225,10 @@ export function buildCheckInput(d: CheckDraft, original: ServiceCheck | null): {
       if (crit !== null) input.crit_days = crit
       break
     }
+    case 'ping':
+      // Sin destino propio: el ping va a la direccion de cada dispositivo del alcance.
+      latency()
+      break
     case 'service': {
       const svc = d.serviceName.trim()
       if (!SERVICE_RE.test(svc)) errors.serviceName = 'Servicio: 1 a 64 caracteres A-Z a-z 0-9 @ . _ : -'

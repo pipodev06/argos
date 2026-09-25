@@ -7,7 +7,7 @@ import type { HostDetail, HostInfo } from '../types/host.types'
 import { formatCapacity, formatFullDate } from '../utils/format'
 import { formatOs } from '../utils/os'
 
-function Item({ term, children }: { term: string; children: ReactNode }) {
+export function Item({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-xs text-text-muted">{term}</dt>

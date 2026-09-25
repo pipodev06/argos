@@ -1,6 +1,6 @@
 import { IconPencil, IconTrash } from '@tabler/icons-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import type { Group } from '../types/group.types'
 import { formatThreshold } from '../utils/format'
@@ -26,6 +26,7 @@ export function GroupsTable({
     <DataTable caption="Grupos de hosts" className="min-w-[40rem]">
         <thead>
           <HeadRow>
+            <RowNumberHeadCell />
             <HeadCell>Nombre</HeadCell>
             <HeadCell>Hosts</HeadCell>
             <HeadCell>Comportamiento</HeadCell>
@@ -38,8 +39,9 @@ export function GroupsTable({
           </HeadRow>
         </thead>
         <tbody>
-          {groups.map((g) => (
+          {groups.map((g, i) => (
             <Row key={g.id}>
+              <RowNumberCell n={i + 1} />
               <RowHeadCell>{g.name}</RowHeadCell>
               <Cell className="tabular-nums">
                 <Link to={`/hosts?group=${g.id}`} className="underline-offset-2 hover:underline">
@@ -64,6 +66,7 @@ export function GroupsTable({
             </Row>
           ))}
           <Row>
+            <Cell />
             <RowHeadCell className="text-text-muted">Sin grupo</RowHeadCell>
             <Cell className="tabular-nums">
               <Link to="/hosts?group=none" className="underline-offset-2 hover:underline">

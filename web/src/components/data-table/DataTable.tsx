@@ -41,3 +41,18 @@ export function Cell({ className, ...props }: ComponentProps<'td'>) {
 export function RowHeadCell({ className, ...props }: ComponentProps<'th'>) {
   return <th scope="row" className={cn(CELL, 'font-semibold', className)} {...props} />
 }
+
+/** Primera columna `#` (numero de fila); ancho fijo estrecho. Va con `RowNumberCell`. */
+export function RowNumberHeadCell({ className }: { className?: string }) {
+  return (
+    <HeadCell className={cn('w-12', className)}>
+      <span aria-hidden>#</span>
+      <span className="sr-only">Número de fila</span>
+    </HeadCell>
+  )
+}
+
+/** Celda `#`: `n` ya calculado con `rowNumber(page, pageSize, index)`. */
+export function RowNumberCell({ n, className }: { n: number; className?: string }) {
+  return <Cell className={cn('w-12 text-xs text-text-muted tabular-nums', className)}>{n}</Cell>
+}

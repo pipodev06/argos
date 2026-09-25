@@ -84,6 +84,14 @@ type Store interface {
 	HostServiceChecks(ctx context.Context, scope store.Scope, hostID string) ([]store.HostCheck, error)
 	ListCheckEvents(ctx context.Context, scope store.Scope, hostID, checkID string, after *store.EventCursor, limit int) (store.CheckEventPage, error)
 
+	// Dispositivos sin agente (kind device).
+	ListDevices(ctx context.Context, scope store.Scope, after *store.HostCursor, limit int) (store.DevicePage, error)
+	DeviceByID(ctx context.Context, scope store.Scope, id string) (store.Device, error)
+	CreateDevice(ctx context.Context, name string, addr netip.Addr, collectorID string, groupID *string) (store.Device, error)
+	UpdateDevice(ctx context.Context, id string, ch store.DeviceChange) (store.Device, error)
+	DeleteDevice(ctx context.Context, id string) (name string, err error)
+	CollectorPings(ctx context.Context, collectorID string) ([]store.PingAssignment, error)
+
 	// Usuarios y sesiones.
 	UserByUsername(ctx context.Context, username string) (store.User, error)
 	UserByID(ctx context.Context, id string) (store.User, error)
@@ -285,6 +293,11 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/changes", accessSession, a.requireInventory(a.inventoryChanges))
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks", accessSession, a.hostServiceChecks)
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks/{check_id}/events", accessSession, a.hostCheckEvents)
+	a.route(mux, "GET /api/v1/devices", accessSession, a.listDevices)
+	a.route(mux, "GET /api/v1/devices/{id}", accessSession, a.getDevice)
+	a.route(mux, "POST /api/v1/devices", accessAdmin, a.createDevice)
+	a.route(mux, "PATCH /api/v1/devices/{id}", accessAdmin, a.updateDevice)
+	a.route(mux, "DELETE /api/v1/devices/{id}", accessAdmin, a.deleteDevice)
 	a.route(mux, "GET /api/v1/summary", accessSession, a.summary)
 	a.route(mux, "GET /api/v1/groups", accessSession, a.listGroups)
 	a.route(mux, "POST /api/v1/groups", accessAdmin, a.createGroup)
@@ -410,6 +423,14 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusConflict, "too_many_checks", fmt.Sprintf("se alcanzo el maximo de %d chequeos", store.MaxServiceChecks))
 	case errors.Is(err, store.ErrCheckNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "check_not_found", "el chequeo indicado no existe")
+	case errors.Is(err, store.ErrDeviceNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "device_not_found", "el dispositivo indicado no existe")
+	case errors.Is(err, store.ErrCollectorInvalid):
+		writeError(w, http.StatusUnprocessableEntity, "collector_invalid", "el colector debe ser un host con agente activo")
+	case errors.Is(err, store.ErrDeviceExists):
+		writeError(w, http.StatusConflict, "device_exists", "ya existe un dispositivo con esa direccion en ese colector")
+	case errors.Is(err, store.ErrTooManyDevices):
+		writeError(w, http.StatusConflict, "too_many_devices", fmt.Sprintf("se alcanzo el maximo de %d dispositivos", store.MaxDevices))
 	case errors.Is(err, store.ErrUnknownHosts):
 		writeError(w, http.StatusUnprocessableEntity, "unknown_hosts", "alguno de los hosts indicados no existe")
 	case errors.Is(err, store.ErrPartitionMissing):

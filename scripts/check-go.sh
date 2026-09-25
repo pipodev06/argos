@@ -46,6 +46,10 @@ for mod in "${MODS[@]}"; do
   done
   if [ "$FAST" -eq 0 ]; then
     step "$mod" lint 20 -- golangci-lint run
+    # lint cruzado: el CI corre golangci-lint en Linux y aqui (Windows) no vera archivos de otros SO (bug real: G115 en ping_native_unix.go)
+    for goos in linux darwin; do
+      step "$mod" "lint-$goos" 30 -- env GOOS=$goos GOARCH=amd64 CGO_ENABLED=0 golangci-lint run
+    done
   fi
   # tests: solo lineas FAIL/panic/--- FAIL y el resumen; el detalle queda en el log
   log="$ROOT/.check/$mod-test.log"; t0=$SECONDS

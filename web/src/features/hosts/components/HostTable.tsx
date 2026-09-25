@@ -2,12 +2,14 @@ import { IconAlertTriangle, IconBattery, IconBatteryCharging } from '@tabler/ico
 import { cn } from 'cn'
 import { Link } from 'react-router'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { SortableHead, type SortDir } from '@/components/data-table/SortableHead'
+import { rowNumber } from '@/lib/pagination'
 import { usageLevel } from '@/lib/usage'
 import type { Host } from '../types/host.types'
 import type { OptionalColumn } from '../utils/columns'
+import { DeviceKindBadge } from '@/features/devices/components/DeviceBadges'
 import { formatElapsed, formatLastSeen, formatNumber } from '../utils/format'
 import type { SortKey } from '../utils/hostQuery'
 import { formatOs } from '../utils/os'
@@ -15,6 +17,8 @@ import { HostStatusBadge } from './HostStatusBadge'
 
 interface HostTableProps {
   hosts: Host[] | null
+  page: number
+  pageSize: number
   visible: readonly OptionalColumn[]
   sort: SortKey
   dir: SortDir
@@ -36,12 +40,14 @@ function Pct({ value }: { value: number | null }) {
   )
 }
 
-export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggle, onToggleAll }: HostTableProps) {
+export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, selected, onToggle, onToggleAll }: HostTableProps) {
   const show = (c: OptionalColumn) => visible.includes(c)
   const sortProps = { sort, dir, onSort }
-  const allSelected = hosts !== null && hosts.length > 0 && selected !== null && hosts.every((h) => selected.has(h.id))
-  const someSelected = hosts !== null && selected !== null && hosts.some((h) => selected.has(h.id))
-  const colSpan = 8 + visible.length + 1
+  // Los dispositivos sin agente no se seleccionan: las acciones de lote son de hosts con agente.
+  const selectable = hosts?.filter((h) => h.kind === 'agent') ?? []
+  const allSelected = selected !== null && selectable.length > 0 && selectable.every((h) => selected.has(h.id))
+  const someSelected = selected !== null && selectable.some((h) => selected.has(h.id))
+  const colSpan = 8 + visible.length + 2
 
   return (
     <DataTable caption="Hosts">
@@ -56,6 +62,7 @@ export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggl
                 />
               </th>
             )}
+            <RowNumberHeadCell />
             <SortableHead id="name" label="Host" {...sortProps} />
             <SortableHead id="status" label="Estado" {...sortProps} />
             <SortableHead id="group" label="Grupo" {...sortProps} className="hidden md:table-cell" />
@@ -72,29 +79,35 @@ export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggl
         <tbody>
           {hosts === null
             ? <SkeletonRows colSpan={colSpan} />
-            : hosts.map((h) => {
+            : hosts.map((h, i) => {
                 const isSelected = selected?.has(h.id) ?? false
                 return (
                   <Row key={h.id} className={cn('relative hover:bg-muted/50', isSelected && 'bg-muted')}>
                     {selected && (
                       <td className="relative z-10 hidden w-10 px-3 md:table-cell">
-                        <Checkbox
-                          aria-label={`Seleccionar ${h.hostname}`}
-                          checked={isSelected}
-                          onCheckedChange={(v) => onToggle(h.id, v === true)}
-                        />
+                        {h.kind === 'agent' && (
+                          <Checkbox
+                            aria-label={`Seleccionar ${h.hostname}`}
+                            checked={isSelected}
+                            onCheckedChange={(v) => onToggle(h.id, v === true)}
+                          />
+                        )}
                       </td>
                     )}
+                    <RowNumberCell n={rowNumber(page, pageSize, i)} />
                     <Cell className="relative max-w-64">
                       {h.status === 'down' && (
                         <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-danger" />
                       )}
-                      <Link
-                        to={`/hosts/${h.id}`}
-                        className="block truncate rounded-md font-semibold outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                      >
-                        {h.hostname}
-                      </Link>
+                      <span className="flex items-center justify-center gap-2">
+                        <Link
+                          to={`/hosts/${h.id}`}
+                          className="block min-w-0 truncate rounded-md font-semibold outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                        >
+                          {h.hostname}
+                        </Link>
+                        {h.kind === 'device' && <DeviceKindBadge />}
+                      </span>
                       <span className="block truncate text-xs text-text-muted md:hidden">
                         {[h.group?.name ?? 'Sin grupo', formatOs(h.os, h.os_name, h.os_version)].filter(Boolean).join(' · ')}
                       </span>

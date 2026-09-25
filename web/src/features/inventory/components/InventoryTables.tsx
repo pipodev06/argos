@@ -6,7 +6,8 @@ import {
   IconLock,
   IconPlayerPause,
 } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { rowNumber } from '@/lib/pagination'
 import { formatFullDate, formatMemory, formatNumber } from '@/features/hosts/utils/format'
 import type { InventoryChange, PortItem, ProcessItem, ServiceItem, ServiceState } from '../types/inventory.types'
 import { describeChange, isExposed, KIND_LABELS, MODULE_LABELS, START_LABELS, STATE_LABELS } from '../utils/inventory'
@@ -32,11 +33,12 @@ function ServiceStateBadge({ state }: { state: ServiceState }) {
   return <InventoryBadge Icon={s.Icon} label={STATE_LABELS[state] ?? STATE_LABELS.other} tint={s.tint} iconClass={s.iconClass} />
 }
 
-export function PortsTable({ items }: { items: PortItem[] }) {
+export function PortsTable({ items, page, pageSize }: { items: PortItem[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Puertos en escucha" className="min-w-[40rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Puerto</HeadCell>
           <HeadCell>Protocolo</HeadCell>
           <HeadCell>Dirección</HeadCell>
@@ -45,8 +47,9 @@ export function PortsTable({ items }: { items: PortItem[] }) {
         </HeadRow>
       </thead>
       <tbody>
-        {items.map((p) => (
+        {items.map((p, i) => (
           <Row key={`${p.proto}/${p.bind}/${p.port}`}>
+            <RowNumberCell n={rowNumber(page, pageSize, i)} />
             <Cell className="font-semibold tabular-nums">{p.port}</Cell>
             <Cell className="uppercase">{p.proto}</Cell>
             <Cell className="tabular-nums">{p.bind}</Cell>
@@ -63,11 +66,12 @@ export function PortsTable({ items }: { items: PortItem[] }) {
   )
 }
 
-export function ServicesTable({ items }: { items: ServiceItem[] }) {
+export function ServicesTable({ items, page, pageSize }: { items: ServiceItem[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Servicios" className="min-w-[44rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Identificador</HeadCell>
           <HeadCell>Estado</HeadCell>
@@ -75,8 +79,9 @@ export function ServicesTable({ items }: { items: ServiceItem[] }) {
         </HeadRow>
       </thead>
       <tbody>
-        {items.map((s) => (
+        {items.map((s, i) => (
           <Row key={s.name}>
+            <RowNumberCell n={rowNumber(page, pageSize, i)} />
             <Cell className="max-w-64 truncate font-semibold" title={s.display}>
               {s.display || s.name}
             </Cell>
@@ -94,19 +99,21 @@ export function ServicesTable({ items }: { items: ServiceItem[] }) {
   )
 }
 
-export function ProcessesTable({ items }: { items: ProcessItem[] }) {
+export function ProcessesTable({ items, page, pageSize }: { items: ProcessItem[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Procesos (agrupados por nombre)" className="min-w-[32rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Instancias</HeadCell>
           <HeadCell>Memoria (RSS)</HeadCell>
         </HeadRow>
       </thead>
       <tbody>
-        {items.map((p) => (
+        {items.map((p, i) => (
           <Row key={p.name}>
+            <RowNumberCell n={rowNumber(page, pageSize, i)} />
             <Cell className="max-w-64 truncate font-semibold" title={p.name}>
               {p.name}
             </Cell>
@@ -119,11 +126,12 @@ export function ProcessesTable({ items }: { items: ProcessItem[] }) {
   )
 }
 
-export function ChangesTable({ items }: { items: InventoryChange[] }) {
+export function ChangesTable({ items, page, pageSize }: { items: InventoryChange[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Cambios de inventario" className="min-w-[48rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Fecha</HeadCell>
           <HeadCell>Módulo</HeadCell>
           <HeadCell>Tipo</HeadCell>
@@ -132,10 +140,11 @@ export function ChangesTable({ items }: { items: InventoryChange[] }) {
         </HeadRow>
       </thead>
       <tbody>
-        {items.map((c) => {
+        {items.map((c, i) => {
           const detail = describeChange(c.kind, c.before, c.after)
           return (
             <Row key={c.id}>
+              <RowNumberCell n={rowNumber(page, pageSize, i)} />
               <Cell className="tabular-nums">{formatFullDate(c.at)}</Cell>
               <Cell>{MODULE_LABELS[c.module] ?? c.module}</Cell>
               <Cell>{KIND_LABELS[c.kind] ?? c.kind}</Cell>

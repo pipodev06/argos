@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useState } from 'react'
 import { IconArrowRight, IconChevronDown, IconHeartRateMonitor } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
@@ -70,19 +70,22 @@ function EventsPanel({ hostId, checkId }: { hostId: string; checkId: string }) {
   )
 }
 
-function CheckRow({ hostId, item, now }: { hostId: string; item: HostCheck; now: number }) {
+function CheckRow({ n, hostId, item, now, targetFallback }: { n: number; hostId: string; item: HostCheck; now: number; targetFallback?: string }) {
   const [open, setOpen] = useState(false)
   const { check, state } = item
+  // El ping no lleva destino propio: la direccion es la del dispositivo (solo la conoce un admin).
+  const target = check.target || targetFallback || '—'
   return (
     <Fragment>
       <Row>
+        <RowNumberCell n={n} />
         <Cell>
           <CheckStatusBadge status={state?.status ?? 'unknown'} />
         </Cell>
         <Cell className="max-w-56 truncate font-semibold">{check.name}</Cell>
         <Cell>{CHECK_TYPE_LABELS[check.type]}</Cell>
-        <Cell className="max-w-64 truncate tabular-nums" title={check.target}>
-          {check.target}
+        <Cell className="max-w-64 truncate tabular-nums" title={target}>
+          {target}
         </Cell>
         <Cell className="tabular-nums">{hostCheckValue(item)}</Cell>
         <Cell className="max-w-64 truncate" title={detailLabel(state?.detail ?? null)}>
@@ -104,7 +107,7 @@ function CheckRow({ hostId, item, now }: { hostId: string; item: HostCheck; now:
       </Row>
       {open && (
         <tr>
-          <td colSpan={8} className="border-t border-border bg-bg px-3 py-3">
+          <td colSpan={9} className="border-t border-border bg-bg px-3 py-3">
             <EventsPanel hostId={hostId} checkId={check.id} />
           </td>
         </tr>
@@ -113,7 +116,7 @@ function CheckRow({ hostId, item, now }: { hostId: string; item: HostCheck; now:
   )
 }
 
-function ChecksContent({ hostId }: { hostId: string }) {
+function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallback?: string }) {
   const { data, error } = useHostChecks(hostId)
   const now = useNow(30_000)
   if (error && !data) return <InlineError>{error}</InlineError>
@@ -123,6 +126,7 @@ function ChecksContent({ hostId }: { hostId: string }) {
     <DataTable caption="Chequeos del host" className="min-w-[56rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Estado</HeadCell>
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
@@ -134,8 +138,8 @@ function ChecksContent({ hostId }: { hostId: string }) {
         </HeadRow>
       </thead>
       <tbody>
-        {data.map((item) => (
-          <CheckRow key={item.check.id} hostId={hostId} item={item} now={now} />
+        {data.map((item, i) => (
+          <CheckRow key={item.check.id} n={i + 1} hostId={hostId} item={item} now={now} targetFallback={targetFallback} />
         ))}
       </tbody>
     </DataTable>
@@ -143,13 +147,13 @@ function ChecksContent({ hostId }: { hostId: string }) {
 }
 
 /** Sección "Chequeos" del detalle de host: estado actual por chequeo y transiciones bajo demanda. */
-export function HostChecksSection({ hostId }: { hostId: string }) {
+export function HostChecksSection({ hostId, targetFallback }: { hostId: string; targetFallback?: string }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="host-checks-title">
       <h2 id="host-checks-title" className="text-sm font-semibold">
         Chequeos
       </h2>
-      <ChecksContent hostId={hostId} />
+      <ChecksContent hostId={hostId} targetFallback={targetFallback} />
     </section>
   )
 }

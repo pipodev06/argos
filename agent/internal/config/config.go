@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,6 +51,12 @@ type Config struct {
 	// CheckAllow es la politica local de destinos de los chequeos (ARGOS_CHECK_ALLOW). Vacia = defecto:
 	// solo loopback y las IPs propias del host. El servidor no puede ampliarla.
 	CheckAllow *checks.Policy
+	// ProbeAllow es la allowlist local del colector ping (ARGOS_PROBE_ALLOW: IPs y CIDRs, /24 minimo).
+	// Vacia = colector desactivado. El servidor no puede ampliarla.
+	ProbeAllow *checks.ProbePolicy
+	// ProbeMaxChecks es el tope de chequeos que ejecuta el agente (ARGOS_PROBE_MAX_CHECKS, 20 a 1000;
+	// defecto 20). Un colector con muchos devices lo sube explicitamente.
+	ProbeMaxChecks int
 	// InventoryModules son los modulos de inventario activados localmente (ARGOS_INVENTORY_MODULES:
 	// ports, services, processes). Vacio = apagado (defecto). El servidor no puede activarlos.
 	InventoryModules []string
@@ -107,6 +114,19 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 		return Config{}, fmt.Errorf("ARGOS_CHECK_ALLOW invalida (hostnames, IPs o CIDRs separados por comas, con :puerto opcional): %w", err)
 	}
 	cfg.CheckAllow = pol
+	maxTargets, err := envInt(getenv("ARGOS_PROBE_MAX_TARGETS"), checks.DefaultProbeMaxTargets, 1, 65536)
+	if err != nil {
+		return Config{}, fmt.Errorf("ARGOS_PROBE_MAX_TARGETS invalida: %w", err)
+	}
+	probe, err := checks.ParseProbePolicy(getenv("ARGOS_PROBE_ALLOW"), maxTargets)
+	if err != nil {
+		return Config{}, fmt.Errorf("ARGOS_PROBE_ALLOW invalida (IPs o CIDRs /24 o mas chicos separados por comas, con tope de %d IPs): %w", maxTargets, err)
+	}
+	cfg.ProbeAllow = probe
+	cfg.ProbeMaxChecks, err = envInt(getenv("ARGOS_PROBE_MAX_CHECKS"), checks.MaxChecks, checks.MaxChecks, 1000)
+	if err != nil {
+		return Config{}, fmt.Errorf("ARGOS_PROBE_MAX_CHECKS invalida: %w", err)
+	}
 	mods, err := inventory.ParseModules(getenv("ARGOS_INVENTORY_MODULES"))
 	if err != nil {
 		return Config{}, fmt.Errorf("ARGOS_INVENTORY_MODULES invalida (lista separada por comas de ports, services, processes): %w", err)
@@ -125,6 +145,18 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 		}
 	}
 	return cfg, nil
+}
+
+// envInt lee un entero en [lo, hi]; vacio = def.
+func envInt(raw string, def, lo, hi int) (int, error) {
+	if strings.TrimSpace(raw) == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || n < lo || n > hi {
+		return 0, fmt.Errorf("se espera un entero entre %d y %d", lo, hi)
+	}
+	return n, nil
 }
 
 func fileExists(path string) bool {

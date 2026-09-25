@@ -36,7 +36,7 @@ var (
 	checkServiceRe = regexp.MustCompile(`^[A-Za-z0-9@._:-]{1,64}$`)
 	checkStatusRe  = regexp.MustCompile(`^([0-9]{3})(?:-([0-9]{3}))?$`)
 
-	validCheckTypes   = map[string]bool{store.CheckTCP: true, store.CheckHTTP: true, store.CheckTLSCert: true, store.CheckService: true}
+	validCheckTypes   = map[string]bool{store.CheckTCP: true, store.CheckHTTP: true, store.CheckTLSCert: true, store.CheckService: true, store.CheckPing: true}
 	validCheckHeaders = map[string]bool{"Authorization": true, "X-API-Key": true, "X-Auth-Token": true}
 
 	// secretQueryKeys son fragmentos de nombre de parametro de query que delatan una credencial: el token va en el
@@ -85,6 +85,7 @@ func toServiceCheckDTO(u *sessionUser, d store.ServiceCheckDef) serviceCheckDTO 
 		HasSecret: len(d.SecretEnc) > 0, Scope: toScopeDTO(d.Scope, d.GroupName), Enabled: d.Enabled,
 		CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(),
 	}
+	dto.Scope.DeviceName = d.DeviceName
 	if admin {
 		dto.HeaderName = d.HeaderName
 	} else if d.URL != nil {
@@ -128,7 +129,7 @@ func validateCheckDef(d *store.ServiceCheckDef) error {
 	}
 	d.Name = name
 	if !validCheckTypes[d.Type] {
-		return badRequest("type debe ser tcp, http, tls_cert o service")
+		return badRequest("type debe ser tcp, http, tls_cert, service o ping")
 	}
 	if d.IntervalSeconds < minCheckInterval || d.IntervalSeconds > maxCheckInterval {
 		return badRequest("interval_seconds debe estar entre %d y %d", minCheckInterval, maxCheckInterval)
@@ -144,6 +145,9 @@ func validateCheckDef(d *store.ServiceCheckDef) error {
 	}
 	if err := validateCheckShape(d); err != nil {
 		return err
+	}
+	if d.Scope.Type == store.ScopeDevice && d.Type != store.CheckPing {
+		return badRequest("scope device solo aplica a chequeos ping")
 	}
 	if d.WarnMs != nil && d.CritMs != nil && *d.WarnMs >= *d.CritMs {
 		return badRequest("warn_ms debe ser menor que crit_ms")
@@ -177,6 +181,12 @@ func validateCheckShape(d *store.ServiceCheckDef) error {
 		return out
 	}
 	switch d.Type {
+	case store.CheckPing:
+		// El destino es la direccion del dispositivo (nunca un campo del chequeo).
+		if err := absent(merge(target, days, httpOnly, svc)); err != nil {
+			return err
+		}
+		return validateLatency(d)
 	case store.CheckTCP:
 		if err := absent(merge(days, httpOnly, svc)); err != nil {
 			return err
@@ -436,7 +446,7 @@ func (a *API) createServiceCheck(w http.ResponseWriter, r *http.Request) error {
 		d.Enabled = *req.Enabled
 	}
 	if req.Scope != nil {
-		sc, err := req.Scope.toScope()
+		sc, err := req.Scope.toScopeWith(true)
 		if err != nil {
 			return err
 		}
@@ -612,7 +622,7 @@ func (a *API) updateServiceCheck(w http.ResponseWriter, r *http.Request) error {
 	}
 	var newScope *store.AlertScope
 	if req.Scope != nil {
-		sc, err := req.Scope.toScope()
+		sc, err := req.Scope.toScopeWith(true)
 		if err != nil {
 			return err
 		}
@@ -684,6 +694,9 @@ func checkAuditDetail(d store.ServiceCheckDef, fields []string) map[string]any {
 	m := map[string]any{"name": d.Name, "type": d.Type, "enabled": d.Enabled, "scope_type": d.Scope.Type}
 	if d.Scope.GroupID != nil {
 		m["group_id"] = *d.Scope.GroupID
+	}
+	if d.Scope.HostID != nil {
+		m["device_id"] = *d.Scope.HostID
 	}
 	if fields != nil {
 		m["fields"] = fields

@@ -85,6 +85,7 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 	x := newAlertScopeEnv(t)
 	checkB := x.newCheck(fmt.Sprintf(`{"name":"tcp-b","type":"tcp","target_host":"localhost","target_port":23,"scope":{"type":"group","group_id":%q}}`, x.groupB))
 	x.newCheck(`{"name":"tcp-all","type":"tcp","target_host":"localhost","target_port":22}`)
+	devB := x.newDevice(`{"name":"dev-b","address":"10.1.1.1","collector_id":"` + x.hostA + `","group_id":"` + x.groupB + `"}`)
 	registered := append([]route(nil), x.api.routes...) // copia: otros tests pueden registrar rutas
 
 	fixed := func(p ...string) func(*alertScopeEnv, string) []string {
@@ -111,6 +112,8 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/channels":                   {"admin", fixed(api + "/channels")},
 		"GET /api/v1/channels/{id}":              {"admin", fixed(api + "/channels/" + missingID)},
 		"GET /api/v1/hosts":                      {"scope", fixed(api+"/hosts", api+"/hosts?q=host-b", api+"/hosts?group=none")},
+		"GET /api/v1/devices":                    {"scope", fixed(api + "/devices")},
+		"GET /api/v1/devices/{id}":               {"scope", fixed(api+"/devices/"+devB, api+"/devices/"+x.hostB)},
 		"GET /api/v1/summary":                    {"scope", fixed(api + "/summary")},
 		"GET /api/v1/reports/availability":       {"scope", fixed(api+"/reports/availability", api+"/reports/availability?by=group&range=7d")},
 		"GET /api/v1/reports/service-checks":     {"scope", fixed(api + "/reports/service-checks")},
@@ -174,7 +177,7 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 	}
 
 	// Datos del otro grupo (B) y sin grupo que no pueden aparecer en ninguna respuesta a viewa.
-	forbidden := []string{x.hostB, x.hostNo, "host-b", "host-none", x.groupB, x.alerts[x.hostB], x.alerts[x.hostNo], checkB, "tcp-b"}
+	forbidden := []string{x.hostB, x.hostNo, "host-b", "host-none", x.groupB, x.alerts[x.hostB], x.alerts[x.hostNo], checkB, "tcp-b", devB, "dev-b", "10.1.1.1"}
 
 	for pattern, er := range table {
 		for _, path := range er.paths(x, checkB) {

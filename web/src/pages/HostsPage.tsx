@@ -63,7 +63,7 @@ export function HostsPage() {
   function toggleAll(on: boolean) {
     setSelected((prev) => {
       const next = new Set(prev)
-      data?.items.forEach((h) => (on ? next.add(h.id) : next.delete(h.id)))
+      data?.items.filter((h) => h.kind === 'agent').forEach((h) => (on ? next.add(h.id) : next.delete(h.id)))
       return next
     })
   }
@@ -138,6 +138,8 @@ export function HostsPage() {
           <>
             <HostTable
               hosts={data?.items ?? null}
+              page={pagination.page}
+              pageSize={filters.limit}
               visible={columns.visible}
               sort={filters.sort}
               dir={filters.dir}

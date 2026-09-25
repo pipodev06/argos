@@ -1,5 +1,5 @@
 import { IconKey, IconLockAccess, IconShield, IconUserCheck, IconUserOff } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { roleLabel } from '@/features/auth/utils/format'
 import { formatFullDate } from '@/features/hosts/utils/format'
@@ -20,6 +20,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
     <DataTable caption="Usuarios" className="min-w-[56rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Usuario</HeadCell>
           <HeadCell>Rol</HeadCell>
           <HeadCell>Acceso</HeadCell>
@@ -30,10 +31,11 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
         </HeadRow>
       </thead>
       <tbody>
-        {users.map((u) => {
+        {users.map((u, i) => {
           const self = u.id === currentUserId
           return (
             <Row key={u.id}>
+              <RowNumberCell n={i + 1} />
               <Cell className="font-semibold">
                 {u.username}
                 {self && <span className="font-sans font-normal text-text-muted"> (tú)</span>}

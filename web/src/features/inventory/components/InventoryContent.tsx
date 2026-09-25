@@ -83,11 +83,11 @@ function ModuleBody<T>({
 }
 
 /** Lista completa paginada en cliente (15 por defecto). Remontar con `key` para volver a la página 1. */
-function PagedList<T>({ items, itemLabel, render }: { items: T[]; itemLabel: string; render: (rows: T[]) => ReactNode }) {
+function PagedList<T>({ items, itemLabel, render }: { items: T[]; itemLabel: string; render: (rows: T[], page: number, pageSize: number) => ReactNode }) {
   const paged = usePagedList(items)
   return (
     <div className="flex flex-col gap-3">
-      {render(paged.rows)}
+      {render(paged.rows, paged.page, paged.pageSize)}
       <Pagination
         page={paged.page}
         pageSize={paged.pageSize}
@@ -106,7 +106,7 @@ function PagedList<T>({ items, itemLabel, render }: { items: T[]; itemLabel: str
 
 function PortsView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'ports')
-  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="puertos" render={(rows) => <PortsTable items={rows} />} />} />
+  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="puertos" render={(rows, page, pageSize) => <PortsTable items={rows} page={page} pageSize={pageSize} />} />} />
 }
 
 function ServicesView({ hostId, state, onDenied }: { hostId: string; state: string; onDenied: () => void }) {
@@ -120,7 +120,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
         return shown.length === 0 ? (
           <EmptyState Icon={IconListDetails} title="Ningún servicio coincide con el estado elegido" />
         ) : (
-          <PagedList key={state} items={shown} itemLabel="servicios" render={(rows) => <ServicesTable items={rows} />} />
+          <PagedList key={state} items={shown} itemLabel="servicios" render={(rows, page, pageSize) => <ServicesTable items={rows} page={page} pageSize={pageSize} />} />
         )
       }}
     />
@@ -129,7 +129,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
 
 function ProcessesView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'processes')
-  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="procesos" render={(rows) => <ProcessesTable items={rows} />} />} />
+  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="procesos" render={(rows, page, pageSize) => <ProcessesTable items={rows} page={page} pageSize={pageSize} />} />} />
 }
 
 function ChangesView({
@@ -170,7 +170,7 @@ function ChangesView({
         <EmptyState Icon={IconListDetails} title="Sin cambios registrados" />
       ) : (
         <>
-          <ChangesTable items={data.items} />
+          <ChangesTable items={data.items} page={pagination.page} pageSize={pagination.pageSize} />
           <Pagination
             page={pagination.page}
             pageSize={pagination.pageSize}

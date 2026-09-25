@@ -130,7 +130,7 @@ func TestHostDetailShape(t *testing.T) {
 
 	seen := fixedNow.Add(-time.Minute)
 	detail := store.HostDetail{
-		ID: detailHostID, Hostname: "srv-01", OS: "linux", Arch: "amd64", Status: "up",
+		ID: detailHostID, Hostname: "srv-01", Kind: "agent", OS: "linux", Arch: "amd64", Status: "up",
 		LastSeenAt: &seen, StatusChangedAt: fixedNow.Add(-2 * time.Hour), CreatedAt: fixedNow.Add(-24 * time.Hour),
 	}
 
@@ -151,7 +151,7 @@ func TestHostDetailShape(t *testing.T) {
 		wantKeys(t, "data", raw, "host", "info", "latest", "disks")
 		data := map[string]map[string]any{"host": raw["host"].(map[string]any), "latest": raw["latest"].(map[string]any), "info": raw["info"].(map[string]any)}
 		wantKeys(t, "info", data["info"], "boot_time", "cpu_model", "cpu_cores", "cpu_threads", "os_name", "os_version", "kernel_version", "agent_version", "ips", "mem_total_mb")
-		wantKeys(t, "host", data["host"], "id", "hostname", "os", "arch", "status", "last_seen_at", "status_changed_at", "created_at", "group")
+		wantKeys(t, "host", data["host"], "id", "hostname", "kind", "os", "arch", "status", "last_seen_at", "status_changed_at", "created_at", "group")
 		wantKeys(t, "latest", data["latest"], latestKeys...)
 		if got := data["host"]["status_changed_at"]; got != "2026-09-23T10:00:00Z" {
 			t.Errorf("status_changed_at got %v, want ISO 8601 UTC 2026-09-23T10:00:00Z", got)

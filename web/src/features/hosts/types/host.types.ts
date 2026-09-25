@@ -16,10 +16,14 @@ export interface Battery {
   charging: boolean | null
 }
 
+/** `agent` = host con agente; `device` = dispositivo sin agente (se sondea por ping desde un colector). */
+export type HostKind = 'agent' | 'device'
+
 /** Fila de GET /hosts. */
 export interface Host {
   id: string
   hostname: string
+  kind: HostKind
   status: HostStatus
   status_changed_at: string
   last_seen_at: string | null
@@ -60,6 +64,7 @@ export type MetricRange = '1h' | '6h' | '24h' | '7d' | '30d' | '90d' | '1y'
 export interface HostDetail {
   id: string
   hostname: string
+  kind: HostKind
   os: string
   arch: string
   status: HostStatus

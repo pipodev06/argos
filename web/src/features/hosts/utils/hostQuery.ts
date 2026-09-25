@@ -85,6 +85,8 @@ export type HostFilters = FiltersOf<typeof HOST_FIELDS>
 /** Query de GET /hosts: mismos filtros, con orden/direccion explicitos, limite y cursor. */
 export function buildApiQuery(f: HostFilters, cursor: string | null): URLSearchParams {
   const p = serializeFilters(HOST_FIELDS, f)
+  // Los dispositivos (sin agente) viven en /dispositivos: la lista de hosts pide solo hosts con agente.
+  p.set('kind', 'agent')
   p.set('sort', f.sort)
   p.set('dir', f.dir)
   p.set('limit', String(f.limit))

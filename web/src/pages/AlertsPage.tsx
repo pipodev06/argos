@@ -62,6 +62,8 @@ export function AlertsPage() {
           <>
             <AlertsTable
               alerts={data?.items ?? null}
+              page={pagination.page}
+              pageSize={filters.limit}
               now={now}
               canAct={isAdmin}
               onAction={(action, alert) => setTarget({ action, alert })}

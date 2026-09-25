@@ -30,12 +30,16 @@ const (
 const (
 	ScopeAll   = "all"
 	ScopeGroup = "group"
+	// ScopeDevice (solo chequeos ping): un dispositivo concreto.
+	ScopeDevice = "device"
 )
 
 // AlertScope es el alcance: todos los hosts o los de un grupo.
 type AlertScope struct {
 	Type    string
 	GroupID *string
+	// HostID es el dispositivo (solo ScopeDevice).
+	HostID *string
 }
 
 // ExpectedPort es un puerto que una regla exposed_port ignora (proto tcp|udp).

@@ -95,3 +95,8 @@ func (f *fakeStore) BulkHosts(_ context.Context, b store.Bulk) (int, error) {
 	f.x.gotBulk = b
 	return f.x.affected, f.x.err
 }
+
+// CollectorPings: el fake no tiene dispositivos (los tests de dispositivos usan la BD real).
+func (f *fakeStore) CollectorPings(context.Context, string) ([]store.PingAssignment, error) {
+	return nil, nil
+}

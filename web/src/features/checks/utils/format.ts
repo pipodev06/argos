@@ -1,7 +1,8 @@
 import { formatNumber } from '@/features/hosts/utils/format'
+import { scopeLabel } from '@/features/alerts/utils/format'
 import type { CheckState, CheckType, HostCheck, ServiceCheck } from '../types/check.types'
 
-export const CHECK_TYPE_LABELS: Record<CheckType, string> = { tcp: 'TCP', http: 'HTTP', tls_cert: 'Certificado TLS', service: 'Servicio' }
+export const CHECK_TYPE_LABELS: Record<CheckType, string> = { tcp: 'TCP', http: 'HTTP', tls_cert: 'Certificado TLS', service: 'Servicio', ping: 'Ping' }
 
 const DETAIL_LABELS: Record<string, string> = {
   ok: 'Correcto',
@@ -19,9 +20,15 @@ const DETAIL_LABELS: Record<string, string> = {
 
 export const detailLabel = (detail: string | null): string => (detail ? (DETAIL_LABELS[detail] ?? detail) : '—')
 
+/** Alcance legible: en un ping, "todos" son los dispositivos (no los hosts con agente). */
+export function checkScopeLabel(c: ServiceCheck): string {
+  return c.type === 'ping' && c.scope.type === 'all' ? 'Todos los dispositivos' : scopeLabel(c.scope)
+}
+
 /** Destino legible de una definición (la URL ya viene sin query para el viewer; el admin la ve completa en el formulario). */
 export function checkTarget(c: ServiceCheck): string {
   if (c.type === 'service') return c.service_name ?? '—'
+  if (c.type === 'ping') return c.scope.type === 'device' ? (c.scope.device_name ?? '—') : 'Dirección del dispositivo'
   if (c.type === 'http') return c.url ? c.url.split('?')[0] : '—'
   return c.target_host && c.target_port ? `${c.target_host}:${c.target_port}` : '—'
 }

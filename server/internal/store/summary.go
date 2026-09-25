@@ -71,6 +71,8 @@ type Summary struct {
 // grupo" si hay), los 10 hosts up con mas cpu, memoria y disco, y los 10 caidos mas recientes (solo down:
 // un host offline no requiere atencion).
 //
+// El resumen cuenta solo hosts con agente (`kind='agent'`): los dispositivos viven en /dispositivos.
+//
 // scope limita TODO el resumen (conteos, rankings y caidos) a los hosts visibles.
 func (s *Store) Summary(ctx context.Context, scope Scope) (Summary, error) {
 	var sum Summary
@@ -79,7 +81,7 @@ func (s *Store) Summary(ctx context.Context, scope Scope) (Summary, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT g.id, g.name, h.status, count(*)::int
 		   FROM hosts h LEFT JOIN host_groups g ON g.id = h.group_id
-		  WHERE `+scope.groupCond("h.group_id", &cargs)+`
+		  WHERE h.kind = 'agent' AND `+scope.groupCond("h.group_id", &cargs)+`
 		  GROUP BY g.id, g.name, h.status`, []any(cargs)...)
 	if err != nil {
 		return Summary{}, fmt.Errorf("contando hosts por grupo: %w", err)
@@ -130,7 +132,7 @@ func (s *Store) Summary(ctx context.Context, scope Scope) (Summary, error) {
 	down, err := s.pool.Query(ctx,
 		`SELECT h.id, h.hostname, h.status_changed_at, g.id, g.name
 		   FROM hosts h LEFT JOIN host_groups g ON g.id = h.group_id
-		  WHERE h.status = 'down' AND `+scope.groupCond("h.group_id", &dargs)+`
+		  WHERE h.kind = 'agent' AND h.status = 'down' AND `+scope.groupCond("h.group_id", &dargs)+`
 		  ORDER BY h.status_changed_at DESC, h.id LIMIT $1`, []any(dargs)...)
 	if err != nil {
 		return Summary{}, fmt.Errorf("leyendo hosts caidos: %w", err)

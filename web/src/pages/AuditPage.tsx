@@ -72,7 +72,7 @@ function AuditAdmin() {
         {noMatch && <NoResultsState Icon={IconHistory} title="Ningún evento coincide con los filtros." onClear={clear} />}
         {showTable && (
           <>
-            <AuditTable entries={data?.items ?? null} />
+            <AuditTable entries={data?.items ?? null} page={pagination.page} pageSize={filters.limit} />
             <Pagination
               page={pagination.page}
               pageSize={filters.limit}
