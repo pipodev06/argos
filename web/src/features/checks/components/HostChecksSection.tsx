@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useState } from 'react'
 import { IconArrowRight, IconChevronDown, IconHeartRateMonitor } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
@@ -70,12 +70,13 @@ function EventsPanel({ hostId, checkId }: { hostId: string; checkId: string }) {
   )
 }
 
-function CheckRow({ hostId, item, now }: { hostId: string; item: HostCheck; now: number }) {
+function CheckRow({ n, hostId, item, now }: { n: number; hostId: string; item: HostCheck; now: number }) {
   const [open, setOpen] = useState(false)
   const { check, state } = item
   return (
     <Fragment>
       <Row>
+        <RowNumberCell n={n} />
         <Cell>
           <CheckStatusBadge status={state?.status ?? 'unknown'} />
         </Cell>
@@ -104,7 +105,7 @@ function CheckRow({ hostId, item, now }: { hostId: string; item: HostCheck; now:
       </Row>
       {open && (
         <tr>
-          <td colSpan={8} className="border-t border-border bg-bg px-3 py-3">
+          <td colSpan={9} className="border-t border-border bg-bg px-3 py-3">
             <EventsPanel hostId={hostId} checkId={check.id} />
           </td>
         </tr>
@@ -123,6 +124,7 @@ function ChecksContent({ hostId }: { hostId: string }) {
     <DataTable caption="Chequeos del host" className="min-w-[56rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Estado</HeadCell>
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
@@ -134,8 +136,8 @@ function ChecksContent({ hostId }: { hostId: string }) {
         </HeadRow>
       </thead>
       <tbody>
-        {data.map((item) => (
-          <CheckRow key={item.check.id} hostId={hostId} item={item} now={now} />
+        {data.map((item, i) => (
+          <CheckRow key={item.check.id} n={i + 1} hostId={hostId} item={item} now={now} />
         ))}
       </tbody>
     </DataTable>

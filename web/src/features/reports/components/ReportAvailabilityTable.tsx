@@ -1,4 +1,4 @@
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { AvailabilityBadge } from './AvailabilityBadge'
 import { formatCoveragePct, formatSeconds, formatTrackedFrom } from '../utils/format'
 import type { AvailabilityGroupItem, AvailabilityItem } from '../types/report.types'
@@ -17,6 +17,7 @@ export function ReportAvailabilityTable({ items, isGroupView }: ReportAvailabili
     <DataTable caption={isGroupView ? 'Disponibilidad por grupo' : 'Disponibilidad por host'} className="min-w-[70rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>{isGroupView ? 'Grupo' : 'Host'}</HeadCell>
           <HeadCell>Disponibilidad</HeadCell>
           <HeadCell>Tiempo caído</HeadCell>
@@ -26,13 +27,14 @@ export function ReportAvailabilityTable({ items, isGroupView }: ReportAvailabili
         </HeadRow>
       </thead>
       <tbody>
-        {items.map((item) => {
+        {items.map((item, i) => {
           const isHost = isAvailabilityItem(item)
           const name = isHost ? item.hostname : item.group_name || '(Sin grupo)'
           const key = isHost ? item.host_id : item.group_id || 'ungrouped'
 
           return (
             <Row key={key}>
+              <RowNumberCell n={i + 1} />
               <Cell className="max-w-80 truncate font-semibold">{name}</Cell>
               <Cell>
                 <AvailabilityBadge pct={item.availability_pct} />

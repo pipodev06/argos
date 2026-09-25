@@ -1,6 +1,6 @@
 import { IconCalendarEvent, IconCircleCheck, IconTool, IconPencil, IconTrash } from '@tabler/icons-react'
 import type { ComponentType } from 'react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { formatFullDate } from '@/features/hosts/utils/format'
 import type { MaintenanceStatus, MaintenanceWindow } from '../types/alert.types'
@@ -37,6 +37,7 @@ export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTable
     <DataTable caption="Ventanas de mantenimiento" className="min-w-[52rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Ámbito</HeadCell>
           <HeadCell>Inicio</HeadCell>
@@ -46,8 +47,9 @@ export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTable
         </HeadRow>
       </thead>
       <tbody>
-        {windows.map((w) => (
+        {windows.map((w, i) => (
           <Row key={w.id}>
+            <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{w.name}</Cell>
             <Cell className="max-w-48 truncate">{scopeLabel(w.scope)}</Cell>
             <Cell className="tabular-nums">{formatFullDate(w.starts_at)}</Cell>

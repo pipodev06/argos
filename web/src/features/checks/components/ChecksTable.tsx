@@ -1,5 +1,5 @@
 import { IconKey, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
 import { formatSeconds, scopeLabel } from '@/features/alerts/utils/format'
@@ -21,6 +21,7 @@ export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps
     <DataTable caption="Chequeos de servicios" className="min-w-[60rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
           <HeadCell>Destino</HeadCell>
@@ -32,8 +33,9 @@ export function ChecksTable({ checks, canAct, busy, onAction }: ChecksTableProps
         </HeadRow>
       </thead>
       <tbody>
-        {checks.map((c) => (
+        {checks.map((c, i) => (
           <Row key={c.id}>
+            <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
             <Cell>{CHECK_TYPE_LABELS[c.type]}</Cell>
             <Cell className="max-w-64 truncate tabular-nums" title={checkTarget(c)}>

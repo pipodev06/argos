@@ -2,9 +2,10 @@ import { IconAlertTriangle, IconBattery, IconBatteryCharging } from '@tabler/ico
 import { cn } from 'cn'
 import { Link } from 'react-router'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { SortableHead, type SortDir } from '@/components/data-table/SortableHead'
+import { rowNumber } from '@/lib/pagination'
 import { usageLevel } from '@/lib/usage'
 import type { Host } from '../types/host.types'
 import type { OptionalColumn } from '../utils/columns'
@@ -15,6 +16,8 @@ import { HostStatusBadge } from './HostStatusBadge'
 
 interface HostTableProps {
   hosts: Host[] | null
+  page: number
+  pageSize: number
   visible: readonly OptionalColumn[]
   sort: SortKey
   dir: SortDir
@@ -36,12 +39,12 @@ function Pct({ value }: { value: number | null }) {
   )
 }
 
-export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggle, onToggleAll }: HostTableProps) {
+export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, selected, onToggle, onToggleAll }: HostTableProps) {
   const show = (c: OptionalColumn) => visible.includes(c)
   const sortProps = { sort, dir, onSort }
   const allSelected = hosts !== null && hosts.length > 0 && selected !== null && hosts.every((h) => selected.has(h.id))
   const someSelected = hosts !== null && selected !== null && hosts.some((h) => selected.has(h.id))
-  const colSpan = 8 + visible.length + 1
+  const colSpan = 8 + visible.length + 2
 
   return (
     <DataTable caption="Hosts">
@@ -56,6 +59,7 @@ export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggl
                 />
               </th>
             )}
+            <RowNumberHeadCell />
             <SortableHead id="name" label="Host" {...sortProps} />
             <SortableHead id="status" label="Estado" {...sortProps} />
             <SortableHead id="group" label="Grupo" {...sortProps} className="hidden md:table-cell" />
@@ -72,7 +76,7 @@ export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggl
         <tbody>
           {hosts === null
             ? <SkeletonRows colSpan={colSpan} />
-            : hosts.map((h) => {
+            : hosts.map((h, i) => {
                 const isSelected = selected?.has(h.id) ?? false
                 return (
                   <Row key={h.id} className={cn('relative hover:bg-muted/50', isSelected && 'bg-muted')}>
@@ -85,6 +89,7 @@ export function HostTable({ hosts, visible, sort, dir, onSort, selected, onToggl
                         />
                       </td>
                     )}
+                    <RowNumberCell n={rowNumber(page, pageSize, i)} />
                     <Cell className="relative max-w-64">
                       {h.status === 'down' && (
                         <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-danger" />

@@ -1,8 +1,9 @@
 import { IconCheck, IconEye } from '@tabler/icons-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { Button } from '@/components/ui/button'
+import { rowNumber } from '@/lib/pagination'
 import { formatLastSeen } from '@/features/hosts/utils/format'
 import type { Alert } from '../types/alert.types'
 import { exposedPortsText, formatAlertValue } from '../utils/format'
@@ -12,18 +13,21 @@ import { AlertStateBadge, SeverityBadge } from './AlertBadges'
 interface AlertsTableProps {
   /** null = cargando. */
   alerts: Alert[] | null
+  page: number
+  pageSize: number
   now: number
   /** Solo admin ve la columna de acciones. */
   canAct: boolean
   onAction: (action: AlertActionKind, alert: Alert) => void
 }
 
-export function AlertsTable({ alerts, now, canAct, onAction }: AlertsTableProps) {
-  const cols = canAct ? 7 : 6
+export function AlertsTable({ alerts, page, pageSize, now, canAct, onAction }: AlertsTableProps) {
+  const cols = canAct ? 8 : 7
   return (
-    <DataTable caption="Alertas" className="min-w-[56rem]">
+    <DataTable caption="Alertas" className="min-w-[60rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Severidad</HeadCell>
           <HeadCell>Host</HeadCell>
           <HeadCell>Regla</HeadCell>
@@ -35,8 +39,9 @@ export function AlertsTable({ alerts, now, canAct, onAction }: AlertsTableProps)
       </thead>
       <tbody>
         {alerts === null && <SkeletonRows colSpan={cols} />}
-        {alerts?.map((a) => (
+        {alerts?.map((a, i) => (
           <Row key={a.id}>
+            <RowNumberCell n={rowNumber(page, pageSize, i)} />
             <Cell>
               <SeverityBadge severity={a.severity} />
             </Cell>

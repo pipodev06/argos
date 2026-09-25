@@ -138,6 +138,8 @@ export function HostsPage() {
           <>
             <HostTable
               hosts={data?.items ?? null}
+              page={pagination.page}
+              pageSize={filters.limit}
               visible={columns.visible}
               sort={filters.sort}
               dir={filters.dir}

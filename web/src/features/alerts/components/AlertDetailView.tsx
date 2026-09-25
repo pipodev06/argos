@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { IconArrowLeft, IconBellOff } from '@tabler/icons-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { useAuth } from '@/features/auth/hooks/useAuth'
@@ -134,6 +134,7 @@ export function AlertDetailView({ id }: { id: string }) {
                   <DataTable caption="Entregas de notificaciones" className="min-w-[40rem]">
                     <thead>
                       <HeadRow>
+                        <RowNumberHeadCell />
                         <HeadCell>Canal</HeadCell>
                         <HeadCell>Evento</HeadCell>
                         <HeadCell>Estado</HeadCell>
@@ -142,8 +143,9 @@ export function AlertDetailView({ id }: { id: string }) {
                       </HeadRow>
                     </thead>
                     <tbody>
-                      {data.deliveries.map((d) => (
+                      {data.deliveries.map((d, i) => (
                         <Row key={d.id}>
+                          <RowNumberCell n={i + 1} />
                           <Cell>{d.channel_name}</Cell>
                           <Cell>{EVENT_LABELS[d.event]}</Cell>
                           <Cell>{DELIVERY_STATUS_LABELS[d.status]}</Cell>

@@ -1,5 +1,5 @@
 import { IconPencil, IconPlayerPause, IconPlayerPlay, IconSend, IconTrash } from '@tabler/icons-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { SeverityBadge } from '@/features/alerts/components/AlertBadges'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
@@ -29,6 +29,7 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
     <DataTable caption="Canales de notificación" className="min-w-[52rem]">
       <thead>
         <HeadRow>
+          <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
           {canAct && <HeadCell>Destino</HeadCell>}
@@ -39,8 +40,9 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
         </HeadRow>
       </thead>
       <tbody>
-        {channels.map((c) => (
+        {channels.map((c, i) => (
           <Row key={c.id}>
+            <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
             <Cell>Webhook</Cell>
             {canAct && <Cell className="max-w-56 truncate">{c.config?.host ?? '—'}</Cell>}
