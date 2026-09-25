@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconWebhook } from '@tabler/icons-react'
+import { IconLock, IconWebhook } from '@tabler/icons-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -20,7 +20,9 @@ import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 export function ChannelsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
-  const { data: channels, error, loading, refresh } = useChannels()
+  const { data: channels, error, errorStatus, loading, refresh } = useChannels()
+  // 403: viewer con acceso restringido a grupos; no es un fallo, se explica sin error rojo.
+  const forbidden = errorStatus === 403
   const [form, setForm] = useState<{ channel: Channel | null } | null>(null)
   const [deleting, setDeleting] = useState<Channel | null>(null)
   const del = useUserMutation()
@@ -49,7 +51,14 @@ export function ChannelsPage() {
         actions={isAdmin && <Button size="sm" onClick={() => setForm({ channel: null })}>Nuevo canal</Button>}
       />
       <div className="flex flex-col gap-3" aria-busy={loading}>
-        {error && <TableError message={error} onRetry={() => void refresh()} />}
+        {forbidden && (
+          <EmptyState
+            Icon={IconLock}
+            title="Sin acceso a los canales"
+            description="Tu acceso está limitado a ciertos grupos; los canales los ve un usuario con acceso a todos los grupos."
+          />
+        )}
+        {error && !forbidden && <TableError message={error} onRetry={() => void refresh()} />}
         {toggle.error && <InlineError>{toggle.error}</InlineError>}
         {loading && !channels && <Skeleton className="h-40 w-full" />}
         {channels && channels.length === 0 && (

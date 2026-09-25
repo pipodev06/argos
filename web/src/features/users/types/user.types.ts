@@ -9,6 +9,10 @@ export interface ManagedUser {
   disabled: boolean
   last_login_at: string | null
   created_at: string
+  /** Permisos por grupo (solo restringibles en viewers; un admin siempre tiene all_groups). */
+  all_groups: boolean
+  group_ids: string[]
+  can_inventory: boolean
 }
 
 export interface UserListResponse {
@@ -26,4 +30,8 @@ export interface UpdateUserInput {
   role?: Role
   disabled?: boolean
   new_password?: string
+  all_groups?: boolean
+  /** Reemplaza la lista completa; solo con all_groups=false. */
+  group_ids?: string[]
+  can_inventory?: boolean
 }

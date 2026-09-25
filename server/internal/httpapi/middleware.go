@@ -169,6 +169,26 @@ func (a *API) requireFullScope(next handlerFunc) handlerFunc {
 	}
 }
 
+// requireInventory protege los endpoints de inventario (procesos y servicios) de un host: exige un admin o un
+// usuario con can_inventory Y que el host este dentro de su ambito. Sin permiso o con host ajeno responde el mismo
+// 404 que un host inexistente (no revela que existe). Todo handler de inventario se registra con este guard.
+func (a *API) requireInventory(next handlerFunc) handlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		u := currentUser(r)
+		if u == nil || (u.Role != store.RoleAdmin && !u.CanInventory) {
+			return store.ErrNotFound
+		}
+		id := r.PathValue("id")
+		if !isUUID(id) {
+			return store.ErrNotFound
+		}
+		if _, err := a.store.HostByID(r.Context(), u.Scope, id); err != nil {
+			return err
+		}
+		return next(w, r)
+	}
+}
+
 func (a *API) authenticateSession(w http.ResponseWriter, r *http.Request) (*sessionUser, error) {
 	c, err := r.Cookie(a.cookieName)
 	if err != nil || c.Value == "" || len(c.Value) > auth.MaxSessionIDChars {

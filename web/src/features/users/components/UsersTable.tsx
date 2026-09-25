@@ -1,12 +1,13 @@
-import { IconKey, IconShield, IconUserCheck, IconUserOff } from '@tabler/icons-react'
+import { IconKey, IconLockAccess, IconShield, IconUserCheck, IconUserOff } from '@tabler/icons-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { roleLabel } from '@/features/auth/utils/format'
 import { formatFullDate } from '@/features/hosts/utils/format'
+import { accessLabel } from '../utils/permissions'
 import type { ManagedUser } from '../types/user.types'
 import { UserStatusBadge } from './UserStatusBadge'
 
-export type UserAction = 'role' | 'toggle' | 'password'
+export type UserAction = 'role' | 'toggle' | 'password' | 'permissions'
 
 interface UsersTableProps {
   users: ManagedUser[]
@@ -16,11 +17,12 @@ interface UsersTableProps {
 
 export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) {
   return (
-    <DataTable caption="Usuarios" className="min-w-[48rem]">
+    <DataTable caption="Usuarios" className="min-w-[56rem]">
       <thead>
         <HeadRow>
           <HeadCell>Usuario</HeadCell>
           <HeadCell>Rol</HeadCell>
+          <HeadCell>Acceso</HeadCell>
           <HeadCell>Estado</HeadCell>
           <HeadCell>Último acceso</HeadCell>
           <HeadCell>Creado</HeadCell>
@@ -37,12 +39,24 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                 {self && <span className="font-sans font-normal text-text-muted"> (tú)</span>}
               </Cell>
               <Cell>{roleLabel(u.role)}</Cell>
+              <Cell>{accessLabel(u)}</Cell>
               <Cell>
                 <UserStatusBadge disabled={u.disabled} />
               </Cell>
               <Cell className="tabular-nums">{u.last_login_at ? formatFullDate(u.last_login_at) : 'Nunca'}</Cell>
               <Cell className="tabular-nums">{formatFullDate(u.created_at)}</Cell>
               <Cell>
+                {u.role === 'viewer' && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Permisos de ${u.username}`}
+                    title="Permisos por grupo"
+                    onClick={() => onAction('permissions', u)}
+                  >
+                    <IconLockAccess stroke={1.5} aria-hidden />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon-sm"
