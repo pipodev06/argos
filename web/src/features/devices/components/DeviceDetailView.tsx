@@ -69,7 +69,7 @@ export function DeviceDetailView({ id }: { id: string }) {
             <Item term="Estado desde">{formatFullDate(device.status_changed_at)}</Item>
             <Item term="Creado">{formatFullDate(device.created_at)}</Item>
           </dl>
-          <HostChecksSection hostId={id} />
+          <HostChecksSection hostId={id} targetFallback={isAdmin ? device.address : undefined} />
           {isAdmin && (
             <>
               <DeviceFormDialog

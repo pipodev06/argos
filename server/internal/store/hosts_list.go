@@ -63,6 +63,7 @@ type HostFilter struct {
 	GroupIDs []string // vacio y !NoGroup = cualquier grupo; varios se combinan con OR
 	NoGroup  bool     // incluye los hosts sin grupo (OR con GroupIDs)
 	OSes     []string // vacio = cualquiera; varios con OR (sin distinguir mayusculas)
+	Kinds    []string // vacio = cualquiera; 'agent' | 'device' (varios con OR)
 
 	// Filtros de metricas (nil = sin filtro). Un host sin el dato no los cumple. Quien llama valida rangos.
 	CPUGt      *float64 // cpu_pct > x
@@ -152,6 +153,9 @@ func (s *Store) ListHosts(ctx context.Context, scope Scope, f HostFilter) (HostP
 	}
 	if len(groupConds) > 0 {
 		where = append(where, "("+strings.Join(groupConds, " OR ")+")")
+	}
+	if len(f.Kinds) > 0 {
+		where = append(where, fmt.Sprintf(`h.kind = ANY(%s::text[])`, args.add(f.Kinds)))
 	}
 	if len(f.OSes) > 0 {
 		where = append(where, fmt.Sprintf(`lower(h.os) = ANY(%s::text[])`, args.add(lowerAll(f.OSes))))

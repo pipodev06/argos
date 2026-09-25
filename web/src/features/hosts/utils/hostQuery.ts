@@ -44,6 +44,16 @@ export const HOST_FIELDS = [
     plural: 'estados',
     options: HOST_STATUSES.map((s) => ({ id: s, name: HOST_STATUS_LABELS[s] })),
   },
+  {
+    kind: 'multi',
+    key: 'kind',
+    label: 'Tipo',
+    plural: 'tipos',
+    options: [
+      { id: 'agent', name: 'Host' },
+      { id: 'device', name: 'Dispositivo' },
+    ],
+  },
   /** Ids de grupo o "none" (sin grupo). */
   { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions },
   {

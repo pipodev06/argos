@@ -415,3 +415,33 @@ func TestMigrateDownDevicesAndUpAgain(t *testing.T) {
 		t.Fatalf("up tras down: %v", err)
 	}
 }
+
+func TestListHostsKindFilter(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "col", "up", ago(time.Second))
+	mkDevice(t, s, "router", "192.168.1.1", "col", nil)
+
+	tests := []struct {
+		kinds []string
+		want  []string
+	}{
+		{nil, []string{"col", "router"}},
+		{[]string{"agent"}, []string{"col"}},
+		{[]string{"device"}, []string{"router"}},
+		{[]string{"agent", "device"}, []string{"col", "router"}},
+	}
+	for _, tt := range tests {
+		page, err := s.ListHosts(ctx, AllScope(), HostFilter{Sort: "name", Limit: 100, Kinds: tt.kinds})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make([]string, len(page.Items))
+		for i, h := range page.Items {
+			got[i] = h.Hostname
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("kinds %v: got %v, want %v", tt.kinds, got, tt.want)
+		}
+	}
+}

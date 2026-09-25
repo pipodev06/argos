@@ -70,9 +70,11 @@ function EventsPanel({ hostId, checkId }: { hostId: string; checkId: string }) {
   )
 }
 
-function CheckRow({ n, hostId, item, now }: { n: number; hostId: string; item: HostCheck; now: number }) {
+function CheckRow({ n, hostId, item, now, targetFallback }: { n: number; hostId: string; item: HostCheck; now: number; targetFallback?: string }) {
   const [open, setOpen] = useState(false)
   const { check, state } = item
+  // El ping no lleva destino propio: la direccion es la del dispositivo (solo la conoce un admin).
+  const target = check.target || targetFallback || '—'
   return (
     <Fragment>
       <Row>
@@ -82,8 +84,8 @@ function CheckRow({ n, hostId, item, now }: { n: number; hostId: string; item: H
         </Cell>
         <Cell className="max-w-56 truncate font-semibold">{check.name}</Cell>
         <Cell>{CHECK_TYPE_LABELS[check.type]}</Cell>
-        <Cell className="max-w-64 truncate tabular-nums" title={check.target}>
-          {check.target}
+        <Cell className="max-w-64 truncate tabular-nums" title={target}>
+          {target}
         </Cell>
         <Cell className="tabular-nums">{hostCheckValue(item)}</Cell>
         <Cell className="max-w-64 truncate" title={detailLabel(state?.detail ?? null)}>
@@ -114,7 +116,7 @@ function CheckRow({ n, hostId, item, now }: { n: number; hostId: string; item: H
   )
 }
 
-function ChecksContent({ hostId }: { hostId: string }) {
+function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallback?: string }) {
   const { data, error } = useHostChecks(hostId)
   const now = useNow(30_000)
   if (error && !data) return <InlineError>{error}</InlineError>
@@ -137,7 +139,7 @@ function ChecksContent({ hostId }: { hostId: string }) {
       </thead>
       <tbody>
         {data.map((item, i) => (
-          <CheckRow key={item.check.id} n={i + 1} hostId={hostId} item={item} now={now} />
+          <CheckRow key={item.check.id} n={i + 1} hostId={hostId} item={item} now={now} targetFallback={targetFallback} />
         ))}
       </tbody>
     </DataTable>
@@ -145,13 +147,13 @@ function ChecksContent({ hostId }: { hostId: string }) {
 }
 
 /** Sección "Chequeos" del detalle de host: estado actual por chequeo y transiciones bajo demanda. */
-export function HostChecksSection({ hostId }: { hostId: string }) {
+export function HostChecksSection({ hostId, targetFallback }: { hostId: string; targetFallback?: string }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="host-checks-title">
       <h2 id="host-checks-title" className="text-sm font-semibold">
         Chequeos
       </h2>
-      <ChecksContent hostId={hostId} />
+      <ChecksContent hostId={hostId} targetFallback={targetFallback} />
     </section>
   )
 }
