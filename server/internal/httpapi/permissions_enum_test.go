@@ -112,6 +112,8 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/channels":                   {"admin", fixed(api + "/channels")},
 		"GET /api/v1/channels/{id}":              {"admin", fixed(api + "/channels/" + missingID)},
 		"GET /api/v1/hosts":                      {"scope", fixed(api+"/hosts", api+"/hosts?q=host-b", api+"/hosts?group=none")},
+		"GET /api/v1/snmp-profiles":              {"admin", fixed(api + "/snmp-profiles")},
+		"GET /api/v1/snmp-profiles/{id}":         {"admin", fixed(api + "/snmp-profiles/" + missingID)},
 		"GET /api/v1/devices":                    {"scope", fixed(api + "/devices")},
 		"GET /api/v1/devices/{id}":               {"scope", fixed(api+"/devices/"+devB, api+"/devices/"+x.hostB)},
 		"GET /api/v1/summary":                    {"scope", fixed(api + "/summary")},

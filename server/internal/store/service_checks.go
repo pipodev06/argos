@@ -45,6 +45,13 @@ const (
 	CheckTLSCert = "tls_cert"
 	CheckService = "service"
 	CheckPing    = "ping"
+	CheckSNMP    = "snmp"
+)
+
+// Metricas de un chequeo snmp.
+const (
+	SNMPMetricReachable = "reachable"
+	SNMPMetricIfOper    = "if_oper"
 )
 
 // ServiceCheckDef es la definicion de un chequeo. SecretEnc es el blob cifrado (la API nunca lo devuelve).
@@ -68,7 +75,10 @@ type ServiceCheckDef struct {
 	HeaderName      *string
 	SecretEnc       []byte
 	SecretKeyID     *string
-	Scope           AlertScope
+	// Metric e IfIndex solo existen en los chequeos snmp (reachable | if_oper; if_index solo con if_oper).
+	Metric  *string
+	IfIndex *int
+	Scope   AlertScope
 	// GroupName es el nombre del grupo del alcance (solo lectura).
 	GroupName *string
 	// DeviceName es el nombre del dispositivo del alcance (solo lectura).
@@ -82,24 +92,25 @@ const (
 	checkDefCols = `d.id, d.name, d.type, d.interval_seconds, d.timeout_ms, d.retries, d.target_host, d.target_port, d.url,
        d.expect_status, d.expect_text, d.service_name, d.warn_ms, d.crit_ms, d.warn_days, d.crit_days,
        d.header_name, d.secret_enc, d.secret_key_id, d.scope_type, d.scope_group_id, g.name, d.scope_host_id, dh.hostname,
-       d.enabled, d.created_at, d.updated_at`
+       d.enabled, d.created_at, d.updated_at, d.snmp_metric, d.snmp_if_index`
 	checkDefFrom = `FROM service_check_defs d LEFT JOIN host_groups g ON g.id = d.scope_group_id
   LEFT JOIN hosts dh ON dh.id = d.scope_host_id`
 	checkDefSelect = `SELECT ` + checkDefCols + ` ` + checkDefFrom
 )
 
-func scanCheckDef(row pgx.Row) (ServiceCheckDef, error) {
+// scanCheckDef lee las columnas de checkDefCols; extra son columnas adicionales que el SELECT agrega despues.
+func scanCheckDef(row pgx.Row, extra ...any) (ServiceCheckDef, error) {
 	var d ServiceCheckDef
-	err := row.Scan(&d.ID, &d.Name, &d.Type, &d.IntervalSeconds, &d.TimeoutMs, &d.Retries, &d.TargetHost, &d.TargetPort,
+	dest := []any{&d.ID, &d.Name, &d.Type, &d.IntervalSeconds, &d.TimeoutMs, &d.Retries, &d.TargetHost, &d.TargetPort,
 		&d.URL, &d.ExpectStatus, &d.ExpectText, &d.ServiceName, &d.WarnMs, &d.CritMs, &d.WarnDays, &d.CritDays,
 		&d.HeaderName, &d.SecretEnc, &d.SecretKeyID, &d.Scope.Type, &d.Scope.GroupID, &d.GroupName, &d.Scope.HostID, &d.DeviceName,
-		&d.Enabled, &d.CreatedAt, &d.UpdatedAt)
-	return d, err
+		&d.Enabled, &d.CreatedAt, &d.UpdatedAt, &d.Metric, &d.IfIndex}
+	return d, row.Scan(append(dest, extra...)...)
 }
 
-// hostInScopeSQL es verdadero si el host h (alias) entra en el alcance del chequeo d (alias). Los chequeos ping
-// solo aplican a dispositivos y el resto solo a agentes.
-const hostInScopeSQL = `((d.type = 'ping') = (h.kind = 'device') AND (d.scope_type = 'all'
+// hostInScopeSQL es verdadero si el host h (alias) entra en el alcance del chequeo d (alias). Los chequeos ping y
+// snmp solo aplican a dispositivos y el resto solo a agentes.
+const hostInScopeSQL = `((d.type IN ('ping', 'snmp')) = (h.kind = 'device') AND (d.scope_type = 'all'
   OR (d.scope_type = 'group' AND d.scope_group_id = h.group_id)
   OR (d.scope_type = 'device' AND d.scope_host_id = h.id)))`
 
@@ -186,12 +197,13 @@ func (s *Store) CreateServiceCheck(ctx context.Context, d ServiceCheckDef, creat
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO service_check_defs (id, name, type, interval_seconds, timeout_ms, retries, target_host, target_port,
 			        url, expect_status, expect_text, service_name, warn_ms, crit_ms, warn_days, crit_days, header_name,
-			        secret_enc, secret_key_id, scope_type, scope_group_id, scope_host_id, enabled, created_by)
+			        secret_enc, secret_key_id, scope_type, scope_group_id, scope_host_id, enabled, created_by,
+			        snmp_metric, snmp_if_index)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
-			         $22, $23, NULLIF($24, '')::uuid)`,
+			         $22, $23, NULLIF($24, '')::uuid, $25, $26)`,
 			d.ID, d.Name, d.Type, d.IntervalSeconds, d.TimeoutMs, d.Retries, d.TargetHost, d.TargetPort,
 			d.URL, d.ExpectStatus, d.ExpectText, d.ServiceName, d.WarnMs, d.CritMs, d.WarnDays, d.CritDays, d.HeaderName,
-			d.SecretEnc, d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Scope.HostID, d.Enabled, createdBy); err != nil {
+			d.SecretEnc, d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Scope.HostID, d.Enabled, createdBy, d.Metric, d.IfIndex); err != nil {
 			return mapCheckErr(err, "insertando chequeo")
 		}
 		var err error
@@ -224,11 +236,11 @@ func (s *Store) UpdateServiceCheck(ctx context.Context, id string, mutate func(*
 			        target_host = $6, target_port = $7, url = $8, expect_status = $9, expect_text = $10,
 			        service_name = $11, warn_ms = $12, crit_ms = $13, warn_days = $14, crit_days = $15,
 			        header_name = $16, secret_enc = $17, secret_key_id = $18, scope_type = $19, scope_group_id = $20,
-			        scope_host_id = $22, enabled = $21, updated_at = now()
+			        scope_host_id = $22, enabled = $21, snmp_metric = $23, snmp_if_index = $24, updated_at = now()
 			  WHERE id = $1`,
 			id, d.Name, d.IntervalSeconds, d.TimeoutMs, d.Retries, d.TargetHost, d.TargetPort, d.URL, d.ExpectStatus,
 			d.ExpectText, d.ServiceName, d.WarnMs, d.CritMs, d.WarnDays, d.CritDays, d.HeaderName, d.SecretEnc,
-			d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Enabled, d.Scope.HostID); err != nil {
+			d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Enabled, d.Scope.HostID, d.Metric, d.IfIndex); err != nil {
 			return mapCheckErr(err, "actualizando chequeo")
 		}
 		out, err = checkDefByID(ctx, tx, id, "")
@@ -293,7 +305,7 @@ func (s *Store) HostServiceChecks(ctx context.Context, scope Scope, hostID strin
 	}
 	rows, err := s.pool.Query(ctx,
 		`SELECT d.id, d.name, d.type, d.interval_seconds, d.target_host, d.target_port, d.url, d.service_name,
-		        st.status, st.status_changed_at, st.ts, st.response_ms, st.value, st.detail
+		        d.snmp_metric, d.snmp_if_index, st.status, st.status_changed_at, st.ts, st.response_ms, st.value, st.detail
 		   FROM service_check_defs d JOIN hosts h ON h.id = $1
 		   LEFT JOIN service_check_state st ON st.host_id = h.id AND st.check_id = d.id
 		  WHERE d.enabled AND `+hostInScopeSQL+` ORDER BY lower(d.name), d.id LIMIT $2`, hostID, MaxChecksPerHost)
@@ -306,7 +318,7 @@ func (s *Store) HostServiceChecks(ctx context.Context, scope Scope, hostID strin
 		var changed, ts *time.Time
 		var st CheckState
 		err := row.Scan(&c.Def.ID, &c.Def.Name, &c.Def.Type, &c.Def.IntervalSeconds, &c.Def.TargetHost, &c.Def.TargetPort,
-			&c.Def.URL, &c.Def.ServiceName, &status, &changed, &ts, &st.ResponseMs, &st.Value, &st.Detail)
+			&c.Def.URL, &c.Def.ServiceName, &c.Def.Metric, &c.Def.IfIndex, &status, &changed, &ts, &st.ResponseMs, &st.Value, &st.Detail)
 		if err == nil && status != nil && changed != nil && ts != nil {
 			st.Status, st.StatusChangedAt, st.TS = *status, *changed, *ts
 			c.State = &st
@@ -402,7 +414,16 @@ type PingAssignment struct {
 // Es un UUID determinista (SHA-256 del par, con bits de version 5 y variante RFC 4122): el servidor no guarda nada
 // mas para resolver un resultado.
 func PingItemID(checkID, deviceID string) string {
-	sum := sha256.Sum256([]byte("argos.ping:" + checkID + ":" + deviceID))
+	return deviceItemID("argos.ping:", checkID, deviceID)
+}
+
+// SNMPItemID es PingItemID para los chequeos snmp (otro prefijo: un mismo par nunca comparte id con un ping).
+func SNMPItemID(checkID, deviceID string) string {
+	return deviceItemID("argos.snmp:", checkID, deviceID)
+}
+
+func deviceItemID(prefix, checkID, deviceID string) string {
+	sum := sha256.Sum256([]byte(prefix + checkID + ":" + deviceID))
 	b := sum[:16]
 	b[6] = (b[6] & 0x0f) | 0x50
 	b[8] = (b[8] & 0x3f) | 0x80
@@ -431,11 +452,7 @@ func collectorPings(ctx context.Context, q queryer, collectorID string) ([]PingA
 	}
 	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (PingAssignment, error) {
 		var p PingAssignment
-		var d ServiceCheckDef
-		err := row.Scan(&d.ID, &d.Name, &d.Type, &d.IntervalSeconds, &d.TimeoutMs, &d.Retries, &d.TargetHost, &d.TargetPort,
-			&d.URL, &d.ExpectStatus, &d.ExpectText, &d.ServiceName, &d.WarnMs, &d.CritMs, &d.WarnDays, &d.CritDays,
-			&d.HeaderName, &d.SecretEnc, &d.SecretKeyID, &d.Scope.Type, &d.Scope.GroupID, &d.GroupName, &d.Scope.HostID, &d.DeviceName,
-			&d.Enabled, &d.CreatedAt, &d.UpdatedAt, &p.DeviceID, &p.Address)
+		d, err := scanCheckDef(row, &p.DeviceID, &p.Address)
 		p.Def = d
 		p.ItemID = PingItemID(d.ID, p.DeviceID)
 		return p, err
@@ -509,40 +526,52 @@ type liveCheckState struct {
 }
 
 // resolveTargets resuelve a quien pertenece cada id de item del reporte del colector: sus propios chequeos
-// habilitados y en alcance, y los pings de sus dispositivos. Lo que no esta asignado a este colector no aparece.
-func resolveTargets(ctx context.Context, tx pgx.Tx, collectorID string, ids []string) (map[string]checkTarget, error) {
-	targets := map[string]checkTarget{}
+// habilitados y en alcance, y los pings y chequeos snmp de sus dispositivos. Lo que no esta asignado a este colector
+// no aparece. silent marca los items que no dicen nada de la alcanzabilidad del dispositivo (if_oper: una interfaz
+// caida no es un equipo caido), asi que no alimentan su estado.
+func resolveTargets(ctx context.Context, tx pgx.Tx, collectorID string, ids []string) (map[string]checkTarget, map[string]bool, error) {
+	targets, silent := map[string]checkTarget{}, map[string]bool{}
 	rows, err := tx.Query(ctx,
 		`SELECT d.id::text
 		   FROM service_check_defs d JOIN hosts h ON h.id = $1
 		  WHERE d.id = ANY($2::uuid[]) AND d.enabled AND `+hostInScopeSQL, collectorID, ids)
 	if err != nil {
-		return nil, fmt.Errorf("leyendo chequeos del colector: %w", err)
+		return nil, nil, fmt.Errorf("leyendo chequeos del colector: %w", err)
 	}
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			rows.Close()
-			return nil, fmt.Errorf("leyendo un chequeo del colector: %w", err)
+			return nil, nil, fmt.Errorf("leyendo un chequeo del colector: %w", err)
 		}
 		targets[id] = checkTarget{hostID: collectorID, checkID: id}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterando chequeos del colector: %w", err)
+		return nil, nil, fmt.Errorf("iterando chequeos del colector: %w", err)
 	}
 	if len(targets) == len(ids) {
-		return targets, nil
+		return targets, silent, nil
 	}
 	pings, err := collectorPings(ctx, tx, collectorID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, p := range pings {
 		if _, dup := targets[p.ItemID]; !dup {
 			targets[p.ItemID] = checkTarget{hostID: p.DeviceID, checkID: p.Def.ID}
 		}
 	}
-	return targets, nil
+	snmps, err := collectorSNMP(ctx, tx, collectorID)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, p := range snmps {
+		if _, dup := targets[p.ItemID]; !dup {
+			targets[p.ItemID] = checkTarget{hostID: p.DeviceID, checkID: p.Def.ID}
+			silent[p.ItemID] = p.Def.Metric != nil && *p.Def.Metric == SNMPMetricIfOper
+		}
+	}
+	return targets, silent, nil
 }
 
 // planCheckResults decide, sin escribir, que hacer con los resultados de un reporte: descarta los que no estan
@@ -565,7 +594,7 @@ func planCheckResults(ctx context.Context, tx pgx.Tx, hostID string, results []C
 			ids = append(ids, r.CheckID)
 		}
 	}
-	targets, err := resolveTargets(ctx, tx, hostID, ids)
+	targets, silent, err := resolveTargets(ctx, tx, hostID, ids)
 	if err != nil {
 		return plan, err
 	}
@@ -601,7 +630,7 @@ func planCheckResults(ctx context.Context, tx pgx.Tx, hostID string, results []C
 			st.lastSample = r.TS
 		}
 		st.status, st.ts, st.known = r.Status, r.TS, true
-		if t.hostID != hostID {
+		if t.hostID != hostID && !silent[r.CheckID] {
 			plan.devices = append(plan.devices, deviceProbe{deviceID: t.hostID, status: r.Status, ts: r.TS})
 		}
 		if _, dup := final[t]; !dup {

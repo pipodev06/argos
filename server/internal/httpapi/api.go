@@ -91,6 +91,14 @@ type Store interface {
 	UpdateDevice(ctx context.Context, id string, ch store.DeviceChange) (store.Device, error)
 	DeleteDevice(ctx context.Context, id string) (name string, err error)
 	CollectorPings(ctx context.Context, collectorID string) ([]store.PingAssignment, error)
+	CollectorSNMP(ctx context.Context, collectorID string) ([]store.SNMPAssignment, error)
+
+	// Perfiles SNMP (credenciales reutilizables de los dispositivos).
+	ListSNMPProfiles(ctx context.Context) ([]store.SNMPProfile, error)
+	SNMPProfileByID(ctx context.Context, id string) (store.SNMPProfile, error)
+	CreateSNMPProfile(ctx context.Context, p store.SNMPProfile, createdBy string) (store.SNMPProfile, error)
+	UpdateSNMPProfile(ctx context.Context, id string, mutate func(*store.SNMPProfile) error) (store.SNMPProfile, error)
+	DeleteSNMPProfile(ctx context.Context, id string) (name string, err error)
 
 	// Usuarios y sesiones.
 	UserByUsername(ctx context.Context, username string) (store.User, error)
@@ -298,6 +306,11 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/devices", accessAdmin, a.createDevice)
 	a.route(mux, "PATCH /api/v1/devices/{id}", accessAdmin, a.updateDevice)
 	a.route(mux, "DELETE /api/v1/devices/{id}", accessAdmin, a.deleteDevice)
+	a.route(mux, "GET /api/v1/snmp-profiles", accessAdmin, a.listSNMPProfiles)
+	a.route(mux, "GET /api/v1/snmp-profiles/{id}", accessAdmin, a.getSNMPProfile)
+	a.route(mux, "POST /api/v1/snmp-profiles", accessAdmin, a.createSNMPProfile)
+	a.route(mux, "PATCH /api/v1/snmp-profiles/{id}", accessAdmin, a.updateSNMPProfile)
+	a.route(mux, "DELETE /api/v1/snmp-profiles/{id}", accessAdmin, a.deleteSNMPProfile)
 	a.route(mux, "GET /api/v1/summary", accessSession, a.summary)
 	a.route(mux, "GET /api/v1/groups", accessSession, a.listGroups)
 	a.route(mux, "POST /api/v1/groups", accessAdmin, a.createGroup)
@@ -431,6 +444,14 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusConflict, "device_exists", "ya existe un dispositivo con esa direccion en ese colector")
 	case errors.Is(err, store.ErrTooManyDevices):
 		writeError(w, http.StatusConflict, "too_many_devices", fmt.Sprintf("se alcanzo el maximo de %d dispositivos", store.MaxDevices))
+	case errors.Is(err, store.ErrProfileExists):
+		writeError(w, http.StatusConflict, "profile_exists", "ya existe un perfil snmp con ese nombre")
+	case errors.Is(err, store.ErrTooManyProfiles):
+		writeError(w, http.StatusConflict, "too_many_profiles", fmt.Sprintf("se alcanzo el maximo de %d perfiles snmp", store.MaxSNMPProfiles))
+	case errors.Is(err, store.ErrProfileNotFound):
+		writeError(w, http.StatusUnprocessableEntity, "profile_not_found", "el perfil snmp indicado no existe")
+	case errors.Is(err, store.ErrProfileInUse):
+		writeError(w, http.StatusConflict, "profile_in_use", "el perfil snmp esta asignado a dispositivos: quitalo de ellos antes de borrarlo")
 	case errors.Is(err, store.ErrUnknownHosts):
 		writeError(w, http.StatusUnprocessableEntity, "unknown_hosts", "alguno de los hosts indicados no existe")
 	case errors.Is(err, store.ErrPartitionMissing):

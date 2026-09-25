@@ -44,10 +44,19 @@ type Device struct {
 	StatusChangedAt time.Time
 	LastSeenAt      *time.Time
 	CreatedAt       time.Time
+	// Profile es el perfil SNMP asignado (nil = ninguno).
+	Profile *SNMPProfileRef
 	// CollectorReachable es false si el colector no esta up: el estado del dispositivo no se esta evaluando.
 	CollectorReachable bool
 
 	lname string // lower(nombre) tal como lo calcula Postgres: clave del cursor
+}
+
+// SNMPProfileRef es la referencia corta a un perfil SNMP (sin secretos).
+type SNMPProfileRef struct {
+	ID      string
+	Name    string
+	Version int
 }
 
 // DeviceChange son los campos de un dispositivo que el admin puede cambiar (nil = no cambia).
@@ -58,25 +67,33 @@ type DeviceChange struct {
 	// SetGroup indica que GroupID (nil = sin grupo) reemplaza al grupo actual.
 	SetGroup bool
 	GroupID  *string
+	// SetProfile indica que ProfileID (nil = sin perfil) reemplaza al perfil SNMP actual.
+	SetProfile bool
+	ProfileID  *string
 }
 
 const deviceSelect = `
 SELECT h.id::text, h.hostname, h.address, h.collector_host_id::text, c.hostname, g.id::text, g.name, h.status,
-       h.status_changed_at, h.last_seen_at, h.created_at, c.status = 'up', lower(h.hostname)
+       h.status_changed_at, h.last_seen_at, h.created_at, c.status = 'up', lower(h.hostname), sp.id::text, sp.name, sp.version
   FROM hosts h
   JOIN hosts c ON c.id = h.collector_host_id
+  LEFT JOIN snmp_profiles sp ON sp.id = h.snmp_profile_id
   LEFT JOIN host_groups g ON g.id = h.group_id`
 
 func scanDevice(row pgx.Row) (Device, error) {
 	var d Device
-	var groupID, groupName *string
+	var groupID, groupName, profID, profName *string
+	var profVer *int16
 	var addr netip.Prefix
 	err := row.Scan(&d.ID, &d.Name, &addr, &d.CollectorID, &d.CollectorName, &groupID, &groupName, &d.Status,
-		&d.StatusChangedAt, &d.LastSeenAt, &d.CreatedAt, &d.CollectorReachable, &d.lname)
+		&d.StatusChangedAt, &d.LastSeenAt, &d.CreatedAt, &d.CollectorReachable, &d.lname, &profID, &profName, &profVer)
 	if err != nil {
 		return Device{}, err
 	}
 	d.Address = addr.Addr()
+	if profID != nil && profName != nil && profVer != nil {
+		d.Profile = &SNMPProfileRef{ID: *profID, Name: *profName, Version: int(*profVer)}
+	}
 	if groupID != nil && groupName != nil {
 		d.Group = &GroupRef{ID: *groupID, Name: *groupName}
 	}
@@ -149,6 +166,8 @@ func mapDeviceErr(err error, what string) error {
 		return ErrCollectorInvalid
 	case isFKViolation(err, deviceGroupFKey):
 		return ErrGroupNotFound
+	case isFKViolation(err, hostProfileFK):
+		return ErrProfileNotFound
 	}
 	return fmt.Errorf("%s: %w", what, err)
 }
@@ -207,19 +226,20 @@ func (s *Store) UpdateDevice(ctx context.Context, id string, ch DeviceChange) (D
 			addr      netip.Prefix
 			collector string
 			group     *string
+			profile   *string
 			status    string
 		}
 		err := tx.QueryRow(ctx,
-			`SELECT hostname, address, collector_host_id::text, group_id::text, status
+			`SELECT hostname, address, collector_host_id::text, group_id::text, snmp_profile_id::text, status
 			   FROM hosts WHERE id = $1 AND kind = 'device' FOR UPDATE`, id).
-			Scan(&cur.name, &cur.addr, &cur.collector, &cur.group, &cur.status)
+			Scan(&cur.name, &cur.addr, &cur.collector, &cur.group, &cur.profile, &cur.status)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		if err != nil {
 			return fmt.Errorf("leyendo dispositivo: %w", err)
 		}
-		name, addr, collector, group, status := cur.name, cur.addr, cur.collector, cur.group, cur.status
+		name, addr, collector, group, profile, status := cur.name, cur.addr, cur.collector, cur.group, cur.profile, cur.status
 		if ch.Name != nil {
 			name = *ch.Name
 		}
@@ -239,13 +259,17 @@ func (s *Store) UpdateDevice(ctx context.Context, id string, ch DeviceChange) (D
 		if ch.SetGroup {
 			group = ch.GroupID
 		}
+		if ch.SetProfile {
+			profile = ch.ProfileID
+		}
 		if moved && status != "disabled" {
 			status = "pending"
 		}
 		if _, err := tx.Exec(ctx,
 			`UPDATE hosts SET hostname = $2, address = $3, collector_host_id = $4, group_id = $5,
-			        status = $6, status_changed_at = CASE WHEN status <> $6 THEN now() ELSE status_changed_at END
-			  WHERE id = $1`, id, name, addr, collector, group, status); err != nil {
+			        status = $6, status_changed_at = CASE WHEN status <> $6 THEN now() ELSE status_changed_at END,
+				        snmp_profile_id = $7
+			  WHERE id = $1`, id, name, addr, collector, group, status, profile); err != nil {
 			return mapDeviceErr(err, "actualizando dispositivo")
 		}
 		if status != cur.status {
