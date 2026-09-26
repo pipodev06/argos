@@ -4,12 +4,14 @@ import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { InlineError } from '@/components/ui/inline-error'
 import { PageHeader } from '@/components/ui/page-header'
 import { Pagination } from '@/components/ui/pagination'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { DeleteDeviceConfirm } from '@/features/devices/components/DeleteDeviceConfirm'
 import { DeviceFormDialog } from '@/features/devices/components/DeviceFormDialog'
 import { DeviceTable, type DeviceAction } from '@/features/devices/components/DeviceTable'
+import { useDeviceEnabled } from '@/features/devices/hooks/useDeviceEnabled'
 import { useDeviceList } from '@/features/devices/hooks/useDevices'
 import type { Device } from '@/features/devices/types/device.types'
 import { buildDeviceQuery, DEVICE_FIELDS } from '@/features/devices/utils/deviceQuery'
@@ -26,6 +28,7 @@ export function DevicesPage() {
   const { data, error, errorStatus, loading, refresh } = useDeviceList(buildDeviceQuery(filters, pagination.cursor))
   const [form, setForm] = useState<{ device: Device | null } | null>(null)
   const [deleting, setDeleting] = useState<Device | null>(null)
+  const enabling = useDeviceEnabled(() => void refresh())
 
   // El cursor es opaco y se invalida al reiniciar el servidor (400 invalid_cursor): se vuelve a la 1a pagina.
   const staleCursor = errorStatus === 400 && pagination.cursor !== null
@@ -35,6 +38,7 @@ export function DevicesPage() {
 
   function handleAction(action: DeviceAction, device: Device) {
     if (action === 'edit') setForm({ device })
+    else if (action === 'toggle') void enabling.toggle(device)
     else setDeleting(device)
   }
 
@@ -59,6 +63,7 @@ export function DevicesPage() {
           overall={null}
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
+        {enabling.error && <InlineError>{enabling.error}</InlineError>}
         {noResults && <NoResultsState Icon={IconRouter} title="Ningún dispositivo coincide con los filtros." onClear={clear} />}
         {empty && (
           <EmptyState

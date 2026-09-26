@@ -47,10 +47,13 @@ function ModuleBody<T>({
   query,
   onDenied,
   render,
+  truncatedNote,
 }: {
   query: QueryState<ModuleList<T>>
   onDenied: () => void
   render: (items: T[]) => ReactNode
+  /** Por qué se cortó la lista (el agente guarda un máximo por módulo). */
+  truncatedNote: string
 }) {
   const now = useNow(30_000)
   const { data, error, errorStatus } = query
@@ -73,7 +76,7 @@ function ModuleBody<T>({
         {data.truncated && (
           <span className="inline-flex items-center gap-1">
             <IconAlertTriangle className="size-4 shrink-0 text-warn" stroke={1.5} aria-hidden />
-            Lista truncada
+            {truncatedNote}
           </span>
         )}
       </div>
@@ -104,9 +107,13 @@ function PagedList<T>({ items, itemLabel, render }: { items: T[]; itemLabel: str
   )
 }
 
+const NOTE_PORTS = 'Lista truncada: el agente guarda como máximo 512 puertos.'
+const NOTE_SERVICES = 'Lista truncada: el agente guarda como máximo 1024 servicios.'
+const NOTE_PROCESSES = 'Solo los 100 procesos con más memoria (agrupados por nombre); hay más.'
+
 function PortsView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'ports')
-  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="puertos" render={(rows, page, pageSize) => <PortsTable items={rows} page={page} pageSize={pageSize} />} />} />
+  return <ModuleBody query={query} onDenied={onDenied} truncatedNote={NOTE_PORTS} render={(items) => <PagedList items={items} itemLabel="puertos" render={(rows, page, pageSize) => <PortsTable items={rows} page={page} pageSize={pageSize} />} />} />
 }
 
 function ServicesView({ hostId, state, onDenied }: { hostId: string; state: string; onDenied: () => void }) {
@@ -115,6 +122,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
     <ModuleBody
       query={query}
       onDenied={onDenied}
+      truncatedNote={NOTE_SERVICES}
       render={(items) => {
         const shown = state === 'all' ? items : items.filter((s) => s.state === state)
         return shown.length === 0 ? (
@@ -129,7 +137,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
 
 function ProcessesView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'processes')
-  return <ModuleBody query={query} onDenied={onDenied} render={(items) => <PagedList items={items} itemLabel="procesos" render={(rows, page, pageSize) => <ProcessesTable items={rows} page={page} pageSize={pageSize} />} />} />
+  return <ModuleBody query={query} onDenied={onDenied} truncatedNote={NOTE_PROCESSES} render={(items) => <PagedList items={items} itemLabel="procesos" render={(rows, page, pageSize) => <ProcessesTable items={rows} page={page} pageSize={pageSize} />} />} />
 }
 
 function ChangesView({

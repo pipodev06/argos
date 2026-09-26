@@ -73,6 +73,9 @@ type DeviceChange struct {
 	// SetProfile indica que ProfileID (nil = sin perfil) reemplaza al perfil SNMP actual.
 	SetProfile bool
 	ProfileID  *string
+	// Enabled: false deshabilita (status disabled: el colector deja de evaluarlo, sus alertas se resuelven); true lo
+	// habilita y vuelve a pending (todavia no se sabe si responde). nil no toca nada.
+	Enabled *bool
 }
 
 const deviceSelect = `
@@ -281,6 +284,13 @@ func (s *Store) UpdateDevice(ctx context.Context, id string, ch DeviceChange) (D
 		}
 		if ch.SetProfile {
 			profile = ch.ProfileID
+		}
+		if ch.Enabled != nil {
+			if !*ch.Enabled {
+				status = "disabled"
+			} else if status == "disabled" {
+				status = "pending"
+			}
 		}
 		if moved && status != "disabled" {
 			status = "pending"

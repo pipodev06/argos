@@ -498,3 +498,56 @@ func TestListDevicesFilters(t *testing.T) {
 		}
 	}
 }
+
+// Deshabilitar un dispositivo lo saca de la evaluacion (el colector ya no lo recibe, un ping no lo resucita, el
+// detector no lo toca) y deja el evento; habilitarlo lo devuelve a pending. Cambiar direccion o colector no lo habilita.
+func TestDeviceDisableAndEnable(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "col", "up", ago(time.Second))
+	d := mkDevice(t, s, "router", "192.168.1.1", "col", nil)
+	c := mkPing(t, s, "ping", AlertScope{Type: ScopeAll})
+	mustExec(t, `UPDATE hosts SET status = 'up' WHERE id = $1`, d.ID)
+
+	no, yes := false, true
+	u, err := s.UpdateDevice(ctx, d.ID, DeviceChange{Enabled: &no})
+	if err != nil || u.Status != "disabled" {
+		t.Fatalf("deshabilitar got (%s, %v), want disabled", u.Status, err)
+	}
+	if n := count(t, `SELECT count(*) FROM host_events WHERE host_id = $1 AND from_status = 'up' AND to_status = 'disabled' AND source = 'admin'`, d.ID); n != 1 {
+		t.Errorf("evento up->disabled got %d, want 1", n)
+	}
+	// Deshabilitar otra vez no repite el evento ni cambia nada.
+	if u, err = s.UpdateDevice(ctx, d.ID, DeviceChange{Enabled: &no}); err != nil || u.Status != "disabled" {
+		t.Fatalf("deshabilitar de nuevo got (%s, %v)", u.Status, err)
+	}
+	if n := count(t, `SELECT count(*) FROM host_events WHERE host_id = $1 AND to_status = 'disabled'`, d.ID); n != 1 {
+		t.Errorf("eventos to disabled got %d, want 1 (idempotente)", n)
+	}
+	// Un ping bueno del colector no lo resucita.
+	ingestResults(t, s, hostID(t, "col"), pingResult(PingItemID(c.ID, d.ID), "up", time.Second))
+	if st, _ := hostState(t, "router"); st != "disabled" {
+		t.Errorf("estado tras un ping got %q, want disabled", st)
+	}
+	// Mover el dispositivo deshabilitado (direccion) no lo habilita.
+	addr := netip.MustParseAddr("192.168.1.9")
+	if u, err = s.UpdateDevice(ctx, d.ID, DeviceChange{Address: &addr}); err != nil || u.Status != "disabled" {
+		t.Errorf("cambiar la direccion de uno deshabilitado got (%s, %v), want disabled", u.Status, err)
+	}
+	// Habilitar: vuelve a pending.
+	if u, err = s.UpdateDevice(ctx, d.ID, DeviceChange{Enabled: &yes}); err != nil || u.Status != "pending" {
+		t.Fatalf("habilitar got (%s, %v), want pending", u.Status, err)
+	}
+	if n := count(t, `SELECT count(*) FROM host_events WHERE host_id = $1 AND from_status = 'disabled' AND to_status = 'pending' AND source = 'admin'`, d.ID); n != 1 {
+		t.Errorf("evento disabled->pending got %d, want 1", n)
+	}
+	// Habilitar uno ya habilitado no cambia su estado.
+	mustExec(t, `UPDATE hosts SET status = 'up' WHERE id = $1`, d.ID)
+	if u, err = s.UpdateDevice(ctx, d.ID, DeviceChange{Enabled: &yes}); err != nil || u.Status != "up" {
+		t.Errorf("habilitar uno activo got (%s, %v), want up", u.Status, err)
+	}
+	// Un agente no es un dispositivo: no se deshabilita por aqui.
+	if _, err := s.UpdateDevice(ctx, hostID(t, "col"), DeviceChange{Enabled: &no}); !errors.Is(err, ErrNotFound) {
+		t.Errorf("deshabilitar un agente got %v, want ErrNotFound", err)
+	}
+}
