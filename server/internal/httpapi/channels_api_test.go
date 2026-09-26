@@ -159,7 +159,7 @@ func TestViewerSeesChannelsWithoutConfigOrDestination(t *testing.T) {
 		keys = append(keys, k)
 	}
 	slices.Sort(keys)
-	if want := []string{"enabled", "has_secret", "id", "kind", "min_severity", "name"}; !slices.Equal(keys, want) {
+	if want := []string{"enabled", "group_id", "group_name", "has_secret", "id", "kind", "min_severity", "name"}; !slices.Equal(keys, want) {
 		t.Errorf("campos del viewer got %v, want %v", keys, want)
 	}
 

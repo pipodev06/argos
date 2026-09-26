@@ -244,6 +244,10 @@ func (s *Store) UpdateServiceCheck(ctx context.Context, id string, mutate func(*
 			d.SecretKeyID, d.Scope.Type, d.Scope.GroupID, d.Enabled, d.Scope.HostID, d.Metric, d.IfIndex); err != nil {
 			return mapCheckErr(err, "actualizando chequeo")
 		}
+		// Cambiar el alcance del chequeo no puede sacar a una regla suya del dueño de sus canales.
+		if err := channelScopeViolations(ctx, tx, violationsOfCheck, id); err != nil {
+			return err
+		}
 		out, err = checkDefByID(ctx, tx, id, "")
 		return err
 	})

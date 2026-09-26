@@ -217,3 +217,58 @@ func (s *Store) RevokeHost(ctx context.Context, hostID string) error {
 		return nil
 	})
 }
+
+// PendingEnrollToken es un enroll token vigente sin usar. Nunca lleva el token ni su hash: ID es un identificador
+// aparte (enroll_tokens.id) pa listar y revocar.
+type PendingEnrollToken struct {
+	ID        string
+	Hostname  string
+	Group     *GroupRef
+	CreatedBy *string // username; nil si el usuario ya no existe
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+// ListPendingEnrollTokens devuelve los tokens sin usar y sin expirar, los mas recientes por vencer primero (hay un
+// tope natural de MaxActiveEnrollTokens).
+func (s *Store) ListPendingEnrollTokens(ctx context.Context) ([]PendingEnrollToken, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT t.id, t.hostname, g.id, g.name, u.username, t.created_at, t.expires_at
+		   FROM enroll_tokens t
+		   LEFT JOIN host_groups g ON g.id = t.group_id
+		   LEFT JOIN users u ON u.id = t.created_by
+		  WHERE t.used_at IS NULL AND t.expires_at > now()
+		  ORDER BY t.expires_at DESC, t.id LIMIT $1`, MaxActiveEnrollTokens)
+	if err != nil {
+		return nil, fmt.Errorf("listando enroll tokens pendientes: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (PendingEnrollToken, error) {
+		var t PendingEnrollToken
+		var gid, gname *string
+		if err := row.Scan(&t.ID, &t.Hostname, &gid, &gname, &t.CreatedBy, &t.CreatedAt, &t.ExpiresAt); err != nil {
+			return t, err
+		}
+		if gid != nil && gname != nil {
+			t.Group = &GroupRef{ID: *gid, Name: *gname}
+		}
+		return t, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leyendo enroll tokens pendientes: %w", err)
+	}
+	return out, nil
+}
+
+// RevokeEnrollToken borra un enroll token pendiente y devuelve su hostname. ErrNotFound si no existe, ya se uso o
+// expiro (un token usado ya dio origen a un host: se revoca el host, no el token).
+func (s *Store) RevokeEnrollToken(ctx context.Context, id string) (hostname string, err error) {
+	err = s.pool.QueryRow(ctx,
+		`DELETE FROM enroll_tokens WHERE id = $1 AND used_at IS NULL AND expires_at > now() RETURNING hostname`, id).Scan(&hostname)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("revocando enroll token: %w", err)
+	}
+	return hostname, nil
+}

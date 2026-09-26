@@ -18,6 +18,12 @@ type summaryGroupDTO struct {
 	Disabled int     `json:"disabled"`
 }
 
+// agentVersionDTO cuenta los hosts con agente que informan una version.
+type agentVersionDTO struct {
+	Version string `json:"version"`
+	Hosts   int    `json:"hosts"`
+}
+
 type topHostDTO struct {
 	ID       string  `json:"id"`
 	Hostname string  `json:"hostname"`
@@ -65,6 +71,10 @@ func (a *API) summary(w http.ResponseWriter, r *http.Request) error {
 	for _, d := range sum.RecentlyDown {
 		recent = append(recent, recentDownDTO{ID: d.ID, Hostname: d.Hostname, StatusChangedAt: d.StatusChangedAt.UTC(), Group: toGroupRefDTO(d.Group)})
 	}
+	versions := make([]agentVersionDTO, 0, len(sum.AgentVersions))
+	for _, v := range sum.AgentVersions {
+		versions = append(versions, agentVersionDTO{Version: v.Version, Hosts: v.Hosts})
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"generated_at": a.now().UTC(),
 		"counts": map[string]int{
@@ -75,11 +85,12 @@ func (a *API) summary(w http.ResponseWriter, r *http.Request) error {
 			"up": sum.Devices.Up, "down": sum.Devices.Down, "offline": sum.Devices.Offline,
 			"pending": sum.Devices.Pending, "disabled": sum.Devices.Disabled,
 		},
-		"by_group":      byGroup,
-		"top_cpu":       toTopDTOs(sum.TopCPU),
-		"top_mem":       toTopDTOs(sum.TopMem),
-		"top_disk":      toTopDTOs(sum.TopDisk),
-		"recently_down": recent,
+		"agent_versions": map[string]any{"latest": a.latestAgentVersion(), "counts": versions},
+		"by_group":       byGroup,
+		"top_cpu":        toTopDTOs(sum.TopCPU),
+		"top_mem":        toTopDTOs(sum.TopMem),
+		"top_disk":       toTopDTOs(sum.TopDisk),
+		"recently_down":  recent,
 	})
 	return nil
 }

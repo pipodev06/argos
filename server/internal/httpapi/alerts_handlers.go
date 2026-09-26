@@ -300,15 +300,21 @@ func (a *API) getAlert(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// ackAlert reconoce una alerta: un admin o un viewer con can_ack (requireAck), siempre dentro de su ambito (fuera
+// de el, el mismo 404 que una alerta inexistente).
 func (a *API) ackAlert(w http.ResponseWriter, r *http.Request) error {
-	return a.alertAction(w, r, evAlertAcked, a.store.AckAlert)
+	scope := currentUser(r).Scope
+	return a.alertAction(w, r, evAlertAcked, func(ctx context.Context, id, userID, username string) (store.Alert, error) {
+		return a.store.AckAlert(ctx, scope, id, userID, username)
+	})
 }
 
+// resolveAlert solo lo llama un admin (lo garantiza la ruta).
 func (a *API) resolveAlert(w http.ResponseWriter, r *http.Request) error {
 	return a.alertAction(w, r, evAlertResolved, a.store.ResolveAlert)
 }
 
-// alertAction es el cuerpo comun de ack y resolve: solo admin (lo garantiza la ruta), auditado con id, regla,
+// alertAction es el cuerpo comun de ack y resolve (la ruta decide quien puede), auditado con el actor, id, regla,
 // severidad y hostname (nada mas).
 func (a *API) alertAction(w http.ResponseWriter, r *http.Request, event string,
 	do func(ctx context.Context, id, userID, username string) (store.Alert, error),

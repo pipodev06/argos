@@ -81,7 +81,7 @@ func createAdmin(ctx context.Context, st *store.Store, hasher *auth.Hasher, args
 	if err != nil {
 		return err
 	}
-	u, err := st.CreateUser(ctx, username, hash, store.RoleAdmin, mustChange)
+	u, err := st.CreateUser(ctx, store.NewUser{Username: username, PasswordHash: hash, Role: store.RoleAdmin, MustChange: mustChange, AllGroups: true})
 	if err != nil {
 		return fmt.Errorf("creando admin: %w", err)
 	}

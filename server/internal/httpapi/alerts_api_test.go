@@ -614,7 +614,7 @@ func TestAlertRoutesAreRegisteredWithTheExpectedAccess(t *testing.T) {
 	e := newEnv(t, Options{})
 	want := map[string]access{
 		"GET /api/v1/alerts": accessSession, "GET /api/v1/alerts/summary": accessSession, "GET /api/v1/alerts/{id}": accessSession,
-		"POST /api/v1/alerts/{id}/ack": accessAdmin, "POST /api/v1/alerts/{id}/resolve": accessAdmin,
+		"POST /api/v1/alerts/{id}/ack": accessSession /* con requireAck: admin o can_ack */, "POST /api/v1/alerts/{id}/resolve": accessAdmin,
 		"GET /api/v1/alert-rules": accessSession, "GET /api/v1/alert-rules/{id}": accessSession,
 		"POST /api/v1/alert-rules": accessAdmin, "PATCH /api/v1/alert-rules/{id}": accessAdmin, "DELETE /api/v1/alert-rules/{id}": accessAdmin,
 		"GET /api/v1/maintenance": accessSession, "GET /api/v1/maintenance/{id}": accessSession,
@@ -636,7 +636,7 @@ func (f *fakeStore) ListAlerts(context.Context, store.Scope, store.AlertFilter) 
 	return store.AlertPage{}, f.x.err
 }
 
-func (f *fakeStore) AckAlert(context.Context, string, string, string) (store.Alert, error) {
+func (f *fakeStore) AckAlert(context.Context, store.Scope, string, string, string) (store.Alert, error) {
 	return store.Alert{}, f.x.err
 }
 

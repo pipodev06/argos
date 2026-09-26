@@ -308,7 +308,8 @@ func TestMigrationScopeTargetsDown(t *testing.T) {
 	if n := count(t, `SELECT count(*) FROM information_schema.columns WHERE column_name = 'scope_host_id' AND table_name IN ('alert_rules', 'maintenance_windows')`); n != 0 {
 		t.Errorf("scope_host_id debe haberse eliminado, quedan %d", n)
 	}
-	if _, err := s.EvaluateAlerts(ctx); err != nil {
+	// Se consulta la vista directamente: EvaluateAlerts usa el esquema actual (p. ej. notification_channels.group_id, 00034).
+	if _, err := s.pool.Exec(ctx, `SELECT count(*) FROM alert_candidates`); err != nil {
 		t.Errorf("la vista restaurada debe evaluar: %v", err)
 	}
 	if _, err := provider.Up(ctx); err != nil {

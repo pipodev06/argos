@@ -110,13 +110,20 @@ type sessionUser struct {
 	// CanInventory: permiso (por usuario) de ver procesos y servicios. Un admin no lo necesita: lo ve todo.
 	CanInventory bool
 	// CanUpdates: permiso (por usuario) de leer parches del SO. Un admin no lo necesita: lo ve todo.
-	CanUpdates  bool
+	CanUpdates bool
+	// CanAck: permiso (por usuario) de reconocer alertas de su ambito. Un admin no lo necesita.
+	CanAck      bool
 	sessionHash []byte
 }
 
 // seesInventory: un admin o un usuario con can_inventory puede ver datos de inventario (p. ej. los puertos de una alerta).
 func (u *sessionUser) seesInventory() bool {
 	return u != nil && (u.Role == store.RoleAdmin || u.CanInventory)
+}
+
+// canAck: un admin o un usuario con can_ack puede reconocer alertas (dentro de su ambito).
+func (u *sessionUser) canAck() bool {
+	return u != nil && (u.Role == store.RoleAdmin || u.CanAck)
 }
 
 // seesUpdates: un admin o un usuario con can_updates puede ver parches del SO (y el detalle de sus alertas).
@@ -152,6 +159,23 @@ func (a *API) requireAdmin(next handlerFunc) handlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		u := currentUser(r)
 		if u == nil || u.Role != store.RoleAdmin {
+			if u != nil {
+				e := actor(u)
+				e.Event, e.Outcome = evAuthzDenied, store.OutcomeDenied
+				a.audit(r, e, map[string]any{"method": r.Method, "route": r.Pattern})
+			}
+			return errForbidden
+		}
+		return next(w, r)
+	}
+}
+
+// requireAck deja pasar a un admin o a un viewer con can_ack; el resto recibe 403 y se audita el intento. El ambito
+// de la alerta lo aplica el store (mismo 404 que una alerta inexistente).
+func (a *API) requireAck(next handlerFunc) handlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		u := currentUser(r)
+		if !u.canAck() {
 			if u != nil {
 				e := actor(u)
 				e.Event, e.Outcome = evAuthzDenied, store.OutcomeDenied
@@ -257,7 +281,7 @@ func (a *API) authenticateSession(w http.ResponseWriter, r *http.Request) (*sess
 	return &sessionUser{
 		ID: si.User.ID, Username: si.User.Username, Role: si.User.Role,
 		MustChangePassword: si.User.MustChangePassword, sessionHash: hash,
-		Scope: si.User.Scope(), CanInventory: si.User.CanInventory, CanUpdates: si.User.CanUpdates,
+		Scope: si.User.Scope(), CanInventory: si.User.CanInventory, CanUpdates: si.User.CanUpdates, CanAck: si.User.CanAck,
 	}, nil
 }
 

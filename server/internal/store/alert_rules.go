@@ -288,7 +288,8 @@ func mapRuleErr(err error, what string, sc AlertScope) error {
 }
 
 // UpdateAlertRule bloquea la regla, deja que mutate la modifique (validando; su error se devuelve tal cual) y
-// guarda los campos editables (no kind, metric ni check_id; si expected_ports). ErrNotFound, ErrRuleExists o ErrGroupNotFound segun el caso.
+// guarda los campos editables (no kind, metric ni check_id; si expected_ports). ErrNotFound, ErrRuleExists, ErrGroupNotFound
+// o *ChannelScopeError (el nuevo alcance sale del dueño de alguno de sus canales) segun el caso.
 func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*AlertRule) error) (AlertRule, error) {
 	var out AlertRule
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -314,6 +315,9 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*Ale
 			id, r.Name, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds, r.IncludeOffline,
 			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected, r.DurationDays, r.Scope.HostID); err != nil {
 			return mapRuleErr(err, "actualizando regla de alerta", r.Scope)
+		}
+		if err := channelScopeViolations(ctx, tx, violationsOfRule, id); err != nil {
+			return err
 		}
 		out, err = alertRuleByID(ctx, tx, id, "")
 		return err

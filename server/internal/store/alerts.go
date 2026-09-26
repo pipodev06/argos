@@ -236,9 +236,18 @@ func (s *Store) AlertByID(ctx context.Context, scope Scope, id string) (AlertDet
 // ErrAlertResolved: la alerta ya esta resuelta y no admite la accion pedida.
 var ErrAlertResolved = errors.New("la alerta ya esta resuelta")
 
-// AckAlert reconoce una alerta abierta. Es idempotente sobre una ya reconocida. ErrNotFound si no existe;
+// AckAlert reconoce una alerta abierta dentro del ambito. Es idempotente sobre una ya reconocida. ErrNotFound si no
+// existe o queda fuera del ambito;
 // ErrAlertResolved si ya esta resuelta.
-func (s *Store) AckAlert(ctx context.Context, id, userID, username string) (Alert, error) {
+func (s *Store) AckAlert(ctx context.Context, scope Scope, id, userID, username string) (Alert, error) {
+	args := argList{id}
+	var visible bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM alerts a WHERE a.id = $1 AND `+scope.hostCond("a.host_id", &args)+`)`, []any(args)...).Scan(&visible); err != nil {
+		return Alert{}, fmt.Errorf("comprobando ambito de la alerta: %w", err)
+	}
+	if !visible {
+		return Alert{}, ErrNotFound
+	}
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE alerts SET state = 'acknowledged', acknowledged_by = $2::uuid, acknowledged_by_name = $3, acknowledged_at = now()
 		  WHERE id = $1 AND state = 'open'`, id, userID, username)
@@ -265,7 +274,7 @@ WITH res AS (
   UPDATE alerts SET state = 'resolved', resolved_at = now(), resolved_by = $2::uuid, resolved_by_name = $3,
                     resolve_reason = 'manual', clear_since = NULL
    WHERE id = $1 AND state <> 'resolved'
-  RETURNING id
+  RETURNING id, host_id
 )`+enqueueResolvedCTE+` SELECT count(*)::int FROM res`, id, userID, username).Scan(&n)
 	if err != nil {
 		return Alert{}, fmt.Errorf("resolviendo alerta: %w", err)

@@ -113,6 +113,7 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /":                                  {"public", fixed("/", "/hosts")},
 		"GET /api/v1/auth/me":                    {"own", fixed(api + "/auth/me")},
 		"GET /api/v1/users":                      {"admin", fixed(api + "/users")},
+		"GET /api/v1/hosts/enroll-tokens":        {"admin", fixed(api + "/hosts/enroll-tokens")},
 		"GET /api/v1/audit":                      {"admin", fixed(api + "/audit")},
 		"GET /api/v1/audit/events":               {"admin", fixed(api + "/audit/events")},
 		"GET /api/v1/channels":                   {"admin", fixed(api + "/channels")},

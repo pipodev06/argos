@@ -24,6 +24,13 @@ const (
 	ReminderInterval = 4 * 3600 // segundos
 )
 
+// channelOwnsHostSQL es verdadero si el canal `ch` puede recibir avisos del host indicado: un canal global (sin
+// dueño) recibe todo; uno con dueño solo los de hosts de su grupo. Defensa en profundidad: aunque haya datos previos
+// incoherentes (regla fuera del dueño), nunca se encola un aviso con datos de otro grupo.
+func channelOwnsHostSQL(hostCol string) string {
+	return `(ch.group_id IS NULL OR ch.group_id = (SELECT hg.group_id FROM hosts hg WHERE hg.id = ` + hostCol + `))`
+}
+
 // pendingCapSQL es verdadero cuando la cola ya llego al tope. El LIMIT acota el conteo.
 var pendingCapSQL = `(SELECT count(*) FROM (SELECT 1 FROM notification_deliveries WHERE status = 'pending' LIMIT ` +
 	strconv.Itoa(MaxPendingDeliveries) + `) cap_q) >= ` + strconv.Itoa(MaxPendingDeliveries)
@@ -31,7 +38,7 @@ var pendingCapSQL = `(SELECT count(*) FROM (SELECT 1 FROM notification_deliverie
 // severityRankSQL compara severidades (info < warn < critical) sin depender del orden alfabetico.
 const severityRankSQL = `array_position(ARRAY['info', 'warn', 'critical'], %s)`
 
-// enqueueResolvedCTE encola el aviso `resolved` de cada alerta del CTE `res` (columna id) a los canales que
+// enqueueResolvedCTE encola el aviso `resolved` de cada alerta del CTE `res` (columnas id y host_id) a los canales que
 // recibieron (o recibiran) su `opened`: no se anuncia la resolucion de algo que nunca se anuncio.
 var enqueueResolvedCTE = `, enq AS (
   INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
@@ -39,6 +46,7 @@ var enqueueResolvedCTE = `, enq AS (
     FROM res
     JOIN notification_deliveries d ON d.alert_id = res.id AND d.event = 'opened' AND d.status IN ('pending', 'sending', 'sent')
     JOIN notification_channels ch ON ch.id = d.channel_id AND ch.enabled
+     AND ` + channelOwnsHostSQL("res.host_id") + `
   ON CONFLICT DO NOTHING
 )`
 
@@ -56,7 +64,7 @@ WITH res AS (
    WHERE h.id = a.host_id AND a.state <> 'resolved'
      AND (h.status = 'disabled' OR a.rule_id IS NULL
           OR EXISTS (SELECT 1 FROM alert_rules r WHERE r.id = a.rule_id AND NOT r.enabled))
-  RETURNING a.id
+  RETURNING a.id, a.host_id
 )` + enqueueResolvedCTE + ` SELECT count(*) FROM res`
 
 	// 2. Pendientes que ya no incumplen (o ya no son evaluables: host offline, regla desactivada) o que ya
@@ -98,6 +106,7 @@ WITH new AS (
     FROM new
     JOIN rule_channels rc ON rc.rule_id = new.rule_id
     JOIN notification_channels ch ON ch.id = rc.channel_id AND ch.enabled
+     AND ` + channelOwnsHostSQL("new.host_id") + `
      AND ` + fmt.Sprintf(severityRankSQL, "new.severity") + ` >= ` + fmt.Sprintf(severityRankSQL, "ch.min_severity") + `
   ON CONFLICT DO NOTHING
 )
@@ -131,7 +140,7 @@ WITH res AS (
     FROM alert_rules r
    WHERE r.id = a.rule_id AND a.state <> 'resolved' AND a.clear_since IS NOT NULL
      AND a.clear_since <= now() - make_interval(secs => r.resolve_seconds)
-  RETURNING a.id
+  RETURNING a.id, a.host_id
 )` + enqueueResolvedCTE + ` SELECT count(*) FROM res`
 
 	// 7. Alertas abiertas en mantenimiento cuya ventana ya termino (y el host sigue evaluable): se liberan y su
@@ -159,7 +168,7 @@ SELECT a.id, d.channel_id, 'reminder', k.n, CASE WHEN c.in_maintenance OR ` + pe
   JOIN alert_candidates c ON c.rule_id = a.rule_id AND c.host_id = a.host_id AND NOT c.clear
  CROSS JOIN LATERAL (SELECT floor(extract(epoch FROM now() - a.opened_at) / ` + strconv.Itoa(ReminderInterval) + `)::int AS n) k
   JOIN notification_deliveries d ON d.alert_id = a.id AND d.event = 'opened' AND d.status IN ('pending', 'sending', 'sent')
-  JOIN notification_channels ch ON ch.id = d.channel_id AND ch.enabled
+  JOIN notification_channels ch ON ch.id = d.channel_id AND ch.enabled AND ` + channelOwnsHostSQL("a.host_id") + `
  WHERE a.state = 'open' AND a.severity = 'critical' AND NOT a.suppressed AND k.n >= 1
 ON CONFLICT DO NOTHING
 RETURNING 1

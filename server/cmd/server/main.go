@@ -100,6 +100,11 @@ func run(logger *slog.Logger, args []string) error {
 	} else if n > 0 {
 		logger.Warn("dispositivos con un colector de otro grupo: un agente sondea equipos de otro cliente; corrigelos (GET /api/v1/devices, collector_group_mismatch)", "count", n)
 	}
+	if n, err := st.ChannelScopeMismatches(ctx); err != nil {
+		logger.Warn("no se pudo comprobar el alcance de los canales", "err", err)
+	} else if n > 0 {
+		logger.Warn("reglas con un canal de otro grupo: no se les envian avisos de hosts ajenos al dueño del canal; corrigelas (PUT /api/v1/alert-rules/{id}/channels o el dueño del canal)", "count", n)
+	}
 	return serve(ctx, logger, cfg, pool, st, hasher)
 }
 

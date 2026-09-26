@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -66,12 +67,14 @@ type hostItemDTO struct {
 	Disk            *diskPctDTO  `json:"disk"`
 	BootTime        *time.Time   `json:"boot_time"`
 	Battery         *batteryDTO  `json:"battery"`
+	// AgentVersion es la version del agente (null en dispositivos o si no la informa).
+	AgentVersion *string `json:"agent_version"`
 }
 
 func toHostItemDTO(h store.HostRow) hostItemDTO {
 	dto := hostItemDTO{
 		ID: h.ID, Hostname: h.Hostname, Kind: h.Kind, Status: h.Status, StatusChangedAt: h.StatusChangedAt.UTC(), LastSeenAt: utcPtr(h.LastSeenAt),
-		Group: toGroupRefDTO(h.Group), OS: h.OS, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
+		Group: toGroupRefDTO(h.Group), OS: h.OS, AgentVersion: h.AgentVersion, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
 		CPUPct: round1(h.CPUPct),
 	}
 	if h.MemUsedMB != nil && h.MemTotalMB != nil && *h.MemTotalMB > 0 {
@@ -176,6 +179,13 @@ func parseHostQuery(v url.Values, scope store.Scope) (hostQuery, error) {
 	}
 	if f.BatteryLt, err = parsePctFilter(v, "battery_lt"); err != nil {
 		return hostQuery{}, err
+	}
+	switch agent := v.Get("agent"); agent {
+	case "":
+	case "outdated":
+		f.AgentOutdated = true
+	default:
+		return hostQuery{}, invalidFilter("agent debe ser outdated")
 	}
 	if raw := v.Get("seen_before"); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -300,7 +310,7 @@ func parsePctFilter(v url.Values, name string) (*float64, error) {
 // fingerprint resume filtros, orden, direccion y ambito del usuario (no el limite: se puede cambiar entre paginas).
 func fingerprint(f store.HostFilter, scope store.Scope) string {
 	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup, f.OSes, f.Kinds, f.Sort, f.Desc,
-		f.CPUGt, f.MemGt, f.DiskGt, f.BatteryLt, f.SeenBefore, scope.Key()})
+		f.CPUGt, f.MemGt, f.DiskGt, f.BatteryLt, f.SeenBefore, f.AgentOutdated, scope.Key()})
 	if err != nil {
 		return "" // solo strings, bools y listas: no deberia ocurrir
 	}
@@ -364,6 +374,11 @@ func (a *API) listHosts(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	if q.filter.AgentOutdated {
+		if err := a.resolveOutdated(r.Context(), currentUser(r).Scope, &q.filter); err != nil {
+			return err
+		}
+	}
 	page, err := a.store.ListHosts(r.Context(), currentUser(r).Scope, q.filter)
 	if err != nil {
 		return err
@@ -378,6 +393,22 @@ func (a *API) listHosts(w http.ResponseWriter, r *http.Request) error {
 		next = &c
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": next, "total": page.Total})
+	return nil
+}
+
+// resolveOutdated traduce ?agent=outdated a la lista de versiones desactualizadas del ambito. Sin catalogo de
+// binarios (no hay version mas reciente que comparar) no hay ninguna: la lista queda vacia y la respuesta tambien.
+func (a *API) resolveOutdated(ctx context.Context, scope store.Scope, f *store.HostFilter) error {
+	latest := a.latestAgentVersion()
+	if latest == nil {
+		f.AgentVersions = []string{}
+		return nil
+	}
+	counts, err := a.store.AgentVersionCounts(ctx, scope, true)
+	if err != nil {
+		return err
+	}
+	f.AgentVersions = outdatedAgentVersions(counts, *latest)
 	return nil
 }
 

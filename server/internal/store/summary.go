@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // topN es el largo de los rankings y de "recientemente caidos" del resumen.
@@ -57,6 +59,12 @@ type RecentDown struct {
 	Group           *GroupRef
 }
 
+// AgentVersionCount es la cantidad de hosts con agente que informan una version.
+type AgentVersionCount struct {
+	Version string
+	Hosts   int
+}
+
 // Summary es la foto de la flota pa el dashboard.
 type Summary struct {
 	Counts StatusCounts
@@ -67,6 +75,8 @@ type Summary struct {
 	TopMem       []TopHost
 	TopDisk      []TopHost
 	RecentlyDown []RecentDown
+	// AgentVersions cuenta los hosts con agente (no deshabilitados) por version informada; los que no la informan no cuentan.
+	AgentVersions []AgentVersionCount
 }
 
 // Summary calcula el resumen de la flota: conteos por estado y por grupo (solo grupos con hosts, mas "sin
@@ -176,6 +186,9 @@ func (s *Store) Summary(ctx context.Context, scope Scope) (Summary, error) {
 	if err := down.Err(); err != nil {
 		return Summary{}, fmt.Errorf("iterando hosts caidos: %w", err)
 	}
+	if sum.AgentVersions, err = s.AgentVersionCounts(ctx, scope, false); err != nil {
+		return Summary{}, err
+	}
 	return sum, nil
 }
 
@@ -228,6 +241,30 @@ func (s *Store) top(ctx context.Context, scope Scope, value, cond string, withMo
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterando ranking: %w", err)
+	}
+	return out, nil
+}
+
+// AgentVersionCounts cuenta los hosts con agente (no deshabilitados) por version del agente dentro del ambito, de
+// mas a menos hosts (y por version; hasta 100 versiones). Los hosts sin version conocida no se cuentan. includeDisabled
+// suma tambien los deshabilitados (pa resolver el filtro de la lista, que si los muestra).
+func (s *Store) AgentVersionCounts(ctx context.Context, scope Scope, includeDisabled bool) ([]AgentVersionCount, error) {
+	args := argList{includeDisabled}
+	rows, err := s.pool.Query(ctx,
+		`SELECT hi.agent_version, count(*)::int AS n
+		   FROM hosts h JOIN host_info hi ON hi.host_id = h.id
+		  WHERE h.kind = 'agent' AND ($1 OR h.status <> 'disabled') AND hi.agent_version <> '' AND `+scope.groupCond("h.group_id", &args)+`
+		  GROUP BY hi.agent_version ORDER BY n DESC, hi.agent_version LIMIT 100`, []any(args)...)
+	if err != nil {
+		return nil, fmt.Errorf("contando versiones del agente: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (AgentVersionCount, error) {
+		var c AgentVersionCount
+		err := row.Scan(&c.Version, &c.Hosts)
+		return c, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leyendo versiones del agente: %w", err)
 	}
 	return out, nil
 }

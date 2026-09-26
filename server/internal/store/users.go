@@ -24,6 +24,8 @@ var (
 	// ErrInvalidScope: el cambio de permisos por grupo es incoherente (restringir a un admin, o dar group_ids
 	// a quien ve todos los grupos).
 	ErrInvalidScope = errors.New("permisos por grupo invalidos")
+	// ErrSelfDelete: un admin no puede borrarse a si mismo.
+	ErrSelfDelete = errors.New("un usuario no puede borrarse a si mismo")
 )
 
 // Constraint de user_groups.group_id (nombre autogenerado por Postgres).
@@ -47,6 +49,7 @@ type User struct {
 	GroupIDs     []string // grupos visibles si !AllGroups, ordenados
 	CanInventory bool
 	CanUpdates   bool // permiso de leer parches (ver Scope)
+	CanAck       bool // permiso de reconocer alertas de su ambito
 }
 
 // Scope es el ambito de hosts del usuario: los admins y los viewers con all_groups ven todo.
@@ -61,12 +64,12 @@ func (u User) Scope() Scope {
 const userColumns = `id, username, password_hash, role, must_change_password, failed_logins,
 	locked_until, disabled_at, last_login_at, created_at, all_groups,
 	ARRAY(SELECT ug.group_id::text FROM user_groups ug WHERE ug.user_id = users.id ORDER BY ug.group_id),
-	can_inventory, can_updates`
+	can_inventory, can_updates, can_ack`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.MustChangePassword, &u.FailedLogins,
-		&u.LockedUntil, &u.DisabledAt, &u.LastLoginAt, &u.CreatedAt, &u.AllGroups, &u.GroupIDs, &u.CanInventory, &u.CanUpdates)
+		&u.LockedUntil, &u.DisabledAt, &u.LastLoginAt, &u.CreatedAt, &u.AllGroups, &u.GroupIDs, &u.CanInventory, &u.CanUpdates, &u.CanAck)
 	return u, err
 }
 
@@ -118,21 +121,60 @@ func (s *Store) ListUsers(ctx context.Context, limit int) ([]User, error) {
 	return users, nil
 }
 
-// CreateUser inserta un usuario. passwordHash ya viene hasheado (Argon2id).
-// Devuelve ErrUserExists si el username ya esta tomado.
-func (s *Store) CreateUser(ctx context.Context, username, passwordHash, role string, mustChange bool) (User, error) {
-	u, err := scanUser(s.pool.QueryRow(ctx,
-		`INSERT INTO users (username, password_hash, role, must_change_password)
-		 VALUES ($1, $2, $3, $4) RETURNING `+userColumns,
-		username, passwordHash, role, mustChange))
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return User{}, ErrUserExists
+// NewUser son los datos de un alta. PasswordHash ya viene hasheado (Argon2id). Los permisos por grupo solo
+// aplican a viewers; un admin siempre queda con ambito total y sin permisos sueltos.
+type NewUser struct {
+	Username     string
+	PasswordHash string
+	Role         string
+	MustChange   bool
+	AllGroups    bool
+	GroupIDs     []string // ids ya validados y sin repetir; exige AllGroups=false
+	CanInventory bool
+	CanUpdates   bool
+	CanAck       bool
+}
+
+// CreateUser inserta un usuario (y sus grupos) en una transaccion. Devuelve ErrUserExists si el username ya esta
+// tomado, ErrGroupNotFound si algun grupo no existe e ErrInvalidScope si pide restricciones a un admin o group_ids
+// con all_groups. Un viewer con AllGroups=false y sin grupos es valido: no ve ningun host.
+func (s *Store) CreateUser(ctx context.Context, n NewUser) (User, error) {
+	if n.Role == RoleAdmin {
+		if !n.AllGroups && (n.CanInventory || n.CanUpdates || n.CanAck || len(n.GroupIDs) > 0) {
+			return User{}, ErrInvalidScope
+		}
+		n.AllGroups, n.CanInventory, n.CanUpdates, n.CanAck = true, false, false, false
 	}
+	if n.AllGroups && len(n.GroupIDs) > 0 {
+		return User{}, ErrInvalidScope
+	}
+	var out User
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var id string
+		err := tx.QueryRow(ctx,
+			`INSERT INTO users (username, password_hash, role, must_change_password, all_groups, can_inventory, can_updates, can_ack)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+			n.Username, n.PasswordHash, n.Role, n.MustChange, n.AllGroups, n.CanInventory, n.CanUpdates, n.CanAck).Scan(&id)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrUserExists
+		}
+		if err != nil {
+			return fmt.Errorf("creando usuario: %w", err)
+		}
+		if err := replaceUserGroups(ctx, tx, id, n.GroupIDs); err != nil {
+			return err
+		}
+		out, err = scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM users WHERE id = $1`, id))
+		if err != nil {
+			return fmt.Errorf("leyendo usuario creado: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return User{}, fmt.Errorf("creando usuario: %w", err)
+		return User{}, err
 	}
-	return u, nil
+	return out, nil
 }
 
 // UserChange describe los cambios de un admin sobre otro usuario; nil = sin cambio.
@@ -148,6 +190,7 @@ type UserChange struct {
 	GroupIDs     *[]string
 	CanInventory *bool
 	CanUpdates   *bool
+	CanAck       *bool
 }
 
 // UpdateUser aplica los cambios en una transaccion. Deshabilitar o resetear la
@@ -197,7 +240,7 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 				disabledAt = &now
 			}
 		}
-		allGroups, canInventory, canUpdates, clearGroups, err := resolveScopeChange(cur, newRole, ch)
+		allGroups, canInventory, canUpdates, canAck, clearGroups, err := resolveScopeChange(cur, newRole, ch)
 		if err != nil {
 			return err
 		}
@@ -211,9 +254,9 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 			}
 		}
 		u, err := scanUser(tx.QueryRow(ctx,
-			`UPDATE users SET role = $2, disabled_at = $3, all_groups = $4, can_inventory = $5, can_updates = $6
+			`UPDATE users SET role = $2, disabled_at = $3, all_groups = $4, can_inventory = $5, can_updates = $6, can_ack = $7
 			  WHERE id = $1 RETURNING `+userColumns,
-			id, newRole, disabledAt, allGroups, canInventory, canUpdates))
+			id, newRole, disabledAt, allGroups, canInventory, canUpdates, canAck))
 		if err != nil {
 			return fmt.Errorf("actualizando usuario: %w", err)
 		}
@@ -242,11 +285,11 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 	return out, nil
 }
 
-// resolveScopeChange calcula all_groups, can_inventory y can_updates finales y si hay que vaciar user_groups. Un
-// admin no admite restricciones (se rechazan si el cambio las pide; si solo se le promueve, se reinician) y
+// resolveScopeChange calcula all_groups, can_inventory, can_updates y can_ack finales y si hay que vaciar user_groups.
+// Un admin no admite restricciones (se rechazan si el cambio las pide; si solo se le promueve, se reinician) y
 // group_ids solo tiene sentido con all_groups=false.
-func resolveScopeChange(cur User, newRole string, ch UserChange) (allGroups, canInventory, canUpdates, clearGroups bool, err error) {
-	allGroups, canInventory, canUpdates = cur.AllGroups, cur.CanInventory, cur.CanUpdates
+func resolveScopeChange(cur User, newRole string, ch UserChange) (allGroups, canInventory, canUpdates, canAck, clearGroups bool, err error) {
+	allGroups, canInventory, canUpdates, canAck = cur.AllGroups, cur.CanInventory, cur.CanUpdates, cur.CanAck
 	if ch.AllGroups != nil {
 		allGroups = *ch.AllGroups
 	}
@@ -256,21 +299,24 @@ func resolveScopeChange(cur User, newRole string, ch UserChange) (allGroups, can
 	if ch.CanUpdates != nil {
 		canUpdates = *ch.CanUpdates
 	}
+	if ch.CanAck != nil {
+		canAck = *ch.CanAck
+	}
 	withGroups := ch.GroupIDs != nil && len(*ch.GroupIDs) > 0
 	if newRole == RoleAdmin {
 		if (ch.AllGroups != nil && !*ch.AllGroups) || (ch.CanInventory != nil && *ch.CanInventory) ||
-			(ch.CanUpdates != nil && *ch.CanUpdates) || withGroups {
-			return false, false, false, false, ErrInvalidScope
+			(ch.CanUpdates != nil && *ch.CanUpdates) || (ch.CanAck != nil && *ch.CanAck) || withGroups {
+			return false, false, false, false, false, ErrInvalidScope
 		}
-		return true, false, false, true, nil
+		return true, false, false, false, true, nil
 	}
 	if allGroups {
 		if withGroups {
-			return false, false, false, false, ErrInvalidScope
+			return false, false, false, false, false, ErrInvalidScope
 		}
-		return true, canInventory, canUpdates, true, nil
+		return true, canInventory, canUpdates, canAck, true, nil
 	}
-	return false, canInventory, canUpdates, false, nil
+	return false, canInventory, canUpdates, canAck, false, nil
 }
 
 // replaceUserGroups reemplaza los grupos del usuario. ErrGroupNotFound si alguno no existe.
@@ -290,6 +336,51 @@ func replaceUserGroups(ctx context.Context, tx pgx.Tx, userID string, groupIDs [
 		return fmt.Errorf("asignando grupos al usuario: %w", err)
 	}
 	return nil
+}
+
+// DeleteUser borra un usuario en una transaccion: sus sesiones y pertenencias a grupos caen por ON DELETE CASCADE y
+// las columnas created_by/acknowledged_by de otras tablas quedan en NULL (ON DELETE SET NULL; los nombres de quien
+// reconocio o resolvio una alerta se conservan en sus columnas *_name). audit_log no tiene FK a users, asi que su
+// trigger append-only no interviene y las filas conservan actor_user_id y actor_username. Devuelve el usuario
+// borrado. ErrNotFound si no existe; ErrSelfDelete si id es el actor; ErrLastAdmin si dejaria al sistema sin admin.
+func (s *Store) DeleteUser(ctx context.Context, id, actorID string) (User, error) {
+	if id == actorID {
+		return User{}, ErrSelfDelete
+	}
+	var out User
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		// Mismo bloqueo que UpdateUser: dos bajas o demociones concurrentes no dejan el sistema sin admin.
+		if err := lockActiveAdmins(ctx, tx); err != nil {
+			return err
+		}
+		cur, err := scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM users WHERE id = $1 FOR UPDATE`, id))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("leyendo usuario: %w", err)
+		}
+		if cur.Role == RoleAdmin && cur.DisabledAt == nil {
+			var others int
+			if err := tx.QueryRow(ctx,
+				`SELECT count(*) FROM users WHERE role = 'admin' AND disabled_at IS NULL AND id <> $1`, id,
+			).Scan(&others); err != nil {
+				return fmt.Errorf("contando admins: %w", err)
+			}
+			if others == 0 {
+				return ErrLastAdmin
+			}
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, id); err != nil {
+			return fmt.Errorf("borrando usuario: %w", err)
+		}
+		out = cur
+		return nil
+	})
+	if err != nil {
+		return User{}, err
+	}
+	return out, nil
 }
 
 func lockActiveAdmins(ctx context.Context, tx pgx.Tx) error {

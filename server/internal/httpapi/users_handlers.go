@@ -26,6 +26,7 @@ type adminUserDTO struct {
 	GroupIDs     []string `json:"group_ids"`
 	CanInventory bool     `json:"can_inventory"`
 	CanUpdates   bool     `json:"can_updates"`
+	CanAck       bool     `json:"can_ack"`
 }
 
 func toAdminUserDTO(u store.User) adminUserDTO {
@@ -36,7 +37,7 @@ func toAdminUserDTO(u store.User) adminUserDTO {
 	return adminUserDTO{
 		ID: u.ID, Username: u.Username, Role: u.Role, MustChangePassword: u.MustChangePassword,
 		Disabled: u.DisabledAt != nil, LastLoginAt: u.LastLoginAt, CreatedAt: u.CreatedAt,
-		AllGroups: u.AllGroups, GroupIDs: groupIDs, CanInventory: u.CanInventory, CanUpdates: u.CanUpdates,
+		AllGroups: u.AllGroups, GroupIDs: groupIDs, CanInventory: u.CanInventory, CanUpdates: u.CanUpdates, CanAck: u.CanAck,
 	}
 }
 
@@ -59,6 +60,13 @@ type createUserReq struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Role     string `json:"role"`
+	// Permisos por grupo (solo viewers). Un viewer nuevo NO ve ningun grupo salvo que se indique: group_ids lista los
+	// suyos (deben existir) y all_groups=true le da ambito total (explicito). Un admin siempre ve todo.
+	AllGroups    bool     `json:"all_groups"`
+	GroupIDs     []string `json:"group_ids"`
+	CanInventory bool     `json:"can_inventory"`
+	CanUpdates   bool     `json:"can_updates"`
+	CanAck       bool     `json:"can_ack"`
 }
 
 // createUser da de alta un usuario con una contraseña inicial que debe cambiar en su primer login.
@@ -67,7 +75,7 @@ func (a *API) createUser(w http.ResponseWriter, r *http.Request) error {
 	admin := currentUser(r)
 
 	var req createUserReq
-	if err := decodeJSON(w, r, &req, maxSmallBodyBytes, true); err != nil {
+	if err := decodeJSON(w, r, &req, maxUserPatchBodyBytes, true); err != nil {
 		return err
 	}
 	if err := auth.ValidateUsername(req.Username); err != nil {
@@ -76,6 +84,10 @@ func (a *API) createUser(w http.ResponseWriter, r *http.Request) error {
 	if !validRole(req.Role) {
 		return badRequest("role debe ser admin o viewer")
 	}
+	groupIDs, err := normalizeGroupIDs(req.GroupIDs)
+	if err != nil {
+		return err
+	}
 	if err := auth.CheckPassword(req.Password); err != nil {
 		return err
 	}
@@ -83,14 +95,17 @@ func (a *API) createUser(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	u, err := a.store.CreateUser(ctx, req.Username, hash, req.Role, true)
+	u, err := a.store.CreateUser(ctx, store.NewUser{
+		Username: req.Username, PasswordHash: hash, Role: req.Role, MustChange: true, AllGroups: req.AllGroups, GroupIDs: groupIDs,
+		CanInventory: req.CanInventory, CanUpdates: req.CanUpdates, CanAck: req.CanAck,
+	})
 	if err != nil {
 		return err
 	}
 
 	e := actor(admin)
 	e.Event, e.Outcome, e.TargetType, e.TargetID = evUserCreated, store.OutcomeOK, "user", u.ID
-	a.audit(r, e, map[string]any{"role": u.Role})
+	a.audit(r, e, userCreatedDetail(u))
 
 	writeJSON(w, http.StatusCreated, map[string]any{"user": toAdminUserDTO(u)})
 	return nil
@@ -105,6 +120,7 @@ type updateUserReq struct {
 	GroupIDs     *[]string `json:"group_ids"`
 	CanInventory *bool     `json:"can_inventory"`
 	CanUpdates   *bool     `json:"can_updates"`
+	CanAck       *bool     `json:"can_ack"`
 }
 
 // maxUserGroups acota group_ids de un usuario.
@@ -153,13 +169,13 @@ func (a *API) updateUser(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if req.Role == nil && req.Disabled == nil && req.NewPassword == nil &&
-		req.AllGroups == nil && req.GroupIDs == nil && req.CanInventory == nil && req.CanUpdates == nil {
-		return badRequest("nada que cambiar: envia role, disabled, new_password, all_groups, group_ids, can_inventory o can_updates")
+		req.AllGroups == nil && req.GroupIDs == nil && req.CanInventory == nil && req.CanUpdates == nil && req.CanAck == nil {
+		return badRequest("nada que cambiar: envia role, disabled, new_password, all_groups, group_ids, can_inventory, can_updates o can_ack")
 	}
 	if req.Role != nil && !validRole(*req.Role) {
 		return badRequest("role debe ser admin o viewer")
 	}
-	change := store.UserChange{Role: req.Role, Disabled: req.Disabled, AllGroups: req.AllGroups, CanInventory: req.CanInventory, CanUpdates: req.CanUpdates}
+	change := store.UserChange{Role: req.Role, Disabled: req.Disabled, AllGroups: req.AllGroups, CanInventory: req.CanInventory, CanUpdates: req.CanUpdates, CanAck: req.CanAck}
 	if req.GroupIDs != nil {
 		ids, err := normalizeGroupIDs(*req.GroupIDs)
 		if err != nil {
@@ -210,7 +226,7 @@ func (a *API) updateUser(w http.ResponseWriter, r *http.Request) error {
 	if req.NewPassword != nil {
 		emit(evUserPasswordReset, nil)
 	}
-	if before.AllGroups != u.AllGroups || before.CanInventory != u.CanInventory || before.CanUpdates != u.CanUpdates || !slices.Equal(before.GroupIDs, u.GroupIDs) {
+	if before.AllGroups != u.AllGroups || before.CanInventory != u.CanInventory || before.CanUpdates != u.CanUpdates || before.CanAck != u.CanAck || !slices.Equal(before.GroupIDs, u.GroupIDs) {
 		emit(evUserPermissionsChanged, permissionsDetail(before, u))
 	}
 
@@ -225,12 +241,44 @@ func permissionsDetail(before, after store.User) map[string]any {
 		"prev_all_groups": before.AllGroups, "all_groups": after.AllGroups,
 		"prev_can_inventory": before.CanInventory, "can_inventory": after.CanInventory,
 		"prev_can_updates": before.CanUpdates, "can_updates": after.CanUpdates,
+		"prev_can_ack": before.CanAck, "can_ack": after.CanAck,
 		"prev_group_count": len(before.GroupIDs), "group_count": len(after.GroupIDs),
 	}
 	if len(after.GroupIDs) <= maxAuditGroupIDs {
 		d["group_ids"] = append([]string{}, after.GroupIDs...)
 	}
 	return d
+}
+
+// userCreatedDetail es el detalle de auditoria de un alta: rol y permisos iniciales (nunca la contraseña).
+func userCreatedDetail(u store.User) map[string]any {
+	d := map[string]any{
+		"role": u.Role, "all_groups": u.AllGroups, "can_inventory": u.CanInventory, "can_updates": u.CanUpdates,
+		"can_ack": u.CanAck, "group_count": len(u.GroupIDs),
+	}
+	if len(u.GroupIDs) <= maxAuditGroupIDs {
+		d["group_ids"] = append([]string{}, u.GroupIDs...)
+	}
+	return d
+}
+
+// deleteUser borra a otro usuario (solo admin): no a si mismo ni al ultimo admin activo. Sus sesiones y pertenencias
+// a grupos se van con el; la auditoria previa se conserva. Audita con el nombre del usuario borrado.
+func (a *API) deleteUser(w http.ResponseWriter, r *http.Request) error {
+	admin := currentUser(r)
+	id := r.PathValue("id")
+	if !isUUID(id) {
+		return badRequest("id invalido")
+	}
+	u, err := a.store.DeleteUser(r.Context(), id, admin.ID)
+	if err != nil {
+		return err
+	}
+	e := actor(admin)
+	e.Event, e.Outcome, e.TargetType, e.TargetID = evUserDeleted, store.OutcomeOK, "user", u.ID
+	a.audit(r, e, map[string]any{"username": u.Username, "role": u.Role})
+	writeJSON(w, http.StatusOK, map[string]any{})
+	return nil
 }
 
 // isUUID valida el formato 8-4-4-4-12 en hex: un id mal formado llegaria a Postgres
