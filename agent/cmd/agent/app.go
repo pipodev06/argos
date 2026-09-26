@@ -25,14 +25,21 @@ import (
 	"argos/agent/internal/service"
 	"argos/agent/internal/state"
 	"argos/agent/internal/transport"
+	"argos/agent/internal/updater"
 )
 
 const (
 	httpTimeout = 10 * time.Second
-	usage       = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] [--privileged] | uninstall [--keep-state] | start | stop | status"
+	// updateTimeout cubre la descarga completa del binario (~15 MiB), que httpTimeout no alcanza en enlaces lentos.
+	updateTimeout = 5 * time.Minute
+	usage         = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] [--privileged] [--inventory <modulos|all>] [--probe-allow <cidr,...>] [--insecure] | uninstall [--keep-state] | start | stop | status | update"
 
 	// maxTokenBytes acota lo que se lee del token por stdin (un enroll token real ocupa ~50 bytes).
 	maxTokenBytes = 4096
+
+	// maxReportAge: el server rechaza reportes de mas de 7 dias (maxTimestampAge); el buffer offline
+	// descarta los de mas de 6 pa no gastar el limite de ritmo en reportes que se rechazarian.
+	maxReportAge = 6 * 24 * time.Hour
 
 	defaultIdleLogEvery = 10 * time.Minute
 	defaultIdleRecheck  = 30 * time.Second
@@ -48,6 +55,8 @@ type serviceManager interface {
 	Installed() bool
 	StateDir() string
 	StateAccount() string
+	ExePath() (string, error)
+	RequirePrivileges() error
 }
 
 // app agrupa las dependencias de los subcomandos (inyectables en tests).
@@ -65,6 +74,8 @@ type app struct {
 	svc serviceManager
 	// serviceMode: el proceso corre bajo el gestor de servicios (Windows) y no en primer plano.
 	serviceMode bool
+	// swapper reemplaza el binario en `update`; nil = el real (rename junto al instalado + reinicio del servicio).
+	swapper updater.Swapper
 	// runAsService, si no es nil, ejecuta run bajo el gestor de servicios (Windows: svc.Run).
 	runAsService func(run func(context.Context) error) error
 
@@ -94,6 +105,8 @@ func (a *app) execute(ctx context.Context, args []string) error {
 		return a.stop(ctx, args)
 	case "status":
 		return a.status(ctx, args)
+	case "update":
+		return a.update(ctx, args)
 	default:
 		return fmt.Errorf("subcomando desconocido %q; %s", cmd, usage)
 	}
@@ -373,10 +386,13 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 		HTTPClient: client,
 		Interval:   cfg.Interval,
 		OnChecks:   runner.Apply,
+		Store:      st,
+		MaxAge:     maxReportAge,
 	})
 	if err != nil {
 		return creds.AgentToken, fmt.Errorf("creando cliente: %w", err)
 	}
+	defer snd.Close()
 	col := a.collector
 	if col == nil {
 		col = collector.NewSystem(a.logger)
@@ -434,24 +450,79 @@ func (a *app) install(ctx context.Context, args []string) error {
 	fs := a.newFlagSet("install")
 	caFile := fs.String("ca-file", "", "CA privada (PEM) del servidor; se copia al estado como ca.pem (o ARGOS_CA_FILE)")
 	privileged := fs.Bool("privileged", false, "modo privilegiado (opt-in): ve procesos y puertos de otros usuarios con el minimo privilegio del SO (Linux: 2 capacidades + sudoers acotado pa updates; Windows: LocalSystem; macOS: root); por defecto el agente NO tiene privilegios")
+	inv := fs.String("inventory", "", "modulos de inventario a activar: ports,services,processes,updates o all (vacio = apagado)")
+	probeAllow := fs.String("probe-allow", "", "IPs o CIDRs (/24 o mas chicos) que el colector ping puede sondear, separados por comas")
+	insecure := fs.Bool("insecure", false, "permite http hacia un servidor remoto (el token y las metricas viajan SIN CIFRAR)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("argumentos de install: %w", err)
 	}
 	if err := noArgs("install", fs.Args()); err != nil {
 		return err
 	}
-	err := a.svc.Install(ctx, service.InstallOptions{
-		CAFile:     firstNonEmpty(*caFile, a.getenv("ARGOS_CA_FILE")),
-		Privileged: *privileged,
-		Out:        a.stdout,
-		Logger:     a.logger,
-	})
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	patch := config.Settings{Inventory: *inv, ProbeAllow: *probeAllow, Insecure: *insecure}
+	patch, err := patch.Normalize() // valida ANTES de tocar el sistema
 	if err != nil {
 		return fmt.Errorf("install: %w", err)
 	}
-	_, err = fmt.Fprintf(a.stdout, "siguiente paso: enrolar el agente y arrancar el servicio:\n  echo <enroll-token> | argos-agent enroll --server <URL> --token-stdin\n  argos-agent start\n")
+	wantsSettings := given["inventory"] || given["probe-allow"] || given["insecure"]
+
+	if a.svc.Installed() && wantsSettings {
+		// Reinstalar solo la config: la identidad (agent.json) y la definicion del servicio no se tocan.
+		if *privileged || given["ca-file"] {
+			return errors.New("install: el servicio ya esta instalado; --privileged y --ca-file solo se pueden cambiar con `argos-agent uninstall --keep-state` y un install nuevo (conserva el enrolamiento)")
+		}
+	} else {
+		err := a.svc.Install(ctx, service.InstallOptions{
+			CAFile:     firstNonEmpty(*caFile, a.getenv("ARGOS_CA_FILE")),
+			Privileged: *privileged,
+			Out:        a.stdout,
+			Logger:     a.logger,
+		})
+		if err != nil {
+			return fmt.Errorf("install: %w", err)
+		}
+	}
+	if wantsSettings {
+		if err := a.saveSettings(given, patch); err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintf(a.stdout, "siguiente paso: enrolar el agente y arrancar el servicio (si ya estaba en ejecucion, reinicialo con `argos-agent stop` y `argos-agent start` pa aplicar la config):\n  echo <enroll-token> | argos-agent enroll --server <URL> --token-stdin\n  argos-agent start\n")
 	if err != nil {
 		return fmt.Errorf("escribiendo salida: %w", err)
+	}
+	return nil
+}
+
+// saveSettings mezcla en settings.json solo los campos que se pasaron como flag (el resto se conserva)
+// y avisa de lo que quedo. La config es local: solo se escribe desde aqui, nunca por orden del servidor.
+func (a *app) saveSettings(given map[string]bool, patch config.Settings) error {
+	cur, err := config.LoadSettings(a.svc.StateDir())
+	if err != nil {
+		return fmt.Errorf("install: %w", err)
+	}
+	if given["inventory"] {
+		cur.Inventory = patch.Inventory
+	}
+	if given["probe-allow"] {
+		cur.ProbeAllow = patch.ProbeAllow
+	}
+	if given["insecure"] {
+		cur.Insecure = patch.Insecure
+	}
+	st := state.NewForService(a.svc.StateDir(), a.logger, a.svc.StateAccount())
+	if err := config.SaveSettings(st, cur); err != nil {
+		return fmt.Errorf("install: %w", err)
+	}
+	if _, err := fmt.Fprintf(a.stdout, "config guardada en %s\n", filepath.Join(a.svc.StateDir(), config.SettingsFileName)); err != nil {
+		return fmt.Errorf("escribiendo salida: %w", err)
+	}
+	if cur.Insecure {
+		if _, err := fmt.Fprintln(a.stderr, "aviso: --insecure permite http hacia servidores remotos: el token y las metricas viajan SIN CIFRAR; usa https"); err != nil {
+			return fmt.Errorf("escribiendo aviso: %w", err)
+		}
 	}
 	return nil
 }
@@ -515,7 +586,7 @@ func (a *app) status(ctx context.Context, args []string) error {
 	default:
 		enrolled = "no se pudo leer el estado (¿faltan privilegios?)"
 	}
-	_, err = fmt.Fprintf(a.stdout, "servicio: %s\nestado del agente: %s\n", line, enrolled)
+	_, err = fmt.Fprintf(a.stdout, "servicio: %s\nestado del agente: %s\n%s", line, enrolled, a.settingsSummary())
 	return err //nolint:wrapcheck // error de escritura a stdout, sin contexto extra
 }
 
@@ -539,4 +610,70 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// settingsSummary describe la config persistente de `install` (sin secretos: no hay ninguno en ella).
+// Las variables de entorno del servicio, si las hay, la pisan; aqui solo se ve el archivo.
+func (a *app) settingsSummary() string {
+	s, err := config.LoadSettings(a.svc.StateDir())
+	if err != nil {
+		return "config: no se pudo leer (" + config.SettingsFileName + " ilegible o sin permisos)\n"
+	}
+	return fmt.Sprintf("config (%s; las variables ARGOS_* del servicio tienen prioridad):\n  inventario: %s\n  probe-allow: %s\n  insecure: %t\n",
+		config.SettingsFileName, orNone(s.Inventory), orNone(s.ProbeAllow), s.Insecure)
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "(ninguno)"
+	}
+	return s
+}
+
+// update baja e instala la ultima version publicada por el servidor (ver package updater). Requiere
+// root/administrador y el servicio instalado; conserva estado y config y reinicia el servicio.
+func (a *app) update(ctx context.Context, args []string) error {
+	if err := noArgs("update", args); err != nil {
+		return err
+	}
+	if a.version == "dev" || a.version == "" {
+		return fmt.Errorf("update: %w", updater.ErrDevBuild)
+	}
+	if !a.svc.Installed() {
+		return errors.New("update: el servicio no esta instalado; instala con `argos-agent install` (o el script install.sh / install.ps1)")
+	}
+	if err := a.svc.RequirePrivileges(); err != nil {
+		return fmt.Errorf("update: %w", err)
+	}
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return err
+	}
+	creds, err := a.newStore(cfg).Load()
+	if err != nil {
+		return fmt.Errorf("update: %w", err)
+	}
+	serverURL := firstNonEmpty(cfg.ServerURL, creds.ServerURL)
+	if serverURL == "" {
+		return errors.New("update: falta el servidor: define ARGOS_SERVER_URL")
+	}
+	if err := a.checkTransport(serverURL, cfg.AllowInsecure); err != nil {
+		return err
+	}
+	client, err := transport.NewClient(cfg.CAFile, updateTimeout)
+	if err != nil {
+		return fmt.Errorf("cliente http: %w", err)
+	}
+	swapper := a.swapper
+	if swapper == nil {
+		swapper = updater.FileSwapper{Svc: a.svc, IsRunning: service.StatusRunning, Logger: a.logger}
+	}
+	err = updater.Run(ctx, updater.Options{
+		Server: serverURL, Version: a.version, HTTP: client, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
+		Swapper: swapper, Out: a.stdout,
+	})
+	if err != nil {
+		return fmt.Errorf("update: %w", err)
+	}
+	return nil
 }

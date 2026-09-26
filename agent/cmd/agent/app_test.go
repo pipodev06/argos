@@ -121,9 +121,11 @@ func (f *fakeSvc) Stop(context.Context) error  { return f.record("stop") }
 func (f *fakeSvc) Status(context.Context) (string, error) {
 	return "instalado; estado: detenido", f.record("status")
 }
-func (f *fakeSvc) Installed() bool      { return f.installed }
-func (f *fakeSvc) StateDir() string     { return f.stateDir }
-func (f *fakeSvc) StateAccount() string { return "" }
+func (f *fakeSvc) Installed() bool          { return f.installed }
+func (f *fakeSvc) StateDir() string         { return f.stateDir }
+func (f *fakeSvc) StateAccount() string     { return "" }
+func (f *fakeSvc) ExePath() (string, error) { return filepath.Join(f.stateDir, "argos-agent"), nil }
+func (f *fakeSvc) RequirePrivileges() error { return nil }
 
 type harness struct {
 	app    *app

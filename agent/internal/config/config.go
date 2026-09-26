@@ -81,6 +81,20 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 		CAFile:       getenv("ARGOS_CA_FILE"),
 	}
 
+	if cfg.StateDir == "" {
+		dir, err := defaultStateDir()
+		if err != nil {
+			return Config{}, fmt.Errorf("no se pudo determinar el directorio de estado, define ARGOS_STATE_DIR: %w", err)
+		}
+		cfg.StateDir = dir
+	}
+	// Config persistente de `install` (settings.json): solo rellena lo que el entorno no define.
+	settings, err := LoadSettings(cfg.StateDir)
+	if err != nil {
+		return Config{}, err
+	}
+	getenv = settings.overlay(getenv)
+
 	if cfg.ServerURL != "" {
 		if _, err := parseServerURL(cfg.ServerURL); err != nil {
 			return Config{}, fmt.Errorf("ARGOS_SERVER_URL invalida: %w", err)
@@ -156,13 +170,6 @@ func Load(getenv func(string) string, defaultStateDir func() (string, error)) (C
 		if err != nil {
 			return Config{}, fmt.Errorf("ARGOS_UPDATES_SUDO invalida (true o false): %w", err)
 		}
-	}
-	if cfg.StateDir == "" {
-		dir, err := defaultStateDir()
-		if err != nil {
-			return Config{}, fmt.Errorf("no se pudo determinar el directorio de estado, define ARGOS_STATE_DIR: %w", err)
-		}
-		cfg.StateDir = dir
 	}
 	if cfg.CAFile == "" {
 		if ca := filepath.Join(cfg.StateDir, state.CAFileName); fileExists(ca) {

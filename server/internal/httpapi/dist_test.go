@@ -401,7 +401,7 @@ func TestInstallScriptsHardening(t *testing.T) {
 	if !strings.HasSuffix(sh, "\nmain \"$@\"\n") {
 		t.Error("install.sh debe terminar con main \"$@\" (evita ejecutar un script truncado)")
 	}
-	if !strings.HasSuffix(ps, "\nMain -Server $Server -Token $Token -Ca $Ca\n") {
+	if !strings.HasSuffix(ps, "\nMain -Server $Server -Token $Token -Ca $Ca -Inventory $Inventory -ProbeAllow $ProbeAllow -Privileged $Privileged.IsPresent -Insecure $Insecure.IsPresent -Update $Update.IsPresent\n") {
 		t.Error("install.ps1 debe terminar con la llamada a Main")
 	}
 	if strings.Count(sh, "main \"$@\"") != 1 {
@@ -411,7 +411,7 @@ func TestInstallScriptsHardening(t *testing.T) {
 		t.Error("install.sh tiene CRLF: rompe /bin/sh")
 	}
 	for _, s := range []struct{ name, body string }{{"install.sh", sh}, {"install.ps1", ps}} {
-		for _, bad := range []string{"set -x", "set -o xtrace", "curl -k", "--insecure", "-SkipCertificateCheck", "Start-Transcript", "curl -L", "-fsSL -k"} {
+		for _, bad := range []string{"set -x", "set -o xtrace", "curl -k", "-SkipCertificateCheck", "Start-Transcript", "curl -L", "-fsSL -k"} {
 			if strings.Contains(s.body, bad) {
 				t.Errorf("%s contiene %q", s.name, bad)
 			}
@@ -431,5 +431,57 @@ func TestInstallScriptsHardening(t *testing.T) {
 	}
 	if !strings.Contains(sh, `printf '%s\n' "$token" | "$dest/argos-agent" enroll`) {
 		t.Error("install.sh: el token debe pasar por printf | enroll --token-stdin")
+	}
+}
+
+func TestInstallScriptsAgentOptions(t *testing.T) {
+	t.Parallel()
+	sh, ps := string(installSH), string(installPS1)
+	// Cada opcion del agente se acepta y se pasa a `argos-agent install`.
+	for _, want := range []string{
+		`--inventory)`, `--probe-allow)`, `--privileged)`, `--insecure)`, `--update)`,
+		`--inventory "$inventory"`, `--probe-allow "$probe_allow"`, `set -- "$@" --privileged`, `set -- "$@" --insecure`,
+	} {
+		if !strings.Contains(sh, want) {
+			t.Errorf("install.sh no maneja %q", want)
+		}
+	}
+	for _, want := range []string{
+		`[string]$Inventory`, `[string]$ProbeAllow`, `[switch]$Privileged`, `[switch]$Insecure`, `[switch]$Update`,
+		`'--inventory', $Inventory`, `'--probe-allow', $ProbeAllow`, `'--privileged'`, `'--insecure'`, `@('update')`,
+	} {
+		if !strings.Contains(ps, want) {
+			t.Errorf("install.ps1 no maneja %q", want)
+		}
+	}
+	// Lista blanca de caracteres antes de pasar los valores al agente.
+	for _, want := range []string{`*[!a-z,]*)`, `*[!0-9a-fA-F:./,]*)`} {
+		if !strings.Contains(sh, want) {
+			t.Errorf("install.sh sin la lista blanca %q", want)
+		}
+	}
+	for _, want := range []string{`'^[a-z,]+$'`, `'^[0-9a-fA-F:./,]+$'`} {
+		if !strings.Contains(ps, want) {
+			t.Errorf("install.ps1 sin la lista blanca %q", want)
+		}
+	}
+	// Nada de eval ni de armar comandos como texto: los valores viajan como argumentos separados.
+	for _, bad := range []string{"eval ", "Invoke-Expression", "iex ", "sh -c"} {
+		if strings.Contains(sh, bad) || strings.Contains(ps, bad) {
+			t.Errorf("los scripts contienen %q (riesgo de inyeccion)", bad)
+		}
+	}
+	// --insecure es del agente: ningun curl del script lo recibe ni desactiva la verificacion TLS.
+	for _, line := range strings.Split(sh, "\n") {
+		if strings.Contains(line, "curl ") && (strings.Contains(line, "--insecure") || strings.Contains(line, " -k")) {
+			t.Errorf("install.sh: curl sin verificar TLS: %q", line)
+		}
+	}
+	// --update no pide token y usa el subcomando del agente instalado.
+	if !strings.Contains(sh, `"$exe" update`) || !strings.Contains(sh, `--update no se combina con otras opciones`) {
+		t.Error("install.sh --update debe ejecutar `argos-agent update` y no combinarse con otras opciones")
+	}
+	if !strings.Contains(ps, `Invoke-Agent $exe @('update')`) || !strings.Contains(ps, `-Update no se combina con otras opciones`) {
+		t.Error("install.ps1 -Update debe ejecutar `argos-agent update` y no combinarse con otras opciones")
 	}
 }

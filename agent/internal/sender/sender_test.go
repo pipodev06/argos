@@ -32,6 +32,11 @@ func newClient(t *testing.T, endpoint string, mutate func(*Options)) (*Client, *
 	if mutate != nil {
 		mutate(&o)
 	}
+	if o.HTTPClient == nil {
+		// Transporte propio por cliente: httptest.Server.Close() llama a CloseIdleConnections del DefaultTransport y, con
+		// tests en paralelo, cortaba a mitad la conexion de otro test (flaky).
+		o.HTTPClient = &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()}
+	}
 	c, err := New(o)
 	if err != nil {
 		t.Fatal(err)

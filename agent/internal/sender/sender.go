@@ -1,5 +1,5 @@
 // Package sender envia reportes de metricas al servidor argos con reintentos
-// acotados y un buffer offline en memoria.
+// acotados y un buffer offline persistente en disco (buffer.log en el directorio de estado).
 package sender
 
 import (
@@ -175,12 +175,19 @@ type Options struct {
 	Token    string // agent token: solo va en el header Authorization
 	Logger   *slog.Logger
 
-	HTTPClient  *http.Client  // default: Timeout 10s
-	MaxBuffer   int           // reportes retenidos offline (default 120)
-	MaxAttempts int           // intentos por reporte en cada flush (default 3)
-	BaseDelay   time.Duration // backoff inicial (default 1s)
-	MaxDelay    time.Duration // tope del backoff (default 30s)
-	DrainPace   time.Duration // pausa entre envios al vaciar el buffer (default DefaultDrainPace)
+	HTTPClient     *http.Client // default: Timeout 10s
+	MaxBuffer      int          // reportes retenidos offline (default DefaultMaxBuffer)
+	MaxBufferBytes int64        // bytes retenidos offline (default DefaultMaxBufferBytes)
+	// Store persiste el buffer offline en el directorio de estado (nil = solo memoria).
+	Store FileStore
+	// MaxAge descarta reportes mas viejos que esto sin enviarlos: el server rechaza timestamps fuera
+	// de su ventana (0 = no caducan).
+	MaxAge      time.Duration
+	Now         func() time.Time // default time.Now
+	MaxAttempts int              // intentos por reporte en cada flush (default 3)
+	BaseDelay   time.Duration    // backoff inicial (default 1s)
+	MaxDelay    time.Duration    // tope del backoff (default 30s)
+	DrainPace   time.Duration    // pausa entre envios al vaciar el buffer (default DefaultDrainPace)
 	// OnChecks recibe la lista de chequeos que el servidor manda en la respuesta (nil = se ignora).
 	OnChecks func(context.Context, checks.Set)
 	Interval time.Duration                              // cadencia del agente: limita los envios por Send a Interval/DrainPace (0 = sin limite)
@@ -202,7 +209,9 @@ type Client struct {
 	onChecks    func(context.Context, checks.Set)
 	sleep       func(context.Context, time.Duration) error
 
-	buf []Report
+	q      *queue
+	maxAge time.Duration
+	now    func() time.Time
 }
 
 // New crea un Client. Falla si la URL base es invalida.
@@ -223,6 +232,8 @@ func New(o Options) (*Client, error) {
 		drainPace:   o.DrainPace,
 		sleep:       o.Sleep,
 		onChecks:    o.OnChecks,
+		maxAge:      o.MaxAge,
+		now:         o.Now,
 	}
 	if c.logger == nil {
 		c.logger = slog.New(slog.DiscardHandler)
@@ -231,7 +242,10 @@ func New(o Options) (*Client, error) {
 		c.http = &http.Client{Timeout: 10 * time.Second}
 	}
 	if c.maxBuffer <= 0 {
-		c.maxBuffer = 120
+		c.maxBuffer = DefaultMaxBuffer
+	}
+	if c.now == nil {
+		c.now = time.Now
 	}
 	if c.maxAttempts <= 0 {
 		c.maxAttempts = 3
@@ -253,11 +267,20 @@ func New(o Options) (*Client, error) {
 	if c.sleep == nil {
 		c.sleep = sleepCtx
 	}
+	maxBytes := o.MaxBufferBytes
+	if maxBytes <= 0 {
+		maxBytes = DefaultMaxBufferBytes
+	}
+	c.q = newQueue(o.Store, c.maxBuffer, maxBytes, c.logger)
+	c.q.load()
 	return c, nil
 }
 
 // Buffered es la cantidad de reportes pendientes de envio.
-func (c *Client) Buffered() int { return len(c.buf) }
+func (c *Client) Buffered() int { return c.q.len() }
+
+// Close libera el archivo del buffer offline. Lo pendiente queda en disco pa el proximo arranque.
+func (c *Client) Close() { c.q.close() }
 
 // Send encola el reporte y trata de vaciar el buffer en orden (el mas viejo primero),
 // con una pausa DrainPace entre envios pa no superar el limite del server.
@@ -268,33 +291,44 @@ func (c *Client) Buffered() int { return len(c.buf) }
 // reporte se descarta y se devuelve el error. Un 401 devuelve ErrTokenRejected
 // sin descartar nada: el llamador debe detenerse.
 func (c *Client) Send(ctx context.Context, r Report) error {
-	if len(c.buf) >= c.maxBuffer {
-		c.logger.Warn("buffer offline lleno, se descarta el reporte mas viejo", "max", c.maxBuffer)
-		oldest := c.buf[0]
-		c.buf = c.buf[1:]
-		if len(c.buf) > 0 {
-			c.buf[0].inheritExtras(oldest)
-		} else {
-			r.inheritExtras(oldest)
-		}
-	}
-	c.buf = append(c.buf, r)
+	c.q.push(r)
 	return c.flush(ctx)
+}
+
+// dropExpired descarta los reportes del frente mas viejos que MaxAge: el server los rechazaria
+// (ventana de timestamps) y reenviarlos solo gasta el limite de ritmo.
+func (c *Client) dropExpired() {
+	if c.maxAge <= 0 {
+		return
+	}
+	limit := c.now().Add(-c.maxAge).Unix()
+	n := 0
+	for c.q.len() > 0 && c.q.head().Timestamp < limit {
+		c.q.pop()
+		n++
+	}
+	if n > 0 {
+		c.logger.Warn("reportes offline demasiado viejos, se descartan sin enviar", "descartados", n)
+	}
 }
 
 func (c *Client) flush(ctx context.Context) error {
 	var dropped error
-	for processed := 0; len(c.buf) > 0; processed++ {
+	for processed := 0; ; processed++ {
+		c.dropExpired()
+		if c.q.len() == 0 {
+			break
+		}
 		if processed > 0 {
 			if c.maxPerSend > 0 && processed >= c.maxPerSend {
-				c.logger.Info("buffer pendiente, sigue en el proximo ciclo", "pending", len(c.buf))
+				c.logger.Info("buffer pendiente, sigue en el proximo ciclo", "pending", c.q.len())
 				break
 			}
 			if err := c.sleep(ctx, c.drainPace); err != nil {
 				return err
 			}
 		}
-		err := c.sendWithRetry(ctx, c.buf[0])
+		err := c.sendWithRetry(ctx, *c.q.head())
 		switch {
 		case err == nil:
 		case errors.Is(err, ErrTokenRejected):
@@ -305,7 +339,7 @@ func (c *Client) flush(ctx context.Context) error {
 			c.logger.Error("el servidor rechazo el reporte, se descarta", "err", err)
 			dropped = err
 		}
-		c.buf = c.buf[1:]
+		c.q.pop()
 	}
 	return dropped
 }

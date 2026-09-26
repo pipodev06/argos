@@ -6,14 +6,24 @@
 #                    comandos; sin ninguno de los dos se pide por consola sin eco.
 #   -Ca <archivo>    CA privada (PEM) del server: el agente la copia a su estado. La descarga usa el almacen
 #                    de certificados de Windows: importa la CA ahi si el server no usa una CA publica.
+#   -Inventory <m>   modulos de inventario: ports,services,processes,updates o all (se guarda en el agente).
+#   -ProbeAllow <r>  IPs o CIDRs (/24 o mas chicos, separados por comas) que el colector ping puede sondear.
+#   -Privileged      modo privilegiado del agente (el servicio corre como LocalSystem).
+#   -Insecure        permite un server http:// remoto (token y metricas viajan SIN CIFRAR: usa https).
+#   -Update          actualiza el agente ya instalado a la ultima version (sin -Token ni otras opciones).
 #
 # Descarga el binario, verifica su SHA-256 contra el manifiesto y ABORTA si no coincide. No se auto-eleva.
 # El token llega al agente por entrada estandar (enroll --token-stdin): no se escribe en disco ni en logs.
 # Todo el codigo esta dentro de Main, que se invoca en la ULTIMA linea.
 param(
-    [Parameter(Mandatory = $true)][string]$Server,
+    [string]$Server,
     [string]$Token,
-    [string]$Ca
+    [string]$Ca,
+    [string]$Inventory,
+    [string]$ProbeAllow,
+    [switch]$Privileged,
+    [switch]$Insecure,
+    [switch]$Update
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,7 +38,7 @@ function Invoke-Agent([string]$Exe, [string[]]$AgentArgs) {
     if ($LASTEXITCODE -ne 0) { Fail "argos-agent $($AgentArgs[0]) fallo (codigo $LASTEXITCODE)" }
 }
 
-function Main([string]$Server, [string]$Token, [string]$Ca) {
+function Main([string]$Server, [string]$Token, [string]$Ca, [string]$Inventory, [string]$ProbeAllow, [bool]$Privileged, [bool]$Insecure, [bool]$Update) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -36,9 +46,35 @@ function Main([string]$Server, [string]$Token, [string]$Ca) {
         Fail 'ejecutalo en una consola de PowerShell como administrador'
     }
 
+    if ($Update) {
+        # El agente instalado se actualiza a si mismo (descarga, verifica el SHA-256 del manifiesto, reemplaza
+        # su binario conservando estado y config, y reinicia el servicio).
+        if ($Server -or $Token -or $Ca -or $Inventory -or $ProbeAllow -or $Privileged -or $Insecure) {
+            Fail '-Update no se combina con otras opciones'
+        }
+        $exe = Join-Path (Join-Path $env:ProgramFiles 'argos-agent') 'argos-agent.exe'
+        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+            Fail "el agente no esta instalado en este equipo (no existe $exe): instalalo con -Server y -Token"
+        }
+        Invoke-Agent $exe @('update')
+        Write-Host 'argos install: actualizacion terminada'
+        return
+    }
+
+    # Lista blanca de caracteres: los valores llegan al agente como argumentos separados, pero se rechaza todo lo raro.
+    if ($Inventory -and $Inventory -notmatch '^[a-z,]+$') {
+        Fail '-Inventory solo admite letras minusculas y comas (ej. ports,services o all)'
+    }
+    if ($ProbeAllow -and $ProbeAllow -notmatch '^[0-9a-fA-F:./,]+$') {
+        Fail '-ProbeAllow solo admite IPs y CIDRs separados por comas (ej. 192.168.1.0/24)'
+    }
+    if (-not $Server) { Fail 'falta -Server <URL>' }
     $Server = $Server.TrimEnd('/')
     if ($Server -notmatch '^https://' -and $Server -notmatch '^http://(localhost|127\.0\.0\.1)(:\d+)?$') {
-        Fail 'el server debe ser https:// (o http://localhost en desarrollo)'
+        if (-not ($Insecure -and $Server -match '^http://[0-9A-Za-z.-]+(:\d+)?$')) {
+            Fail 'el server debe ser https:// (o http://localhost en desarrollo); usa -Insecure solo si aceptas que todo viaje sin cifrar'
+        }
+        Write-Warning 'argos install: server http:// sin cifrar (-Insecure): el token y las metricas se pueden leer o falsificar en la red'
     }
     if ($Ca -and -not (Test-Path -LiteralPath $Ca -PathType Leaf)) { Fail "no se puede leer la CA: $Ca" }
 
@@ -77,7 +113,13 @@ function Main([string]$Server, [string]$Token, [string]$Ca) {
         $exe = Join-Path $dir 'argos-agent.exe'
         Copy-Item -LiteralPath $download -Destination $exe -Force
 
-        if ($Ca) { Invoke-Agent $exe @('install', '--ca-file', $Ca) } else { Invoke-Agent $exe @('install') }
+        $installArgs = @('install')
+        if ($Ca) { $installArgs += @('--ca-file', $Ca) }
+        if ($Inventory) { $installArgs += @('--inventory', $Inventory) }
+        if ($ProbeAllow) { $installArgs += @('--probe-allow', $ProbeAllow) }
+        if ($Privileged) { $installArgs += '--privileged' }
+        if ($Insecure) { $installArgs += '--insecure' }
+        Invoke-Agent $exe $installArgs
         $Token | & $exe enroll --server $Server --token-stdin
         if ($LASTEXITCODE -ne 0) { Fail "argos-agent enroll fallo (codigo $LASTEXITCODE)" }
         $Token = $null
@@ -89,4 +131,4 @@ function Main([string]$Server, [string]$Token, [string]$Ca) {
     }
 }
 
-Main -Server $Server -Token $Token -Ca $Ca
+Main -Server $Server -Token $Token -Ca $Ca -Inventory $Inventory -ProbeAllow $ProbeAllow -Privileged $Privileged.IsPresent -Insecure $Insecure.IsPresent -Update $Update.IsPresent

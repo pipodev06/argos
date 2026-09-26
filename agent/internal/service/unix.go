@@ -142,3 +142,6 @@ func removeIfExists(path string) error {
 	}
 	return nil
 }
+
+// RequirePrivileges exige root (actualizar el binario del servicio escribe en directorios del sistema).
+func (Manager) RequirePrivileges() error { return requireRoot() }
