@@ -53,13 +53,15 @@ func tcpBody(name string) string {
 	return fmt.Sprintf(`{"name":%q,"type":"tcp","target_host":"localhost","target_port":22,"warn_ms":100,"crit_ms":500}`, name)
 }
 
-func httpBody(name string) string {
-	return fmt.Sprintf(`{"name":%q,"type":"http","url":%q,"header_name":"Authorization","secret":%q}`, name, checkURLWithQ, checkSecretValue)
+// httpBody es un chequeo http con secreto: siempre acotado a un grupo (con alcance all no se admite un secreto).
+func httpBody(name, groupID string) string {
+	return fmt.Sprintf(`{"name":%q,"type":"http","url":%q,"header_name":"Authorization","secret":%q,"scope":{"type":"group","group_id":%q}}`,
+		name, checkURLWithQ, checkSecretValue, groupID)
 }
 
 func TestCheckSecretIsNeverReturnedNorAudited(t *testing.T) {
 	e := newCheckEnv(t)
-	rec := e.do("POST", "/api/v1/service-checks", httpBody("API salud"), withCookie(e.admin))
+	rec := e.do("POST", "/api/v1/service-checks", httpBody("API salud", e.newGroup(e.admin, `{"name":"g-secreto"}`)), withCookie(e.admin))
 	e.wantStatus(rec, http.StatusCreated, "")
 	if strings.Contains(rec.Body.String(), "TOKEN-ULTRA") {
 		t.Fatalf("crear devolvio el secreto: %s", rec.Body.String())
@@ -254,7 +256,7 @@ func TestChecksDeliveryAndRevision(t *testing.T) {
 	mustExec(t, `UPDATE hosts SET group_id = $1 WHERE id = $2`, g, hostA)
 
 	all := e.create(tcpBody("todos"))
-	httpc := e.create(httpBody("web"))
+	httpc := e.create(httpBody("web", g))
 	e.create(fmt.Sprintf(`{"name":"solo grupo","type":"service","service_name":"nginx","scope":{"type":"group","group_id":%q}}`, g))
 	off := e.create(tcpBody("apagado"))
 	e.wantStatus(e.do("PATCH", "/api/v1/service-checks/"+off["id"].(string), `{"enabled":false}`, withCookie(e.admin)), http.StatusOK, "")
@@ -283,8 +285,8 @@ func TestChecksDeliveryAndRevision(t *testing.T) {
 		t.Error("el agente dentro del alcance debe recibir el secreto descifrado, la cabecera y la URL")
 	}
 	// El otro host (sin grupo) no recibe el chequeo de grupo.
-	if b := e.report(tokB, "", ""); b.Checks == nil || len(b.Checks.Items) != 2 {
-		t.Errorf("host fuera del grupo got %+v, want 2 chequeos", b.Checks)
+	if b := e.report(tokB, "", ""); b.Checks == nil || len(b.Checks.Items) != 1 {
+		t.Errorf("host fuera del grupo got %+v, want 1 chequeo (el de alcance all)", b.Checks)
 	}
 
 	// Misma revision: se omite. Estable entre llamadas.
@@ -315,7 +317,7 @@ func TestChecksDeliveryAndRevision(t *testing.T) {
 	// Y al desasignar el host del grupo.
 	mustExec(t, `UPDATE hosts SET group_id = NULL WHERE id = $1`, hostA)
 	r4 := e.report(tokA, r3.Checks.Rev, "")
-	if r4.Checks == nil || len(r4.Checks.Items) != 2 || r4.Checks.Rev == r3.Checks.Rev {
+	if r4.Checks == nil || len(r4.Checks.Items) != 1 || r4.Checks.Rev == r3.Checks.Rev {
 		t.Fatalf("cambiar el alcance resuelto debe cambiar la lista y la revision: %+v", r4.Checks)
 	}
 }

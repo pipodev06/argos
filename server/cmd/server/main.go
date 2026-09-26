@@ -77,7 +77,13 @@ func run(logger *slog.Logger, args []string) error {
 	} else if pending {
 		return errors.New("hay migraciones pendientes y ARGOS_AUTO_MIGRATE=false: ejecuta `argos-server migrate` (en el deploy: sudo argos-admin migrate)")
 	}
-	st := store.New(pool)
+	detailSource := store.SourceDefault
+	if cfg.MetricsRetentionFromEnv {
+		detailSource = store.SourceEnv
+	}
+	st := store.New(pool).WithRetention(store.RetentionDefaults{
+		DetailDays: cfg.MetricsRetentionDays, DetailSource: detailSource, HotDays: cfg.MetricsHotDays, HourlyDays: cfg.MetricsHourlyRetentionDays,
+	})
 
 	hasher, err := auth.NewHasher(auth.DefaultParams, maxConcurrentHashes)
 	if err != nil {
@@ -208,7 +214,8 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 		})
 	})
 	metricsMaint := retention.New(pool, logger, retention.Config{
-		RawDays:           cfg.MetricsRetentionDays,
+		HotDays:           cfg.MetricsHotDays,
+		DetailDays:        cfg.MetricsRetentionDays,
 		HourlyDays:        cfg.MetricsHourlyRetentionDays,
 		ServiceChecksDays: cfg.ServiceChecksRetentionDays,
 		DiskDays:          cfg.DiskRetentionDays,

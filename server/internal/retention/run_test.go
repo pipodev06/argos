@@ -151,6 +151,7 @@ func TestRunOnceDropsOnlyWhatIsAlreadySummarized(t *testing.T) {
 	now := farNow()
 	today := utcDay(now)
 	m, logs := newMaint(t, testCfg, now) // crudo 8 d: todo lo anterior a hoy-8 esta vencido
+	m.packBudget = 100                   // aqui se prueba la guardia del resumen, no el limite de empaquetado por ciclo
 	h := mkHost(t, "srv-ciclo")
 
 	day := func(off int) time.Time { return today.AddDate(0, 0, off) }

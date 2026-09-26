@@ -25,6 +25,7 @@ const (
 	// Retencion de metricas. El minimo de 8 dias cubre los 7 dias que el ingest acepta hacia
 	// atras (timestamp >= now-7d): ninguna muestra aceptada cae en una particion ya borrada.
 	defaultMetricsRetentionDays       = 30
+	defaultMetricsHotDays             = 8
 	defaultMetricsHourlyRetentionDays = 400
 	defaultServiceChecksRetentionDays = 14
 	defaultDiskRetentionDays          = 30
@@ -71,8 +72,16 @@ type Config struct {
 	HostDownAfter time.Duration
 	// HostCheckInterval es cada cuanto corre el detector de hosts caidos (1 s .. HostDownAfter).
 	HostCheckInterval time.Duration
-	// MetricsRetentionDays es cuanto se conservan las metricas crudas (>= 8).
+	// MetricsRetentionDays (ARGOS_METRICS_RETENTION_DAYS, >= 8) es el valor global POR DEFECTO de la retencion del
+	// detalle de metricas (dias de chunks en metrics_chunks). Un admin puede cambiarlo desde la API (tabla settings) y
+	// cada grupo o host puede tener el suyo. Antes de la version con chunks era cuanto se conservaba el crudo: ahora
+	// el crudo dura MetricsHotDays y esta variable solo dice cuanto detalle (comprimido) se guarda despues.
 	MetricsRetentionDays int
+	// MetricsRetentionFromEnv indica que ARGOS_METRICS_RETENTION_DAYS estaba definida (origen "env" en la API).
+	MetricsRetentionFromEnv bool
+	// MetricsHotDays (ARGOS_METRICS_HOT_DAYS, >= 8) es la ventana caliente: cuanto se conserva `metrics` sin empaquetar.
+	// El minimo de 8 cubre los 7 dias que el ingest acepta hacia atras y el resumen por hora.
+	MetricsHotDays int
 	// MetricsHourlyRetentionDays es cuanto se conservan los resumenes por hora (>= MetricsRetentionDays).
 	MetricsHourlyRetentionDays int
 	// ServiceChecksRetentionDays es cuanto se conservan los chequeos de servicio (>= 8).
@@ -134,6 +143,7 @@ func Load(getenv func(string) string) (Config, error) {
 		HostCheckInterval:  defaultHostCheckInterval,
 
 		MetricsRetentionDays:       defaultMetricsRetentionDays,
+		MetricsHotDays:             defaultMetricsHotDays,
 		MetricsHourlyRetentionDays: defaultMetricsHourlyRetentionDays,
 		ServiceChecksRetentionDays: defaultServiceChecksRetentionDays,
 		DiskRetentionDays:          defaultDiskRetentionDays,
@@ -235,6 +245,7 @@ func loadRetention(getenv func(string) string, cfg *Config) error {
 		min int
 	}{
 		{"ARGOS_METRICS_RETENTION_DAYS", &cfg.MetricsRetentionDays, minRawRetentionDays},
+		{"ARGOS_METRICS_HOT_DAYS", &cfg.MetricsHotDays, minRawRetentionDays},
 		{"ARGOS_METRICS_HOURLY_RETENTION_DAYS", &cfg.MetricsHourlyRetentionDays, minRawRetentionDays},
 		{"ARGOS_SERVICE_CHECKS_RETENTION_DAYS", &cfg.ServiceChecksRetentionDays, minRawRetentionDays},
 		{"ARGOS_DISK_RETENTION_DAYS", &cfg.DiskRetentionDays, minRawRetentionDays},
@@ -255,6 +266,11 @@ func loadRetention(getenv func(string) string, cfg *Config) error {
 			return fmt.Errorf("%s debe ser un entero >= %d", v.env, v.min)
 		}
 		*v.dst = n
+	}
+	cfg.MetricsRetentionFromEnv = getenv("ARGOS_METRICS_RETENTION_DAYS") != ""
+	if cfg.MetricsRetentionDays < cfg.MetricsHotDays {
+		return fmt.Errorf("ARGOS_METRICS_RETENTION_DAYS (%d) no puede ser menor que ARGOS_METRICS_HOT_DAYS (%d)",
+			cfg.MetricsRetentionDays, cfg.MetricsHotDays)
 	}
 	if cfg.MetricsHourlyRetentionDays < cfg.MetricsRetentionDays {
 		return fmt.Errorf("ARGOS_METRICS_HOURLY_RETENTION_DAYS (%d) no puede ser menor que ARGOS_METRICS_RETENTION_DAYS (%d)",

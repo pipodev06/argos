@@ -260,7 +260,7 @@ func TestPurgeHourlyDeletesOnlyExpiredInBatches(t *testing.T) {
 	ctx := context.Background()
 	now := farNow()
 	today := utcDay(now)
-	m, logs := newMaint(t, Config{RawDays: 8, HourlyDays: 10, ServiceChecksDays: 14, DiskDays: 30, Interval: time.Minute}, now)
+	m, logs := newMaint(t, Config{HotDays: 8, DetailDays: 30, HourlyDays: 10, ServiceChecksDays: 14, DiskDays: 30, Interval: time.Minute}, now)
 
 	h := mkHost(t, "srv-hourly-purge")
 	// Mas filas vencidas que el tamano del lote (5000), pa recorrer varios lotes: 6500 horas ~ 270 dias.

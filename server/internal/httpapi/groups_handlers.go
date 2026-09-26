@@ -31,10 +31,15 @@ type groupDTO struct {
 	DownAfterSeconds *int   `json:"down_after_seconds"`
 	AlwaysOn         bool   `json:"always_on"`
 	HostCount        int    `json:"host_count"`
+	// Retencion del detalle de metricas: el valor propio (null = hereda), el vigente y su origen (group o global).
+	DetailRetentionDays *int   `json:"detail_retention_days"`
+	EffectiveDetailDays int    `json:"effective_detail_days"`
+	RetentionSource     string `json:"retention_source"`
 }
 
 func toGroupDTO(g store.Group) groupDTO {
-	return groupDTO{ID: g.ID, Name: g.Name, DownAfterSeconds: g.DownAfterSeconds, AlwaysOn: g.AlwaysOn, HostCount: g.HostCount}
+	return groupDTO{ID: g.ID, Name: g.Name, DownAfterSeconds: g.DownAfterSeconds, AlwaysOn: g.AlwaysOn, HostCount: g.HostCount,
+		DetailRetentionDays: g.DetailRetentionDays, EffectiveDetailDays: g.EffectiveDetailDays, RetentionSource: g.RetentionSource}
 }
 
 func (a *API) listGroups(w http.ResponseWriter, r *http.Request) error {
@@ -97,6 +102,9 @@ type updateGroupReq struct {
 	Name             *string       `json:"name"`
 	DownAfterSeconds optional[int] `json:"down_after_seconds"`
 	AlwaysOn         *bool         `json:"always_on"`
+	// DetailRetentionDays: dias de detalle propios del grupo (8..730, null = heredar el global).
+	DetailRetentionDays optional[int] `json:"detail_retention_days"`
+	ConfirmShrink       bool          `json:"confirm_shrink"`
 }
 
 func (a *API) updateGroup(w http.ResponseWriter, r *http.Request) error {
@@ -108,10 +116,13 @@ func (a *API) updateGroup(w http.ResponseWriter, r *http.Request) error {
 	if err := decodeJSON(w, r, &req, maxSmallBodyBytes, true); err != nil {
 		return err
 	}
-	if req.Name == nil && !req.DownAfterSeconds.Set && req.AlwaysOn == nil {
-		return badRequest("nada que cambiar: envia name, down_after_seconds o always_on")
+	if req.Name == nil && !req.DownAfterSeconds.Set && req.AlwaysOn == nil && !req.DetailRetentionDays.Set {
+		return badRequest("nada que cambiar: envia name, down_after_seconds, always_on o detail_retention_days")
 	}
-	change := store.GroupChange{AlwaysOn: req.AlwaysOn, DownAfterSet: req.DownAfterSeconds.Set, DownAfterSeconds: req.DownAfterSeconds.Value}
+	change := store.GroupChange{
+		AlwaysOn: req.AlwaysOn, DownAfterSet: req.DownAfterSeconds.Set, DownAfterSeconds: req.DownAfterSeconds.Value,
+		DetailSet: req.DetailRetentionDays.Set, DetailDays: req.DetailRetentionDays.Value,
+	}
 	detail := map[string]any{}
 	if req.Name != nil {
 		name, err := checkName("name", *req.Name, maxGroupNameLen)
@@ -130,10 +141,21 @@ func (a *API) updateGroup(w http.ResponseWriter, r *http.Request) error {
 	if req.AlwaysOn != nil {
 		detail["always_on"] = *req.AlwaysOn
 	}
+	if req.DetailRetentionDays.Set {
+		if err := checkDetailDays(req.DetailRetentionDays.Value); err != nil {
+			return err
+		}
+		if err := a.checkShrink(r, store.RetentionTarget{Kind: store.TargetGroup, ID: id}, req.DetailRetentionDays.Value, req.ConfirmShrink); err != nil {
+			return err
+		}
+	}
 
 	g, err := a.store.UpdateGroup(r.Context(), id, change)
 	if err != nil {
 		return err
+	}
+	if req.DetailRetentionDays.Set {
+		a.auditRetention(r, store.TargetGroup, g.ID, req.DetailRetentionDays.Value)
 	}
 
 	e := actor(currentUser(r))

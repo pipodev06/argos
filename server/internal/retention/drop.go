@@ -21,6 +21,8 @@ type dropPolicy struct {
 	through *time.Time
 	// blocked: la marca de agua se necesita pero no existe (o no se pudo leer): no se borra nada.
 	blocked bool
+	// unpacked son las particiones (por nombre) que aun no estan empaquetadas en metrics_chunks: no se borran.
+	unpacked map[string]bool
 }
 
 // allowed indica si una particion que termina en upper (nil = sin cota) se puede borrar.
@@ -31,14 +33,19 @@ func (p dropPolicy) allowed(upper *time.Time) bool {
 	return p.through == nil || !upper.After(*p.through)
 }
 
-// dropExpired borra las particiones vencidas de metrics (con la guardia del resumen por hora),
+// allowedPart es allowed pa una particion concreta: ademas exige que no este pendiente de empaquetar.
+func (p dropPolicy) allowedPart(part partition) bool {
+	return p.allowed(part.upper) && !p.unpacked[part.name]
+}
+
+// dropExpired borra las particiones vencidas de metrics (con la guardia del resumen por hora y del empaquetado),
 // de service_checks y de disk_samples (ambas sin resumenes, sin guardia). La marca de agua se lee
 // de la BD en cada ciclo, nunca se asume.
 func (m *Maintainer) dropExpired(ctx context.Context, conn *pgx.Conn, now time.Time) error {
 	today := utcDay(now)
 	var errs []error
 
-	metrics := dropPolicy{table: tableMetrics, cutoff: today.AddDate(0, 0, -m.cfg.RawDays)}
+	metrics := dropPolicy{table: tableMetrics, cutoff: today.AddDate(0, 0, -m.cfg.HotDays)}
 	through, ok, err := readRollupThrough(ctx, conn)
 	switch {
 	case err != nil:
@@ -48,6 +55,15 @@ func (m *Maintainer) dropExpired(ctx context.Context, conn *pgx.Conn, now time.T
 		metrics.blocked = true // nada resumido aun: no se puede borrar crudo sin perder historia
 	default:
 		metrics.through = &through
+		// Empaqueta antes de borrar: lo que no quede empaquetado se conserva y se reintenta en el siguiente ciclo.
+		unpacked, err := m.packExpired(ctx, conn, metrics)
+		if err != nil {
+			errs = append(errs, err)
+			if unpacked == nil {
+				metrics.blocked = true // ni siquiera se supo que falta empaquetar: no se borra nada
+			}
+		}
+		metrics.unpacked = unpacked
 	}
 	checks := dropPolicy{table: tableServiceChecks, cutoff: today.AddDate(0, 0, -m.cfg.ServiceChecksDays)}
 	disks := dropPolicy{table: tableDiskSamples, cutoff: today.AddDate(0, 0, -m.cfg.DiskDays)}
@@ -73,7 +89,7 @@ func (m *Maintainer) dropTable(ctx context.Context, conn *pgx.Conn, policy dropP
 	// Las pendientes primero: Postgres no deja desacoplar otra mientras haya una pendiente.
 	pending, rest := splitPending(parts)
 	for _, p := range pending {
-		if !policy.allowed(p.upper) {
+		if !policy.allowedPart(p) {
 			m.log.Warn("particion con DETACH pendiente fuera de la ventana de borrado: se finaliza sin borrarla",
 				"table", policy.table, "partition", p.name)
 		}
@@ -82,7 +98,7 @@ func (m *Maintainer) dropTable(ctx context.Context, conn *pgx.Conn, policy dropP
 		}
 	}
 	for _, p := range rest {
-		if !policy.allowed(p.upper) {
+		if !policy.allowedPart(p) {
 			continue
 		}
 		if err := m.detachAndDrop(ctx, conn, policy.table, p); err != nil {
@@ -128,7 +144,7 @@ func (m *Maintainer) finalizeDetach(ctx context.Context, conn *pgx.Conn, policy 
 		return fmt.Errorf("finalizando DETACH de %s: %w", p.name, err)
 	}
 	m.log.Info("DETACH pendiente finalizado", "table", policy.table, "partition", p.name)
-	if !policy.allowed(p.upper) {
+	if !policy.allowedPart(p) {
 		return nil
 	}
 	return m.dropDetached(ctx, conn, policy.table, p.name, p.upper)

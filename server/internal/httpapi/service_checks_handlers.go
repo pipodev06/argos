@@ -515,6 +515,9 @@ func (a *API) createServiceCheck(w http.ResponseWriter, r *http.Request) error {
 	if d.HeaderName != nil && !validCheckHeaders[*d.HeaderName] {
 		return badRequest("header_name debe ser Authorization, X-API-Key o X-Auth-Token")
 	}
+	if err := checkSecretScope(&d); err != nil {
+		return err
+	}
 
 	u := currentUser(r)
 	created, err := a.store.CreateServiceCheck(r.Context(), d, u.ID)
@@ -730,6 +733,15 @@ func (a *API) applyCheckSecret(d *store.ServiceCheckDef, req updateServiceCheckR
 	}
 	if d.HeaderName != nil && !validCheckHeaders[*d.HeaderName] {
 		return badRequest("header_name debe ser Authorization, X-API-Key o X-Auth-Token")
+	}
+	return checkSecretScope(d)
+}
+
+// checkSecretScope impide que un secreto viaje a los agentes de todos los clientes: un chequeo de alcance `all` se
+// entrega a cada agente, asi que con secreto debe acotarse a un grupo o a un host.
+func checkSecretScope(d *store.ServiceCheckDef) error {
+	if len(d.SecretEnc) > 0 && d.Scope.Type == store.ScopeAll {
+		return badRequest("un chequeo con secreto no puede tener alcance all: acotalo a un grupo o a un host")
 	}
 	return nil
 }

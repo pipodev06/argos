@@ -46,6 +46,12 @@ type Store interface {
 	DeleteGroup(ctx context.Context, id string) error
 	SetHostGroup(ctx context.Context, hostID string, groupID *string) (store.HostGroupResult, error)
 	RenameHost(ctx context.Context, hostID, name string) error
+	// Retencion del detalle de metricas (global, por grupo y por host).
+	RetentionSettings(ctx context.Context) (store.RetentionSettings, error)
+	SetGlobalDetailDays(ctx context.Context, days int, userID string) error
+	SetHostDetailDays(ctx context.Context, hostID string, days *int) error
+	EffectiveDetailDays(ctx context.Context, hostID string) (days int, source string, err error)
+	PreviewRetention(ctx context.Context, t store.RetentionTarget, newDays *int, today time.Time) (store.ShrinkPreview, error)
 	BulkHosts(ctx context.Context, b store.Bulk) (int, error)
 
 	// Alertas, reglas, mantenimiento y eventos de host.
@@ -306,6 +312,9 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
 	a.route(mux, "PUT /api/v1/hosts/{id}/group", accessAdmin, a.setHostGroup)
 	a.route(mux, "PUT /api/v1/hosts/{id}/name", accessAdmin, a.renameHost)
+	a.route(mux, "PUT /api/v1/hosts/{id}/retention", accessAdmin, a.setHostRetention)
+	a.route(mux, "GET /api/v1/settings/retention", accessAdmin, a.getRetention)
+	a.route(mux, "PUT /api/v1/settings/retention", accessAdmin, a.putRetention)
 	a.route(mux, "GET /api/v1/hosts/{id}/events", accessSession, a.hostEvents)
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory", accessSession, a.requireInventory(a.inventoryOverview))
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/ports", accessSession, a.requireInventory(a.inventoryModule(store.InventoryPorts)))
@@ -404,7 +413,7 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		if ce.retryAfter > 0 {
 			w.Header().Set("Retry-After", retryAfterSeconds(ce.retryAfter))
 		}
-		writeError(w, ce.status, ce.code, ce.msg)
+		writeErrorDetails(w, ce.status, ce.code, ce.msg, ce.details)
 	case errors.As(err, &weak):
 		writeError(w, http.StatusBadRequest, "weak_password", weak.Reason)
 	case errors.Is(err, store.ErrNotFound):

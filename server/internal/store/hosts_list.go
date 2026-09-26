@@ -291,6 +291,11 @@ type HostDetail struct {
 	CreatedAt       time.Time
 	Group           *GroupRef
 	Info            HostInfo
+	// DetailRetentionDays es la retencion de detalle propia del host (nil = hereda); EffectiveDetailDays y
+	// RetentionSource (host, group o global) son el valor vigente y su origen.
+	DetailRetentionDays *int
+	EffectiveDetailDays int
+	RetentionSource     string
 }
 
 // HostByID devuelve la ficha del host (con grupo, etiquetas e info) o ErrNotFound. Un host fuera del
@@ -298,12 +303,13 @@ type HostDetail struct {
 func (s *Store) HostByID(ctx context.Context, scope Scope, hostID string) (HostDetail, error) {
 	var h HostDetail
 	var groupID, groupName *string
+	var groupDetailDays *int
 	args := argList{hostID}
 	err := s.pool.QueryRow(ctx,
 		`SELECT h.id, h.hostname, h.kind, COALESCE(h.os, ''), COALESCE(h.arch, ''), h.status, h.last_seen_at, h.status_changed_at, h.created_at,
 		        g.id, g.name,
 		        i.boot_time, i.cpu_model, i.cpu_cores, i.cpu_threads, i.os_name, i.os_version, i.kernel_version, i.agent_version, i.privilege, i.ips,
-		        l.mem_total_mb, i.physical_disks
+		        l.mem_total_mb, i.physical_disks, h.detail_retention_days, g.detail_retention_days
 		   FROM hosts h
 		   LEFT JOIN host_groups g ON g.id = h.group_id
 		   LEFT JOIN host_info i ON i.host_id = h.id
@@ -312,7 +318,7 @@ func (s *Store) HostByID(ctx context.Context, scope Scope, hostID string) (HostD
 	).Scan(&h.ID, &h.Hostname, &h.Kind, &h.OS, &h.Arch, &h.Status, &h.LastSeenAt, &h.StatusChangedAt, &h.CreatedAt,
 		&groupID, &groupName,
 		&h.Info.BootTime, &h.Info.CPUModel, &h.Info.CPUCores, &h.Info.CPUThreads, &h.Info.OSName, &h.Info.OSVersion,
-		&h.Info.KernelVersion, &h.Info.AgentVersion, &h.Info.Privilege, &h.Info.IPs, &h.Info.MemTotalMB, &h.Info.PhysicalDisks)
+		&h.Info.KernelVersion, &h.Info.AgentVersion, &h.Info.Privilege, &h.Info.IPs, &h.Info.MemTotalMB, &h.Info.PhysicalDisks, &h.DetailRetentionDays, &groupDetailDays)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return HostDetail{}, ErrNotFound
 	}
@@ -322,6 +328,11 @@ func (s *Store) HostByID(ctx context.Context, scope Scope, hostID string) (HostD
 	if groupID != nil && groupName != nil {
 		h.Group = &GroupRef{ID: *groupID, Name: *groupName}
 	}
+	global, _, err := s.globalDetail(ctx)
+	if err != nil {
+		return HostDetail{}, err
+	}
+	h.EffectiveDetailDays, h.RetentionSource = EffectiveDetail(h.DetailRetentionDays, groupDetailDays, global)
 	return h, nil
 }
 

@@ -9,8 +9,10 @@
 //
 //  1. crear las particiones de hoy a hoy+7 dias;
 //  2. resumir por hora las metricas crudas (marca de agua metrics_rollup_through);
-//  3. borrar las particiones vencidas (las de `metrics` solo si ya estan resumidas);
-//  4. purgar `metrics_hourly` vencido, en lotes.
+//  3. borrar las particiones vencidas (las de `metrics` solo si ya estan resumidas y empaquetadas: antes de
+//     borrarlas se guarda cada host-dia en `metrics_chunks`, ver pack.go);
+//  4. recortar `metrics_chunks` segun la retencion de detalle efectiva de cada host (trim.go);
+//  5. purgar `metrics_hourly` vencido, en lotes.
 package retention
 
 import (
@@ -42,8 +44,12 @@ const (
 
 // Config son los parametros del mantenimiento (ya validados por el paquete config).
 type Config struct {
-	// RawDays es cuanto se conserva `metrics` crudo.
-	RawDays int
+	// HotDays es la ventana caliente: cuanto se conserva `metrics` (particiones diarias) antes de empaquetarlo en
+	// metrics_chunks (>= 8, el minimo que exige el resumen por hora y que cubre los 7 dias de retraso que admite el ingest).
+	HotDays int
+	// DetailDays es la retencion global de detalle (dias de chunks) cuando la tabla settings no fija otra; cada host
+	// o grupo puede tener la suya (host ?? grupo ?? global).
+	DetailDays int
 	// HourlyDays es cuanto se conserva `metrics_hourly`.
 	HourlyDays int
 	// ServiceChecksDays es cuanto se conserva `service_checks`.
@@ -61,11 +67,13 @@ type Maintainer struct {
 	cfg         Config
 	now         func() time.Time
 	lockTimeout time.Duration
+	// packBudget es cuantas particiones con trabajo empaqueta un ciclo (los tests lo suben).
+	packBudget int
 }
 
 // New crea el mantenedor. now permite fijar el reloj en tests (time.Now en produccion).
 func New(pool *pgxpool.Pool, log *slog.Logger, cfg Config, now func() time.Time) *Maintainer {
-	return &Maintainer{pool: pool, log: log, cfg: cfg, now: now, lockTimeout: defaultLockTimeout}
+	return &Maintainer{pool: pool, log: log, cfg: cfg, now: now, lockTimeout: defaultLockTimeout, packBudget: defaultPackBudget}
 }
 
 // Run corre un ciclo al arrancar y luego uno cada cfg.Interval, hasta que ctx se cancele.
@@ -74,7 +82,7 @@ func (m *Maintainer) Run(ctx context.Context) {
 	defer ticker.Stop()
 
 	m.log.Info("mantenimiento de metricas activo",
-		"raw_days", m.cfg.RawDays, "hourly_days", m.cfg.HourlyDays,
+		"hot_days", m.cfg.HotDays, "detail_days", m.cfg.DetailDays, "hourly_days", m.cfg.HourlyDays,
 		"service_checks_days", m.cfg.ServiceChecksDays, "disk_days", m.cfg.DiskDays, "interval", m.cfg.Interval.String())
 	for {
 		m.RunOnce(ctx)
@@ -120,6 +128,7 @@ func (m *Maintainer) RunOnce(ctx context.Context) (ran bool) {
 		{"create_partitions", func() error { return m.createPartitions(ctx, conn, now) }},
 		{"rollup", func() error { return m.rollup(ctx, conn, now) }},
 		{"drop_partitions", func() error { return m.dropExpired(ctx, conn, now) }},
+		{"trim_chunks", func() error { return m.trimChunks(ctx, conn, now) }},
 		{"purge_hourly", func() error { return m.purgeHourly(ctx, conn, now) }},
 	}
 	for _, s := range steps {
