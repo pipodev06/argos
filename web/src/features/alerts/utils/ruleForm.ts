@@ -92,6 +92,14 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
   }
 }
 
+const COPY_SUFFIX = ' (copia)'
+
+/** Borrador para crear una regla nueva a partir de otra: mismos campos, nombre "<nombre> (copia)" recortado a MAX_NAME. */
+export function cloneToDraft(rule: AlertRule): RuleDraft {
+  const draft = ruleToDraft(rule)
+  return { ...draft, name: draft.name.slice(0, MAX_NAME - COPY_SUFFIX.length).trimEnd() + COPY_SUFFIX }
+}
+
 function minutes(raw: string, label: string): { seconds: number } | { error: string } {
   const n = parseNumber(raw)
   if (n === null || n < 0 || n > MAX_MINUTES) return { error: `${label}: un número de minutos entre 0 y ${MAX_MINUTES}.` }

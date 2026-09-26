@@ -19,7 +19,7 @@ export function RulesPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const { data: rules, error, loading, refresh } = useAlertRules()
-  const [form, setForm] = useState<{ rule: AlertRule | null } | null>(null)
+  const [form, setForm] = useState<{ rule: AlertRule | null; clone?: boolean } | null>(null)
   const [deleting, setDeleting] = useState<AlertRule | null>(null)
   const del = useUserMutation()
   const toggle = useUserMutation()
@@ -28,6 +28,7 @@ export function RulesPage() {
 
   function handleAction(action: RuleAction, rule: AlertRule) {
     if (action === 'edit') setForm({ rule })
+    else if (action === 'clone') setForm({ rule, clone: true })
     else if (action === 'delete') setDeleting(rule)
     else void toggle.run(() => updateRule(rule.id, { enabled: !rule.enabled })).then((ok) => ok && void refresh())
   }
@@ -65,6 +66,7 @@ export function RulesPage() {
         <>
           <RuleFormDialog
             rule={form?.rule ?? null}
+            clone={form?.clone}
             open={form !== null}
             onClose={() => setForm(null)}
             onSaved={() => {
