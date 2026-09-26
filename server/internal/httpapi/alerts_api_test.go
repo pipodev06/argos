@@ -480,6 +480,20 @@ func TestMaintenanceCRUDAndValidation(t *testing.T) {
 	e.wantStatus(patch(`{}`), http.StatusBadRequest, "invalid_body")
 	e.wantStatus(patch(fmt.Sprintf(`{"ends_at":%q}`, now.Add(-time.Hour).UTC().Format(time.RFC3339))), http.StatusBadRequest, "invalid_body")
 	e.wantStatus(patch(fmt.Sprintf(`{"ends_at":%q}`, now.Add(3*time.Hour).UTC().Format(time.RFC3339))), http.StatusOK, "")
+
+	// Una ventana en curso que empezo hace horas se puede alargar (reenviando el mismo inicio): solo se revalida la fecha
+	// que cambia. Mover el inicio a mas de 1 h atras, o el fin al pasado, sigue rechazandose.
+	old := e.createWindow(`{"name":"vieja","scope":{"type":"group","group_id":"`+g+`"}}`, 48*time.Hour)
+	mustExec(t, `UPDATE maintenance_windows SET starts_at = $2, ends_at = $3 WHERE id = $1`, old, now.Add(-5*time.Hour).Truncate(time.Second), now.Add(2*time.Hour).Truncate(time.Second))
+	patchOld := func(body string) *httptest.ResponseRecorder {
+		return e.do("PATCH", "/api/v1/maintenance/"+old, body, withCookie(e.admin))
+	}
+	rfc := func(d time.Duration) string { return now.Add(d).UTC().Format(time.RFC3339) }
+	e.wantStatus(patchOld(fmt.Sprintf(`{"starts_at":%q,"ends_at":%q}`, rfc(-5*time.Hour), rfc(4*time.Hour))), http.StatusOK, "")
+	e.wantStatus(patchOld(fmt.Sprintf(`{"ends_at":%q}`, rfc(6*time.Hour))), http.StatusOK, "")
+	e.wantStatus(patchOld(fmt.Sprintf(`{"starts_at":%q}`, rfc(-4*time.Hour))), http.StatusBadRequest, "invalid_body")
+	e.wantStatus(patchOld(fmt.Sprintf(`{"ends_at":%q}`, rfc(-time.Minute))), http.StatusBadRequest, "invalid_body")
+
 	e.wantStatus(e.do("PATCH", "/api/v1/maintenance/"+missingID, `{"name":"x"}`, withCookie(e.admin)), http.StatusNotFound, "not_found")
 
 	e.wantStatus(e.do("DELETE", "/api/v1/maintenance/"+id, "", withCookie(e.admin)), http.StatusOK, "")

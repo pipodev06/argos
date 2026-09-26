@@ -34,9 +34,10 @@ func toMaintenanceDTO(w store.MaintenanceWindow) maintenanceDTO {
 	}
 }
 
-// validateWindow comprueba una ventana completa. checkDates exige ademas que no haya terminado ya y que el inicio
-// no sea absurdo (solo al crear o al cambiar las fechas: renombrar una ventana vieja no debe fallar por eso).
-func validateWindow(w *store.MaintenanceWindow, now time.Time, checkDates bool) error {
+// validateWindow comprueba una ventana completa. checkEnd exige ademas que no haya terminado ya, y checkStart que el
+// inicio no sea absurdo: solo se piden al crear o cuando ESA fecha cambia (renombrar una ventana vieja, o alargar el
+// fin de una que empezo hace horas, no debe fallar por la otra fecha).
+func validateWindow(w *store.MaintenanceWindow, now time.Time, checkStart, checkEnd bool) error {
 	name, err := checkName("name", w.Name, maxRuleNameLen)
 	if err != nil {
 		return err
@@ -54,10 +55,11 @@ func validateWindow(w *store.MaintenanceWindow, now time.Time, checkDates bool) 
 	case w.Scope.Type == store.ScopeAll && span > maxWindowSpanAll:
 		return badRequest("una ventana sobre todos los hosts no puede durar mas de 24 horas: acota el alcance a un grupo, host o dispositivo")
 	}
-	if checkDates {
+	if checkEnd && !w.EndsAt.After(now) {
+		return badRequest("ends_at ya paso")
+	}
+	if checkStart {
 		switch {
-		case !w.EndsAt.After(now):
-			return badRequest("ends_at ya paso")
 		case w.StartsAt.Before(now.Add(-maxWindowPastStart)):
 			return badRequest("starts_at no puede ser anterior a 1 hora atras")
 		case w.StartsAt.After(now.Add(maxWindowFutureLead)):
@@ -122,7 +124,7 @@ func (a *API) createMaintenance(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	win := store.MaintenanceWindow{Name: req.Name, StartsAt: req.StartsAt, EndsAt: req.EndsAt, Scope: scope}
-	if err := validateWindow(&win, a.now(), true); err != nil {
+	if err := validateWindow(&win, a.now(), true, true); err != nil {
 		return err
 	}
 
@@ -166,12 +168,12 @@ func (a *API) updateMaintenance(w http.ResponseWriter, r *http.Request) error {
 		}
 		newScope = &sc
 	}
-	datesChanged := req.StartsAt != nil || req.EndsAt != nil
-
 	updated, err := a.store.UpdateMaintenance(r.Context(), id, func(win *store.MaintenanceWindow) error {
 		if req.Name != nil {
 			win.Name = *req.Name
 		}
+		startChanged := req.StartsAt != nil && !req.StartsAt.Equal(win.StartsAt)
+		endChanged := req.EndsAt != nil && !req.EndsAt.Equal(win.EndsAt)
 		if req.StartsAt != nil {
 			win.StartsAt = *req.StartsAt
 		}
@@ -181,7 +183,7 @@ func (a *API) updateMaintenance(w http.ResponseWriter, r *http.Request) error {
 		if newScope != nil {
 			win.Scope = *newScope
 		}
-		return validateWindow(win, a.now(), datesChanged)
+		return validateWindow(win, a.now(), startChanged, endChanged)
 	})
 	if err != nil {
 		return err

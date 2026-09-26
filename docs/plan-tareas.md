@@ -21,9 +21,9 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 
 ## P2 — Reglas de alerta de parches y alertas en general
 - [ ] **R1 Prueba E2E real** de `pending_updates`, `reboot_pending` y `os_eol` con los 2 hosts (crear regla en la UI, forzar la condición, ver alerta, ver notificación en el webhook). *Hecho cuando:* checklist ejecutado y hallazgos corregidos.
-- [ ] **R2 Tests Vitest de formularios** (`ruleForm`, `checkForm`, `maintenanceForm`, `alertQuery`): hoy sin cobertura. *Hecho cuando:* casos válidos/inválidos y de borde por tipo de regla.
-- [ ] **R3 Deudas del motor**: `peak_value` sin sentido en `os_eol`; severidad de `os_eol` no escala si la alerta ya estaba abierta; `duration_seconds` cuenta desde `security_pending_since`; dedup de auditoría en memoria. *Hecho cuando:* cada punto corregido o descartado con razón escrita.
-- [ ] **R4 Reverificar EOL** de Windows 10/Server (Microsoft Learn) y decidir qué hacer con macOS (`estimate`); fecha y fuente en cada fila. *Hecho cuando:* `source='official'` con enlace en la migración.
+- [x] **R2 Tests Vitest de formularios** (2026-09-26; 267 tests; hallazgo: ventanas de mantenimiento en curso no se podían alargar, corregido) (`ruleForm`, `checkForm`, `maintenanceForm`, `alertQuery`): hoy sin cobertura. *Hecho cuando:* casos válidos/inválidos y de borde por tipo de regla.
+- [x] **R3 Deudas del motor** (2026-09-26; pico y severidad de `os_eol` corregidos; 2 puntos descartados con razón): `peak_value` sin sentido en `os_eol`; severidad de `os_eol` no escala si la alerta ya estaba abierta; `duration_seconds` cuenta desde `security_pending_since`; dedup de auditoría en memoria. *Hecho cuando:* cada punto corregido o descartado con razón escrita.
+- [x] **R4 Reverificar EOL** (2026-09-26, migración 00032; Windows Server 2025 y macOS Big Sur corregidos) de Windows 10/Server (Microsoft Learn) y decidir qué hacer con macOS (`estimate`); fecha y fuente en cada fila. *Hecho cuando:* `source='official'` con enlace en la migración.
 
 ## P3 — Mejoras de producto (ideas; una por vez, con diseño corto antes)
 - [ ] **I1 Windows con servicio privilegiado**: `root_home` conoce el dueño de 41/103 puertos (sin privilegios) vs 23/23 en Ubuntu (elevated). Instalar con `--privileged` y comparar. *Hecho cuando:* medido y documentado.

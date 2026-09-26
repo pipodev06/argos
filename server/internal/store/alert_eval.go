@@ -103,21 +103,26 @@ WITH new AS (
 )
 SELECT count(*) FROM new`
 
-	// 5. Alertas activas: pico y desde cuando el valor esta del lado sano. Solo escribe si algo cambio.
+	// 5. Alertas activas: pico, severidad y desde cuando el valor esta del lado sano. Solo escribe si algo cambio.
+	// Pico = el peor valor visto: el minimo si la regla es "menor que" y en os_eol (dias que faltan; op es NULL), el
+	// maximo en el resto. Una alerta os_eol abierta con la regla en warn/info sube a critica cuando el SO vence (nunca
+	// baja); es un cambio silencioso: no se reenvia la notificacion.
 	touchAlertsSQL = `
-UPDATE alerts a SET peak_value = u.peak, clear_since = u.clr, detail = u.dt
+UPDATE alerts a SET peak_value = u.peak, clear_since = u.clr, detail = u.dt, severity = u.sev
   FROM (SELECT a2.id,
                CASE WHEN c.value IS NULL THEN a2.peak_value
                     WHEN a2.peak_value IS NULL THEN c.value
-                    WHEN r.op = 'lt' THEN LEAST(a2.peak_value, c.value)
+                    WHEN r.op = 'lt' OR r.kind = 'os_eol' THEN LEAST(a2.peak_value, c.value)
                     ELSE GREATEST(a2.peak_value, c.value) END AS peak,
                COALESCE(c.detail, a2.detail) AS dt,
+               CASE WHEN r.kind = 'os_eol' AND c.value <= 0 THEN 'critical' ELSE a2.severity END AS sev,
                CASE WHEN c.clear THEN COALESCE(a2.clear_since, now()) END AS clr
           FROM alerts a2
           JOIN alert_candidates c ON c.rule_id = a2.rule_id AND c.host_id = a2.host_id
           JOIN alert_rules r ON r.id = a2.rule_id
          WHERE a2.state <> 'resolved') u
- WHERE a.id = u.id AND (a.peak_value IS DISTINCT FROM u.peak OR a.clear_since IS DISTINCT FROM u.clr OR a.detail IS DISTINCT FROM u.dt)`
+ WHERE a.id = u.id AND (a.peak_value IS DISTINCT FROM u.peak OR a.clear_since IS DISTINCT FROM u.clr OR a.detail IS DISTINCT FROM u.dt
+        OR a.severity IS DISTINCT FROM u.sev)`
 
 	// 6. Resolver las que llevan resolve_seconds del lado sano.
 	resolveRecoveredSQL = `
