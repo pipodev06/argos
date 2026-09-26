@@ -1,4 +1,4 @@
-import type { FilterField, FiltersOf } from '@/components/filters/types'
+import type { FilterField } from '@/components/filters/types'
 
 /** Parámetros de URL de Informes (valores fijos, un solo valor cada uno; los controles son SegmentedControl). */
 export const REPORT_FIELDS = [
@@ -7,8 +7,6 @@ export const REPORT_FIELDS = [
   { kind: 'search', key: 'group', label: 'Grupo', ariaLabel: 'Grupo', placeholder: 'Grupo', maxLength: 36 },
   { kind: 'choice', key: 'by', label: 'Vista', values: ['host', 'group'], default: 'host' },
 ] as const satisfies readonly FilterField[]
-
-export type ReportFilters = FiltersOf<typeof REPORT_FIELDS>
 
 export const TYPE_OPTIONS = [
   { value: 'availability', label: 'Disponibilidad' },

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -110,4 +111,34 @@ func NonEmptyTables(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		out = append(out, name)
 	}
 	return out, rows.Err()
+}
+
+// lockKey es la clave del lock advisory que serializa los paquetes de test que comparten la misma BD.
+const lockKey = 7368291
+
+// AcquireLock espera el lock advisory de los tests sondeando con pg_try_advisory_lock. No usa pg_advisory_lock
+// (bloqueante): una sentencia esperando un lock mantiene una transaccion abierta, y el DETACH PARTITION de los tests
+// de retention espera a todas las transacciones anteriores de la BD (deadlock). El lock es de sesion: se libera con
+// ReleaseLock sobre la misma conexion.
+func AcquireLock(ctx context.Context, conn *pgxpool.Conn) error {
+	deadline := time.Now().Add(10 * time.Minute)
+	for {
+		var got bool
+		if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, lockKey).Scan(&got); err != nil {
+			return err
+		}
+		if got {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return errors.New("timeout esperando el lock de tests")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// ReleaseLock libera el lock tomado con AcquireLock.
+func ReleaseLock(ctx context.Context, conn *pgxpool.Conn) error {
+	_, err := conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, lockKey)
+	return err
 }

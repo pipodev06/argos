@@ -6,10 +6,10 @@ import type { HostStatus } from '../types/host.types'
 import { OS_LABELS } from './os'
 import { HOST_STATUS_LABELS } from './status'
 
-export const SORT_KEYS = ['severity', 'name', 'status', 'group', 'cpu', 'mem', 'disk', 'last_seen'] as const
+const SORT_KEYS = ['severity', 'name', 'status', 'group', 'cpu', 'mem', 'disk', 'last_seen'] as const
 export type SortKey = (typeof SORT_KEYS)[number]
 
-export const DEFAULT_SORT: SortKey = 'severity'
+const DEFAULT_SORT: SortKey = 'severity'
 const HOST_STATUSES: readonly HostStatus[] = ['up', 'down', 'offline', 'pending', 'disabled']
 const OS_VALUES = ['windows', 'linux', 'darwin'] as const
 

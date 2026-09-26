@@ -8,8 +8,8 @@ const DAY = 24 * HOUR
 
 /** Retencion por defecto del detalle de 30 s (ARGOS_METRICS_RETENTION_DAYS); el servidor decide la resolucion real. */
 export const DETAIL_RETENTION_DAYS = 30
-export const RAW_MAX_DAYS = 31
-export const HOURLY_MAX_DAYS = 366
+const RAW_MAX_DAYS = 31
+const HOURLY_MAX_DAYS = 366
 /** Margen que el servidor tolera hacia el futuro. */
 const FUTURE_SLACK_MS = 5 * MINUTE
 

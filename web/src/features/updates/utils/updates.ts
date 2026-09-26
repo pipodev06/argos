@@ -29,7 +29,7 @@ export function rebootInfo(required: boolean | null, since: string | null, now: 
 export type EolState = 'none' | 'ok' | 'soon' | 'expired'
 
 /** Umbral de "pronto" para el icono de fin de vida (dias). */
-export const EOL_SOON_DAYS = 90
+const EOL_SOON_DAYS = 90
 
 /** Fin de vida: fecha + "faltan N d" / "Vencido". Sin dato = "Desconocido". */
 export function eolInfo(eol: Eol | null): { state: EolState; text: string } {

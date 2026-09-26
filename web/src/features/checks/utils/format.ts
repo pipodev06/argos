@@ -52,7 +52,7 @@ export function checkTarget(c: ServiceCheck): string {
 }
 
 /** Latencia (ms) o días restantes (tls_cert) del último resultado. */
-export function checkValue(type: CheckType, s: CheckState | null): string {
+function checkValue(type: CheckType, s: CheckState | null): string {
   if (!s) return '—'
   if (type === 'tls_cert') return s.value === null ? '—' : `${formatNumber(s.value, 0)} d`
   if (type === 'service') return '—'

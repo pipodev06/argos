@@ -7,8 +7,8 @@ export function formatThreshold(seconds: number): string {
 
 export type ThresholdUnit = 'min' | 'h'
 
-export const MIN_DOWN_AFTER_S = 30
-export const MAX_DOWN_AFTER_S = 30 * 24 * 3600
+const MIN_DOWN_AFTER_S = 30
+const MAX_DOWN_AFTER_S = 30 * 24 * 3600
 
 /** Divide un umbral en cantidad + unidad para el formulario. */
 export function splitThreshold(seconds: number): { amount: string; unit: ThresholdUnit } {

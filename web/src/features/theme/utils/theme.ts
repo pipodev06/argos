@@ -1,7 +1,7 @@
 export type Theme = 'light' | 'dark'
 
 // Preferencia por-viewer (no es sesion ni token): sin datos sensibles.
-export const THEME_STORAGE_KEY = 'argos-theme'
+const THEME_STORAGE_KEY = 'argos-theme'
 
 // Solo 'light' | 'dark' son validos; cualquier otra cosa (vacio, basura, storage bloqueado) -> claro.
 export function readStoredTheme(): Theme {

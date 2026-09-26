@@ -4,9 +4,9 @@ import { useGroupOptions } from '@/features/hosts/hooks/useGroupOptions'
 import { OS_LABELS } from '@/features/hosts/utils/os'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/pagination'
 
-export const SORT_KEYS = ['security', 'pending', 'reboot', 'eol', 'name', 'updated'] as const
+const SORT_KEYS = ['security', 'pending', 'reboot', 'eol', 'name', 'updated'] as const
 export type SortKey = (typeof SORT_KEYS)[number]
-export const DEFAULT_SORT: SortKey = 'security'
+const DEFAULT_SORT: SortKey = 'security'
 
 /** Por defecto descendente lo que "mas es peor" (seguridad, pendientes, reinicio); el resto ascendente. */
 export function defaultDir(sort: SortKey): 'asc' | 'desc' {

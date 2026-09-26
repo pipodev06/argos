@@ -2,10 +2,10 @@
 // todo acceso va en try/catch (storage bloqueado = la app funciona y el cambio dura hasta recargar).
 export type SidebarState = 'collapsed' | 'expanded'
 
-export const SIDEBAR_STORAGE_KEY = 'argos-sidebar'
+const SIDEBAR_STORAGE_KEY = 'argos-sidebar'
 
 /** Solo 'collapsed' y 'expanded' son validos; cualquier otro valor se ignora. */
-export function parseSidebarState(raw: string | null): SidebarState | null {
+function parseSidebarState(raw: string | null): SidebarState | null {
   return raw === 'collapsed' || raw === 'expanded' ? raw : null
 }
 

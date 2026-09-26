@@ -1,6 +1,5 @@
 export type ReportRange = '7d' | '30d' | '90d'
 export type ReportView = 'host' | 'group'
-export type ReportType = 'availability' | 'service-checks'
 
 export interface ReportFleet {
   hosts: number

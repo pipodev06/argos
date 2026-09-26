@@ -9,7 +9,7 @@ export interface Eol {
   lts: boolean
 }
 
-export interface HostUpdates {
+interface HostUpdates {
   pending_total: number | null
   pending_security: number | null
   reboot_required: boolean | null

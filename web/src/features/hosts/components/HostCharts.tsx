@@ -15,7 +15,7 @@ import { MetricChartCard, type ChartStatus } from './MetricChartCard'
 import { TimeSeriesChart } from './TimeSeriesChart'
 
 /** Datos que necesitan las graficas: los devuelven tanto `/metrics` como `/history`. */
-export interface ChartData {
+interface ChartData {
   step_seconds: number
   points: MetricSample[]
 }
