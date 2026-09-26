@@ -9,6 +9,7 @@ import { formatDateTime } from '@/features/hosts/utils/format'
 import { useNow } from '@/hooks/useNow'
 import { useHostUpdates } from '../hooks/useUpdates'
 import { canViewUpdates, countText, formatDataAge } from '../utils/updates'
+import { PatchHistoryChart } from './PatchHistoryChart'
 import { EolText, RebootText } from './UpdatesBadges'
 
 const MAX_ADVISORIES = 10
@@ -61,6 +62,7 @@ function Cards({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
           {advisories.length > MAX_ADVISORIES || u?.advisories_truncated ? ' y más' : ''}
         </p>
       )}
+      <PatchHistoryChart history={data?.history} />
       {history.length > 0 && (
         <DataTable caption="Historial de parches">
           <thead>

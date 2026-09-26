@@ -14,18 +14,14 @@ export function defaultDir(sort: SortKey): 'asc' | 'desc' {
 }
 
 const OS_VALUES = ['windows', 'linux', 'darwin'] as const
-const FLAGS = [
-  { id: 'security', name: 'Con seguridad pendiente' },
-  { id: 'reboot', name: 'Reinicio pendiente' },
-] as const
-
-/** Filtros de la flota de parches (URL: q, group, os, flags, eol_days, sort, dir, limit). `flags` se combina con AND. */
+/** Filtros de la flota de parches (URL: q, group, os, security, reboot, eol_days, sort, dir, limit; los chips booleanos se combinan con AND). */
 export const FLEET_FIELDS = [
   { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar hosts', placeholder: 'Buscar' },
   { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions },
   { kind: 'multi', key: 'os', label: 'SO', plural: 'sistemas', options: OS_VALUES.map((o) => ({ id: o, name: OS_LABELS[o] })) },
-  { kind: 'multi', key: 'flags', label: 'Condición', plural: 'condiciones', options: FLAGS },
-  { kind: 'numeric', key: 'eol_days', label: 'Días al fin de vida', extra: true, op: '<', max: 3650, integer: true, suffix: 'd' },
+  { kind: 'boolean', key: 'security', label: 'Con seguridad pendiente' },
+  { kind: 'boolean', key: 'reboot', label: 'Reinicio pendiente' },
+  { kind: 'numeric', key: 'eol_days', label: 'Días al fin de vida', extra: true, op: '≤', max: 3650, integer: true, suffix: 'd' },
   { kind: 'choice', key: 'sort', label: 'Orden', values: SORT_KEYS, default: DEFAULT_SORT },
   { kind: 'choice', key: 'dir', label: 'Dirección', values: ['asc', 'desc'], default: (v) => defaultDir(v.sort as SortKey) },
   { kind: 'choice', key: 'limit', label: 'Tamaño de página', values: PAGE_SIZES, default: DEFAULT_PAGE_SIZE },
@@ -33,12 +29,9 @@ export const FLEET_FIELDS = [
 
 export type FleetFilters = FiltersOf<typeof FLEET_FIELDS>
 
-/** Query de GET /updates: `flags` se traduce a `security=true` / `reboot=true`; orden y limite explicitos. */
+/** Query de GET /updates (`security=true`, `reboot=true`, `eol_days=N` con semantica ≤); orden y limite explicitos. */
 export function buildFleetQuery(f: FleetFilters, cursor: string | null): URLSearchParams {
   const p = serializeFilters(FLEET_FIELDS, f)
-  p.delete('flags')
-  if (f.flags.includes('security')) p.set('security', 'true')
-  if (f.flags.includes('reboot')) p.set('reboot', 'true')
   p.set('sort', f.sort)
   p.set('dir', f.dir)
   p.set('limit', String(f.limit))

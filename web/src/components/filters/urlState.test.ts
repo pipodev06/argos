@@ -72,3 +72,27 @@ describe('hasActiveFilters / clearedFilters', () => {
     expect(hasActiveFilters(FIELDS, cleared)).toBe(false)
   })
 })
+
+describe('filtro booleano', () => {
+  const B = [
+    { kind: 'boolean', key: 'sec', label: 'Seguridad' },
+    { kind: 'numeric', key: 'eol', label: 'Fin de vida', extra: true, op: '≤', integer: true },
+  ] as const satisfies readonly FilterField[]
+  const parseB = (qs: string) => parseFilters(B, new URLSearchParams(qs))
+  it('ausente o distinto de "true" es false; "true" es true', () => {
+    expect(parseB('')).toEqual({ sec: false, eol: null })
+    expect(parseB('sec=1').sec).toBe(false)
+    expect(parseB('sec=true').sec).toBe(true)
+  })
+  it('serializa solo encendido; ida y vuelta', () => {
+    expect(serializeFilters(B, { sec: false, eol: null }).toString()).toBe('')
+    const p = serializeFilters(B, { sec: true, eol: 30 })
+    expect(p.toString()).toBe('sec=true&eol=30')
+    expect(parseB(p.toString())).toEqual({ sec: true, eol: 30 })
+  })
+  it('activo solo si está encendido; limpiar lo apaga', () => {
+    expect(hasActiveFilters(B, { sec: false, eol: null })).toBe(false)
+    expect(hasActiveFilters(B, { sec: true, eol: null })).toBe(true)
+    expect(clearedFilters(B, { sec: true, eol: 5 })).toEqual({ sec: false, eol: null })
+  })
+})

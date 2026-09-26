@@ -27,6 +27,9 @@ export function parseFilters<F extends readonly FilterField[]>(fields: F, params
         out[f.key] = Number.isNaN(Date.parse(raw)) ? '' : raw
         break
       }
+      case 'boolean':
+        out[f.key] = params.get(p) === 'true'
+        break
       case 'multi': {
         const allowed = f.options?.map((o) => o.id)
         out[f.key] = unique(params.getAll(p).filter((v) => (allowed ? allowed.includes(v) : v !== '')))
@@ -62,6 +65,9 @@ export function serializeFilters<F extends readonly FilterField[]>(fields: F, fi
       case 'datetime':
         if (value) p.set(name, String(value))
         break
+      case 'boolean':
+        if (value === true) p.set(name, 'true')
+        break
       case 'multi':
         for (const x of value as string[]) p.append(name, x)
         break
@@ -82,6 +88,7 @@ export function hasActiveFilters<F extends readonly FilterField[]>(fields: F, fi
   return fields.some((f) => {
     const value = v[f.key]
     if (f.kind === 'choice') return false
+    if (f.kind === 'boolean') return value === true
     return Array.isArray(value) ? value.length > 0 : value !== null && value !== ''
   })
 }
@@ -91,6 +98,7 @@ export function clearedFilters<F extends readonly FilterField[]>(fields: F, filt
   const out: Values = { ...(filters as Values) }
   for (const f of fields) {
     if (f.kind === 'search' || f.kind === 'datetime') out[f.key] = ''
+    else if (f.kind === 'boolean') out[f.key] = false
     else if (f.kind === 'multi') out[f.key] = []
     else if (f.kind === 'numeric') out[f.key] = null
   }

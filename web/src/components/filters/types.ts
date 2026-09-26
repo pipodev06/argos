@@ -47,7 +47,7 @@ export interface NumericUnit {
 export interface NumericField extends FieldBase {
   kind: 'numeric'
   extra: true
-  op: '>' | '<'
+  op: '>' | '<' | '≤'
   /** Tope valido (sin tope si se omite). */
   max?: number
   integer?: boolean
@@ -74,12 +74,19 @@ export interface DateTimeField extends FieldBase {
   kind: 'datetime'
 }
 
-export type FilterField = SearchField | MultiField | NumericField | ChoiceField | DateTimeField
-export type FilterValue = string | number | string[] | null
+/** Chip on/off; en la URL `param=true` (ausente = apagado). */
+export interface BooleanField extends FieldBase {
+  kind: 'boolean'
+}
+
+export type FilterField = SearchField | MultiField | NumericField | ChoiceField | DateTimeField | BooleanField
+export type FilterValue = string | number | boolean | string[] | null
 
 type ValueOf<E> = E extends { kind: 'search' | 'datetime' }
   ? string
-  : E extends { kind: 'multi' }
+  : E extends { kind: 'boolean' }
+    ? boolean
+    : E extends { kind: 'multi' }
     ? string[]
     : E extends { kind: 'numeric' }
       ? number | null
