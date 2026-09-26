@@ -82,9 +82,9 @@ function MaintenanceForm({ window: win, onClose, onSaved }: MaintenanceFormDialo
           label="Fin"
           value={draft.endsAt}
           onChange={(e) => set('endsAt', e.target.value)}
-          hint="Máximo 31 días; sobre todos los hosts, máximo 24 horas."
           error={errors.endsAt}
         />
+        <p className="text-xs text-text-muted sm:col-span-2">Máximo 31 días; sobre todos los hosts, máximo 24 horas.</p>
       </div>
       <ScopeFields id="maint" types={MAINTENANCE_SCOPE_TYPES} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
       {error && <InlineError>{error}</InlineError>}

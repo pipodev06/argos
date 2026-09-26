@@ -235,6 +235,11 @@ func TestOSEOLKeyResolution(t *testing.T) {
 		{"alma 8", "linux", "almalinux", "8.10", "almalinux", "8"},
 		{"centos 7", "linux", "centos", "7.9.2009", "centos", "7"},
 		{"macos 14", "darwin", "macOS", "14.5", "macos", "14"},
+		{"windows 11 25H2 (el agente reporta la version como 25H2)", "windows", "Microsoft Windows 11 Pro", "25H2", "windows-11", "26200"},
+		{"windows 11 24H2", "windows", "Microsoft Windows 11 Home", "24H2", "windows-11", "26100"},
+		{"windows 10 22H2", "windows", "Microsoft Windows 10 Pro", "22H2", "windows-10", "19045"},
+		{"windows 11 por build", "windows", "Microsoft Windows 11 Pro", "10.0.26200.9457", "windows-11", "26200"},
+		{"windows 11 con version desconocida", "windows", "Microsoft Windows 11 Pro", "26H9", "", ""},
 		{"distro desconocida", "linux", "arch", "rolling", "", ""},
 		{"sin datos", "", "", "", "", ""},
 	}
@@ -271,8 +276,8 @@ func TestOSEOLSeedAndHostResolution(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("HostOSEOL got (found=%v, err=%v)", found, err)
 	}
-	if got.Family != "ubuntu" || got.Cycle != "22.04" || !got.LTS || got.Estimated || got.EOLDate.Format(time.DateOnly) != "2027-04-30" {
-		t.Errorf("EOL got %+v, want ubuntu 22.04 LTS 2027-04-30 oficial", got)
+	if got.Family != "ubuntu" || got.Cycle != "22.04" || !got.LTS || got.Estimated || got.EOLDate.Format(time.DateOnly) != "2027-06-01" {
+		t.Errorf("EOL got %+v, want ubuntu 22.04 LTS 2027-06-01 oficial", got)
 	}
 	// Una version que no esta en la tabla no es un error: sin dato de fin de vida.
 	mustExec(t, `UPDATE host_info SET os_version = '19.10' WHERE host_id = $1`, id)

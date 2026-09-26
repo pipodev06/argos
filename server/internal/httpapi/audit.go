@@ -39,6 +39,7 @@ const (
 	evGroupUpdated           = "group_updated"
 	evGroupDeleted           = "group_deleted"
 	evHostGroupSet           = "host_group_set"
+	evHostRenamed            = "host_renamed"
 	evHostsBulk              = "hosts_bulk"
 	evAlertAcked             = "alert_acked"
 	evAlertResolved          = "alert_resolved"

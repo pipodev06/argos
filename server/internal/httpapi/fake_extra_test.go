@@ -123,3 +123,5 @@ func (f *fakeStore) DeleteSNMPProfile(context.Context, string) (string, error) {
 func (f *fakeStore) CollectorPings(context.Context, string) ([]store.PingAssignment, error) {
 	return nil, nil
 }
+
+func (f *fakeStore) RenameHost(_ context.Context, _, _ string) error { return nil }

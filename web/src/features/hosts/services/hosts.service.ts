@@ -42,6 +42,13 @@ export function setHostGroup(id: string, groupId: string | null) {
 }
 
 
+export function renameHost(id: string, hostname: string) {
+  return apiRequest<{ hostname: string }>(`/hosts/${encodeURIComponent(id)}/name`, {
+    method: 'PUT',
+    body: { hostname },
+  })
+}
+
 export function bulkHosts(request: BulkRequest) {
   return apiRequest<{ affected: number }>('/hosts/bulk', { method: 'POST', body: request })
 }

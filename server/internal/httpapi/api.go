@@ -43,6 +43,7 @@ type Store interface {
 	UpdateGroup(ctx context.Context, id string, ch store.GroupChange) (store.Group, error)
 	DeleteGroup(ctx context.Context, id string) error
 	SetHostGroup(ctx context.Context, hostID string, groupID *string) (store.HostGroupResult, error)
+	RenameHost(ctx context.Context, hostID, name string) error
 	BulkHosts(ctx context.Context, b store.Bulk) (int, error)
 
 	// Alertas, reglas, mantenimiento y eventos de host.
@@ -301,6 +302,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/hosts/bulk", accessAdmin, a.bulkHosts)
 	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
 	a.route(mux, "PUT /api/v1/hosts/{id}/group", accessAdmin, a.setHostGroup)
+	a.route(mux, "PUT /api/v1/hosts/{id}/name", accessAdmin, a.renameHost)
 	a.route(mux, "GET /api/v1/hosts/{id}/events", accessSession, a.hostEvents)
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory", accessSession, a.requireInventory(a.inventoryOverview))
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/ports", accessSession, a.requireInventory(a.inventoryModule(store.InventoryPorts)))

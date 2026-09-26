@@ -38,7 +38,7 @@ export function RuleFormDialog(props: RuleFormDialogProps) {
   // El formulario se monta solo con el diálogo abierto: cada apertura empieza con el estado de la regla.
   return (
     <Dialog open={props.open} onOpenChange={(next) => !next && props.onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">{props.open && <RuleForm {...props} />}</DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">{props.open && <RuleForm {...props} />}</DialogContent>
     </Dialog>
   )
 }
@@ -105,8 +105,8 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
   const thresholdLabel = THRESHOLD_LABELS[draft.kind] ?? (isLoadMetric(draft.metric) ? 'Umbral' : 'Umbral (%)')
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate>
-      <DialogHeader>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2" noValidate>
+      <DialogHeader className="sm:col-span-2">
         <DialogTitle>{editing ? 'Editar regla' : 'Nueva regla'}</DialogTitle>
         <DialogDescription>
           {editing ? 'El tipo y la métrica no se pueden cambiar; crea otra regla si los necesitas distintos.' : 'Se evalúa cada 15 segundos sobre los hosts del alcance.'}
@@ -135,7 +135,7 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
         disabled={editing}
       />
       {isMetric && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <>
           <SelectField
             id="rule-metric"
             label="Métrica"
@@ -145,7 +145,7 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
             disabled={editing}
           />
           <SelectField id="rule-op" label="Condición" value={draft.op} onChange={(v) => set('op', v as RuleOp)} options={OP_OPTIONS} />
-        </div>
+        </>
       )}
       {isCheck && (
         <>
@@ -157,29 +157,33 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
             disabled={editing}
             error={errors.check}
           />
-          <CheckField
-            id="rule-warn-or-down"
-            label="Alertar también en advertencia"
-            hint="Sin marcar, solo alerta cuando el chequeo está caído. El alcance es el del chequeo."
-            checked={draft.warnOrDown}
-            onChange={(v) => set('warnOrDown', v)}
-          />
+          <div className="sm:col-span-2">
+            <CheckField
+              id="rule-warn-or-down"
+              label="Alertar también en advertencia"
+              hint="Sin marcar, solo alerta cuando el chequeo está caído. El alcance es el del chequeo."
+              checked={draft.warnOrDown}
+              onChange={(v) => set('warnOrDown', v)}
+            />
+          </div>
         </>
       )}
       {draft.kind === 'exposed_port' && (
-        <FormField
-          id="rule-ports"
-          label="Puertos esperados"
-          value={draft.expectedPorts}
-          onChange={(e) => set('expectedPorts', e.target.value)}
-          placeholder="tcp/22, udp/53"
-          autoComplete="off"
-          hint="Los puertos de la primera foto del host no alertan; aquí lista los puertos nuevos que sí son normales. Separa con comas o espacios."
-          error={errors.ports}
-        />
+        <div className="sm:col-span-2">
+          <FormField
+            id="rule-ports"
+            label="Puertos esperados"
+            value={draft.expectedPorts}
+            onChange={(e) => set('expectedPorts', e.target.value)}
+            placeholder="tcp/22, udp/53"
+            autoComplete="off"
+            hint="Los puertos de la primera foto del host no alertan; aquí lista los puertos nuevos que sí son normales. Separa con comas o espacios."
+            error={errors.ports}
+          />
+        </div>
       )}
       {(isMetric || draft.kind === 'no_data' || updates) && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <>
           <FormField
             id="rule-threshold"
             label={thresholdLabel}
@@ -199,43 +203,45 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
               error={errors.clear}
             />
           )}
+        </>
+      )}
+      {draft.kind === 'pending_updates' ? (
+        <FormField
+          id="rule-duration-days"
+          label="Duración (días)"
+          inputMode="numeric"
+          value={draft.durationDays}
+          onChange={(e) => set('durationDays', e.target.value)}
+          hint="Días que deben mantenerse los pendientes. 0 = de inmediato."
+          error={errors.durationDays}
+        />
+      ) : (
+        !updates && (
+          <FormField
+            id="rule-duration"
+            label="Duración (minutos)"
+            inputMode="decimal"
+            value={draft.durationMin}
+            onChange={(e) => set('durationMin', e.target.value)}
+            hint="Tiempo que debe mantenerse la condición. 0 = de inmediato."
+            error={errors.duration}
+          />
+        )
+      )}
+      <FormField
+        id="rule-resolve"
+        label="Espera de resolución (minutos)"
+        inputMode="decimal"
+        value={draft.resolveMin}
+        onChange={(e) => set('resolveMin', e.target.value)}
+        hint="Tiempo sano antes de resolverla."
+        error={errors.resolve}
+      />
+      {!isCheck && (
+        <div className="sm:col-span-2">
+          <ScopeFields id="rule" types={ruleScopeTypes(draft.kind)} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
         </div>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {draft.kind === 'pending_updates' ? (
-          <FormField
-            id="rule-duration-days"
-            label="Duración (días)"
-            inputMode="numeric"
-            value={draft.durationDays}
-            onChange={(e) => set('durationDays', e.target.value)}
-            hint="Días que deben mantenerse los pendientes. 0 = de inmediato."
-            error={errors.durationDays}
-          />
-        ) : (
-          !updates && (
-            <FormField
-              id="rule-duration"
-              label="Duración (minutos)"
-              inputMode="decimal"
-              value={draft.durationMin}
-              onChange={(e) => set('durationMin', e.target.value)}
-              hint="Tiempo que debe mantenerse la condición. 0 = de inmediato."
-              error={errors.duration}
-            />
-          )
-        )}
-        <FormField
-          id="rule-resolve"
-          label="Espera de resolución (minutos)"
-          inputMode="decimal"
-          value={draft.resolveMin}
-          onChange={(e) => set('resolveMin', e.target.value)}
-          hint="Tiempo sano antes de resolverla."
-          error={errors.resolve}
-        />
-      </div>
-      {!isCheck && <ScopeFields id="rule" types={ruleScopeTypes(draft.kind)} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />}
       <SelectField
         id="rule-severity"
         label="Severidad"
@@ -243,25 +249,33 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
         onChange={(v) => set('severity', v as AlertSeverity)}
         options={SEVERITY_OPTIONS}
       />
-      {!isCheck && (
+      <div className="grid content-start gap-3">
+        {!isCheck && (
+          <CheckField
+            id="rule-offline"
+            label="Incluir equipos sin conexión"
+            hint="Se evalúan con el último valor conocido."
+            checked={draft.includeOffline}
+            onChange={(v) => set('includeOffline', v)}
+          />
+        )}
         <CheckField
-          id="rule-offline"
-          label="Incluir equipos sin conexión"
-          hint="Se evalúan con el último valor conocido."
-          checked={draft.includeOffline}
-          onChange={(v) => set('includeOffline', v)}
+          id="rule-enabled"
+          label="Regla activa"
+          hint="Desactivada no genera alertas nuevas y resuelve las abiertas."
+          checked={draft.enabled}
+          onChange={(v) => set('enabled', v)}
         />
+      </div>
+      <div className="sm:col-span-2">
+        <ChannelPicker selected={channelIds} onChange={setChannelIds} />
+      </div>
+      {error && (
+        <div className="sm:col-span-2">
+          <InlineError>{error}</InlineError>
+        </div>
       )}
-      <CheckField
-        id="rule-enabled"
-        label="Regla activa"
-        hint="Desactivada no genera alertas nuevas y resuelve las abiertas."
-        checked={draft.enabled}
-        onChange={(v) => set('enabled', v)}
-      />
-      <ChannelPicker selected={channelIds} onChange={setChannelIds} />
-      {error && <InlineError>{error}</InlineError>}
-      <DialogFooter>
+      <DialogFooter className="sm:col-span-2">
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancelar
         </Button>
