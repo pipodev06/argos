@@ -52,7 +52,7 @@ export function HostHistoryView({ id }: { id: string }) {
   const hostname = detail.data?.host.hostname ?? history.data?.host.hostname ?? ''
 
   function apply(range: DateRange) {
-    const err = validateRange(range, Date.now())
+    const err = validateRange(range, Date.now(), history.data?.detail_retention_days)
     setFormError(err)
     setExportError(null)
     if (!err) setApplied(range)
@@ -141,7 +141,7 @@ export function HostHistoryView({ id }: { id: string }) {
                 <span>
                   {data.resolution === 'raw'
                     ? 'Detalle cada 30 s.'
-                    : `Resumen por hora: el detalle de más de ${DETAIL_RETENTION_DAYS} días ya no se conserva.`}
+                    : `Resumen por hora: el detalle de más de ${data.detail_retention_days ?? DETAIL_RETENTION_DAYS} días ya no se conserva.`}
                 </span>
               </p>
               {startsBeforeData && availableFrom !== null && (

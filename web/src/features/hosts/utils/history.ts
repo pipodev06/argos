@@ -19,6 +19,8 @@ export type HistorySeries = 'metrics' | 'disks'
 export interface HistoryResponse {
   host: { id: string; hostname: string }
   resolution: HistoryResolution
+  /** Retención efectiva del detalle de este host (host ?? grupo ?? global); ausente en servers antiguos. */
+  detail_retention_days?: number
   from: string
   to: string
   step_seconds: number
@@ -89,16 +91,16 @@ export function shortcutRange(id: ShortcutId, now: number): DateRange {
 }
 
 /** Misma regla que el servidor: si `from` cae dentro de la retencion del detalle, se sirve crudo; si no, por hora. */
-export function expectedResolution(fromMs: number, now: number): HistoryResolution {
-  return fromMs >= now - DETAIL_RETENTION_DAYS * DAY ? 'raw' : 'hourly'
+export function expectedResolution(fromMs: number, now: number, detailDays: number = DETAIL_RETENTION_DAYS): HistoryResolution {
+  return fromMs >= now - detailDays * DAY ? 'raw' : 'hourly'
 }
 
 /** Mensaje de error del formulario, o null si el rango es valido. */
-export function validateRange({ fromMs, toMs }: DateRange, now: number): string | null {
+export function validateRange({ fromMs, toMs }: DateRange, now: number, detailDays: number = DETAIL_RETENTION_DAYS): string | null {
   if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return 'Indica la fecha de inicio y la de fin.'
   if (toMs <= fromMs) return 'El fin debe ser posterior al inicio.'
   if (toMs > now + FUTURE_SLACK_MS) return 'El fin no puede estar en el futuro.'
-  const raw = expectedResolution(fromMs, now) === 'raw'
+  const raw = expectedResolution(fromMs, now, detailDays) === 'raw'
   const maxDays = raw ? RAW_MAX_DAYS : HOURLY_MAX_DAYS
   if (toMs - fromMs > maxDays * DAY) {
     return raw
