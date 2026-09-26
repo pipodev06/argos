@@ -651,12 +651,12 @@ func TestAckAndResolveAlert(t *testing.T) {
 	}
 	uid := mkUser(t, s, "adm", "admin")
 
-	a, err := s.AckAlert(ctx, id, uid, "adm")
+	a, err := s.AckAlert(ctx, AllScope(), id, uid, "adm")
 	if err != nil || a.State != "acknowledged" || a.AcknowledgedByName == nil || *a.AcknowledgedByName != "adm" {
 		t.Fatalf("ack got %+v, %v", a, err)
 	}
 	// Idempotente.
-	if a, err := s.AckAlert(ctx, id, uid, "adm"); err != nil || a.State != "acknowledged" {
+	if a, err := s.AckAlert(ctx, AllScope(), id, uid, "adm"); err != nil || a.State != "acknowledged" {
 		t.Fatalf("segundo ack got %+v, %v", a, err)
 	}
 	a, err = s.ResolveAlert(ctx, id, uid, "adm")
@@ -669,11 +669,11 @@ func TestAckAndResolveAlert(t *testing.T) {
 	if _, err := s.ResolveAlert(ctx, id, uid, "adm"); !errors.Is(err, ErrAlertResolved) {
 		t.Errorf("resolver dos veces got %v, want ErrAlertResolved", err)
 	}
-	if _, err := s.AckAlert(ctx, id, uid, "adm"); !errors.Is(err, ErrAlertResolved) {
+	if _, err := s.AckAlert(ctx, AllScope(), id, uid, "adm"); !errors.Is(err, ErrAlertResolved) {
 		t.Errorf("ack de resuelta got %v, want ErrAlertResolved", err)
 	}
 	const none = "00000000-0000-0000-0000-0000000000aa"
-	if _, err := s.AckAlert(ctx, none, uid, "adm"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.AckAlert(ctx, AllScope(), none, uid, "adm"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("ack inexistente got %v, want ErrNotFound", err)
 	}
 	if _, err := s.ResolveAlert(ctx, none, uid, "adm"); !errors.Is(err, ErrNotFound) {

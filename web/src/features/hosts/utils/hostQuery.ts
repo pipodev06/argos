@@ -33,7 +33,7 @@ const SEEN_UNITS: readonly NumericUnit[] = [
 /**
  * Campos de filtro de Hosts (orden = orden de la fila y de la URL). Filtros, orden y tamano de pagina
  * viven en la URL (el cursor no). Nombres de parametro: status, group, os, cpu_gt, mem_gt, disk_gt,
- * battery_lt, seen_before, q, sort, dir, limit.
+ * battery_lt, seen_before, agent_outdated (la API recibe agent=outdated), q, sort, dir, limit.
  */
 export const HOST_FIELDS = [
   { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar hosts', placeholder: 'Buscar' },
@@ -53,6 +53,7 @@ export const HOST_FIELDS = [
     plural: 'sistemas',
     options: OS_VALUES.map((o) => ({ id: o, name: OS_LABELS[o] })),
   },
+  { kind: 'boolean', key: 'agent_outdated', label: 'Agente desactualizado' },
   { kind: 'numeric', key: 'cpu_gt', label: 'CPU', extra: true, op: '>', max: 100, suffix: '%' },
   { kind: 'numeric', key: 'mem_gt', label: 'Memoria', extra: true, op: '>', max: 100, suffix: '%' },
   { kind: 'numeric', key: 'disk_gt', label: 'Disco', extra: true, op: '>', max: 100, suffix: '%' },
@@ -85,6 +86,9 @@ export type HostFilters = FiltersOf<typeof HOST_FIELDS>
 /** Query de GET /hosts: mismos filtros, con orden/direccion explicitos, limite y cursor. */
 export function buildApiQuery(f: HostFilters, cursor: string | null): URLSearchParams {
   const p = serializeFilters(HOST_FIELDS, f)
+  // El chip usa su propio parametro de URL; el contrato del servidor es `agent=outdated`.
+  p.delete('agent_outdated')
+  if (f.agent_outdated) p.set('agent', 'outdated')
   // Los dispositivos (sin agente) viven en /dispositivos: la lista de hosts pide solo hosts con agente.
   p.set('kind', 'agent')
   p.set('sort', f.sort)

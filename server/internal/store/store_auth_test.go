@@ -15,14 +15,14 @@ func TestCreateUser(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	u, err := s.CreateUser(ctx, "Alice", "$argon2id$hash", RoleAdmin, true)
+	u, err := s.CreateUser(ctx, NewUser{Username: "Alice", PasswordHash: "$argon2id$hash", Role: RoleAdmin, MustChange: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if u.ID == "" || u.Username != "Alice" || u.Role != RoleAdmin || !u.MustChangePassword {
 		t.Errorf("usuario creado inesperado: %+v", u)
 	}
-	if _, err := s.CreateUser(ctx, "alice", "$argon2id$hash", RoleViewer, false); !errors.Is(err, ErrUserExists) {
+	if _, err := s.CreateUser(ctx, NewUser{Username: "alice", PasswordHash: "$argon2id$hash", Role: RoleViewer}); !errors.Is(err, ErrUserExists) {
 		t.Errorf("username repetido (otra capitalizacion) err got %v, want ErrUserExists", err)
 	}
 	got, err := s.UserByUsername(ctx, "ALICE")

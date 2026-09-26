@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { ChangeRoleDialog } from '@/features/users/components/ChangeRoleDialog'
 import { CreateUserDialog } from '@/features/users/components/CreateUserDialog'
+import { DeleteUserDialog } from '@/features/users/components/DeleteUserDialog'
 import { PermissionsDialog } from '@/features/users/components/PermissionsDialog'
 import { ResetPasswordDialog } from '@/features/users/components/ResetPasswordDialog'
 import { ToggleUserDialog } from '@/features/users/components/ToggleUserDialog'
@@ -78,6 +79,7 @@ function UsersAdmin({ currentUserId }: { currentUserId: string }) {
       <ChangeRoleDialog user={pick('role')} onClose={() => setTarget(null)} onSaved={done} />
       <PermissionsDialog user={pick('permissions')} onClose={() => setTarget(null)} onSaved={done} />
       <ToggleUserDialog user={pick('toggle')} onClose={() => setTarget(null)} onSaved={done} />
+      <DeleteUserDialog user={pick('delete')} onClose={() => setTarget(null)} onSaved={done} />
       <ResetPasswordDialog user={pick('password')} onClose={() => setTarget(null)} onSaved={done} />
     </>
   )

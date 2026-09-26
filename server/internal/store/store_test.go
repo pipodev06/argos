@@ -113,7 +113,7 @@ func th(name string) string {
 // mkUser inserta un usuario de prueba y devuelve su id.
 func mkUser(t *testing.T, s *Store, username, role string) string {
 	t.Helper()
-	u, err := s.CreateUser(context.Background(), username, "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA", role, false)
+	u, err := s.CreateUser(context.Background(), NewUser{Username: username, PasswordHash: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA", Role: role, AllGroups: true})
 	if err != nil {
 		t.Fatalf("creando usuario %q: %v", username, err)
 	}
@@ -137,7 +137,7 @@ func count(t *testing.T, sql string, args ...any) int {
 }
 
 // latestMigration es la version de la ultima migracion embebida.
-const latestMigration = 33
+const latestMigration = 34
 
 func TestMigrateIsIdempotent(t *testing.T) {
 	if testPool == nil {
@@ -262,7 +262,7 @@ func TestSchemaConstraints(t *testing.T) {
 		{"host revocado debe estar disabled", `INSERT INTO hosts (hostname, agent_token_hash, status, agent_token_revoked_at) VALUES ('a', 'x2', 'up', now())`, "23514"},
 		{"rol invalido", `INSERT INTO users (username, password_hash, role) VALUES ('alice', '$argon2id$x', 'root')`, "23514"},
 		{"hash que no es argon2id", `INSERT INTO users (username, password_hash, role) VALUES ('alice', 'plano', 'admin')`, "23514"},
-		{"username duplicado sin mayusculas", `INSERT INTO users (username, password_hash, role) VALUES ('Alice', '$argon2id$x', 'admin'), ('alice', '$argon2id$x', 'admin')`, "23505"},
+		{"username duplicado sin mayusculas", `INSERT INTO users (username, password_hash, role, all_groups) VALUES ('Alice', '$argon2id$x', 'admin', true), ('alice', '$argon2id$x', 'admin', true)`, "23505"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

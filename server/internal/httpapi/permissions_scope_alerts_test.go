@@ -20,7 +20,13 @@ type alertScopeEnv struct {
 
 func newAlertScopeEnv(t *testing.T) *alertScopeEnv {
 	t.Helper()
-	s := newScopeEnv(t)
+	return newAlertScopeEnvWith(t, Options{HostDownAfter: 2 * time.Minute})
+}
+
+// newAlertScopeEnvWith es newAlertScopeEnv con opciones propias (canales, catalogo de binarios...).
+func newAlertScopeEnvWith(t *testing.T, opts Options) *alertScopeEnv {
+	t.Helper()
+	s := newScopeEnvWith(t, opts)
 	ae := &alertEnv{env: s.env, admin: s.admin, viewer: s.va}
 	x := &alertScopeEnv{scopeEnv: s, ae: ae, alerts: map[string]string{}}
 	for _, id := range []string{s.hostA, s.hostB, s.hostNo} {

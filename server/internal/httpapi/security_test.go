@@ -103,7 +103,8 @@ func (e *env) newUser(username, password, role string, mustChange bool) store.Us
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	u, err := e.st.CreateUser(context.Background(), username, hash, role, mustChange)
+	// El helper crea viewers con ambito total (lo que asumen los tests anteriores al default fail-closed del alta por API).
+	u, err := e.st.CreateUser(context.Background(), store.NewUser{Username: username, PasswordHash: hash, Role: role, MustChange: mustChange, AllGroups: true})
 	if err != nil {
 		e.t.Fatalf("creando usuario %q: %v", username, err)
 	}

@@ -8,6 +8,7 @@ import { SortableHead, type SortDir } from '@/components/data-table/SortableHead
 import { rowNumber } from '@/lib/pagination'
 import { usageLevel } from '@/lib/usage'
 import type { Host } from '../types/host.types'
+import { formatAgentVersion } from '../utils/agentVersion'
 import type { OptionalColumn } from '../utils/columns'
 import { DeviceKindBadge } from '@/features/devices/components/DeviceBadges'
 import { formatElapsed, formatLastSeen, formatNumber } from '../utils/format'
@@ -47,7 +48,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
   const selectable = hosts?.filter((h) => h.kind === 'agent') ?? []
   const allSelected = selected !== null && selectable.length > 0 && selectable.every((h) => selected.has(h.id))
   const someSelected = selected !== null && selectable.some((h) => selected.has(h.id))
-  const colSpan = 8 + visible.length + 2
+  const colSpan = 8 + visible.length + 3
 
   return (
     <DataTable caption="Hosts">
@@ -67,6 +68,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
             <SortableHead id="status" label="Estado" {...sortProps} />
             <SortableHead id="group" label="Grupo" {...sortProps} className="hidden md:table-cell" />
             <HeadCell className="hidden md:table-cell">SO</HeadCell>
+            <HeadCell className="hidden md:table-cell">Agente</HeadCell>
             <SortableHead id="cpu" label="CPU" {...sortProps} className="hidden md:table-cell" />
             <SortableHead id="mem" label="Mem" {...sortProps} className="hidden md:table-cell" />
             <SortableHead id="disk" label="Disco (uso)" {...sortProps} className="hidden md:table-cell" />
@@ -119,6 +121,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                       {h.group?.name ?? <span className="text-text-muted">Sin grupo</span>}
                     </Cell>
                     <Cell className="hidden md:table-cell">{formatOs(h.os, h.os_name, h.os_version)}</Cell>
+                    <Cell className="hidden tabular-nums md:table-cell">{formatAgentVersion(h.agent_version)}</Cell>
                     <Cell className="hidden text-center md:table-cell"><Pct value={h.cpu_pct} /></Cell>
                     <Cell className="hidden text-center md:table-cell"><Pct value={h.mem_pct} /></Cell>
                     <Cell className="hidden text-center md:table-cell">

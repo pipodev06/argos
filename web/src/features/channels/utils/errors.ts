@@ -1,4 +1,5 @@
 import { ApiError } from '@/lib/api'
+import { describeScopeMismatch } from './owner'
 import type { TestCategory, TestResult } from '../types/channel.types'
 
 const TEST_CATEGORY_LABELS: Record<TestCategory, string> = {
@@ -14,8 +15,17 @@ export function describeTestResult(r: TestResult): string {
   return r.category ? TEST_CATEGORY_LABELS[r.category] : 'Falló la prueba'
 }
 
+/** Errores de dueño/ámbito de canales (comunes a canales, reglas y chequeos); null = no aplica. */
+export function mapScopeError(err: ApiError): string | null {
+  if (err.code === 'channel_scope_mismatch') return describeScopeMismatch(err.details)
+  if (err.code === 'group_not_found') return 'El grupo elegido ya no existe. Cierra y vuelve a abrir el formulario.'
+  return null
+}
+
 /** Traduce los errores conocidos de la API de canales; null = usar el mensaje del servidor. */
 export function mapChannelError(err: ApiError): string | null {
+  const scope = mapScopeError(err)
+  if (scope) return scope
   if (err.code === 'secret_key_missing' || err.status === 503) {
     return 'El servidor no tiene ARGOS_SECRET_KEY configurada: pide al administrador del sistema que la defina.'
   }

@@ -32,6 +32,8 @@ const (
 	evUserEnabled            = "user_enabled"
 	evUserPasswordReset      = "user_password_reset"
 	evUserPermissionsChanged = "user_permissions_changed"
+	evUserDeleted            = "user_deleted"
+	evEnrollTokenRevoked     = "enroll_token_revoked" //nolint:gosec // nombre de evento, no una credencial
 	evEnrollTokenCreated     = "enroll_token_created" //nolint:gosec // nombre de evento, no una credencial
 	evHostEnrolled           = "host_enrolled"
 	evHostRevoked            = "host_revoked"
@@ -80,7 +82,7 @@ var auditDetailKeys = map[string]bool{
 	"reason": true, "locked": true, "role": true, "disabled": true,
 	"method": true, "route": true, "count": true, "hostname": true,
 	// Permisos por grupo de un usuario: valores antes (prev_*) y despues; group_ids solo si son pocos.
-	"all_groups": true, "prev_all_groups": true, "can_inventory": true, "prev_can_inventory": true, "can_updates": true, "prev_can_updates": true,
+	"all_groups": true, "prev_all_groups": true, "can_inventory": true, "prev_can_inventory": true, "can_updates": true, "prev_can_updates": true, "can_ack": true, "prev_can_ack": true, "username": true,
 	"group_ids": true, "group_count": true, "prev_group_count": true,
 	// Grupos y acciones masivas.
 	"action": true, "group_id": true, "name": true, "always_on": true, "down_after_seconds": true,

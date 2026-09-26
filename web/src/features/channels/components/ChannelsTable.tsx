@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { SeverityBadge } from '@/features/alerts/components/AlertBadges'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
 import type { TestOutcome } from '../hooks/useChannelTest'
+import { ownerLabel } from '../utils/owner'
 import type { Channel } from '../types/channel.types'
 
 export type ChannelAction = 'edit' | 'toggle' | 'delete' | 'test'
@@ -26,12 +27,13 @@ function testText(id: string, testingId: string | null, outcome: TestOutcome | u
 
 export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onAction }: ChannelsTableProps) {
   return (
-    <DataTable caption="Canales de notificación" className="min-w-[52rem]">
+    <DataTable caption="Canales de notificación" className="min-w-[56rem]">
       <thead>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
+          <HeadCell>Dueño</HeadCell>
           {canAct && <HeadCell>Destino</HeadCell>}
           <HeadCell>Firmado</HeadCell>
           <HeadCell>Severidad mínima</HeadCell>
@@ -45,6 +47,7 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
             <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
             <Cell>Webhook</Cell>
+            <Cell className="max-w-40 truncate">{ownerLabel(c)}</Cell>
             {canAct && <Cell className="max-w-56 truncate">{c.config?.host ?? '—'}</Cell>}
             <Cell>{c.has_secret ? 'Sí' : 'No'}</Cell>
             <Cell>

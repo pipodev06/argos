@@ -21,10 +21,11 @@ type userDTO struct {
 	AllGroups    bool `json:"all_groups"`
 	CanInventory bool `json:"can_inventory"`
 	CanUpdates   bool `json:"can_updates"`
+	CanAck       bool `json:"can_ack"`
 }
 
 func toUserDTO(u *sessionUser) userDTO {
-	return userDTO{ID: u.ID, Username: u.Username, Role: u.Role, MustChangePassword: u.MustChangePassword, AllGroups: u.Scope.All(), CanInventory: u.CanInventory, CanUpdates: u.CanUpdates}
+	return userDTO{ID: u.ID, Username: u.Username, Role: u.Role, MustChangePassword: u.MustChangePassword, AllGroups: u.Scope.All(), CanInventory: u.CanInventory, CanUpdates: u.CanUpdates, CanAck: u.CanAck}
 }
 
 type loginReq struct {

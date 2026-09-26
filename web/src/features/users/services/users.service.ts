@@ -17,3 +17,7 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Ma
   })
   return data.user
 }
+
+export async function deleteUser(id: string): Promise<void> {
+  await apiRequest<unknown>(`/users/${encodeURIComponent(id)}`, { method: 'DELETE', noData: true })
+}

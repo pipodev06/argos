@@ -7,10 +7,12 @@ import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import type { AlertSeverity } from '@/features/alerts/types/alert.types'
 import { SEVERITY_LABELS } from '@/features/alerts/utils/format'
+import { useGroups } from '@/features/groups/hooks/useGroups'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { createChannel, updateChannel } from '../services/channels.service'
 import type { Channel, UpdateChannelInput } from '../types/channel.types'
 import { mapChannelError } from '../utils/errors'
+import { GLOBAL_OWNER, ownerToGroupId, ownerValue } from '../utils/owner'
 
 interface ChannelFormDialogProps {
   /** null = crear; un canal = editar. */
@@ -41,6 +43,9 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
   const [removeSecret, setRemoveSecret] = useState(false)
   const [severity, setSeverity] = useState<AlertSeverity>(channel?.min_severity ?? 'warn')
   const [enabled, setEnabled] = useState(channel?.enabled ?? true)
+  const [owner, setOwner] = useState(ownerValue(channel))
+  const { groups } = useGroups()
+  const ownerOptions = [{ value: GLOBAL_OWNER, label: 'Global (todos los clientes)' }, ...(groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))]
   const [errors, setErrors] = useState<{ name?: string; url?: string }>({})
   const { error, busy, run } = useUserMutation()
 
@@ -65,10 +70,12 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
           ...(secret && { hmac_secret: secret }),
           min_severity: severity,
           enabled,
+          group_id: ownerToGroupId(owner),
         })
       }
       const patch: UpdateChannelInput = { name: trimmed, min_severity: severity, enabled }
       if (u) patch.url = u
+      if (owner !== ownerValue(channel)) patch.group_id = ownerToGroupId(owner)
       if (removeSecret) patch.hmac_secret = null
       else if (secret) patch.hmac_secret = secret
       return updateChannel(channel.id, patch)
@@ -117,6 +124,14 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
           Quitar firma
         </label>
       )}
+      <SelectField
+        id="channel-owner"
+        label="Dueño"
+        value={owner}
+        onChange={setOwner}
+        options={ownerOptions}
+        hint="Un canal de un cliente solo puede usarse en reglas de ese cliente; uno Global sirve para cualquier regla."
+      />
       <SelectField id="channel-severity" label="Severidad mínima" value={severity} onChange={(v) => setSeverity(v as AlertSeverity)} options={SEVERITY_OPTIONS} />
       <label htmlFor="channel-enabled" className="flex items-start gap-2 text-sm">
         <Checkbox id="channel-enabled" className="mt-0.5" checked={enabled} onCheckedChange={(v) => setEnabled(v === true)} />

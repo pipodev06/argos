@@ -10,6 +10,8 @@ const EVENT_LABELS: Record<string, string> = {
   user_disabled: 'Usuario deshabilitado',
   user_enabled: 'Usuario habilitado',
   user_password_reset: 'Contraseña restablecida',
+  user_deleted: 'Usuario eliminado',
+  enroll_token_revoked: 'Token de enrolamiento revocado',
   enroll_token_created: 'Token de enrolamiento creado',
   host_enrolled: 'Host enrolado',
   host_revoked: 'Host revocado',

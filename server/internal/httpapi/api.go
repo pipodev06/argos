@@ -26,6 +26,8 @@ type Store interface {
 	Ping(ctx context.Context) error
 	// Hosts y agentes.
 	CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time) error
+	ListPendingEnrollTokens(ctx context.Context) ([]store.PendingEnrollToken, error)
+	RevokeEnrollToken(ctx context.Context, id string) (hostname string, err error)
 	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, err error)
 	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
 	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
@@ -44,6 +46,7 @@ type Store interface {
 	DiskSampleRange(ctx context.Context, hostID string, from, to time.Time, fn func(store.DiskHistoryRow) error) error
 	RevokeHost(ctx context.Context, hostID string) error
 	Summary(ctx context.Context, scope store.Scope) (store.Summary, error)
+	AgentVersionCounts(ctx context.Context, scope store.Scope, includeDisabled bool) ([]store.AgentVersionCount, error)
 
 	// Grupos.
 	ListGroups(ctx context.Context, scope store.Scope) (groups []store.Group, ungrouped int, err error)
@@ -66,7 +69,7 @@ type Store interface {
 	// Alertas, reglas, mantenimiento y eventos de host.
 	ListAlerts(ctx context.Context, scope store.Scope, f store.AlertFilter) (store.AlertPage, error)
 	AlertByID(ctx context.Context, scope store.Scope, id string) (store.AlertDetail, error)
-	AckAlert(ctx context.Context, id, userID, username string) (store.Alert, error)
+	AckAlert(ctx context.Context, scope store.Scope, id, userID, username string) (store.Alert, error)
 	ResolveAlert(ctx context.Context, id, userID, username string) (store.Alert, error)
 	AlertSummary(ctx context.Context, scope store.Scope) (store.AlertSummary, error)
 	ListHostEvents(ctx context.Context, scope store.Scope, hostID string, after *store.EventCursor, limit int) (store.EventPage, error)
@@ -122,7 +125,8 @@ type Store interface {
 	UserByUsername(ctx context.Context, username string) (store.User, error)
 	UserByID(ctx context.Context, id string) (store.User, error)
 	ListUsers(ctx context.Context, limit int) ([]store.User, error)
-	CreateUser(ctx context.Context, username, passwordHash, role string, mustChange bool) (store.User, error)
+	CreateUser(ctx context.Context, n store.NewUser) (store.User, error)
+	DeleteUser(ctx context.Context, id, actorID string) (store.User, error)
 	UpdateUser(ctx context.Context, id string, ch store.UserChange, now time.Time) (store.User, error)
 	RegisterLoginFailure(ctx context.Context, userID string, now time.Time, maxFails int, lockFor time.Duration) (locked bool, err error)
 	RegisterLoginSuccess(ctx context.Context, userID string, now time.Time) error
@@ -324,6 +328,8 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/hosts/{id}/metrics", accessSession, a.hostMetrics)
 	a.route(mux, "GET /api/v1/hosts/{id}/history", accessSession, a.hostHistory)
 	a.route(mux, "POST /api/v1/hosts/enroll-token", accessAdmin, a.createEnrollToken)
+	a.route(mux, "GET /api/v1/hosts/enroll-tokens", accessAdmin, a.listEnrollTokens)
+	a.route(mux, "DELETE /api/v1/hosts/enroll-tokens/{id}", accessAdmin, a.revokeEnrollToken)
 	a.route(mux, "POST /api/v1/hosts/bulk", accessAdmin, a.bulkHosts)
 	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
 	a.route(mux, "POST /api/v1/hosts/{id}/purge", accessAdmin, a.purgeHost)
@@ -359,7 +365,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
 	a.route(mux, "POST /api/v1/groups/{id}/purge", accessAdmin, a.purgeGroup)
 
-	// Alertas (lectura: cualquier sesion; escritura, ack y resolve: solo admin).
+	// Alertas (lectura: cualquier sesion; ack: admin o viewer con can_ack; escritura y resolve: solo admin).
 	a.route(mux, "GET /api/v1/reports/availability", accessSession, a.availabilityReport)
 	a.route(mux, "GET /api/v1/reports/service-checks", accessSession, a.serviceChecksReport)
 	a.route(mux, "GET /api/v1/reports/availability.csv", accessSession, a.availabilityCSV)
@@ -368,7 +374,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/alerts", accessSession, a.listAlerts)
 	a.route(mux, "GET /api/v1/alerts/summary", accessSession, a.alertSummary)
 	a.route(mux, "GET /api/v1/alerts/{id}", accessSession, a.getAlert)
-	a.route(mux, "POST /api/v1/alerts/{id}/ack", accessAdmin, a.ackAlert)
+	a.route(mux, "POST /api/v1/alerts/{id}/ack", accessSession, a.requireAck(a.ackAlert))
 	a.route(mux, "POST /api/v1/alerts/{id}/resolve", accessAdmin, a.resolveAlert)
 	a.route(mux, "GET /api/v1/alert-rules", accessSession, a.listAlertRules)
 	a.route(mux, "GET /api/v1/alert-rules/{id}", accessSession, a.getAlertRule)
@@ -396,6 +402,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/users", accessAdmin, a.listUsers)
 	a.route(mux, "POST /api/v1/users", accessAdmin, a.createUser)
 	a.route(mux, "PATCH /api/v1/users/{id}", accessAdmin, a.updateUser)
+	a.route(mux, "DELETE /api/v1/users/{id}", accessAdmin, a.deleteUser)
 
 	a.route(mux, "GET /api/v1/audit", accessAdmin, a.listAudit)
 	a.route(mux, "GET /api/v1/audit/events", accessAdmin, a.listAuditEvents)
@@ -445,6 +452,11 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 			"los permisos por grupo no aplican a admins, y group_ids exige all_groups=false")
 	case errors.Is(err, store.ErrLastAdmin):
 		writeError(w, http.StatusConflict, "last_admin", "debe quedar al menos un admin activo")
+	case errors.Is(err, store.ErrSelfDelete):
+		writeError(w, http.StatusConflict, "self_delete", "no puedes borrar tu propia cuenta")
+	case errors.Is(err, store.ErrChannelScopeMismatch):
+		writeErrorDetails(w, http.StatusUnprocessableEntity, "channel_scope_mismatch",
+			"un canal de un grupo solo puede usarse en reglas cuyo alcance quede dentro de ese grupo", channelScopeDetails(err))
 	case errors.Is(err, store.ErrTooManyTokens):
 		writeError(w, http.StatusConflict, "too_many_tokens", "hay demasiados enroll tokens activos, espera a que expiren")
 	case errors.Is(err, store.ErrGroupNotFound):

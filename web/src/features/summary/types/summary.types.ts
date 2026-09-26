@@ -34,11 +34,18 @@ export interface StatusCounts {
   disabled: number
 }
 
+export interface AgentVersions {
+  /** Versión del catálogo de binarios; null sin catálogo. */
+  latest: string | null
+  counts: { version: string; hosts: number }[]
+}
+
 export interface Summary {
   generated_at: string
   counts: StatusCounts
   /** Dispositivos sin agente (viven en /dispositivos), aparte de los hosts. */
   devices: StatusCounts
+  agent_versions: AgentVersions
   by_group: SummaryGroup[]
   top_cpu: TopHost[]
   top_mem: TopHost[]

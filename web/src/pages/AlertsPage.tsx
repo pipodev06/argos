@@ -11,6 +11,7 @@ import { AlertsTable } from '@/features/alerts/components/AlertsTable'
 import { useAlertList } from '@/features/alerts/hooks/useAlerts'
 import type { Alert } from '@/features/alerts/types/alert.types'
 import { ALERT_FIELDS } from '@/features/alerts/utils/alertQuery'
+import { canAckAlerts, canResolveAlerts } from '@/features/alerts/utils/permissions'
 import { useCursorPagination } from '@/hooks/useCursorPagination'
 import { useNow } from '@/hooks/useNow'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
@@ -18,7 +19,6 @@ import type { PageSize } from '@/lib/pagination'
 
 export function AlertsPage() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
   const pagination = useCursorPagination()
   const resetPagination = pagination.reset
   const { filters, setFilters, clear, hasActive } = useUrlFilters(ALERT_FIELDS, { onChange: resetPagination })
@@ -65,7 +65,8 @@ export function AlertsPage() {
               page={pagination.page}
               pageSize={filters.limit}
               now={now}
-              canAct={isAdmin}
+              canAck={canAckAlerts(user)}
+              canResolve={canResolveAlerts(user)}
               onAction={(action, alert) => setTarget({ action, alert })}
             />
             <Pagination

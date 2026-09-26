@@ -1,4 +1,4 @@
-import { IconKey, IconLockAccess, IconShield, IconUserCheck, IconUserOff } from '@tabler/icons-react'
+import { IconKey, IconLockAccess, IconShield, IconTrash, IconUserCheck, IconUserOff } from '@tabler/icons-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { roleLabel } from '@/features/auth/utils/format'
@@ -7,7 +7,7 @@ import { accessLabel } from '../utils/permissions'
 import type { ManagedUser } from '../types/user.types'
 import { UserStatusBadge } from './UserStatusBadge'
 
-export type UserAction = 'role' | 'toggle' | 'password' | 'permissions'
+export type UserAction = 'role' | 'toggle' | 'password' | 'permissions' | 'delete'
 
 interface UsersTableProps {
   users: ManagedUser[]
@@ -88,6 +88,16 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                   onClick={() => onAction('password', u)}
                 >
                   <IconKey stroke={1.5} aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Eliminar a ${u.username}`}
+                  title={self ? 'No puedes eliminarte' : 'Eliminar'}
+                  disabled={self}
+                  onClick={() => onAction('delete', u)}
+                >
+                  <IconTrash stroke={1.5} aria-hidden />
                 </Button>
               </Cell>
             </Row>

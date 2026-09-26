@@ -6,6 +6,7 @@ import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import { CheckSelectField } from '@/features/checks/components/CheckSelectField'
+import { mapScopeError } from '@/features/channels/utils/errors'
 import { ChannelPicker } from '@/features/channels/components/ChannelPicker'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { createRule, setRuleChannels, updateRule } from '../services/alerts.service'
@@ -103,7 +104,7 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
         setErrors({ name: 'Ya existe una regla con ese nombre. Elige otro.' })
         return 'Ya existe una regla con ese nombre.'
       }
-      return null
+      return mapScopeError(err)
     })
     if (ok) onSaved()
   }

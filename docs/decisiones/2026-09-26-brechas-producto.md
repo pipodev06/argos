@@ -2,6 +2,8 @@
 
 Método: agente de análisis leyendo `Routes()`, handlers, store, pantallas web, agente y despliegue; **no ejecutó nada**. Los "no lo encontré" se basan en `grep` y en la lista de rutas y podrían existir con otro nombre. Contexto: servicio hospedado (un admin, clientes = grupos + viewers restringidos). La lista priorizada con estado vive en `plan-tareas.md` (P9, B1–B30).
 
+> **Actualización (2026-09-26, lote L):** cerrados B1, B2 (incl. R1), B8, B9, B10, B11 y B13; el resto de la lista sigue en `plan-tareas.md` (P9).
+
 ## Lo que hay por flujo (resumen)
 1. **Alta de un cliente**: crear grupo, retención, usuarios, permisos, enrolar (token de 15 min por host, máx. 50), dispositivos, reglas y canales ✔; faltan: entidad "cliente" (grupo = cliente), viewers con grupos desde el alta (nacen con `all_groups=true`), retención en `POST /groups` (hay que crear y luego editar), listado/revocación de tokens pendientes, alta masiva, plantillas de reglas.
 2. **Vida del cliente (viewer)**: ve hosts, resumen, alertas, chequeos, informes y su historial con ámbito ✔ (lo mejor cubierto); no puede reconocer alertas ni silenciar, no recibe notificaciones propias sin que el admin cree el webhook, sin correo (SMTP aplazado), sin recuperación autoservicio, sin listado de sesiones, sin MFA.

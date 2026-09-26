@@ -35,6 +35,9 @@ type channelDTO struct {
 	MinSeverity string `json:"min_severity"`
 	Enabled     bool   `json:"enabled"`
 	HasSecret   bool   `json:"has_secret"`
+	// Dueño del canal: null = canal global del admin (usable por cualquier regla); con grupo, solo por reglas de ese grupo.
+	GroupID   *string `json:"group_id"`
+	GroupName *string `json:"group_name"`
 }
 
 // channelConfig es la parte no secreta que se guarda en la columna config: solo el host del webhook y si se
@@ -54,7 +57,7 @@ type adminChannelDTO struct {
 
 func toChannelDTO(c store.Channel) channelDTO {
 	return channelDTO{ID: c.ID, Name: c.Name, Kind: c.Kind, MinSeverity: c.MinSeverity, Enabled: c.Enabled,
-		HasSecret: len(c.SecretEnc) > 0}
+		HasSecret: len(c.SecretEnc) > 0, GroupID: c.GroupID, GroupName: c.GroupName}
 }
 
 // channelView devuelve el DTO segun el rol: el viewer nunca recibe config.
@@ -93,6 +96,18 @@ func (a *API) checkWebhookURL(r *http.Request, raw string) error {
 		return badRequest("%s", err.Error())
 	}
 	return err
+}
+
+// parseChannelGroup valida el dueño opcional de un canal (nil = global): un uuid bien formado, en minusculas.
+func parseChannelGroup(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	if !isUUID(*raw) {
+		return nil, badRequest("group_id debe ser un id de grupo o null")
+	}
+	id := strings.ToLower(*raw)
+	return &id, nil
 }
 
 func checkHMACSecret(s string) error {
@@ -186,12 +201,13 @@ func (a *API) getChannel(w http.ResponseWriter, r *http.Request) error {
 // --- escrituras ---
 
 type createChannelReq struct {
-	Name        string `json:"name"`
-	Kind        string `json:"kind"`
-	URL         string `json:"url"`
-	HMACSecret  string `json:"hmac_secret"`
-	MinSeverity string `json:"min_severity"`
-	Enabled     *bool  `json:"enabled"`
+	Name        string  `json:"name"`
+	Kind        string  `json:"kind"`
+	URL         string  `json:"url"`
+	HMACSecret  string  `json:"hmac_secret"`
+	MinSeverity string  `json:"min_severity"`
+	Enabled     *bool   `json:"enabled"`
+	GroupID     *string `json:"group_id"`
 }
 
 func (a *API) createChannel(w http.ResponseWriter, r *http.Request) error {
@@ -215,6 +231,10 @@ func (a *API) createChannel(w http.ResponseWriter, r *http.Request) error {
 	if err := checkHMACSecret(req.HMACSecret); err != nil {
 		return err
 	}
+	groupID, err := parseChannelGroup(req.GroupID)
+	if err != nil {
+		return err
+	}
 	if err := a.webhookReady(); err != nil {
 		return err
 	}
@@ -235,7 +255,7 @@ func (a *API) createChannel(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	ch := store.Channel{ID: id, Name: name, Kind: req.Kind, Config: cfg, SecretEnc: blob, SecretKeyID: &keyID,
-		MinSeverity: req.MinSeverity, Enabled: true}
+		MinSeverity: req.MinSeverity, Enabled: true, GroupID: groupID}
 	if req.Enabled != nil {
 		ch.Enabled = *req.Enabled
 	}
@@ -260,6 +280,8 @@ type updateChannelReq struct {
 	HMACSecret  optional[string] `json:"hmac_secret"`
 	MinSeverity *string          `json:"min_severity"`
 	Enabled     *bool            `json:"enabled"`
+	// GroupID: dueño del canal; null lo vuelve global, ausente lo conserva.
+	GroupID optional[string] `json:"group_id"`
 }
 
 func (req updateChannelReq) changedFields() []string {
@@ -274,6 +296,7 @@ func (req updateChannelReq) changedFields() []string {
 	add(req.HMACSecret.Set, "hmac_secret")
 	add(req.MinSeverity != nil, "min_severity")
 	add(req.Enabled != nil, "enabled")
+	add(req.GroupID.Set, "group_id")
 	return out
 }
 
@@ -307,6 +330,10 @@ func (a *API) updateChannel(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	newGroup, err := parseChannelGroup(req.GroupID.Value)
+	if err != nil {
+		return err
+	}
 	changesSecret := req.URL != nil || req.HMACSecret.Set
 	if changesSecret {
 		if err := a.webhookReady(); err != nil {
@@ -328,6 +355,9 @@ func (a *API) updateChannel(w http.ResponseWriter, r *http.Request) error {
 		}
 		if req.Enabled != nil {
 			c.Enabled = *req.Enabled
+		}
+		if req.GroupID.Set {
+			c.GroupID = newGroup
 		}
 		if !changesSecret {
 			return nil
@@ -373,6 +403,9 @@ func (a *API) updateChannel(w http.ResponseWriter, r *http.Request) error {
 // destino solo el host, y solo si cambio; nunca la URL completa ni el secreto HMAC.
 func channelAuditDetail(c store.Channel, host string, fields []string) map[string]any {
 	d := map[string]any{"name": c.Name, "kind": c.Kind, "severity": c.MinSeverity, "enabled": c.Enabled}
+	if c.GroupID != nil {
+		d["group_id"] = *c.GroupID
+	}
 	if host != "" {
 		d["host"] = host
 	}
@@ -493,4 +526,23 @@ func (a *API) setRuleChannels(w http.ResponseWriter, r *http.Request) error {
 	a.audit(r, e, map[string]any{"name": rule.Name, "count": len(ids)})
 	writeJSON(w, http.StatusOK, map[string]any{"channel_ids": rule.ChannelIDs})
 	return nil
+}
+
+// ruleRefDTO es una regla afectada en el detalle de channel_scope_mismatch.
+type ruleRefDTO struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// channelScopeDetails arma details de channel_scope_mismatch: {"rules": [{"id","name"}]} (hasta 20).
+func channelScopeDetails(err error) any {
+	var se *store.ChannelScopeError
+	if !errors.As(err, &se) {
+		return nil
+	}
+	rules := make([]ruleRefDTO, 0, len(se.Rules))
+	for _, r := range se.Rules {
+		rules = append(rules, ruleRefDTO{ID: r.ID, Name: r.Name})
+	}
+	return map[string]any{"rules": rules}
 }

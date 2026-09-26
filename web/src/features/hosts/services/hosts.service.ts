@@ -10,6 +10,7 @@ import {
 import type {
   BulkRequest,
   EnrollToken,
+  PendingEnrollToken,
   GroupRef,
   HostDetailResponse,
   HostListResponse,
@@ -26,6 +27,15 @@ export function createEnrollToken(hostname: string, groupId: string | null): Pro
     method: 'POST',
     body: groupId ? { hostname, group_id: groupId } : { hostname },
   })
+}
+
+export async function listEnrollTokens(signal?: AbortSignal): Promise<PendingEnrollToken[]> {
+  const data = await apiRequest<{ items: PendingEnrollToken[] }>('/hosts/enroll-tokens', { signal })
+  return data.items
+}
+
+export function revokeEnrollToken(id: string): Promise<unknown> {
+  return apiRequest<unknown>(`/hosts/enroll-tokens/${encodeURIComponent(id)}`, { method: 'DELETE', noData: true })
 }
 
 export function getHost(id: string, signal?: AbortSignal): Promise<HostDetailResponse> {

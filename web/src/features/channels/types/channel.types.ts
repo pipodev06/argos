@@ -7,6 +7,9 @@ export interface Channel {
   min_severity: AlertSeverity
   enabled: boolean
   has_secret: boolean
+  /** Dueño: null = global (usable en cualquier regla). */
+  group_id: string | null
+  group_name: string | null
   /** Solo lo devuelve la API a administradores; nunca incluye la URL completa. */
   config?: { host: string; signed: boolean }
 }
@@ -18,6 +21,7 @@ export interface CreateChannelInput {
   hmac_secret?: string
   min_severity: AlertSeverity
   enabled: boolean
+  group_id: string | null
 }
 
 export interface UpdateChannelInput {
@@ -27,6 +31,7 @@ export interface UpdateChannelInput {
   hmac_secret?: string | null
   min_severity?: AlertSeverity
   enabled?: boolean
+  group_id?: string | null
 }
 
 export type TestCategory = 'dns' | 'connect' | 'tls' | 'timeout' | 'status'

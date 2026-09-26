@@ -16,12 +16,15 @@ interface AlertsTableProps {
   page: number
   pageSize: number
   now: number
-  /** Solo admin ve la columna de acciones. */
-  canAct: boolean
+  /** Reconocer: admin o viewer con can_ack. La columna de acciones existe si hay alguna acción. */
+  canAck: boolean
+  /** Resolver: solo admin. */
+  canResolve: boolean
   onAction: (action: AlertActionKind, alert: Alert) => void
 }
 
-export function AlertsTable({ alerts, page, pageSize, now, canAct, onAction }: AlertsTableProps) {
+export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, onAction }: AlertsTableProps) {
+  const canAct = canAck || canResolve
   const cols = canAct ? 8 : 7
   return (
     <DataTable caption="Alertas" className="min-w-[60rem]">
@@ -69,7 +72,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAct, onAction }: A
             <Cell className="tabular-nums">{formatLastSeen(a.opened_at, now)}</Cell>
             {canAct && (
               <Cell>
-                {a.state === 'open' && (
+                {canAck && a.state === 'open' && (
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -80,7 +83,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAct, onAction }: A
                     <IconEye stroke={1.5} aria-hidden />
                   </Button>
                 )}
-                {a.state !== 'resolved' && (
+                {canResolve && a.state !== 'resolved' && (
                   <Button
                     variant="ghost"
                     size="icon-sm"
