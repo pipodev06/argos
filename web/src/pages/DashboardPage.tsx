@@ -10,6 +10,7 @@ import { GroupsPage } from './GroupsPage'
 import { ReportsPage } from './ReportsPage'
 import { HostDetailPage } from './HostDetailPage'
 import { HostEventsPage } from './HostEventsPage'
+import { HostHistoryPage } from './HostHistoryPage'
 import { HostsPage } from './HostsPage'
 import { InventoryPage } from './InventoryPage'
 import { UpdatesPage } from './UpdatesPage'
@@ -37,6 +38,7 @@ export function DashboardPage() {
         <Route path="hosts/:id" element={<HostDetailPage />} />
         <Route path="hosts/:id/inventario" element={<InventoryPage />} />
         <Route path="hosts/:id/estados" element={<HostEventsPage />} />
+        <Route path="hosts/:id/historial" element={<HostHistoryPage />} />
         <Route path="parches" element={<UpdatesPage />} />
         <Route path="dispositivos" element={<DevicesPage />} />
         <Route path="grupos" element={<GroupsPage />} />

@@ -1,23 +1,18 @@
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import type { MetricRange } from '../types/host.types'
 import {
   buildTicks,
-  formatTick,
-  formatTooltipLabel,
   isolatedTimes,
   type ChartRow,
+  type ChartView,
   type ChartSeries,
   type SeriesStyle,
 } from '../utils/chart'
 
 interface TimeSeriesChartProps {
   rows: ChartRow[]
-  range: MetricRange
   /** Ventana visible [startMs, endMs]: fija el eje X aunque el host lleve rato sin reportar. */
-  startMs: number
-  endMs: number
-  tickMs: number
+  view: ChartView
   series: readonly ChartSeries[]
   yDomain: [number, number | ((dataMax: number) => number)]
   yTicks?: number[]
@@ -31,16 +26,14 @@ const AXIS_TICK = { fill: 'var(--text-muted)', fontSize: 12 }
 /** Grafica de lineas sobre eje de tiempo real; los huecos (valores null) cortan la linea. */
 export function TimeSeriesChart({
   rows,
-  range,
-  startMs,
-  endMs,
-  tickMs,
+  view,
   series,
   yDomain,
   yTicks,
   yFormatter,
   reference,
 }: TimeSeriesChartProps) {
+  const { startMs, endMs, tickMs } = view
   return (
     <ChartContainer>
       <LineChart
@@ -54,7 +47,7 @@ export function TimeSeriesChart({
           type="number"
           domain={[startMs, endMs]}
           ticks={buildTicks(startMs, endMs, tickMs)}
-          tickFormatter={(ms: number) => formatTick(ms, range)}
+          tickFormatter={(ms: number) => view.formatTick(ms)}
           tick={AXIS_TICK}
           stroke="var(--border)"
           tickLine={false}
@@ -74,7 +67,7 @@ export function TimeSeriesChart({
           cursor={{ stroke: 'var(--text-muted)', strokeDasharray: '3 3' }}
           content={
             <ChartTooltipContent
-              labelFormatter={(label) => formatTooltipLabel(Number(label), range)}
+              labelFormatter={(label) => view.formatTooltip(Number(label))}
               valueFormatter={yFormatter}
             />
           }
