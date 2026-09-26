@@ -17,7 +17,7 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 - [x] **S1 Medir** (2026-09-25, `decisiones/2026-09-25-rendimiento.md`): `go test -json` → top 20 tests/paquetes más lentos (sospechas: hash argon2, `TRUNCATE` por test, `sleep`s). *Hecho cuando:* tabla de tiempos en `decisiones/`.
 - [x] **S2 Recortar** (204 s → 73 s: `testdb.ResetData` y sin DROP DATABASE por corrida) lo medido: params de argon2 baratos en tests, esquema compartido con `t.Parallel()` donde no haya estado global, quitar esperas fijas. *Hecho cuando:* `check-go.sh server` < 90 s sin perder cobertura (comparar `-cover`).
 - [x] **S3 `-race` en local** (2026-09-25: `bash scripts/check-go.sh server --race`; suite del server con `-race` en 2 min 43 s: httpapi 151 s, store 114 s, retention 62 s; sin carreras) (o job propio en CI con caché): hoy solo corre en CI Linux. *Hecho cuando:* documentado el comando y el tiempo.
-- [ ] **S4 Tests dependientes de la hora** : buscar `Now()±N` sin reloj inyectado (fallaron 2 por hora/zona). *Hecho cuando:* grep limpio o justificado.
+- [x] **S4 Tests dependientes de la hora** (2026-09-26: revisados los 110 usos de `time.Now()` en tests; los de límite de hora/día ya estaban corregidos; el CI ahora corre server y agent también con `TZ=Pacific/Kiritimati` (UTC+14) y `TZ=Etc/GMT+12` (UTC-12), job `go-tz`: los 4 verdes) : buscar `Now()±N` sin reloj inyectado (fallaron 2 por hora/zona). *Hecho cuando:* grep limpio o justificado.
 
 ## P2 — Reglas de alerta de parches y alertas en general
 - [ ] **R1 Prueba E2E real** de `pending_updates`, `reboot_pending` y `os_eol` con los 2 hosts (crear regla en la UI, forzar la condición, ver alerta, ver notificación en el webhook). *Hecho cuando:* checklist ejecutado y hallazgos corregidos.
