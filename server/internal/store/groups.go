@@ -24,6 +24,11 @@ type Group struct {
 	// AlwaysOn: un host que deja de reportar pasa a down (true) u offline (false).
 	AlwaysOn  bool
 	HostCount int
+	// DetailRetentionDays es la retencion de detalle propia del grupo (nil = usa la global); EffectiveDetailDays y
+	// RetentionSource (group o global) son el valor vigente y su origen.
+	DetailRetentionDays *int
+	EffectiveDetailDays int
+	RetentionSource     string
 }
 
 // GroupChange es un cambio parcial de un grupo: cada campo nil se deja como esta.
@@ -33,6 +38,9 @@ type GroupChange struct {
 	DownAfterSet     bool
 	DownAfterSeconds *int
 	AlwaysOn         *bool
+	// DetailSet distingue "no tocar" de "heredar la global" (DetailDays nil).
+	DetailSet  bool
+	DetailDays *int
 }
 
 // Constraint del indice unico del nombre (00007) y FK de hosts.group_id (nombre autogenerado por Postgres).
@@ -47,7 +55,7 @@ func (s *Store) ListGroups(ctx context.Context, scope Scope) (groups []Group, un
 	var args argList
 	// Un grupo esta en el ambito si sus hosts lo estan: la misma condicion, sobre g.id.
 	rows, err := s.pool.Query(ctx,
-		`SELECT g.id, g.name, g.down_after_seconds, g.always_on, count(h.id)::int
+		`SELECT g.id, g.name, g.down_after_seconds, g.always_on, g.detail_retention_days, count(h.id)::int
 		   FROM host_groups g LEFT JOIN hosts h ON h.group_id = g.id
 		  WHERE `+scope.groupCond("g.id", &args)+`
 		  GROUP BY g.id ORDER BY lower(g.name), g.id`, []any(args)...)
@@ -56,11 +64,14 @@ func (s *Store) ListGroups(ctx context.Context, scope Scope) (groups []Group, un
 	}
 	groups, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (Group, error) {
 		var g Group
-		err := row.Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn, &g.HostCount)
+		err := row.Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn, &g.DetailRetentionDays, &g.HostCount)
 		return g, err
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("leyendo grupos: %w", err)
+	}
+	if err := s.fillGroupRetention(ctx, groups); err != nil {
+		return nil, 0, err
 	}
 	if !scope.All() {
 		return groups, 0, nil
@@ -100,7 +111,30 @@ func (s *Store) CreateGroup(ctx context.Context, name string, downAfterSeconds *
 	if err != nil {
 		return Group{}, err
 	}
-	return g, nil
+	return s.withRetention(ctx, g)
+}
+
+// fillGroupRetention completa el valor efectivo de la retencion de detalle de cada grupo.
+func (s *Store) fillGroupRetention(ctx context.Context, groups []Group) error {
+	if len(groups) == 0 {
+		return nil
+	}
+	global, _, err := s.globalDetail(ctx)
+	if err != nil {
+		return err
+	}
+	for i := range groups {
+		groups[i].EffectiveDetailDays, groups[i].RetentionSource = EffectiveDetail(nil, groups[i].DetailRetentionDays, global)
+	}
+	return nil
+}
+
+func (s *Store) withRetention(ctx context.Context, g Group) (Group, error) {
+	gs := []Group{g}
+	if err := s.fillGroupRetention(ctx, gs); err != nil {
+		return Group{}, err
+	}
+	return gs[0], nil
 }
 
 // UpdateGroup aplica un cambio parcial y devuelve el grupo resultante. Si cambia always_on reclasifica en
@@ -113,11 +147,12 @@ func (s *Store) UpdateGroup(ctx context.Context, id string, ch GroupChange) (Gro
 			`UPDATE host_groups SET
 			     name = COALESCE($2, name),
 			     down_after_seconds = CASE WHEN $3 THEN $4 ELSE down_after_seconds END,
-			     always_on = COALESCE($5, always_on)
+			     always_on = COALESCE($5, always_on),
+			     detail_retention_days = CASE WHEN $6 THEN $7 ELSE detail_retention_days END
 			  WHERE id = $1
-			RETURNING id, name, down_after_seconds, always_on`,
-			id, ch.Name, ch.DownAfterSet, ch.DownAfterSeconds, ch.AlwaysOn,
-		).Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn)
+			RETURNING id, name, down_after_seconds, always_on, detail_retention_days`,
+			id, ch.Name, ch.DownAfterSet, ch.DownAfterSeconds, ch.AlwaysOn, ch.DetailSet, ch.DetailDays,
+		).Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn, &g.DetailRetentionDays)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -140,7 +175,7 @@ func (s *Store) UpdateGroup(ctx context.Context, id string, ch GroupChange) (Gro
 	if err != nil {
 		return Group{}, err
 	}
-	return g, nil
+	return s.withRetention(ctx, g)
 }
 
 // DeleteGroup borra un grupo vacio. ErrGroupNotEmpty si tiene hosts (FK RESTRICT), ErrNotFound si no existe.

@@ -41,6 +41,7 @@ const (
 	evHostGroupSet           = "host_group_set"
 	evHostRenamed            = "host_renamed"
 	evHostsBulk              = "hosts_bulk"
+	evRetentionUpdated       = "retention_updated"
 	evAlertAcked             = "alert_acked"
 	evAlertResolved          = "alert_resolved"
 	evAlertRuleCreated       = "alert_rule_created"
@@ -96,6 +97,8 @@ var auditDetailKeys = map[string]bool{
 	"module": true, "scope": true,
 	// Exportacion de informes: tipo, rango y filas escritas, nunca contenido.
 	"report": true, "range": true, "rows": true,
+	// Retencion de detalle: dias fijados (null = heredar); el ambito va en "scope".
+	"detail_days": true,
 }
 
 // audit registra un evento sin fallar la solicitud si la escritura falla: se loguea

@@ -57,6 +57,9 @@ describe('resolucion y topes', () => {
   it('resolucion por antiguedad', () => {
     expect(expectedResolution(NOW - 29 * DAY, NOW)).toBe('raw')
     expect(expectedResolution(NOW - 31 * DAY, NOW)).toBe('hourly')
+    // Un host con 90 días de detalle (retención por suscripción) sirve crudo hasta hace 90 días.
+    expect(expectedResolution(NOW - 60 * DAY, NOW, 90)).toBe('raw')
+    expect(expectedResolution(NOW - 91 * DAY, NOW, 90)).toBe('hourly')
   })
   it('rango valido', () => {
     expect(validateRange({ fromMs: NOW - DAY, toMs: NOW }, NOW)).toBeNull()

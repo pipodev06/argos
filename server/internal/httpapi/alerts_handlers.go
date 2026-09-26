@@ -286,6 +286,9 @@ func (a *API) getAlert(w http.ResponseWriter, r *http.Request) error {
 	}
 	deliveries := make([]deliveryDTO, 0, len(d.Deliveries))
 	for _, x := range d.Deliveries {
+		if !currentUser(r).Scope.All() {
+			break // los canales son de admin (comparten cliente): un ambito restringido no ve sus ids ni nombres
+		}
 		deliveries = append(deliveries, deliveryDTO{
 			ID: x.ID, ChannelID: x.ChannelID, ChannelName: x.ChannelName, Event: x.Event, Seq: x.Seq, Status: x.Status,
 			Attempts: x.Attempts, CreatedAt: x.CreatedAt.UTC(), SentAt: utcPtr(x.SentAt),

@@ -175,7 +175,7 @@ func TestListGroupsShape(t *testing.T) {
 	if err := json.Unmarshal(resp.Data, &data); err != nil {
 		t.Fatal(err)
 	}
-	wantKeys(t, "grupo", data.Items[0], "id", "name", "down_after_seconds", "always_on", "host_count")
+	wantKeys(t, "grupo", data.Items[0], "id", "name", "down_after_seconds", "always_on", "host_count", "detail_retention_days", "effective_detail_days", "retention_source")
 	if data.Items[0]["down_after_seconds"] != 300.0 || data.Items[1]["down_after_seconds"] != nil || data.Items[0]["host_count"] != 3.0 || data.Items[1]["always_on"] != true {
 		t.Errorf("items got %v", data.Items)
 	}

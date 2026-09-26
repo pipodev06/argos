@@ -284,3 +284,43 @@ func TestLoadAutoMigrate(t *testing.T) {
 		}
 	}
 }
+
+// La ventana caliente (ARGOS_METRICS_HOT_DAYS) y la retencion global de detalle (ARGOS_METRICS_RETENTION_DAYS).
+func TestLoadMetricsHotAndDetailDays(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		hot, detail      string
+		wantHot          int
+		wantDetail       int
+		wantDetailFromEV bool
+		wantErr          bool
+	}{
+		{name: "defaults", wantHot: 8, wantDetail: 30},
+		{name: "detalle de entorno", detail: "90", wantHot: 8, wantDetail: 90, wantDetailFromEV: true},
+		{name: "ventana mayor", hot: "14", detail: "60", wantHot: 14, wantDetail: 60, wantDetailFromEV: true},
+		{name: "ventana igual al detalle", hot: "30", detail: "30", wantHot: 30, wantDetail: 30, wantDetailFromEV: true},
+		{name: "ventana bajo el minimo", hot: "7", wantErr: true},
+		{name: "ventana invalida", hot: "abc", wantErr: true},
+		{name: "detalle menor que la ventana", hot: "45", wantErr: true}, // el default 30 < 45
+		{name: "detalle bajo el minimo", detail: "7", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			env := map[string]string{"DATABASE_URL": "postgres://x", "ARGOS_METRICS_HOT_DAYS": tt.hot, "ARGOS_METRICS_RETENTION_DAYS": tt.detail}
+			cfg, err := Load(func(k string) string { return env[k] })
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if cfg.MetricsHotDays != tt.wantHot || cfg.MetricsRetentionDays != tt.wantDetail || cfg.MetricsRetentionFromEnv != tt.wantDetailFromEV {
+				t.Errorf("got hot=%d detail=%d fromEnv=%v, want %d/%d/%v", cfg.MetricsHotDays, cfg.MetricsRetentionDays, cfg.MetricsRetentionFromEnv,
+					tt.wantHot, tt.wantDetail, tt.wantDetailFromEV)
+			}
+		})
+	}
+}

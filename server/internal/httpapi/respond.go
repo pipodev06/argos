@@ -18,6 +18,8 @@ type envelope struct {
 type apiError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	// Details son datos estructurados opcionales del error (p. ej. lo que se perderia en shrink_needs_confirm).
+	Details any `json:"details,omitempty"`
 }
 
 // clientError es un error del cliente (4xx) con su respuesta ya definida.
@@ -27,6 +29,8 @@ type clientError struct {
 	msg    string
 	// retryAfter, si es > 0, se envia como cabecera Retry-After (429).
 	retryAfter time.Duration
+	// details, si no es nil, se envia en error.details.
+	details any
 }
 
 func (e *clientError) Error() string { return e.code + ": " + e.msg }
@@ -61,9 +65,13 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func writeError(w http.ResponseWriter, status int, code, msg string) {
+	writeErrorDetails(w, status, code, msg, nil)
+}
+
+func writeErrorDetails(w http.ResponseWriter, status int, code, msg string, details any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(envelope{Error: &apiError{Code: code, Message: msg}})
+	_ = json.NewEncoder(w).Encode(envelope{Error: &apiError{Code: code, Message: msg, Details: details}})
 }
 
 // decodeJSON lee un unico documento JSON del body con tope de maxBytes.

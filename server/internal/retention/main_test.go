@@ -163,7 +163,7 @@ func farNow() time.Time {
 	return utcDay(time.Now()).AddDate(0, 0, 100).Add(10*time.Hour + 30*time.Minute)
 }
 
-var testCfg = Config{RawDays: 8, HourlyDays: 400, ServiceChecksDays: 14, DiskDays: 30, Interval: time.Minute}
+var testCfg = Config{HotDays: 8, DetailDays: 30, HourlyDays: 400, ServiceChecksDays: 14, DiskDays: 30, Interval: time.Minute}
 
 func newMaint(t *testing.T, cfg Config, now time.Time) (*Maintainer, *logBuf) {
 	t.Helper()

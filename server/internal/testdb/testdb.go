@@ -16,7 +16,7 @@ var seedTables = []string{"goose_db_version", "os_eol"}
 
 // truncateAll es la limpieza completa y lenta (~180 ms por los ~180 relaciones y sus archivos). Es el respaldo
 // de ResetData y la referencia de lo que debe dejar la limpieza rapida.
-const truncateAll = `TRUNCATE service_check_defs, service_check_events, service_checks, metrics, metrics_hourly, maintenance_state,
+const truncateAll = `TRUNCATE service_check_defs, service_check_events, service_checks, metrics, metrics_hourly, metrics_chunks, settings, maintenance_state,
 	disk_samples, enroll_tokens, hosts, host_groups, alert_rules, notification_channels, maintenance_windows, sessions,
 	audit_log, users CASCADE`
 
@@ -29,6 +29,7 @@ var fastDeletes = []string{
 	`DELETE FROM service_checks`,
 	`DELETE FROM metrics`,
 	`DELETE FROM metrics_hourly`,
+	`DELETE FROM metrics_chunks`,
 	`DELETE FROM disk_samples`,
 	`DELETE FROM maintenance_state`,
 	`DELETE FROM enroll_tokens`,
@@ -42,6 +43,7 @@ var fastDeletes = []string{
 	`DELETE FROM maintenance_windows`,
 	`DELETE FROM sessions`,
 	`DELETE FROM users`,
+	`DELETE FROM settings`,
 }
 
 // ResetData deja las tablas de datos vacias (las de fabrica, no). Usa borrado por filas y solo cae al TRUNCATE

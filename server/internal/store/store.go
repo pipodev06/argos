@@ -76,11 +76,14 @@ const MaxActiveEnrollTokens = 50
 // Store implementa las consultas sobre un pool de pgx.
 type Store struct {
 	pool *pgxpool.Pool
+	// retention son los valores de arranque de la retencion de metricas (WithRetention); el detalle global
+	// puede sobrescribirse desde la API (tabla settings).
+	retention RetentionDefaults
 }
 
 // New envuelve un pool ya abierto (y migrado).
 func New(pool *pgxpool.Pool) *Store {
-	return &Store{pool: pool}
+	return &Store{pool: pool, retention: DefaultRetention()}
 }
 
 // Ping comprueba que Postgres responde (lo usa GET /health; el llamador acota el tiempo con el contexto).

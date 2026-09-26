@@ -152,9 +152,29 @@ func TestRuntimeRoleSplit(t *testing.T) {
 
 	// El mantenimiento completo corre con el rol de runtime: crea particiones, resume, hace DETACH ... CONCURRENTLY y
 	// borra las vencidas (incluida la legacy, creada por el migrador).
+	// Datos pa el empaquetado y el recorte como runtime: una muestra en la particion legacy (creada por el migrador), la
+	// marca de agua del resumen al dia y un chunk de hace ~800 dias (vencido con cualquier retencion de hasta 730).
+	var hostID string
+	if err := app.QueryRow(ctx, `INSERT INTO hosts (hostname, agent_token_hash, status) VALUES ('h-roles', 'h-roles', 'up') RETURNING id`).Scan(&hostID); err != nil {
+		t.Fatalf("el runtime debe poder crear hosts: %v", err)
+	}
+	packDay := utcDay(time.Now()).AddDate(0, 0, -5)
+	if _, err := app.Exec(ctx, `INSERT INTO metrics (host_id, ts, cpu_pct, mem_used_mb, mem_total_mb) VALUES ($1, $2, 50, 1000, 2000)`, hostID, packDay.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.Exec(ctx, `INSERT INTO maintenance_state (name, value_ts) VALUES ($1, $2)`, rollupMarker, farNow().Truncate(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	expiredDay := utcDay(farNow()).AddDate(0, 0, -800)
+	if _, err := app.Exec(ctx, `INSERT INTO metrics_chunks (host_id, day, n, codec, data) VALUES ($1, $2::date, 0, 1, $3)`, hostID, expiredDay, []byte{0}); err != nil {
+		t.Fatalf("el runtime debe poder escribir en metrics_chunks: %v", err)
+	}
+
 	logs := &logBuf{}
 	log := slog.New(slog.NewJSONHandler(logs, nil))
-	m := New(app, log, testCfg, farNow)
+	cfg := testCfg
+	cfg.DetailDays = 730 // el dia empaquetado queda ~105 dias atras: dentro de la retencion
+	m := New(app, log, cfg, farNow)
 	m.lockTimeout = 7 * time.Second
 	if !m.RunOnce(ctx) {
 		t.Fatal("RunOnce como runtime got ran=false")
@@ -165,6 +185,14 @@ func TestRuntimeRoleSplit(t *testing.T) {
 	var legacy *string
 	if err := app.QueryRow(ctx, `SELECT to_regclass('public.metrics_legacy')::text`).Scan(&legacy); err != nil || legacy != nil {
 		t.Errorf("la particion legacy debia borrarse como runtime: %v %v", legacy, err)
+	}
+	// Empaquetado (INSERT ... ON CONFLICT) y recorte (DELETE) de metrics_chunks como runtime.
+	var packed, expired int
+	if err := app.QueryRow(ctx, `SELECT count(*) FROM metrics_chunks WHERE host_id = $1 AND day = $2::date AND n = 1`, hostID, packDay).Scan(&packed); err != nil || packed != 1 {
+		t.Errorf("el runtime debia empaquetar la muestra de la particion legacy: chunks=%d (%v)", packed, err)
+	}
+	if err := app.QueryRow(ctx, `SELECT count(*) FROM metrics_chunks WHERE host_id = $1 AND day = $2::date`, hostID, expiredDay).Scan(&expired); err != nil || expired != 0 {
+		t.Errorf("el runtime debia recortar el chunk vencido: chunks=%d (%v)", expired, err)
 	}
 	var parts int
 	if err := app.QueryRow(ctx, `SELECT count(*) FROM pg_inherits WHERE inhparent = 'metrics'::regclass`).Scan(&parts); err != nil || parts == 0 {

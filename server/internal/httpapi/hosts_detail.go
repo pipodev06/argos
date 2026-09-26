@@ -46,6 +46,10 @@ type hostDetailDTO struct {
 	StatusChangedAt time.Time    `json:"status_changed_at"`
 	CreatedAt       time.Time    `json:"created_at"`
 	Group           *groupRefDTO `json:"group"`
+	// Retencion del detalle de metricas: el valor propio (null = hereda), el vigente y su origen (host, group o global).
+	DetailRetentionDays *int   `json:"detail_retention_days"`
+	EffectiveDetailDays int    `json:"effective_detail_days"`
+	RetentionSource     string `json:"retention_source"`
 }
 
 // hostInfoDTO es la info estatica del host (host_info) mas la memoria total. Todo es null si el agente no la manda.
@@ -204,7 +208,8 @@ func (a *API) getHost(w http.ResponseWriter, r *http.Request) error {
 		"host": hostDetailDTO{
 			ID: host.ID, Hostname: host.Hostname, Kind: host.Kind, OS: host.OS, Arch: host.Arch, Status: host.Status,
 			LastSeenAt: utcPtr(host.LastSeenAt), StatusChangedAt: host.StatusChangedAt.UTC(), CreatedAt: host.CreatedAt.UTC(),
-			Group: toGroupRefDTO(host.Group),
+			Group:               toGroupRefDTO(host.Group),
+			DetailRetentionDays: host.DetailRetentionDays, EffectiveDetailDays: host.EffectiveDetailDays, RetentionSource: host.RetentionSource,
 		},
 		"info":   toHostInfoDTO(host.Info),
 		"latest": latest,
