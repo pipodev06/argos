@@ -1,4 +1,5 @@
 import type { ApiError } from '@/lib/api'
+import { mapCollectorRuleError } from './collectorRule'
 import type { Device, DeviceInput } from '../types/device.types'
 
 export const MAX_NAME = 100
@@ -98,6 +99,6 @@ export function mapDeviceError(err: ApiError): string | null {
     case 'device_not_found':
       return 'El dispositivo ya no existe.'
     default:
-      return null
+      return mapCollectorRuleError(err)
   }
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { InlineError } from '@/components/ui/inline-error'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { DeviceDetailView } from '@/features/devices/components/DeviceDetailView'
@@ -7,6 +7,7 @@ import { HostEventsSection } from '@/features/alerts/components/HostEventsSectio
 import { HostChecksSection } from '@/features/checks/components/HostChecksSection'
 import { HostInventorySummary } from '@/features/inventory/components/HostInventorySummary'
 import { HostUpdatesSection } from '@/features/updates/components/HostUpdatesSection'
+import { PurgeHostDialog } from '@/features/purge/components/PurgeHostDialog'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useHostDetail } from '../hooks/useHostDetail'
 import { useHostMetrics } from '../hooks/useHostMetrics'
@@ -42,6 +43,8 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
   const { user } = useAuth()
   const [range, setRange] = useState<MetricRange>('1h')
   const [editing, setEditing] = useState(false)
+  const [purging, setPurging] = useState(false)
+  const navigate = useNavigate()
   const metrics = useHostMetrics(id, range)
 
   // 400 (id invalido) y 404 son definitivos: no hay nada mas que mostrar.
@@ -62,6 +65,7 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
               ip={data.info.ips[0] ?? null}
               canEdit={user?.role === 'admin'}
               onEdit={() => setEditing(true)}
+              onPurge={() => setPurging(true)}
             />
           ) : (
             detail.loading && <p className="text-sm text-text-muted">Cargando…</p>
@@ -111,6 +115,14 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
               error={metrics.error}
             />
           </div>
+
+          {data && (
+            <PurgeHostDialog
+              host={purging ? data.host : null}
+              onClose={() => setPurging(false)}
+              onDone={() => void navigate('/hosts')}
+            />
+          )}
 
           {data && (
             <EditHostDialog

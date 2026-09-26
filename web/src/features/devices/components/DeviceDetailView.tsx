@@ -14,7 +14,7 @@ import { useDeviceDetail } from '../hooks/useDevices'
 import { deviceStateOverride } from '../utils/status'
 import { DeleteDeviceConfirm } from './DeleteDeviceConfirm'
 import { DeviceFormDialog } from './DeviceFormDialog'
-import { DeviceKindBadge, DeviceStatusBadge } from './DeviceBadges'
+import { CollectorMismatchNotice, DeviceKindBadge, DeviceStatusBadge } from './DeviceBadges'
 
 /** Detalle sobrio de un dispositivo sin agente: sin metricas ni inventario, solo su estado y sus chequeos ping. */
 export function DeviceDetailView({ id }: { id: string }) {
@@ -58,6 +58,7 @@ export function DeviceDetailView({ id }: { id: string }) {
                 </div>
               )}
             </div>
+            {isAdmin && device.collector_group_mismatch && <p className="text-sm"><CollectorMismatchNotice /></p>}
             {override && <p className="text-sm">{override.reason}: no se está evaluando su estado.</p>}
             {enabling.error && <InlineError>{enabling.error}</InlineError>}
             {device.status === 'disabled' && <p className="text-sm text-text-muted">Deshabilitado: el colector no lo sondea y sus alertas se resolvieron. Habilítalo para volver a monitorearlo.</p>}

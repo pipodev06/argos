@@ -10,6 +10,7 @@ import { DeleteGroupDialog } from '@/features/groups/components/DeleteGroupDialo
 import { GroupFormDialog } from '@/features/groups/components/GroupFormDialog'
 import { GroupsTable } from '@/features/groups/components/GroupsTable'
 import { useGroups } from '@/features/groups/hooks/useGroups'
+import { PurgeGroupDialog } from '@/features/purge/components/PurgeGroupDialog'
 import type { Group } from '@/features/groups/types/group.types'
 
 export function GroupsPage() {
@@ -19,6 +20,7 @@ export function GroupsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Group | null>(null)
   const [deleting, setDeleting] = useState<Group | null>(null)
+  const [purging, setPurging] = useState<Group | null>(null)
 
   function openForm(group: Group | null) {
     setEditing(group)
@@ -54,6 +56,7 @@ export function GroupsPage() {
             canEdit={canEdit}
             onEdit={openForm}
             onDelete={setDeleting}
+            onPurge={setPurging}
           />
         )}
       </div>
@@ -74,6 +77,14 @@ export function GroupsPage() {
             onClose={() => setDeleting(null)}
             onDeleted={() => {
               setDeleting(null)
+              void refresh()
+            }}
+          />
+          <PurgeGroupDialog
+            group={purging}
+            onClose={() => setPurging(null)}
+            onDone={() => {
+              setPurging(null)
               void refresh()
             }}
           />

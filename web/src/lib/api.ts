@@ -3,6 +3,8 @@
 interface ApiErrorBody {
   code: string
   message: string
+  /** Datos extra del error (p. ej. cuentas de un 409); su forma depende del codigo. */
+  details?: unknown
 }
 
 interface ApiEnvelope<T> {
@@ -15,13 +17,16 @@ export class ApiError extends Error {
   readonly status: number
   /** Segundos indicados por la cabecera Retry-After (429), si vino en formato numerico. */
   readonly retryAfter?: number
+  /** `error.details` del servidor, si vino. */
+  readonly details?: unknown
 
-  constructor(code: string, message: string, status = 0, retryAfter?: number) {
+  constructor(code: string, message: string, status = 0, retryAfter?: number, details?: unknown) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.status = status
     this.retryAfter = retryAfter
+    this.details = details
   }
 }
 
@@ -97,6 +102,7 @@ export async function apiRequest<T>(
       envelope.error.message,
       res.status,
       parseRetryAfter(res),
+      envelope.error.details,
     )
   }
   if (!res.ok || (!noData && envelope?.data == null)) {

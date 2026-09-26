@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import type { HostDetail, HostInfo } from '../types/host.types'
+import { sourceLabel } from '@/features/retention/utils/retention'
 import { formatCapacity, formatFullDate } from '../utils/format'
 import { formatOs } from '../utils/os'
 
@@ -48,6 +49,9 @@ export function HostSystemInfo({ host, info }: { host: HostDetail; info: HostInf
           </Item>
           <Item term="Versión del agente">{info.agent_version}</Item>
           <Item term="Privilegios del agente">{info.privilege === 'elevated' ? 'Privilegiado' : info.privilege === 'user' ? 'Sin privilegios' : null}</Item>
+          <Item term="Retención de detalle">
+            {host.effective_detail_days != null ? `${host.effective_detail_days} días · ${sourceLabel(host.retention_source)}` : null}
+          </Item>
           <Item term="Enrolado">{formatFullDate(host.created_at)}</Item>
           <Item term="ID">
             <span className="inline-flex flex-wrap items-center gap-2">

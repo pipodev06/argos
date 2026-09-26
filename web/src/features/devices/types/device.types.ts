@@ -22,6 +22,8 @@ export interface Device {
   /** false = el colector no esta activo y el estado no se esta evaluando. */
   evaluated: boolean
   created_at: string
+  /** Solo un admin: true = el colector es de otro grupo y el dispositivo no se sondea. */
+  collector_group_mismatch?: boolean
 }
 
 export interface DeviceListResponse {
