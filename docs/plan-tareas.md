@@ -30,9 +30,10 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 - [ ] **I2 Parches: más que "pendientes"** (pregunta del usuario). Hoy solo Windows Update `Type='Software'` (drivers excluidos) y gestores Linux; el antivirus solo entra si Defender publica firmas por Windows Update, sin distinguirlo. Propuestas: (a) módulo `security` con estado de Defender (`Get-MpComputerStatus`: protección en tiempo real, edad de firmas), (b) drivers pendientes de Windows Update (opt-in), (c) Linux: kernel en uso vs instalado, `needrestart`. *Hecho cuando:* el usuario elige y hay diseño en `decisiones/`.
 - [ ] **I3 Disco físico en la lista de Hosts** (columna o tooltip). 
 - [ ] **I4 SNMP**: contadores de interfaz, CPU y almacenamiento; gráfica.
-- [ ] **I5 Gráfica del historial de parches** y filtro booleano/`≤` en `FilterBar`.
+- [x] **I5 Gráfica del historial de parches** (2026-09-26; sin revisión visual) y filtro booleano/`≤` en `FilterBar`.
 
 ## P4 — Aplazado por decisión del usuario
+(2026-09-26: el buffer offline persistente del agente se integró; queda aplazado solo SMTP, dominio/VPS público y firma de binarios.)
 SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualización · buffer offline persistente del agente.
 
 ## P1b — Carga de inventario y parches en local (ahora hay RAM; ya no espera a producción)
@@ -42,8 +43,8 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 - [ ] **L4 `pg_prewarm`/`shared_buffers` y caché fría**: reproducir el primer acceso frío de una gráfica de 24 h (reiniciando Postgres) y decidir si hace falta `pg_prewarm`.
 
 ## P5 — Meta: el server solo se instala y el agente solo se instala, se ejecuta y se enrola (pedido del usuario, 2026-09-26)
-- [ ] **T1 Config del agente sin variables de entorno a mano.** Hoy inventario, parches, colector de pings (`ARGOS_PROBE_ALLOW`), `--privileged` y `ARGOS_ALLOW_INSECURE` se activan a mano en cada equipo (el instalador no pasa la config al servicio). Propuesta: `install` acepta flags (`--inventory ports,services,processes,updates`, `--probe-allow <cidr>`, `--privileged`, `--insecure`) que se guardan en la config persistente del servicio, y el modal "Agregar host" arma el comando con casillas. *Hecho cuando:* un host nuevo queda con inventario y parches funcionando con solo pegar el comando.
-- [ ] **T2 Server: instalación de un paso.** `install-server.sh` hoy exige Postgres 18 ya instalado y HTTPS aparte. Añadir `--install-postgres` (PGDG) y `--with-caddy` (TLS interno o dominio) para que un Linux limpio quede listo con un comando; crear el primer admin sin `argos-admin` a mano (contraseña generada o prompt). *Hecho cuando:* Ubuntu limpio → un comando → dashboard por HTTPS con admin.
-- [ ] **T3 Validar instaladores del agente** en Windows (servicio), Linux (systemd, ya visto en tu Ubuntu) y macOS (launchd, sin probar); `install.sh`/`install.ps1` servidos por el server; desinstalar limpio. *Hecho cuando:* checklist ejecutado por SO.
-- [ ] **T4 Actualización del agente** (hoy: `uninstall --keep-state` + `install`). Pedirá firmas (deuda aplazada). Mientras tanto, comando de actualización de una línea.
+- [x] **T1 Config del agente (2026-09-26, `decisiones/2026-09-26-instalacion-un-paso.md`; sin probar en SO real) sin variables de entorno a mano.** Hoy inventario, parches, colector de pings (`ARGOS_PROBE_ALLOW`), `--privileged` y `ARGOS_ALLOW_INSECURE` se activan a mano en cada equipo (el instalador no pasa la config al servicio). Propuesta: `install` acepta flags (`--inventory ports,services,processes,updates`, `--probe-allow <cidr>`, `--privileged`, `--insecure`) que se guardan en la config persistente del servicio, y el modal "Agregar host" arma el comando con casillas. *Hecho cuando:* un host nuevo queda con inventario y parches funcionando con solo pegar el comando.
+- [x] **T2 Server: instalación de un paso.** (2026-09-26; sin probar en Linux real) `install-server.sh` hoy exige Postgres 18 ya instalado y HTTPS aparte. Añadir `--install-postgres` (PGDG) y `--with-caddy` (TLS interno o dominio) para que un Linux limpio quede listo con un comando; crear el primer admin sin `argos-admin` a mano (contraseña generada o prompt). *Hecho cuando:* Ubuntu limpio → un comando → dashboard por HTTPS con admin.
+- [ ] **T3 Validar instaladores del agente (a cargo del usuario en Linux y Windows; macOS sin equipo)** en Windows (servicio), Linux (systemd, ya visto en tu Ubuntu) y macOS (launchd, sin probar); `install.sh`/`install.ps1` servidos por el server; desinstalar limpio. *Hecho cuando:* checklist ejecutado por SO.
+- [x] **T4 Actualización del agente** (2026-09-26: `argos-agent update` y `install.sh --update`; sin firmas, deuda aceptada) (hoy: `uninstall --keep-state` + `install`). Pedirá firmas (deuda aplazada). Mientras tanto, comando de actualización de una línea.
 - [ ] **T5 D1 Primer despliegue real** en tu Linux con el paquete (ver `deploy/README.md`).

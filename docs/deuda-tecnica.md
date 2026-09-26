@@ -8,7 +8,6 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - Instalacion real del servicio del agente sin probar en Windows/Linux/macOS -> [Agente](#agente-y-servicio)
 ### Media
 - Pantallas nuevas sin revisar en navegador (permisos/Acceso, chequeos, mantenimiento, alertas): esperan observaciones del usuario -> [Frontend](#frontend)
-- Buffer offline solo en memoria (120): un reinicio con el server caido pierde datos -> [Agente](#agente-y-servicio)
 - Sin firma de binarios ni auto-actualizacion; `install` no pasa config de entorno al servicio -> [Agente](#agente-y-servicio)
 - Estado en memoria mono-instancia (rate limits, clave HMAC de cursores) -> [Seguridad](#seguridad)
 - Auditoria best-effort (no transaccional) -> [Seguridad](#seguridad)
@@ -26,6 +25,10 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - `-race` no corre en local (falta gcc en Windows); lo cubre el CI de Linux -> [Operacion](#operacion)
 - Permisos por grupo: `check_name` de una regla de alcance `all` puede nombrar un chequeo de un grupo ajeno (fuga menor aceptada); los cambios de permisos de un usuario se ven en su navegador al recargar (el frontend lee `/auth/me` al cargar) -> [Seguridad](#seguridad)
 
+## Instalación de un paso (2026-09-26, sin probar en SO real)
+- Agente: `install`/`update` y los instaladores sin ejecutar en Windows/Linux/macOS reales (macOS sin equipo); `update` sin firmas independientes; cambiar `--privileged`/`--ca-file` de un servicio instalado exige `uninstall --keep-state` + `install`.
+- Server: `install-server.sh` sin ejecutar en un Linux real (apt/PGDG/Caddy/ufw/systemd); URL de BD por argv a `psql` un instante; sin verificar huellas de las claves GPG; usuario existente no admin hace fallar `create-admin` al final.
+
 ## Seguridad
 - Server fuera de loopback (`ARGOS_LISTEN_ADDR` no loopback) solo tras HTTPS (proxy inverso o `ARGOS_TLS_CERT/KEY`) y con `ARGOS_PUBLIC_URL`; verificado solo TLS directo con cert autofirmado y curl.
 - Roles de BD (hecho 2026-09-25, `decisiones/2026-09-25-roles-bd.md`): en el modo de un solo rol (dev, o `--db-url` sin `--migrate-db-url`) el server sigue siendo dueño y puede saltar el trigger de `audit_log`. El rol de runtime es dueño de las tablas particionadas y tiene CREATE en `public` (limite aceptado).
@@ -37,7 +40,7 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 
 ## Agente y servicio
 - Instalacion real sin probar en ningun SO (requiere elevacion; hay unit tests, ACL real en dir temporal, cross-compile). Falta: `install` -> `enroll` -> `start` en cada SO, `systemd-analyze security argos-agent`, lectura de `/sys/class/power_supply` con la unit endurecida, `dscl`/`launchctl` reales, log en el registro de eventos. Si `PrivateDevices=true` o `MemoryDenyWriteExecute=true` rompen una distro, quitar solo esa linea y anotarlo.
-- Buffer offline solo en memoria (120 reportes, descarta el mas viejo); persistir exige elegir libreria (no aprobada).
+- Buffer offline persistente (hecho 2026-09-26, `decisiones/2026-09-26-instalacion-un-paso.md`): los extras (discos/host_info) de un reporte descartado por tope no se persisten.
 - Sin firma de binarios (SmartScreen, Gatekeeper/notarizacion; un binario Go en darwin/arm64 con firma ad-hoc del linker corre pero no esta notarizado) ni auto-actualizacion (actualizar = `uninstall --keep-state` + `install`; auto-update solo con firmas).
 - Config del servicio por env (intervalo, `ARGOS_ALLOW_INSECURE`...) no la pasa `install`: ponerla a mano (drop-in de systemd, `EnvironmentVariables` del plist, `Environment` del registro). Un server `http` remoto no funciona como servicio sin `ARGOS_ALLOW_INSECURE`.
 - Windows: el servicio solo LEE el estado (ACL de solo lectura); con rotacion de token habra que darle escritura en `%ProgramData%\argos-agent` y revisar el modelo de amenazas. `install` deja binario y usuario aunque falle un paso posterior (solo en Windows se revierte el servicio); `uninstall` los limpia.
