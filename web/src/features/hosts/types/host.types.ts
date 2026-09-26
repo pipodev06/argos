@@ -75,6 +75,15 @@ export interface HostDetail {
 }
 
 /** Inventario; todo null si el agente no lo mando. */
+export interface PhysicalDisk {
+  id: string
+  model: string | null
+  bus: 'nvme' | 'sata' | 'scsi' | 'usb' | 'virtual' | 'other' | null
+  size_mb: number | null
+  /** Coinciden exactamente con el `mount` de cada volumen (`disks[]`). */
+  mounts: string[]
+}
+
 export interface HostInfo {
   boot_time: string | null
   cpu_model: string | null
@@ -86,6 +95,8 @@ export interface HostInfo {
   agent_version: string | null
   /** Nivel con el que corre el agente; null = aun no lo reporta. */
   privilege: 'user' | 'elevated' | null
+  /** Discos fisicos con sus volumenes; null = el agente no lo sabe (se muestra la lista plana de volumenes). */
+  physical_disks: PhysicalDisk[] | null
   ips: string[]
   mem_total_mb: number | null
 }

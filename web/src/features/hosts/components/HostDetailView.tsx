@@ -76,7 +76,7 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
             pending={detail.loading}
           />
 
-          {data && <HostDisks disks={data.disks} />}
+          {data && <HostDisks disks={data.disks} physical={data.info.physical_disks} />}
 
           <HostChecksSection hostId={id} />
 

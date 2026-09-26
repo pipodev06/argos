@@ -82,7 +82,19 @@ export function deleteMaintenance(id: string): Promise<unknown> {
   return apiRequest<unknown>(`/maintenance/${enc(id)}`, { method: 'DELETE', noData: true })
 }
 
-export async function listHostEvents(hostId: string, signal?: AbortSignal): Promise<HostEvent[]> {
-  const data = await apiRequest<{ items: HostEvent[] }>(`/hosts/${enc(hostId)}/events?limit=50`, { signal })
+export async function listHostEvents(hostId: string, signal?: AbortSignal, limit = 50): Promise<HostEvent[]> {
+  const data = await apiRequest<{ items: HostEvent[] }>(`/hosts/${enc(hostId)}/events?limit=${limit}`, { signal })
   return data.items
+}
+
+export interface HostEventsPage {
+  items: HostEvent[]
+  next_cursor: string | null
+}
+
+/** Una pagina del historial de estado de un host (paginacion por cursor del servidor). */
+export function listHostEventsPage(hostId: string, limit: number, cursor: string | null, signal?: AbortSignal): Promise<HostEventsPage> {
+  const q = new URLSearchParams({ limit: String(limit) })
+  if (cursor) q.set('cursor', cursor)
+  return apiRequest<HostEventsPage>(`/hosts/${enc(hostId)}/events?${q}`, { signal })
 }

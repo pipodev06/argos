@@ -8,7 +8,7 @@ export type RuleOp = 'gt' | 'lt'
 /** `device` solo lo usan los chequeos ping. */
 export type ScopeType = 'all' | 'group' | 'device' | 'host'
 export type ResolveReason = 'recovered' | 'manual' | 'rule_disabled' | 'rule_deleted' | 'host_disabled'
-export type HostEventSource = 'detector' | 'ingest' | 'admin' | 'group_change'
+export type HostEventSource = 'detector' | 'ingest' | 'admin' | 'group_change' | 'enroll' | 'seed'
 export type MaintenanceStatus = 'scheduled' | 'active' | 'ended'
 
 export interface ExpectedPort {
@@ -59,7 +59,8 @@ export interface Delivery {
 
 export interface HostEvent {
   id: number
-  from_status: HostStatus
+  /** Vacio en el primer evento de un host (`enroll`/`seed`): no hay estado anterior. */
+  from_status: HostStatus | ''
   to_status: HostStatus
   at: string
   source: HostEventSource

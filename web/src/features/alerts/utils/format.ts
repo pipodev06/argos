@@ -48,6 +48,8 @@ export const HOST_EVENT_SOURCE_LABELS: Record<HostEventSource, string> = {
   ingest: 'Reporte del agente',
   admin: 'Acción de un administrador',
   group_change: 'Cambio de grupo',
+  enroll: 'Alta del host',
+  seed: 'Estado inicial registrado',
 }
 export const MAINTENANCE_STATUS_LABELS: Record<MaintenanceStatus, string> = {
   scheduled: 'Programada',

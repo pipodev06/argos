@@ -49,10 +49,13 @@ type System struct {
 	keepMount  func(disk.PartitionStat) bool
 	staticInfo func(context.Context) (sender.HostInfo, []error)
 	interfaces func() ([]ifaceAddrs, error)
+	physDisks  func(context.Context, []disk.PartitionStat) []sender.PhysicalDisk
 
 	static     sender.HostInfo
 	staticAt   time.Time
 	staticDone bool
+
+	phys physCache
 }
 
 // NewSystem crea el collector de este host. logger puede ser nil.
@@ -69,6 +72,7 @@ func NewSystem(logger *slog.Logger) *System {
 		keepMount:  keepMount,
 		staticInfo: readStaticInfo,
 		interfaces: readInterfaces,
+		physDisks:  readPhysicalDisks,
 	}
 	if runtime.GOOS != "windows" {
 		// En Windows gopsutil emula el load con una goroutine de fondo: no es un load average real.

@@ -91,6 +91,21 @@ type HostInfo struct {
 	AgentVersion  string   `json:"agent_version,omitempty"`
 	Privilege     string   `json:"privilege,omitempty"` // "elevated" | "user"; vacio = no se pudo determinar
 	IPs           []string `json:"ips,omitempty"`
+	// PhysicalDisks agrupa los montajes por disco fisico; nil = el agente no lo sabe.
+	PhysicalDisks []PhysicalDisk `json:"physical_disks,omitempty"`
+}
+
+// PhysicalDisk es un disco fisico con los montajes (los mismos `mount` de Disks) que aloja.
+type PhysicalDisk struct {
+	ID     string   `json:"id"`
+	Model  string   `json:"model,omitempty"`
+	Bus    string   `json:"bus,omitempty"`
+	SizeMB int64    `json:"size_mb,omitempty"`
+	Mounts []string `json:"mounts"`
+}
+
+func (d PhysicalDisk) equal(o PhysicalDisk) bool {
+	return d.ID == o.ID && d.Model == o.Model && d.Bus == o.Bus && d.SizeMB == o.SizeMB && slices.Equal(d.Mounts, o.Mounts)
 }
 
 // bootTimeTolerance: gopsutil calcula boot_time como ahora - uptime, asi que dos
@@ -106,7 +121,8 @@ func (h HostInfo) Equal(o HostInfo) bool {
 	}
 	return h.CPUModel == o.CPUModel && h.CPUCores == o.CPUCores && h.CPUThreads == o.CPUThreads &&
 		h.OSName == o.OSName && h.OSVersion == o.OSVersion && h.KernelVersion == o.KernelVersion &&
-		h.AgentVersion == o.AgentVersion && h.Privilege == o.Privilege && slices.Equal(h.IPs, o.IPs)
+		h.AgentVersion == o.AgentVersion && h.Privilege == o.Privilege && slices.Equal(h.IPs, o.IPs) &&
+		slices.EqualFunc(h.PhysicalDisks, o.PhysicalDisks, PhysicalDisk.equal)
 }
 
 // ErrTokenRejected: el servidor respondio 401, el agent token es invalido o fue
