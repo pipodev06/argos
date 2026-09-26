@@ -38,6 +38,7 @@ func runAlertEvaluator(ctx context.Context, logger *slog.Logger, st alertEvaluat
 }
 
 func evaluateAlerts(ctx context.Context, logger *slog.Logger, st alertEvaluator) {
+	start := time.Now()
 	res, err := st.EvaluateAlerts(ctx)
 	if errors.Is(err, context.Canceled) {
 		return // apagado en curso: no es un fallo del evaluador
@@ -50,6 +51,7 @@ func evaluateAlerts(ctx context.Context, logger *slog.Logger, st alertEvaluator)
 		logger.Debug("evaluacion de alertas en curso en otra instancia: ciclo saltado")
 		return
 	}
+	logger.Debug("ciclo de alertas", "ms", time.Since(start).Milliseconds())
 	if res.Opened+res.Resolved+res.Released+res.Reminders > 0 {
 		logger.Info("alertas evaluadas", "opened", res.Opened, "resolved", res.Resolved,
 			"released", res.Released, "reminders", res.Reminders)

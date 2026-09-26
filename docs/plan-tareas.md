@@ -37,10 +37,16 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualización · buffer offline persistente del agente.
 
 ## P1b — Carga de inventario y parches en local (ahora hay RAM; ya no espera a producción)
-- [ ] **L1 Ampliar `loadgen` y la siembra**: simular `POST /agent/inventory` (ports/services/processes: envío completo, latido con `rev` y `need_full`) y parches (`updates`) además de las métricas, con la cadencia real del agente (completo cada cambio, latido 24 h, parches cada 6 h ± 20 %). *Hecho cuando:* `run.sh load -inventory -updates` corre 1000 agentes con los tres tipos de envío.
-- [ ] **L2 Medir** ingest de inventario/parches (p50/p95, req/s, errores, 413/429), tamaño de la BD tras N horas simuladas, y el evaluador de alertas con 1000 hosts y las reglas de parches/puertos. *Hecho cuando:* tabla en `decisiones/2026-09-25-rendimiento.md`.
-- [ ] **L3 Carga sostenida (soak)**: 30–60 min con los 1000 agentes simulados; vigilar RAM/CPU del server, crecimiento de la BD, ciclo de mantenimiento/rollup y autovacuum. *Hecho cuando:* sin fugas ni degradación, o hallazgos corregidos.
-- [ ] **L4 `pg_prewarm`/`shared_buffers` y caché fría**: reproducir el primer acceso frío de una gráfica de 24 h (reiniciando Postgres) y decidir si hace falta `pg_prewarm`.
+- [x] **L1 Ampliar `loadgen` y la siembra**: simular `POST /agent/inventory` (ports/services/processes: envío completo, latido con `rev` y `need_full`) y parches (`updates`) además de las métricas, con la cadencia real del agente (completo cada cambio, latido 24 h, parches cada 6 h ± 20 %). *Hecho cuando:* `run.sh load -inventory -updates` corre 1000 agentes con los tres tipos de envío.
+- [x] **L2 Medir** ingest de inventario/parches (p50/p95, req/s, errores, 413/429), tamaño de la BD tras N horas simuladas, y el evaluador de alertas con 1000 hosts y las reglas de parches/puertos. *Hecho cuando:* tabla en `decisiones/2026-09-25-rendimiento.md`.
+- [x] **L3 Carga sostenida (soak)**: 30–60 min con los 1000 agentes simulados; vigilar RAM/CPU del server, crecimiento de la BD, ciclo de mantenimiento/rollup y autovacuum. *Hecho cuando:* sin fugas ni degradación, o hallazgos corregidos.
+- [x] **L4 `pg_prewarm`/`shared_buffers` y caché fría**: reproducir el primer acceso frío de una gráfica de 24 h (reiniciando Postgres) y decidir si hace falta `pg_prewarm`.
+
+## P6 — Derivado de la carga (2026-09-26, `decisiones/2026-09-26-carga-inventario-parches.md`)
+- [ ] **O1 Optimizar la vista `alert_candidates`** (420 ms por pasada con 1000 hosts; LATERAL de os_eol/parches por fila aunque la regla no exista). *Hecho cuando:* <100 ms con 1000 hosts y 8 reglas, sin cambiar resultados (test de equivalencia).
+- [ ] **O2 Jitter del envío completo al arrancar el agente** (ráfaga de 3000 completos atrasa las métricas hasta 2,3 s).
+- [ ] **O3 Log de solicitudes: muestrear los 429** (un flood deja una línea WARN por solicitud) y **variable de nivel de log** (`ARGOS_LOG_LEVEL`; hoy Info fijo).
+- [ ] **O4 Repetir la soak** (30–60 min) en un equipo sin uso concurrente (degradación no reproducida).
 
 ## P5 — Meta: el server solo se instala y el agente solo se instala, se ejecuta y se enrola (pedido del usuario, 2026-09-26)
 - [x] **T1 Config del agente (2026-09-26, `decisiones/2026-09-26-instalacion-un-paso.md`; sin probar en SO real) sin variables de entorno a mano.** Hoy inventario, parches, colector de pings (`ARGOS_PROBE_ALLOW`), `--privileged` y `ARGOS_ALLOW_INSECURE` se activan a mano en cada equipo (el instalador no pasa la config al servicio). Propuesta: `install` acepta flags (`--inventory ports,services,processes,updates`, `--probe-allow <cidr>`, `--privileged`, `--insecure`) que se guardan en la config persistente del servicio, y el modal "Agregar host" arma el comando con casillas. *Hecho cuando:* un host nuevo queda con inventario y parches funcionando con solo pegar el comando.

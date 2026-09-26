@@ -2,6 +2,10 @@
 //
 //	go run . -base http://127.0.0.1:18082 -user perf -pass CLAVE -hosts 1000 -agents-for 60s
 //
+// Agentes simulados (-agents-for): metricas (-metrics, por defecto), inventario (-inventory: puertos, servicios y
+// procesos) y parches (-updates), con la cadencia real del agente dividida por -speedup. -inv-warm los arranca en
+// regimen (sin el envio completo inicial; requiere una corrida previa que haya cargado los listados).
+//
 // Solo contra un server de pruebas con la BD sintetica (scripts/perf/seed.sql). Los tokens de agente son
 // perf-token-NNNN. La clave se pasa por flag: no lo uses contra un server real.
 package main
@@ -67,6 +71,12 @@ func main() {
 	interval := flag.Duration("agent-interval", 30*time.Second, "intervalo de cada agente simulado")
 	speedup := flag.Int("speedup", 1, "multiplica la tasa de reporte (los agentes reales van cada 30 s)")
 	skipRead := flag.Bool("skip-read", false, "no medir los endpoints de lectura")
+	metrics := flag.Bool("metrics", true, "los agentes simulados envian metricas")
+	inventory := flag.Bool("inventory", false, "los agentes simulados envian inventario (puertos, servicios, procesos)")
+	updates := flag.Bool("updates", false, "los agentes simulados envian parches (modulo updates)")
+	invChange := flag.Float64("inv-change", 1, "multiplica la probabilidad de cambio del inventario (provoca envios completos)")
+	invWarm := flag.Bool("inv-warm", false, "los agentes de inventario arrancan en regimen (sin el envio completo inicial); requiere que el server ya tenga los listados de una corrida previa")
+	invStale := flag.Float64("inv-stale", 0.001, "probabilidad de un latido con rev viejo (provoca 409 need_full)")
 	only := flag.String("only", "", "solo endpoints que contengan alguna de estas subcadenas (separadas por coma)")
 	flag.Parse()
 
@@ -95,7 +105,12 @@ func main() {
 		}
 	}
 	if *agentsFor > 0 {
-		agents(*base, *hosts, *agentsFor, *interval, *speedup)
+		if *speedup < 1 {
+			fmt.Fprintln(os.Stderr, "-speedup debe ser >= 1")
+			os.Exit(2)
+		}
+		agents(*base, *hosts, *agentsFor, *interval, *speedup, *metrics, invOptions{ports: *inventory, services: *inventory,
+			processes: *inventory, updates: *updates, speedup: *speedup, changeScale: *invChange, stale: *invStale, warm: *invWarm})
 	}
 }
 
@@ -224,21 +239,32 @@ func run(c *http.Client, url string, n, conc int) ([]result, time.Duration) {
 	return rs, time.Since(start)
 }
 
-// agents simula `hosts` agentes: cada uno reporta cada interval/speedup (con desfase aleatorio) durante d.
-func agents(base string, hosts int, d, interval time.Duration, speedup int) {
+// agents simula `hosts` agentes: cada uno reporta metricas cada interval/speedup (con desfase aleatorio) durante d, y
+// si se piden, sube inventario y parches con la cadencia real del agente (ver inv.go).
+func agents(base string, hosts int, d, interval time.Duration, speedup int, metrics bool, inv invOptions) {
 	step := interval / time.Duration(speedup)
-	fmt.Printf("\nIngest: %d agentes, cada %s (x%d = %.1f req/s objetivo), %s\n\n", hosts, step, speedup, float64(hosts)/step.Seconds(), d)
-	client := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{MaxIdleConnsPerHost: 512}}
-	var mu sync.Mutex
-	var rs []result
+	fmt.Printf("\nIngest: %d agentes, x%d, %s (metricas=%v cada %s; puertos=%v servicios=%v procesos=%v parches=%v)\n\n",
+		hosts, speedup, d, metrics, step, inv.ports, inv.services, inv.processes, inv.updates)
+	client := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{MaxIdleConnsPerHost: 1024}}
+	col := &collector{start: time.Now()}
 	var stop atomic.Bool
 	var wg sync.WaitGroup
-	start := time.Now()
 	for i := 1; i <= hosts; i++ {
+		token := fmt.Sprintf("perf-token-%04d", i)
+		for _, m := range inv.modules() {
+			w := &invWorker{host: i, token: token, mod: m, o: inv, client: client, base: base, col: col, stop: &stop,
+				rng: rand.New(rand.NewSource(int64(i)*31 + int64(len(m.name))))}
+			if inv.warm {
+				w.warmUp()
+			}
+			go w.loop() // no se espera: puede estar dormido horas (latido); al terminar el proceso muere
+		}
+		if !metrics {
+			continue
+		}
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			token := fmt.Sprintf("perf-token-%04d", i)
 			time.Sleep(time.Duration(rand.Int63n(int64(step))))
 			for n := 0; !stop.Load(); n++ {
 				body := fmt.Sprintf(`{"timestamp":%d,"metrics":{"cpu_pct":%.1f,"mem_used_mb":%d,"mem_total_mb":16384,"net":{"rx_bytes":%d,"tx_bytes":%d}},"disks":[{"mount":"/","used_mb":%d,"total_mb":500000},{"mount":"/data","used_mb":%d,"total_mb":500000}]}`,
@@ -246,10 +272,7 @@ func agents(base string, hosts int, d, interval time.Duration, speedup int) {
 				req, _ := http.NewRequest("POST", base+"/api/v1/agent/metrics", strings.NewReader(body))
 				req.Header.Set("Authorization", "Bearer "+token)
 				req.Header.Set("Content-Type", "application/json")
-				r := do(client, req)
-				mu.Lock()
-				rs = append(rs, r)
-				mu.Unlock()
+				col.add("metrics", do(client, req))
 				time.Sleep(step)
 			}
 		}(i)
@@ -257,7 +280,45 @@ func agents(base string, hosts int, d, interval time.Duration, speedup int) {
 	time.Sleep(d)
 	stop.Store(true)
 	wg.Wait()
+	wall := time.Since(col.start)
+	col.mu.Lock()
+	all := append([]labeled(nil), col.rs...)
+	col.mu.Unlock()
+
+	labels := map[string]bool{}
+	for _, l := range all {
+		labels[l.label] = true
+	}
+	names := make([]string, 0, len(labels))
+	for l := range labels {
+		names = append(names, l)
+	}
+	sort.Strings(names)
+	pick := func(label string, from, to time.Duration) []result {
+		var rs []result
+		for _, l := range all {
+			if l.label == label && l.at >= from && l.at < to {
+				rs = append(rs, l.result)
+			}
+		}
+		return rs
+	}
 	fmt.Println("| endpoint | n | req/s | p50 | p95 | p99 | max | tamano | codigos |")
 	fmt.Println("|---|---|---|---|---|---|---|---|---|")
-	summarize("POST /api/v1/agent/metrics", rs, time.Since(start))
+	for _, n := range names {
+		summarize(n, pick(n, 0, wall+time.Hour), wall)
+	}
+	if d >= 9*time.Minute { // primer y ultimo tercio: detecta degradacion
+		third := d / 3
+		fmt.Println("\nPrimer y ultimo tercio\n\n| endpoint | n | req/s | p50 | p95 | p99 | max | tamano | codigos |")
+		fmt.Println("|---|---|---|---|---|---|---|---|---|")
+		for _, n := range names {
+			if rs := pick(n, 0, third); len(rs) > 0 {
+				summarize("1er tercio "+n, rs, third)
+			}
+			if rs := pick(n, 2*third, wall+time.Hour); len(rs) > 0 {
+				summarize("ult. tercio "+n, rs, wall-2*third)
+			}
+		}
+	}
 }
