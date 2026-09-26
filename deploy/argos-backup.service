@@ -1,0 +1,16 @@
+[Unit]
+Description=Respaldo de la BD de argos
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=argos
+Group=argos
+EnvironmentFile=/etc/argos/argos.env
+ExecStart=/opt/argos/deploy/argos-backup.sh
+UMask=0077
+ReadWritePaths=/var/backups/argos
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true

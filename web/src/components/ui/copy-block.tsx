@@ -30,7 +30,7 @@ function CopyBlock({ value, label }: CopyBlockProps) {
         role="region"
         aria-label={label}
         tabIndex={0}
-        className="overflow-x-auto rounded-md border border-border bg-bg px-3 py-2 font-mono text-xs text-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="overflow-x-auto rounded-md border border-border bg-bg px-3 py-2 font-mono text-xs break-all whitespace-pre-wrap text-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <code>{value}</code>
       </pre>
