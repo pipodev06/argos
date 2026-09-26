@@ -1,4 +1,4 @@
-import type { FilterField, FiltersOf } from '@/components/filters/types'
+import type { FilterField } from '@/components/filters/types'
 import type { User } from '@/features/auth/types/auth.types'
 import { formatElapsed } from '@/features/hosts/utils/format'
 import type { ChangeKind, ModuleStatus, ModuleSummary, ServiceStart, ServiceState } from '../types/inventory.types'
@@ -23,8 +23,6 @@ export const INVENTORY_FIELDS = [
   { kind: 'choice', key: 'kind', param: 'inv_kind', label: 'Tipo', values: KIND_FILTERS, default: 'all' },
   { kind: 'choice', key: 'state', param: 'inv_state', label: 'Estado', values: STATE_FILTERS, default: 'all' },
 ] as const satisfies readonly FilterField[]
-
-export type InventoryFilters = FiltersOf<typeof INVENTORY_FIELDS>
 
 export const MODULE_LABELS: Record<string, string> = { all: 'Todos', ports: 'Puertos', services: 'Servicios' }
 export const KIND_LABELS: Record<string, string> = {

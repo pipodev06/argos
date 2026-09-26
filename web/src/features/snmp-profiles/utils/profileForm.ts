@@ -2,7 +2,7 @@ import type { SnmpAuthProto, SnmpPrivProto, SnmpProfile, SnmpProfileInput, SnmpV
 
 export const MAX_NAME = 80
 export const MAX_USER = 64
-export const MIN_PASS = 8
+const MIN_PASS = 8
 export const MAX_PASS = 128
 export const MAX_COMMUNITY = 64
 

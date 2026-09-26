@@ -1,6 +1,6 @@
 import type { ExpectedPort } from '../types/alert.types'
 
-export const MAX_EXPECTED_PORTS = 100
+const MAX_EXPECTED_PORTS = 100
 
 /** Texto "tcp/22, udp/53" (comas, espacios o saltos de línea) a lista validada y normalizada. */
 export function parseExpectedPorts(raw: string): { ports: ExpectedPort[] } | { error: string } {

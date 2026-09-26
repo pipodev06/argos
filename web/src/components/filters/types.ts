@@ -59,10 +59,10 @@ export interface NumericField extends FieldBase {
   baseUnit?: string
 }
 
-export type ChoiceValue = string | number
+type ChoiceValue = string | number
 
 /** Parametro de URL de valores fijos (orden, tamano de pagina); la barra lo ignora. */
-export interface ChoiceField extends FieldBase {
+interface ChoiceField extends FieldBase {
   kind: 'choice'
   values: readonly ChoiceValue[]
   /** Valor por defecto (se omite de la URL); puede depender de los campos ya leidos. */

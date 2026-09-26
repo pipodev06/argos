@@ -198,7 +198,7 @@ export function buildTicks(startMs: number, endMs: number, tickMs: number): numb
  * Etiqueta de una marca del eje X. Rangos cortos: hora; 7d: dia de la semana; 30d/90d/1y: fecha
  * (las marcas caen en medianoche local, asi que la hora no aporta; 1y agrega el ano).
  */
-export function formatTick(ms: number, range: MetricRange): string {
+function formatTick(ms: number, range: MetricRange): string {
   switch (range) {
     case '7d':
       return formatDay(ms)
@@ -213,7 +213,7 @@ export function formatTick(ms: number, range: MetricRange): string {
 }
 
 /** Titulo del tooltip: 30d fecha + hora (pasos de 1 h); 90d y 1y solo fecha; el resto, fecha y hora con segundos. */
-export function formatTooltipLabel(ms: number, range: MetricRange): string {
+function formatTooltipLabel(ms: number, range: MetricRange): string {
   switch (range) {
     case '30d':
       return formatDateHour(ms)

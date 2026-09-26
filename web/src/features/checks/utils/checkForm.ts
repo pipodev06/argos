@@ -3,13 +3,13 @@ import { isDeviceCheck } from './format'
 import type { CheckInput, CheckType, ServiceCheck } from '../types/check.types'
 
 export const MAX_NAME = 80
-export const MIN_INTERVAL = 30
-export const MAX_INTERVAL = 86400
-export const MIN_TIMEOUT = 200
-export const MAX_TIMEOUT = 30000
-export const MAX_RETRIES = 3
-export const MAX_LATENCY = 60000
-export const MAX_DAYS = 365
+const MIN_INTERVAL = 30
+const MAX_INTERVAL = 86400
+const MIN_TIMEOUT = 200
+const MAX_TIMEOUT = 30000
+const MAX_RETRIES = 3
+const MAX_LATENCY = 60000
+const MAX_DAYS = 365
 export const MAX_URL = 512
 export const MAX_EXPECT_TEXT = 100
 export const MAX_IF_INDEX = 65535

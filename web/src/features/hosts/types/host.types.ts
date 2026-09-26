@@ -6,18 +6,18 @@ export interface GroupRef {
 }
 
 /** Peor montaje del host (lista). */
-export interface DiskUsage {
+interface DiskUsage {
   pct: number
   mount: string
 }
 
-export interface Battery {
+interface Battery {
   pct: number
   charging: boolean | null
 }
 
 /** `agent` = host con agente; `device` = dispositivo sin agente (se sondea por ping desde un colector). */
-export type HostKind = 'agent' | 'device'
+type HostKind = 'agent' | 'device'
 
 /** Fila de GET /hosts. */
 export interface Host {

@@ -57,7 +57,7 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 
 ## P7 — Servicio hospedado multi-cliente (revisión de seguridad 2026-09-26; `decisiones/2026-09-26-seguridad-multicliente.md`)
 - [x] **H1 Colector y dispositivo del mismo grupo** (2026-09-26) (hallazgo #1, alta): 422 en create/update/`SetHostGroup`; ajustar tests que usan un colector de otro grupo. *Hecho cuando:* test de regresión de fuga de credenciales SNMP entre clientes.
-- [x] **H2 Baja de un cliente (offboarding)** (2026-09-26; falta la UI y etiquetas web de `host_purged`/`group_purged`) (#2, alta): endpoint admin de purga por host/grupo (métricas por partición, resumen horario, chunks, discos, host, tokens y sesiones). *Hecho cuando:* purga completa probada y auditada.
+- [x] **H2 Baja de un cliente (offboarding)** (2026-09-26; UI y etiquetas de auditoría hechas en la web) (#2, alta): endpoint admin de purga por host/grupo (métricas por partición, resumen horario, chunks, discos, host, tokens y sesiones). *Hecho cuando:* purga completa probada y auditada.
 - [ ] **H3 Viewers nuevos con `all_groups=false`** (#5): pedir grupos al crear (UI y API) y migrar el default.
 - [ ] **H4 Bloqueo de cuenta en Internet** (#6, decisión del usuario): Cloudflare Access delante de `/api/v1/auth/*` o bloqueo por (cuenta, IP); aviso al arrancar si no hay proxies confiables.
 - [ ] **H5 Tope real de frecuencia de ingest por host** (#8): descartar muestras a menos de ~10 s de la anterior.
@@ -67,5 +67,28 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 
 ## P8 — Historial por fecha y retención en la web (siguiente)
 - [x] **E1 Endpoint `GET /hosts/{id}/history` (+ CSV, discos)** con `DetailRange`/`EffectiveDetailDays`; requisitos de seguridad del hallazgo #7 (ámbito, `SetWriteDeadline` para el CSV, cupo propio, nombre de archivo saneado, `csvSafe` en `mount`, respuesta con `detail_retention_days`). La web ya está hecha (`/hosts/:id/historial`) y hoy fija 30 días.
-- [ ] **E2 Pantalla `/configuracion`** (retención global) y campos "Retención de detalle (días)" en grupo y host con confirmación al reducir; mostrar la retención efectiva en la lista de hosts.
+- [x] **E2 Pantalla `/configuracion`** (2026-09-26; sin revisión visual) (retención global) y campos "Retención de detalle (días)" en grupo y host con confirmación al reducir; mostrar la retención efectiva en la lista de hosts.
 - [ ] **E3 Probar el empaquetado con volumen** (backfill de particiones de 8–30 días con 1000 hosts) y `disk_samples` en chunks; `check-go.sh --race` del server terminó en FALLO sin causa (investigar).
+
+## P9 — Brechas de producto por flujo (análisis K, 2026-09-26; `decisiones/2026-09-26-brechas-producto.md`)
+Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), luego los S/M.
+- [ ] **B1 Viewers con grupos desde el alta** (= H3): `POST /users` acepta `group_ids`/permisos y el default deja de ser `all_groups=true`; UI del alta pide grupos. **Bloquea 1er cliente.**
+- [ ] **B2 Canal/regla sin fuga entre clientes**: `SetRuleChannels`/`updateAlertRule` rechazan asignar a un canal con dueño una regla de alcance `all` o de otro grupo (o canales con `group_id` dueño); una regla `all` como "Host caído" enviaría hostnames de otros clientes al webhook de uno. **Bloquea 1er cliente si hay canal propio.**
+- [ ] **B3 Bloqueo de la cuenta admin desde Internet** (= H4; decisión del usuario) y aviso al arrancar sin proxies confiables. **Bloquea.**
+- [ ] **B4 Primer despliegue real, instaladores en SO reales y restore probado** (= D1/T3/T5). **Bloquea.**
+- [ ] **B5 Respaldos cifrados y fuera del host** (= H6). **Bloquea.**
+- [ ] **B6 Auto-monitoreo del servicio**: ampliar `/health` (mantenimiento atrasado, cola de notificaciones, evaluador parado, disco) y alertar entregas `dead`/canal roto. (Alta, M)
+- [ ] **B7 Planes y cuotas por cliente** (hosts, dispositivos, chequeos, usuarios, reglas, canales) y consumo visible; hoy los topes son globales (200 reglas, 50 canales…). (Alta, L; depende de la entidad cliente B24)
+- [ ] **B8 Permiso `can_ack`** para que un viewer reconozca sus alertas. (Media, S)
+- [ ] **B9 Vista de versiones del agente** (columna/filtro, `latest` expuesto, "desactualizado"). (Media, S)
+- [ ] **B10 Listar/revocar enroll tokens pendientes** y estado "nunca reportó". (Media, S)
+- [ ] **B11 `DELETE /users`** auditado (y borrar viewers al purgar el grupo). (Media, S)
+- [ ] **B12 Informes por mes calendario / rango libre** (hoy 7/30/90 d, tope 91 d; `host_events` guarda 400 d). (Media, S/M)
+- [ ] **B13 Plantillas/clonar reglas por cliente.** (Media, S)
+- [ ] **B14 Re-enrolar conservando `host_id`** y aviso de hostnames duplicados. (Media, M)
+- [ ] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M)
+- [ ] **B16 Alta masiva / token por grupo** con topes. (Media, M)
+- [ ] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M)
+- [ ] **B18 Rotación de `ARGOS_SECRET_KEY`** (doble clave y recifrado). (Media, M)
+- [ ] **B19 El plan también limita el resumen horario, eventos, alertas e inventario** (decisión del usuario pendiente). (Media, M)
+- [ ] **B20–B30** (consumo por cliente, revisión visual y tests de componentes, restauración por cliente y DR, SMTP, entidad cliente, MFA/sesiones/recuperación, informes programados/PDF/marca, retención en `POST /groups`, flapping/escalamiento, silenciar por el cliente, ayuda/i18n/móvil): ver el informe.

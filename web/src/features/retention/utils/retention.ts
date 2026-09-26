@@ -69,9 +69,3 @@ export function sourceLabel(source: RetentionSource | EffectiveSource | string):
       return source
   }
 }
-
-/** Traduce errores de retencion del servidor; null = usar el mensaje del servidor. */
-export function mapRetentionError(err: ApiError): string | null {
-  if (err.status === 400) return RANGE_MSG
-  return null
-}

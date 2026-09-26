@@ -1,5 +1,5 @@
 export type InventoryModule = 'ports' | 'services' | 'processes'
-export type ChangeModule = 'ports' | 'services'
+type ChangeModule = 'ports' | 'services'
 export type ChangeKind = 'added' | 'removed' | 'changed' | 'overflow'
 export type ModuleStatus = 'ok' | 'no_data' | 'disabled'
 

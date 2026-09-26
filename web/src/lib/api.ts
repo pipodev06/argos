@@ -30,7 +30,7 @@ export class ApiError extends Error {
   }
 }
 
-export const UNAUTHENTICATED = 'unauthenticated'
+const UNAUTHENTICATED = 'unauthenticated'
 
 const FORBIDDEN_MESSAGE = 'No tienes permiso para realizar esta acción.'
 

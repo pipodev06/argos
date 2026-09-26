@@ -3,7 +3,7 @@ import type { FilterField, FilterValue, FiltersOf } from './types'
 
 type Values = Record<string, FilterValue>
 
-export const paramOf = (f: FilterField): string => f.param ?? f.key
+const paramOf = (f: FilterField): string => f.param ?? f.key
 
 function unique(list: string[]): string[] {
   return [...new Set(list)]
