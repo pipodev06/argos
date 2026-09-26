@@ -125,3 +125,5 @@ func (f *fakeStore) CollectorPings(context.Context, string) ([]store.PingAssignm
 }
 
 func (f *fakeStore) RenameHost(_ context.Context, _, _ string) error { return nil }
+
+func (f *fakeStore) Ping(context.Context) error { return nil }

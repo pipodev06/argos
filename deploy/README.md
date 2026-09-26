@@ -46,6 +46,7 @@ Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin o
 - Restaurar (server parado): `sudo systemctl stop argos-server && pg_restore --clean --if-exists -d "$DATABASE_URL" archivo.dump`.
 
 ## Operación
+- Salud: `curl -s http://127.0.0.1:8080/health` (200 con BD viva, 503 si Postgres no responde): úsalo en Caddy (`health_uri`) o en un monitor externo. Log de solicitudes: `journalctl -u argos-server | grep solicitud` (los éxitos rutinarios de agentes, `/health` y estáticos van a nivel Debug y no salen).
 - Logs: `journalctl -u argos-server -f`. Estado: `systemctl status argos-server`. Auditar el sandbox: `systemd-analyze security argos-server`.
 - Reset de clave de un usuario: `sudo argos-admin reset-password <usuario>`.
 - Si una línea de endurecimiento del unit rompe tu distro, comenta SOLO esa.

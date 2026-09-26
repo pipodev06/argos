@@ -23,6 +23,7 @@ import (
 // Store es lo que la API necesita de la persistencia. Lo implementa *store.Store;
 // se define aca (donde se consume) pa poder probar los handlers con un falso.
 type Store interface {
+	Ping(ctx context.Context) error
 	// Hosts y agentes.
 	CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time) error
 	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, err error)
@@ -205,6 +206,7 @@ type API struct {
 	agentFails         failCounter
 
 	routes []route
+	health healthState
 }
 
 // New crea la API. now permite fijar el reloj en tests (usar time.Now en produccion). Entra en panico solo
@@ -281,7 +283,7 @@ func (a *API) Routes() http.Handler {
 	a.routes = nil
 	mux := http.NewServeMux()
 
-	a.route(mux, "GET /health", accessPublic, a.health)
+	a.route(mux, "GET /health", accessPublic, a.healthHandler)
 
 	// Agentes.
 	a.route(mux, "POST /api/v1/agent/enroll", accessPublic, a.agentEnroll)
@@ -376,7 +378,7 @@ func (a *API) Routes() http.Handler {
 	// Frontend compilado (ARGOS_WEB_DIR): al final, es el fallback de todo lo que no reclama otra ruta.
 	a.registerWeb(mux)
 
-	return a.securityHeaders(a.hostAllowlist(a.crossOrigin()(a.requireJSON(mux))))
+	return a.requestLog(a.securityHeaders(a.hostAllowlist(a.crossOrigin()(a.requireJSON(mux)))))
 }
 
 // handlerFunc es un handler que devuelve su error; a.handle lo traduce a HTTP
@@ -483,9 +485,4 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 			"method", r.Method, "path", r.URL.Path, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal_error", "error interno del servidor")
 	}
-}
-
-func (a *API) health(w http.ResponseWriter, _ *http.Request) error {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	return nil
 }

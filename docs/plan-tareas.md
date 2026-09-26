@@ -3,8 +3,8 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 
 ## P0 — Antes/al desplegar en el server Linux
 - [ ] **D1 Primer despliegue real** con `deploy/` (ver `deploy/README.md`): instalar, `systemctl status`, `systemd-analyze security argos-server`, respaldo (`systemctl start argos-backup.service`), restaurar el dump en una BD de prueba. *Hecho cuando:* login por HTTPS desde otro PC y un agente enrolado contra ese server; ajustes anotados.
-- [ ] **D2 `/health` con chequeo de BD** (sin auth, sin datos internos) para monitorear el propio server (y uso en Caddy/uptime). *Hecho cuando:* 200 con BD viva, 503 si Postgres cae; test.
-- [ ] **D3 Request logging mínimo** (método, ruta sin query, estado, ms, sin cabeceras ni cuerpos). *Hecho cuando:* visible en journalctl; un test verifica que no se loguean tokens/cookies.
+- [x] **D2 `/health` con chequeo de BD** (2026-09-25) (sin auth, sin datos internos) para monitorear el propio server (y uso en Caddy/uptime). *Hecho cuando:* 200 con BD viva, 503 si Postgres cae; test.
+- [x] **D3 Request logging mínimo** (2026-09-25) (método, ruta sin query, estado, ms, sin cabeceras ni cuerpos). *Hecho cuando:* visible en journalctl; un test verifica que no se loguean tokens/cookies.
 - [ ] **D4 Separar roles de BD** (migrador vs runtime; cierra el hueco del trigger append-only de `audit_log`). *Hecho cuando:* el unit corre con rol sin DDL; `install-server.sh` crea ambos; test de que el runtime no puede `DROP TRIGGER`.
 
 ## P1 — Suite del server (lenta: ~190–340 s)

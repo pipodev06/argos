@@ -23,7 +23,7 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - Bateria, discos, `host_info`, red virtual: limites de los colectores -> [Agente](#agente-y-servicio)
 - Linux solo systemd; macOS sin rotacion de log; Windows estado solo lectura; `install` deja restos si falla -> [Agente](#agente-y-servicio)
 - Series: primer tramo sin tasa, datos tardios >3 h, tasas ponderadas aproximadas, particion ausente tras parada larga -> [Datos](#datos-y-api)
-- Sin request logging ni `/health` con chequeo de DB; sin test de `main`/SIGTERM real -> [Operacion](#operacion)
+- Sin test de `main`/SIGTERM real -> [Operacion](#operacion)
 - `-race` no corre en local (falta gcc en Windows); lo cubre el CI de Linux -> [Operacion](#operacion)
 - Permisos por grupo: `check_name` de una regla de alcance `all` puede nombrar un chequeo de un grupo ajeno (fuga menor aceptada); los cambios de permisos de un usuario se ven en su navegador al recargar (el frontend lee `/auth/me` al cargar) -> [Seguridad](#seguridad)
 
@@ -65,7 +65,7 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - El server sirve el frontend con `ARGOS_WEB_DIR` (fallback SPA, CSP con `style-src 'unsafe-inline'`, ruta invalida = no arranca; un POST a ruta desconocida da 405). Lo que sigue pendiente es HTTPS/proxy para exponerlo fuera de loopback (ver Seguridad).
 - Tests de BD: sin `ARGOS_TEST_DATABASE_URL` (BD que termine en `_test`; local: `postgres://argos:argos@localhost:5432/argos_test?sslmode=disable`) se SALTAN en silencio, y el resultado sigue en verde; verificar siempre con la variable definida. El CI define la suya.
 - `-race`: sin gcc en Windows local; corre en el CI de Linux (verde el 2026-09-25).
-- Sin middleware de request logging ni `/health` con chequeo de DB. Sin test de `main` (cableado/apagado por senal); e2e cerrados con `taskkill /F` en Windows.
+- Sin test de `main` (cableado/apagado por senal); e2e cerrados con `taskkill /F` en Windows.
 
 ## Fase 3 instaladores (2026-09-24)
 - ALTA: binarios servidos sin firma: un server comprometido da codigo como root/SYSTEM en hosts nuevos. Requiere firmas independientes del server antes de cualquier auto-update. Ver decisiones/2026-09-24-fases-2-y-3.md.
