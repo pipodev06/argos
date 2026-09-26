@@ -493,7 +493,7 @@ main() {
 				admin_pw="$(gen_password)" || die "no pude generar la clave del admin"
 				errf="$(mktemp)"
 				# La clave viaja por stdin (no por argumento ni entorno) y no se escribe en ningun archivo.
-				if printf '%s\n' "$admin_pw" | /usr/local/bin/argos-admin create-admin "$admin_user" 2>"$errf"; then
+				if printf '%s\n' "$admin_pw" | /usr/local/bin/argos-admin create-admin --must-change "$admin_user" 2>"$errf"; then
 					admin_made=1
 				else
 					cat "$errf" >&2; rm -f "$errf"

@@ -33,10 +33,24 @@ func runCommand(ctx context.Context, st *store.Store, hasher *auth.Hasher, args 
 	}
 }
 
+// splitMustChange separa el indicador --must-change (en cualquier posicion) del resto de argumentos.
+func splitMustChange(args []string) (rest []string, mustChange bool) {
+	for _, a := range args {
+		if a == "--must-change" {
+			mustChange = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return rest, mustChange
+}
+
 // createAdmin crea un admin. El username va como argumento o se pide; la contraseña
 // se pide sin eco en un terminal, o se lee de stdin si no hay terminal (automatizacion):
-// nunca por argumento ni variable de entorno.
+// nunca por argumento ni variable de entorno. Con --must-change el usuario debe cambiarla en su primer login (la usa
+// el instalador, que genera una contraseña inicial aleatoria y la imprime una sola vez).
 func createAdmin(ctx context.Context, st *store.Store, hasher *auth.Hasher, args []string) error {
+	args, mustChange := splitMustChange(args)
 	in := bufio.NewReader(os.Stdin)
 	var username string
 	switch len(args) {
@@ -67,7 +81,7 @@ func createAdmin(ctx context.Context, st *store.Store, hasher *auth.Hasher, args
 	if err != nil {
 		return err
 	}
-	u, err := st.CreateUser(ctx, username, hash, store.RoleAdmin, false)
+	u, err := st.CreateUser(ctx, username, hash, store.RoleAdmin, mustChange)
 	if err != nil {
 		return fmt.Errorf("creando admin: %w", err)
 	}

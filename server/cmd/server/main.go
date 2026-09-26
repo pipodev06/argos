@@ -3,7 +3,8 @@
 // Uso:
 //
 //	argos-server                       arranca el servidor
-//	argos-server create-admin [user]   crea un usuario admin (contraseña por terminal o stdin)
+//	argos-server create-admin [--must-change] [user]  crea un usuario admin (contraseña por terminal o stdin; con
+//	                                   --must-change debe cambiarla en su primer login)
 //	argos-server reset-password <user> fija una contraseña nueva, desbloquea la cuenta y cierra sus sesiones
 //	argos-server migrate               aplica las migraciones con ARGOS_MIGRATE_DATABASE_URL (o DATABASE_URL) y, si
 //	                                   ARGOS_APP_ROLE esta definida, deja los permisos del rol de runtime
