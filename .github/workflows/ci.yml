@@ -60,6 +60,47 @@ jobs:
       - name: go test
         run: go test -race -count=1 ./...
 
+  # Los tests que dependen de la hora local (fechas "de hoy", truncar a dia, DateOnly) fallan de noche o en otro huso
+  # sin que nadie lo note (pasó con "fecha futura" en UTC-5). Correr la suite con los dos husos extremos (UTC+14 y
+  # UTC-12) lo destapa de una vez: cualquier huso queda entre esos dos. Sin -race (eso ya lo cubre el job go).
+  go-tz:
+    name: go (${{ matrix.module }}, huso ${{ matrix.tz }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [server, agent]
+        tz: [Pacific/Kiritimati, Etc/GMT+12]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: argos_test
+          POSTGRES_PASSWORD: argos_test
+          POSTGRES_DB: argos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U argos_test -d argos_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ARGOS_TEST_DATABASE_URL: ${{ matrix.module == 'server' && 'postgres://argos_test:argos_test@localhost:5432/argos_test?sslmode=disable' || '' }}
+      TZ: ${{ matrix.tz }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - name: go test (huso ${{ matrix.tz }})
+        run: go test -count=1 ./...
+
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 10
