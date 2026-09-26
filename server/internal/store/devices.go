@@ -23,7 +23,25 @@ var (
 	ErrDeviceExists = errors.New("ya existe un dispositivo con esa direccion en ese colector")
 	// ErrTooManyDevices: ya hay MaxDevices dispositivos.
 	ErrTooManyDevices = errors.New("demasiados dispositivos")
+	// ErrCollectorGroupMismatch: el dispositivo y su colector quedarian en grupos distintos. Un agente solo debe
+	// sondear equipos de su propio grupo (cliente): si no, recibiria IP y credenciales SNMP de otro cliente.
+	ErrCollectorGroupMismatch = errors.New("el dispositivo y su colector deben estar en el mismo grupo")
+	// ErrCollectorHasDevices: el host es colector de dispositivos que impiden la operacion (moverlo de grupo o
+	// purgarlo).
+	ErrCollectorHasDevices = errors.New("el host es colector de dispositivos")
 )
+
+// GroupRuleError lleva la cuenta de dispositivos afectados por una violacion de la regla "colector y dispositivo en el
+// mismo grupo". Unwrap devuelve ErrCollectorGroupMismatch o ErrCollectorHasDevices.
+type GroupRuleError struct {
+	Kind    error
+	Devices int
+}
+
+func (e *GroupRuleError) Error() string {
+	return fmt.Sprintf("%v (%d dispositivos)", e.Kind, e.Devices)
+}
+func (e *GroupRuleError) Unwrap() error { return e.Kind }
 
 // MaxDevices es el maximo de dispositivos.
 const MaxDevices = 1000
@@ -51,6 +69,9 @@ type Device struct {
 	Profile *SNMPProfileRef
 	// CollectorReachable es false si el colector no esta up: el estado del dispositivo no se esta evaluando.
 	CollectorReachable bool
+	// CollectorGroupMismatch: el grupo del dispositivo difiere del de su colector (dato anterior a la regla; el admin
+	// debe corregirlo).
+	CollectorGroupMismatch bool
 
 	lname string // lower(nombre) tal como lo calcula Postgres: clave del cursor
 }
@@ -80,7 +101,8 @@ type DeviceChange struct {
 
 const deviceSelect = `
 SELECT h.id::text, h.hostname, h.address, h.collector_host_id::text, c.hostname, g.id::text, g.name, h.status,
-       h.status_changed_at, h.last_seen_at, h.created_at, c.status = 'up', lower(h.hostname), sp.id::text, sp.name, sp.version
+       h.status_changed_at, h.last_seen_at, h.created_at, c.status = 'up', lower(h.hostname), sp.id::text, sp.name, sp.version,
+       h.group_id IS DISTINCT FROM c.group_id
   FROM hosts h
   JOIN hosts c ON c.id = h.collector_host_id
   LEFT JOIN snmp_profiles sp ON sp.id = h.snmp_profile_id
@@ -92,7 +114,7 @@ func scanDevice(row pgx.Row) (Device, error) {
 	var profVer *int16
 	var addr netip.Prefix
 	err := row.Scan(&d.ID, &d.Name, &addr, &d.CollectorID, &d.CollectorName, &groupID, &groupName, &d.Status,
-		&d.StatusChangedAt, &d.LastSeenAt, &d.CreatedAt, &d.CollectorReachable, &d.lname, &profID, &profName, &profVer)
+		&d.StatusChangedAt, &d.LastSeenAt, &d.CreatedAt, &d.CollectorReachable, &d.lname, &profID, &profName, &profVer, &d.CollectorGroupMismatch)
 	if err != nil {
 		return Device{}, err
 	}
@@ -195,17 +217,29 @@ func mapDeviceErr(err error, what string) error {
 	return fmt.Errorf("%s: %w", what, err)
 }
 
-// requireAgent devuelve ErrCollectorInvalid si id no es un host con agente activo (no deshabilitado).
-func requireAgent(ctx context.Context, tx pgx.Tx, id string) error {
-	var ok bool
-	if err := tx.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1 AND kind = 'agent' AND status <> 'disabled')`, id).Scan(&ok); err != nil {
-		return fmt.Errorf("buscando colector: %w", err)
+// collectorGroup devuelve el grupo (nil = sin grupo) del colector id, o ErrCollectorInvalid si no es un host con agente
+// (y, con active, que no este deshabilitado). FOR SHARE: mientras dura la transaccion nadie le cambia el grupo
+// (SetHostGroup toma FOR NO KEY UPDATE sobre la misma fila).
+func collectorGroup(ctx context.Context, tx pgx.Tx, id string, active bool) (*string, error) {
+	var group *string
+	err := tx.QueryRow(ctx,
+		`SELECT group_id::text FROM hosts WHERE id = $1 AND kind = 'agent' AND (NOT $2 OR status <> 'disabled') FOR SHARE`,
+		id, active).Scan(&group)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrCollectorInvalid
 	}
-	if !ok {
-		return ErrCollectorInvalid
+	if err != nil {
+		return nil, fmt.Errorf("buscando colector: %w", err)
 	}
-	return nil
+	return group, nil
+}
+
+// sameGroup compara dos grupos opcionales (nil = sin grupo; dos nil son iguales).
+func sameGroup(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // CreateDevice crea un dispositivo en estado pending. La direccion ya viene validada por quien llama.
@@ -223,7 +257,8 @@ func (s *Store) CreateDevice(ctx context.Context, name string, addr netip.Addr, 
 		if n >= MaxDevices {
 			return ErrTooManyDevices
 		}
-		if err := requireAgent(ctx, tx, collectorID); err != nil {
+		cg, err := collectorGroup(ctx, tx, collectorID, true)
+		if err != nil {
 			return err
 		}
 		if err := tx.QueryRow(ctx,
@@ -231,6 +266,10 @@ func (s *Store) CreateDevice(ctx context.Context, name string, addr netip.Addr, 
 			 VALUES ($1, 'device', $2, $3, $4, 'pending') RETURNING id::text`,
 			name, netip.PrefixFrom(addr, addr.BitLen()), collectorID, groupID).Scan(&id); err != nil {
 			return mapDeviceErr(err, "insertando dispositivo")
+		}
+		// Despues del INSERT: un grupo inexistente o una direccion repetida se reportan con su propio error.
+		if !sameGroup(cg, groupID) {
+			return &GroupRuleError{Kind: ErrCollectorGroupMismatch, Devices: 1}
 		}
 		return nil
 	})
@@ -273,14 +312,21 @@ func (s *Store) UpdateDevice(ctx context.Context, id string, ch DeviceChange) (D
 			addr = p
 		}
 		if ch.CollectorID != nil {
-			if err := requireAgent(ctx, tx, *ch.CollectorID); err != nil {
-				return err
-			}
 			moved = moved || *ch.CollectorID != collector
 			collector = *ch.CollectorID
 		}
 		if ch.SetGroup {
 			group = ch.GroupID
+		}
+		mismatch := false
+		if ch.CollectorID != nil || ch.SetGroup {
+			// Solo si cambia el colector o el grupo: un dato anterior desfasado no impide renombrar ni deshabilitar. Un
+			// colector nuevo debe estar activo; el actual puede estar deshabilitado.
+			cg, err := collectorGroup(ctx, tx, collector, ch.CollectorID != nil)
+			if err != nil {
+				return err
+			}
+			mismatch = !sameGroup(cg, group)
 		}
 		if ch.SetProfile {
 			profile = ch.ProfileID
@@ -301,6 +347,9 @@ func (s *Store) UpdateDevice(ctx context.Context, id string, ch DeviceChange) (D
 				        snmp_profile_id = $7
 			  WHERE id = $1`, id, name, addr, collector, group, status, profile); err != nil {
 			return mapDeviceErr(err, "actualizando dispositivo")
+		}
+		if mismatch {
+			return &GroupRuleError{Kind: ErrCollectorGroupMismatch, Devices: 1}
 		}
 		if status != cur.status {
 			if _, err := tx.Exec(ctx,
@@ -375,4 +424,17 @@ func (s *Store) requireScopeVisible(ctx context.Context, scope Scope, a AlertSco
 		return ErrNotFound
 	}
 	return s.requireHost(ctx, scope, *a.HostID)
+}
+
+// CollectorGroupMismatches cuenta los dispositivos cuyo grupo difiere del de su colector (datos anteriores a la
+// regla de mismo grupo). Diagnostico: no corrige nada.
+func (s *Store) CollectorGroupMismatches(ctx context.Context) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx,
+		`SELECT count(*)::int FROM hosts d JOIN hosts c ON c.id = d.collector_host_id
+		  WHERE d.kind = 'device' AND d.group_id IS DISTINCT FROM c.group_id`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("contando dispositivos con colector de otro grupo: %w", err)
+	}
+	return n, nil
 }

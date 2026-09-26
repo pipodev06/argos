@@ -9,7 +9,7 @@ import (
 
 func TestServiceCheckHostScopeAPI(t *testing.T) {
 	x := newScopeEnv(t)
-	dev := x.newDevice(fmt.Sprintf(`{"name":"dev","address":"10.9.0.1","collector_id":%q}`, x.hostA))
+	dev := x.newDevice(fmt.Sprintf(`{"name":"dev","address":"10.9.0.1","collector_id":%q,"group_id":%q}`, x.hostA, x.groupA))
 	post := func(body string, status int, code string) {
 		t.Helper()
 		x.wantStatus(x.do("POST", "/api/v1/service-checks", body, withCookie(x.admin)), status, code)

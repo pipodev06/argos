@@ -94,6 +94,12 @@ func run(logger *slog.Logger, args []string) error {
 		return runCommand(ctx, st, hasher, args)
 	}
 	logger.Info("postgres listo, migraciones aplicadas")
+	// Un fallo del diagnostico no impide arrancar: es solo un aviso para el admin.
+	if n, err := st.CollectorGroupMismatches(ctx); err != nil {
+		logger.Warn("no se pudo comprobar el grupo de los colectores", "err", err)
+	} else if n > 0 {
+		logger.Warn("dispositivos con un colector de otro grupo: un agente sondea equipos de otro cliente; corrigelos (GET /api/v1/devices, collector_group_mismatch)", "count", n)
+	}
 	return serve(ctx, logger, cfg, pool, st, hasher)
 }
 

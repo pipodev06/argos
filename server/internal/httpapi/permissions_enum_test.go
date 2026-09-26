@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Permisos por grupo (tanda 3): guard de inventario y enumeracion de todas las rutas GET.
@@ -85,7 +86,7 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 	x := newAlertScopeEnv(t)
 	checkB := x.newCheck(fmt.Sprintf(`{"name":"tcp-b","type":"tcp","target_host":"localhost","target_port":23,"scope":{"type":"group","group_id":%q}}`, x.groupB))
 	x.newCheck(`{"name":"tcp-all","type":"tcp","target_host":"localhost","target_port":22}`)
-	devB := x.newDevice(`{"name":"dev-b","address":"10.1.1.1","collector_id":"` + x.hostA + `","group_id":"` + x.groupB + `"}`)
+	devB := x.newDevice(`{"name":"dev-b","address":"10.1.1.1","collector_id":"` + x.hostB + `","group_id":"` + x.groupB + `"}`)
 	registered := append([]route(nil), x.api.routes...) // copia: otros tests pueden registrar rutas
 
 	fixed := func(p ...string) func(*alertScopeEnv, string) []string {
@@ -145,6 +146,10 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		}},
 		"GET /api/v1/hosts/{id}/metrics": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/metrics", api + "/hosts/" + x.hostNo + "/metrics"}
+		}},
+		"GET /api/v1/hosts/{id}/history": {"scope", func(x *alertScopeEnv, _ string) []string {
+			q := "?from=" + time.Now().Add(-time.Hour).UTC().Format(time.RFC3339) + "&to=" + time.Now().UTC().Format(time.RFC3339)
+			return []string{api + "/hosts/" + x.hostB + "/history" + q, api + "/hosts/" + x.hostNo + "/history" + q + "&format=csv&series=disks"}
 		}},
 		"GET /api/v1/hosts/{id}/events": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/events", api + "/hosts/" + x.hostNo + "/events"}

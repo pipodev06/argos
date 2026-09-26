@@ -44,6 +44,8 @@ type deviceDTO struct {
 	LastSeenAt      *time.Time       `json:"last_seen_at"`
 	Evaluated       bool             `json:"evaluated"`
 	CreatedAt       time.Time        `json:"created_at"`
+	// CollectorGroupMismatch (solo admin): el colector es de otro grupo (dato anterior a la regla de mismo grupo).
+	CollectorGroupMismatch bool `json:"collector_group_mismatch,omitempty"`
 }
 
 func toDeviceDTO(u *sessionUser, d store.Device) deviceDTO {
@@ -56,6 +58,7 @@ func toDeviceDTO(u *sessionUser, d store.Device) deviceDTO {
 		addr := d.Address.String()
 		dto.Address = &addr
 		dto.Collector = &collectorRefDTO{ID: d.CollectorID, Name: d.CollectorName}
+		dto.CollectorGroupMismatch = d.CollectorGroupMismatch
 		if d.Profile != nil {
 			dto.SNMPProfile = &profileRefDTO{ID: d.Profile.ID, Name: d.Profile.Name, Version: d.Profile.Version}
 		}

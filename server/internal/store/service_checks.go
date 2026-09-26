@@ -446,6 +446,7 @@ func collectorPings(ctx context.Context, q queryer, collectorID string) ([]PingA
 	rows, err := q.Query(ctx,
 		`SELECT `+checkDefCols+`, h.id::text, h.address `+checkDefFrom+`
 		   JOIN hosts h ON h.kind = 'device' AND h.collector_host_id = $1 AND h.status <> 'disabled'
+		     AND h.group_id IS NOT DISTINCT FROM (SELECT c.group_id FROM hosts c WHERE c.id = $1)
 		  WHERE d.enabled AND d.type = 'ping' AND `+hostInScopeSQL+` ORDER BY d.id, h.id LIMIT $2`,
 		collectorID, MaxChecksPerHost)
 	if err != nil {

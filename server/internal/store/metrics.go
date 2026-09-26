@@ -16,6 +16,9 @@ const gapFactor = 3
 // "latest". Con menos de 2 no hay tasa.
 const latestWindow = 20
 
+// noUpperBound es el $4 de hourlySeriesSQL cuando la consulta no tiene tope superior.
+var noUpperBound = time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // MetricPoint es una muestra (o el promedio de un bucket) de metricas de un host.
 // Un campo nil es "sin dato": columna nula, o tasa de red no calculable (primera
 // muestra, reinicio de contador o hueco).
@@ -198,7 +201,7 @@ func (s *Store) MetricSeries(ctx context.Context, hostID string, from time.Time,
 	return s.series(ctx, hostID, seriesSQL, "serie de metricas", hostID, from, step.Seconds(), float64(gapFactor))
 }
 
-// hourlySeriesSQL agrupa los resumenes por hora de un host desde $2 en buckets de $3 segundos
+// hourlySeriesSQL agrupa los resumenes por hora de un host en [$2, $4) en buckets de $3 segundos
 // (date_bin alineado a la epoch, multiplos de 1 h). Cada resumen pesa por sus muestras (samples),
 // asi el promedio del bucket es el promedio de las muestras crudas que resume; una columna nula
 // (sin dato en toda la hora) no cuenta ni en el numerador ni en el peso. Solo hay filas de horas
@@ -217,7 +220,7 @@ SELECT date_bin(make_interval(secs => $3::float8), hour, TIMESTAMPTZ 'epoch') AS
        sum(load15_avg::float8 * samples) / nullif(sum(samples) FILTER (WHERE load15_avg IS NOT NULL), 0),
        sum(battery_pct_avg::float8 * samples) / nullif(sum(samples) FILTER (WHERE battery_pct_avg IS NOT NULL), 0)
   FROM metrics_hourly
- WHERE host_id = $1 AND hour >= $2
+ WHERE host_id = $1 AND hour >= $2 AND hour < $4
  GROUP BY bucket
  ORDER BY bucket`
 
@@ -225,7 +228,7 @@ SELECT date_bin(make_interval(secs => $3::float8), hour, TIMESTAMPTZ 'epoch') AS
 // los rangos largos (30d, 90d, 1a) cuyo crudo ya no se conserva o seria carisimo de agrupar.
 // step debe ser multiplo de 1 h. Mismo contrato de puntos y de ErrNotFound.
 func (s *Store) MetricSeriesHourly(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]MetricPoint, error) {
-	return s.series(ctx, hostID, hourlySeriesSQL, "serie horaria de metricas", hostID, from, step.Seconds())
+	return s.series(ctx, hostID, hourlySeriesSQL, "serie horaria de metricas", hostID, from, step.Seconds(), noUpperBound)
 }
 
 // MetricSeriesMixed sirve los rangos con paso de 1 h (7d) sin barrer el crudo: lee los resumenes por hora de las
@@ -245,7 +248,7 @@ func (s *Store) MetricSeriesMixed(ctx context.Context, hostID string, from time.
 	points := []MetricPoint{}
 	rawFrom := from
 	if last != nil {
-		hourly, err := s.queryPoints(ctx, "serie horaria de metricas", hourlySeriesSQL, hostID, from, step.Seconds())
+		hourly, err := s.queryPoints(ctx, "serie horaria de metricas", hourlySeriesSQL, hostID, from, step.Seconds(), noUpperBound)
 		if err != nil {
 			return nil, err
 		}

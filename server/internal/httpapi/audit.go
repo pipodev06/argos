@@ -41,6 +41,8 @@ const (
 	evHostGroupSet           = "host_group_set"
 	evHostRenamed            = "host_renamed"
 	evHostsBulk              = "hosts_bulk"
+	evHostPurged             = "host_purged"
+	evGroupPurged            = "group_purged"
 	evRetentionUpdated       = "retention_updated"
 	evAlertAcked             = "alert_acked"
 	evAlertResolved          = "alert_resolved"
@@ -99,6 +101,11 @@ var auditDetailKeys = map[string]bool{
 	"report": true, "range": true, "rows": true,
 	// Retencion de detalle: dias fijados (null = heredar); el ambito va en "scope".
 	"detail_days": true,
+	// Exportacion del historial: rango, resolucion y serie (nunca datos).
+	"from": true, "to": true, "resolution": true, "series": true,
+	// Purga de un cliente: conteos, nunca nombres ni contenido.
+	"agents": true, "devices": true, "metrics_rows": true, "failed": true, "rules": true, "windows": true, "checks": true,
+	"users_disabled": true, "users_scope_reduced": true, "group_deleted": true, "enroll_tokens": true,
 }
 
 // audit registra un evento sin fallar la solicitud si la escritura falla: se loguea

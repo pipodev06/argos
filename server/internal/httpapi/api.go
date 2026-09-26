@@ -36,6 +36,12 @@ type Store interface {
 	MetricSeries(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	MetricSeriesHourly(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	MetricSeriesMixed(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
+	// Historial por fecha (detalle comprimido, resumenes por hora y discos).
+	DetailSeries(ctx context.Context, hostID string, from, to time.Time, step time.Duration) ([]store.MetricPoint, *time.Time, error)
+	MetricSeriesHourlyRange(ctx context.Context, hostID string, from, to time.Time, step time.Duration) ([]store.MetricPoint, *time.Time, error)
+	DetailRange(ctx context.Context, hostID string, from, to time.Time, fn func(store.DetailSample) error) error
+	HourlyRange(ctx context.Context, hostID string, from, to time.Time, fn func(store.HourlyRow) error) error
+	DiskSampleRange(ctx context.Context, hostID string, from, to time.Time, fn func(store.DiskHistoryRow) error) error
 	RevokeHost(ctx context.Context, hostID string) error
 	Summary(ctx context.Context, scope store.Scope) (store.Summary, error)
 
@@ -53,6 +59,9 @@ type Store interface {
 	EffectiveDetailDays(ctx context.Context, hostID string) (days int, source string, err error)
 	PreviewRetention(ctx context.Context, t store.RetentionTarget, newDays *int, today time.Time) (store.ShrinkPreview, error)
 	BulkHosts(ctx context.Context, b store.Bulk) (int, error)
+	// Baja de un cliente: purga de un host o de un grupo entero.
+	PurgeHost(ctx context.Context, hostID, confirmHostname string) (store.PurgeCounts, error)
+	PurgeGroup(ctx context.Context, groupID string, o store.PurgeGroupOpts) (store.PurgeGroupResult, error)
 
 	// Alertas, reglas, mantenimiento y eventos de host.
 	ListAlerts(ctx context.Context, scope store.Scope, f store.AlertFilter) (store.AlertPage, error)
@@ -210,6 +219,9 @@ type API struct {
 	updatesReadDedup   *limiter      // por (usuario, host o flota): 1 evento updates_read cada 5 min
 	testLimiter        *limiter      // por usuario: 5 / min (POST /channels/{id}/test)
 	reportSem          chan struct{} // cupos de informes de disponibilidad concurrentes
+	exportLimiter      *limiter      // por usuario: 6 / min (CSV del historial)
+	exports            *exportGate   // cupo propio de exportaciones CSV (1 por usuario, tope global)
+	purgeSem           chan struct{} // un solo purge de grupo a la vez
 	agentFails         failCounter
 
 	routes []route
@@ -242,6 +254,9 @@ func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time
 		distLimiter:        newLimiter(distLimitBurst, time.Minute),
 		testLimiter:        newLimiter(channelTestsPerMinute, time.Minute),
 		reportSem:          make(chan struct{}, maxConcurrentReports),
+		exportLimiter:      newLimiter(exportsPerMinute, time.Minute),
+		exports:            newExportGate(maxConcurrentExports),
+		purgeSem:           make(chan struct{}, 1),
 		cmdOrigin:          commandOrigin(opts.PublicURL, opts.Dist != nil),
 	}
 	if opts.InsecureCookies {
@@ -307,9 +322,11 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/hosts", accessSession, a.listHosts)
 	a.route(mux, "GET /api/v1/hosts/{id}", accessSession, a.getHost)
 	a.route(mux, "GET /api/v1/hosts/{id}/metrics", accessSession, a.hostMetrics)
+	a.route(mux, "GET /api/v1/hosts/{id}/history", accessSession, a.hostHistory)
 	a.route(mux, "POST /api/v1/hosts/enroll-token", accessAdmin, a.createEnrollToken)
 	a.route(mux, "POST /api/v1/hosts/bulk", accessAdmin, a.bulkHosts)
 	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
+	a.route(mux, "POST /api/v1/hosts/{id}/purge", accessAdmin, a.purgeHost)
 	a.route(mux, "PUT /api/v1/hosts/{id}/group", accessAdmin, a.setHostGroup)
 	a.route(mux, "PUT /api/v1/hosts/{id}/name", accessAdmin, a.renameHost)
 	a.route(mux, "PUT /api/v1/hosts/{id}/retention", accessAdmin, a.setHostRetention)
@@ -340,6 +357,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/groups", accessAdmin, a.createGroup)
 	a.route(mux, "PATCH /api/v1/groups/{id}", accessAdmin, a.updateGroup)
 	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
+	a.route(mux, "POST /api/v1/groups/{id}/purge", accessAdmin, a.purgeGroup)
 
 	// Alertas (lectura: cualquier sesion; escritura, ack y resolve: solo admin).
 	a.route(mux, "GET /api/v1/reports/availability", accessSession, a.availabilityReport)
@@ -464,6 +482,14 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "device_not_found", "el dispositivo indicado no existe")
 	case errors.Is(err, store.ErrScopeHostNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "host_not_found", "el host indicado no existe o no tiene agente")
+	case errors.Is(err, store.ErrCollectorGroupMismatch):
+		writeErrorDetails(w, http.StatusUnprocessableEntity, "collector_group_mismatch",
+			"el dispositivo y su colector deben estar en el mismo grupo", groupRuleDetails(err))
+	case errors.Is(err, store.ErrCollectorHasDevices):
+		writeErrorDetails(w, http.StatusConflict, "collector_has_devices",
+			"el host es colector de dispositivos: muevelos a la vez, cambiales el colector o borralos antes", groupRuleDetails(err))
+	case errors.Is(err, store.ErrPurgeConfirm):
+		writeError(w, http.StatusBadRequest, "confirm_mismatch", "el nombre de confirmacion no coincide")
 	case errors.Is(err, store.ErrCollectorInvalid):
 		writeError(w, http.StatusUnprocessableEntity, "collector_invalid", "el colector debe ser un host con agente activo")
 	case errors.Is(err, store.ErrDeviceExists):
