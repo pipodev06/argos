@@ -3,7 +3,21 @@
 Paquete: `argos-server_<version>_linux_<amd64|arm64>.tar.gz` (binario del server + frontend + binarios del agente + esta carpeta).
 Se genera en la máquina de desarrollo con `bash scripts/package-server.sh <version>` (salida en `dist/server/`).
 
-## Requisitos
+## Instalación de un paso
+Linux limpio (Debian 12+/Ubuntu 22.04+), acceso root y el paquete descomprimido. UN comando instala Postgres 18, crea la BD con dos roles, instala Caddy con HTTPS, arranca el server y crea el primer admin:
+```bash
+sudo bash deploy/install-server.sh --public-url https://argos.lan --install-postgres --create-local-db --with-caddy --tls-internal --admin-user admin
+```
+- **Con dominio público** (Let's Encrypt automático; los puertos 80 y 443 deben llegar al equipo): `--domain argos.midominio.com --install-postgres --create-local-db --with-caddy` (sin `--public-url` ni `--tls-internal`).
+- **LAN sin dominio**: `--tls-internal` usa la CA interna de Caddy. Al final el instalador imprime la ruta de la raíz (`/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`): instálala como autoridad de confianza en los navegadores y pásala a los agentes (`argos-agent install --ca-file root.crt`). `argos.lan` debe resolver (DNS o `/etc/hosts`) en cada equipo.
+- **Primer admin**: contraseña aleatoria fuerte, entregada por stdin a `create-admin` e impresa UNA sola vez en un recuadro al final (no se guarda en ningún archivo ni log; anótala). Si ya existe un admin no se crea otro; `--admin-user NOMBRE` cambia el usuario, `--no-admin` lo omite. El CLI aún no fuerza el cambio de contraseña inicial: cámbiala en el primer login.
+- **Revisar antes de ejecutar**: `bash deploy/install-server.sh --dry-run <mismas opciones>` imprime cada paso ([sistema] = toca el sistema) sin ejecutar nada ni exigir root.
+- **Idempotente**: re-ejecutar (con o sin opciones) no duplica ni rompe nada; los `.env` y la BD se conservan. Con una BD existente: `--db-url` (y `--migrate-db-url`) en lugar de `--create-local-db`; sin `--install-postgres` exige Postgres 18 ya instalado.
+- Solo Debian/Ubuntu automatizan `--install-postgres` y `--with-caddy` (repos oficiales PGDG y Caddy, claves GPG con `signed-by`); en otras distros instala a mano y sigue el flujo manual de abajo. Si ya había un Postgres más viejo en el 5432, el cluster 18 queda en otro puerto y el instalador lo detecta. `ufw` se abre (80/443) solo si está activo; otros firewalls, a mano.
+
+El resto de este documento es el flujo manual y la operación.
+
+## Requisitos (flujo manual)
 - Linux con systemd (probado el diseño para Ubuntu 22.04+/Debian 12+), acceso root.
 - **PostgreSQL 18** (el server lo exige) y, para el respaldo, `postgresql-client-18`.
 - Para HTTPS: Caddy (o nginx). La cookie de sesión lleva el prefijo `__Host-` y exige HTTPS: por http en LAN el login solo funciona desde `localhost`.
@@ -58,5 +72,5 @@ Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin o
 - Reset de clave de un usuario: `sudo argos-admin reset-password <usuario>`.
 - Si una línea de endurecimiento del unit rompe tu distro, comenta SOLO esa.
 
-## Qué NO está validado (2026-09-25)
-Se probó: sintaxis de los scripts, el paquete (contenido, sha256, LF), que el binario con ese layout sirve web y `/dl`, y la separación de roles contra Postgres 18 real (test de integración y prueba de humo con una copia de tu BD real: migrar como dueño, operar como runtime). **No** se ha ejecutado el instalador ni el unit en un Linux real ni con Caddy (el desarrollo es en Windows, sin systemd). Primer despliegue: revisa `systemctl status`, `journalctl` y `systemd-analyze security`, y anota cualquier ajuste en `docs/deuda-tecnica.md`.
+## Qué NO está validado (2026-09-26)
+Se probó: sintaxis de los scripts, el `--dry-run` del instalador y sus funciones puras (validaciones, Caddyfile, env) con mocks en Git Bash, el paquete (contenido, sha256, LF), que el binario con ese layout sirve web y `/dl`, y la separación de roles contra Postgres 18 real (test de integración y prueba de humo con una copia de tu BD real: migrar como dueño, operar como runtime). **No** se ha ejecutado el instalador (ni `--install-postgres`, `--with-caddy` ni la creación del admin) ni el unit en un Linux real ni con Caddy (el desarrollo es en Windows, sin systemd). Primer despliegue: revisa `systemctl status`, `journalctl` y `systemd-analyze security`, y anota cualquier ajuste en `docs/deuda-tecnica.md`.
