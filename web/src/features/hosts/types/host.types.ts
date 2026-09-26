@@ -72,6 +72,10 @@ export interface HostDetail {
   status_changed_at: string
   created_at: string
   group: GroupRef | null
+  /** Retencion de detalle: propia (null = hereda), vigente y origen. */
+  detail_retention_days: number | null
+  effective_detail_days: number
+  retention_source: 'host' | 'group' | 'global'
 }
 
 /** Inventario; todo null si el agente no lo mando. */

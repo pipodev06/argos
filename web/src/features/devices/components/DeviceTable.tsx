@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { formatLastSeen } from '@/features/hosts/utils/format'
 import { rowNumber } from '@/lib/pagination'
 import type { Device } from '../types/device.types'
-import { DeviceStatusBadge } from './DeviceBadges'
+import { CollectorMismatchNotice, DeviceStatusBadge } from './DeviceBadges'
 
 export type DeviceAction = 'edit' | 'toggle' | 'delete'
 
@@ -57,7 +57,10 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
               {isAdmin && <Cell className="max-w-40 truncate">{d.snmp_profile?.name ?? <span className="text-text-muted">—</span>}</Cell>}
               <Cell className="max-w-40 truncate">{d.group?.name ?? <span className="text-text-muted">Sin grupo</span>}</Cell>
               <Cell>
-                <DeviceStatusBadge device={d} />
+                <span className="inline-flex flex-wrap items-center justify-center gap-x-2">
+                  <DeviceStatusBadge device={d} />
+                  {isAdmin && d.collector_group_mismatch && <CollectorMismatchNotice compact />}
+                </span>
               </Cell>
               <Cell className="text-xs text-text-muted tabular-nums">{formatLastSeen(d.last_seen_at)}</Cell>
               {isAdmin && (

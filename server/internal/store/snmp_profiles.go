@@ -205,6 +205,7 @@ func collectorSNMP(ctx context.Context, q queryer, collectorID string) ([]SNMPAs
 		        p.priv_proto, p.secret_enc, p.secret_key_id
 		   `+checkDefFrom+`
 		   JOIN hosts h ON h.kind = 'device' AND h.collector_host_id = $1 AND h.status <> 'disabled'
+		     AND h.group_id IS NOT DISTINCT FROM (SELECT c.group_id FROM hosts c WHERE c.id = $1)
 		   JOIN snmp_profiles p ON p.id = h.snmp_profile_id
 		  WHERE d.enabled AND d.type = 'snmp' AND `+hostInScopeSQL+` ORDER BY d.id, h.id LIMIT $2`,
 		collectorID, MaxChecksPerHost)

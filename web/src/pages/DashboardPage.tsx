@@ -5,6 +5,7 @@ import { AlertDetailPage } from './AlertDetailPage'
 import { AlertsPage } from './AlertsPage'
 import { ChecksPage } from './ChecksPage'
 import { ChannelsPage } from './ChannelsPage'
+import { ConfigurationPage } from './ConfigurationPage'
 import { DevicesPage } from './DevicesPage'
 import { GroupsPage } from './GroupsPage'
 import { ReportsPage } from './ReportsPage'
@@ -51,6 +52,7 @@ export function DashboardPage() {
         <Route path="alertas/:id" element={<AlertDetailPage />} />
         <Route path="usuarios" element={<UsersPage />} />
         <Route path="perfiles-snmp" element={<SnmpProfilesPage />} />
+        <Route path="configuracion" element={<ConfigurationPage />} />
         <Route path="auditoria" element={<AuditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

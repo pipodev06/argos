@@ -106,12 +106,13 @@ func TestDeviceCRUDAndErrors(t *testing.T) {
 	seedHost(t, "col", "up", ago(time.Second))
 	seedHost(t, "col2", "up", ago(time.Second))
 	g := mkGroup(t, s, "lan", true, nil)
+	setGroupOf(t, "col", g.ID) // el colector y sus dispositivos comparten grupo
 
 	d := mkDevice(t, s, "router", "192.168.1.1", "col", &g.ID)
 	if d.Status != "pending" || d.Address.String() != "192.168.1.1" || d.CollectorName != "col" || d.Group == nil || !d.CollectorReachable {
 		t.Fatalf("crear: got %+v", d)
 	}
-	if _, err := s.CreateDevice(ctx, "dup", netip.MustParseAddr("192.168.1.1"), hostID(t, "col"), nil); !errors.Is(err, ErrDeviceExists) {
+	if _, err := s.CreateDevice(ctx, "dup", netip.MustParseAddr("192.168.1.1"), hostID(t, "col"), &g.ID); !errors.Is(err, ErrDeviceExists) {
 		t.Errorf("misma IP y colector: got %v, want ErrDeviceExists", err)
 	}
 	// La misma IP tras otro colector es otra red: valida.
@@ -141,9 +142,21 @@ func TestDeviceCRUDAndErrors(t *testing.T) {
 		t.Errorf("eventos up->pending got %d, want 1", n)
 	}
 	name := "core"
-	u, err = s.UpdateDevice(ctx, d.ID, DeviceChange{Name: &name, SetGroup: true})
-	if err != nil || u.Name != "core" || u.Group != nil {
-		t.Errorf("update de nombre y quitar grupo: got (%+v, %v)", u, err)
+	// Quitar el grupo lo separaria del de su colector (lan): se rechaza y no cambia nada.
+	if _, err := s.UpdateDevice(ctx, d.ID, DeviceChange{Name: &name, SetGroup: true}); !errors.Is(err, ErrCollectorGroupMismatch) {
+		t.Errorf("update quitando el grupo: got %v, want ErrCollectorGroupMismatch", err)
+	}
+	if cur, err := s.DeviceByID(ctx, AllScope(), d.ID); err != nil || cur.Name != "router" || cur.Group == nil {
+		t.Errorf("tras el rechazo: got (%+v, %v), want el dispositivo intacto", cur, err)
+	}
+	// Cambiar de colector a otro de distinto grupo tambien se rechaza; a uno del mismo grupo, no.
+	col2 := hostID(t, "col2")
+	if _, err := s.UpdateDevice(ctx, d.ID, DeviceChange{CollectorID: &col2}); !errors.Is(err, ErrCollectorGroupMismatch) {
+		t.Errorf("update a un colector de otro grupo: got %v, want ErrCollectorGroupMismatch", err)
+	}
+	u, err = s.UpdateDevice(ctx, d.ID, DeviceChange{Name: &name})
+	if err != nil || u.Name != "core" || u.Group == nil || u.CollectorGroupMismatch {
+		t.Errorf("update de nombre: got (%+v, %v)", u, err)
 	}
 	if _, err := s.UpdateDevice(ctx, hostID(t, "col"), DeviceChange{Name: &name}); !errors.Is(err, ErrNotFound) {
 		t.Errorf("update de un agente: got %v, want ErrNotFound", err)
@@ -179,38 +192,47 @@ func TestPingDeliveryAndIngest(t *testing.T) {
 	ctx := context.Background()
 	always := mkGroup(t, s, "servidores", true, nil)
 	lan := mkGroup(t, s, "lan", false, nil)
-	seedHost(t, "col", "up", ago(time.Second))
-	seedHost(t, "col2", "up", ago(time.Second))
+	// Cada colector solo sondea dispositivos de su propio grupo: col y col2 en lan, col-always en servidores.
+	for _, h := range []struct{ name, group string }{{"col", lan.ID}, {"col2", lan.ID}, {"col-always", always.ID}} {
+		seedHost(t, h.name, "up", ago(time.Second))
+		setGroupOf(t, h.name, h.group)
+	}
 	d1 := mkDevice(t, s, "d1", "10.0.0.1", "col", &lan.ID)
-	d2 := mkDevice(t, s, "d2", "10.0.0.2", "col", &always.ID)
+	d2 := mkDevice(t, s, "d2", "10.0.0.2", "col-always", &always.ID)
 	d3 := mkDevice(t, s, "d3", "10.0.0.3", "col", &lan.ID)
 	foreign := mkDevice(t, s, "foreign", "10.0.1.1", "col2", &lan.ID)
-	col := hostID(t, "col")
+	col, colAlways := hostID(t, "col"), hostID(t, "col-always")
 
 	all := mkPing(t, s, "ping-all", AlertScope{Type: ScopeAll})
 	grp := mkPing(t, s, "ping-lan", AlertScope{Type: ScopeGroup, GroupID: &lan.ID})
 	one := mkPing(t, s, "ping-d2", AlertScope{Type: ScopeDevice, HostID: &d2.ID})
 	tcp := mkCheck(t, s, "tcp-all", AlertScope{Type: ScopeAll})
 
-	// Entrega: un item por par; los devices de otro colector y los chequeos tcp no aparecen.
-	pings, err := s.CollectorPings(ctx, col)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := map[string]bool{}
-	for _, p := range pings {
-		if p.ItemID != PingItemID(p.Def.ID, p.DeviceID) || !p.Address.IsValid() {
-			t.Errorf("item %+v mal formado", p)
+	// Entrega: un item por par; los devices de otro colector (y de otro grupo) y los chequeos tcp no aparecen.
+	delivered := func(collector string) map[string]bool {
+		pings, err := s.CollectorPings(ctx, collector)
+		if err != nil {
+			t.Fatal(err)
 		}
-		got[p.Def.Name+"@"+p.DeviceID] = true
+		got := map[string]bool{}
+		for _, p := range pings {
+			if p.ItemID != PingItemID(p.Def.ID, p.DeviceID) || !p.Address.IsValid() {
+				t.Errorf("item %+v mal formado", p)
+			}
+			got[p.Def.Name+"@"+p.DeviceID] = true
+		}
+		return got
 	}
 	want := map[string]bool{
-		"ping-all@" + d1.ID: true, "ping-all@" + d2.ID: true, "ping-all@" + d3.ID: true,
+		"ping-all@" + d1.ID: true, "ping-all@" + d3.ID: true,
 		"ping-lan@" + d1.ID: true, "ping-lan@" + d3.ID: true,
-		"ping-d2@" + d2.ID: true,
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("entrega got %v, want %v", got, want)
+	if got := delivered(col); !reflect.DeepEqual(got, want) {
+		t.Errorf("entrega a col got %v, want %v", got, want)
+	}
+	wantAlways := map[string]bool{"ping-all@" + d2.ID: true, "ping-d2@" + d2.ID: true}
+	if got := delivered(colAlways); !reflect.DeepEqual(got, wantAlways) {
+		t.Errorf("entrega a col-always got %v, want %v", got, wantAlways)
 	}
 	if hc, err := s.HostChecks(ctx, col); err != nil || len(hc) != 1 || hc[0].ID != tcp.ID {
 		t.Errorf("HostChecks del colector: got (%v, %v), want solo el tcp (un ping no va como chequeo propio)", hc, err)
@@ -226,12 +248,12 @@ func TestPingDeliveryAndIngest(t *testing.T) {
 	// chequeo y un id inventado se descartan.
 	ingestResults(t, s, col,
 		pingResult(PingItemID(all.ID, d1.ID), "up", 5*time.Second),
-		pingResult(PingItemID(all.ID, d2.ID), "down", 5*time.Second),
 		pingResult(PingItemID(all.ID, d3.ID), "unknown", 5*time.Second),
 		pingResult(PingItemID(all.ID, foreign.ID), "up", 5*time.Second),
 		pingResult(all.ID, "up", 5*time.Second),
 		pingResult(missingUUID, "up", 5*time.Second),
 	)
+	ingestResults(t, s, colAlways, pingResult(PingItemID(all.ID, d2.ID), "down", 5*time.Second))
 	for name, want := range map[string]string{"d1": "up", "d2": "down", "d3": "pending", "foreign": "pending"} {
 		if st, _ := hostState(t, name); st != want {
 			t.Errorf("estado de %s got %q, want %q", name, st, want)
@@ -262,13 +284,13 @@ func TestPingDeliveryAndIngest(t *testing.T) {
 	if _, err := s.UpdateServiceCheck(ctx, one.ID, func(d *ServiceCheckDef) error { d.Enabled = false; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	ingestResults(t, s, col, pingResult(PingItemID(one.ID, d2.ID), "up", time.Second))
+	ingestResults(t, s, colAlways, pingResult(PingItemID(one.ID, d2.ID), "up", time.Second))
 	if n := count(t, `SELECT count(*) FROM service_check_state WHERE check_id = $1`, one.ID); n != 0 {
 		t.Errorf("resultado de un chequeo deshabilitado guardado: %d filas", n)
 	}
 
 	// d2 estaba down: un ping que responde lo devuelve a up.
-	ingestResults(t, s, col, pingResult(PingItemID(all.ID, d2.ID), "up", time.Second))
+	ingestResults(t, s, colAlways, pingResult(PingItemID(all.ID, d2.ID), "up", time.Second))
 	if st, _ := hostState(t, "d2"); st != "up" {
 		t.Errorf("d2 tras responder got %q, want up", st)
 	}
@@ -279,8 +301,11 @@ func TestDetectorDevices(t *testing.T) {
 	ctx := context.Background()
 	always := mkGroup(t, s, "servidores", true, nil)
 	seedHost(t, "col", "up", ago(time.Second))
-	seedHost(t, "col-caido", "up", ago(time.Hour)) // el detector lo marca offline (sin grupo)
+	seedHost(t, "col-caido", "up", ago(time.Hour)) // el detector lo marca down (grupo always_on)
 	seedHost(t, "col-off", "offline", ago(time.Hour))
+	for _, h := range []string{"col", "col-caido", "col-off"} { // colector y dispositivos comparten grupo
+		setGroupOf(t, h, always.ID)
+	}
 	live := mkDevice(t, s, "live-silent", "10.0.0.1", "col", &always.ID)
 	guarded := mkDevice(t, s, "live-unknown", "10.0.0.2", "col", &always.ID)
 	orphan := mkDevice(t, s, "orphan", "10.0.0.3", "col-caido", &always.ID)
@@ -300,12 +325,12 @@ func TestDetectorDevices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Solo se devuelven caidas reales: live-silent (down) y el colector sin grupo (offline).
+	// Solo se devuelven caidas reales: live-silent y el colector caido (ambos en un grupo always_on).
 	gotStale := map[string]string{}
 	for _, h := range stale {
 		gotStale[h.Hostname] = h.Status
 	}
-	if want := map[string]string{"live-silent": "down", "col-caido": "offline"}; !reflect.DeepEqual(gotStale, want) {
+	if want := map[string]string{"live-silent": "down", "col-caido": "down"}; !reflect.DeepEqual(gotStale, want) {
 		t.Errorf("hosts marcados got %v, want %v", gotStale, want)
 	}
 	for name, want := range map[string]string{
@@ -339,9 +364,13 @@ func TestDeviceScopeAndPingCheckVisibility(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	ga, gb := mkGroup(t, s, "a", false, nil), mkGroup(t, s, "b", false, nil)
-	seedHost(t, "col", "up", ago(time.Second))
-	da := mkDevice(t, s, "da", "10.0.0.1", "col", &ga.ID)
-	db := mkDevice(t, s, "db", "10.0.0.2", "col", &gb.ID)
+	seedHost(t, "col", "up", ago(time.Second)) // sin grupo
+	seedHost(t, "col-a", "up", ago(time.Second))
+	seedHost(t, "col-b", "up", ago(time.Second))
+	setGroupOf(t, "col-a", ga.ID)
+	setGroupOf(t, "col-b", gb.ID)
+	da := mkDevice(t, s, "da", "10.0.0.1", "col-a", &ga.ID)
+	db := mkDevice(t, s, "db", "10.0.0.2", "col-b", &gb.ID)
 	dn := mkDevice(t, s, "dn", "10.0.0.3", "col", nil)
 	pa := mkPing(t, s, "ping-da", AlertScope{Type: ScopeDevice, HostID: &da.ID})
 	pb := mkPing(t, s, "ping-db", AlertScope{Type: ScopeDevice, HostID: &db.ID})
@@ -469,9 +498,11 @@ func TestListDevicesFilters(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedHost(t, "col", "up", ago(time.Second))
+	seedHost(t, "col-lima", "up", ago(time.Second))
 	grp := mkGroup(t, s, "lima", false, nil)
 	g := grp.ID
-	a := mkDevice(t, s, "router-a", "192.168.1.1", "col", &g)
+	setGroupOf(t, "col-lima", g)
+	a := mkDevice(t, s, "router-a", "192.168.1.1", "col-lima", &g)
 	mkDevice(t, s, "switch-b", "192.168.1.2", "col", nil)
 	if _, err := s.pool.Exec(ctx, `UPDATE hosts SET status = 'down' WHERE id = $1`, a.ID); err != nil {
 		t.Fatal(err)
@@ -549,5 +580,29 @@ func TestDeviceDisableAndEnable(t *testing.T) {
 	// Un agente no es un dispositivo: no se deshabilita por aqui.
 	if _, err := s.UpdateDevice(ctx, hostID(t, "col"), DeviceChange{Enabled: &no}); !errors.Is(err, ErrNotFound) {
 		t.Errorf("deshabilitar un agente got %v, want ErrNotFound", err)
+	}
+}
+
+// Defensa en profundidad (hallazgo #1 de la revision multi-cliente): aunque un dispositivo haya quedado con un grupo
+// distinto al de su colector (datos anteriores a H1, o un UPDATE directo), el colector NO lo recibe.
+func TestCollectorIgnoresDevicesOfAnotherGroup(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "col", "up", ago(time.Second))
+	gA := mkGroup(t, s, "cliente-a", true, nil)
+	gB := mkGroup(t, s, "cliente-b", true, nil)
+	mustExec(t, `UPDATE hosts SET group_id = $1 WHERE hostname = 'col'`, gA.ID)
+	d := mkDevice(t, s, "router", "192.168.1.1", "col", &gA.ID)
+	mkPing(t, s, "ping", AlertScope{Type: ScopeAll})
+	col := hostID(t, "col")
+
+	got, err := s.CollectorPings(ctx, col)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("mismo grupo: got %d asignaciones (%v), want 1", len(got), err)
+	}
+	// Desfase forzado por SQL (H1 lo impide por la API): el colector deja de recibirlo.
+	mustExec(t, `UPDATE hosts SET group_id = $2 WHERE id = $1`, d.ID, gB.ID)
+	if got, err = s.CollectorPings(ctx, col); err != nil || len(got) != 0 {
+		t.Errorf("otro grupo: got %d asignaciones (%v), want 0", len(got), err)
 	}
 }

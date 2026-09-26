@@ -248,6 +248,9 @@ func (s *Store) SetHostGroup(ctx context.Context, hostID string, groupID *string
 				return fmt.Errorf("comprobando grupo: %w", err)
 			}
 		}
+		if err := checkGroupMove(ctx, tx, []string{hostID}, groupID); err != nil {
+			return err
+		}
 		tag, err := tx.Exec(ctx, `UPDATE hosts SET group_id = $2 WHERE id = $1`, hostID, groupID)
 		if err != nil {
 			return fmt.Errorf("asignando grupo: %w", err)
@@ -276,6 +279,43 @@ func (s *Store) SetHostGroup(ctx context.Context, hostID string, groupID *string
 		return HostGroupResult{}, err
 	}
 	return res, nil
+}
+
+// checkGroupMove comprueba, antes de mover los hosts ids al grupo newGroup (nil = sin grupo), que ningun dispositivo
+// quede en un grupo distinto del de su colector: un dispositivo movido sin su colector (ErrCollectorGroupMismatch) ni
+// un colector movido sin sus dispositivos (ErrCollectorHasDevices), ambos con la cuenta. Moverlos a la vez es valido.
+// Solo cuenta lo que cambia de verdad: un desfase anterior que la operacion no toca no la bloquea. Bloquea los hosts
+// implicados y los colectores de los dispositivos movidos para que un CreateDevice o UpdateDevice concurrente vea el grupo
+// nuevo (collectorGroup toma FOR SHARE).
+func checkGroupMove(ctx context.Context, tx pgx.Tx, ids []string, newGroup *string) error {
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM hosts WHERE id = ANY($1) ORDER BY id FOR NO KEY UPDATE`, ids); err != nil {
+		return fmt.Errorf("bloqueando hosts: %w", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`SELECT 1 FROM hosts WHERE id IN (SELECT collector_host_id FROM hosts WHERE id = ANY($1) AND kind = 'device')
+		   AND NOT (id = ANY($1)) ORDER BY id FOR SHARE`, ids); err != nil {
+		return fmt.Errorf("bloqueando colectores: %w", err)
+	}
+	var away, orphaned int
+	err := tx.QueryRow(ctx,
+		`SELECT
+		   (SELECT count(*)::int FROM hosts d JOIN hosts c ON c.id = d.collector_host_id
+		     WHERE d.id = ANY($1) AND d.kind = 'device' AND NOT (c.id = ANY($1))
+		       AND d.group_id IS DISTINCT FROM $2::uuid AND c.group_id IS DISTINCT FROM $2::uuid),
+		   (SELECT count(*)::int FROM hosts d JOIN hosts c ON c.id = d.collector_host_id
+		     WHERE d.kind = 'device' AND c.id = ANY($1) AND NOT (d.id = ANY($1))
+		       AND d.group_id IS DISTINCT FROM $2::uuid AND c.group_id IS DISTINCT FROM $2::uuid)`,
+		ids, newGroup).Scan(&away, &orphaned)
+	if err != nil {
+		return fmt.Errorf("comprobando colectores: %w", err)
+	}
+	switch {
+	case away > 0:
+		return &GroupRuleError{Kind: ErrCollectorGroupMismatch, Devices: away}
+	case orphaned > 0:
+		return &GroupRuleError{Kind: ErrCollectorHasDevices, Devices: orphaned}
+	}
+	return nil
 }
 
 // Acciones de BulkHosts.
@@ -322,6 +362,9 @@ func (s *Store) BulkHosts(ctx context.Context, b Bulk) (int, error) {
 				if err != nil {
 					return fmt.Errorf("comprobando grupo: %w", err)
 				}
+			}
+			if err := checkGroupMove(ctx, tx, b.IDs, b.GroupID); err != nil {
+				return err
 			}
 			tag, err = tx.Exec(ctx, `UPDATE hosts SET group_id = $2 WHERE id = ANY($1) AND group_id IS DISTINCT FROM $2`, b.IDs, b.GroupID)
 			if err != nil {

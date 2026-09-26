@@ -12,6 +12,7 @@ import { InlineError } from '@/components/ui/inline-error'
 import { GroupSelect } from '@/features/groups/components/GroupSelect'
 import { useGroups } from '@/features/groups/hooks/useGroups'
 import { ApiError } from '@/lib/api'
+import { mapCollectorRuleError } from '@/features/devices/utils/collectorRule'
 import { bulkHosts } from '../services/hosts.service'
 import type { BulkRequest } from '../types/host.types'
 
@@ -61,9 +62,8 @@ function BulkForm({ mode, ids, onClose, onDone }: Omit<BulkDialogProps, 'mode'> 
           ? 'Algún host ya no existe. Actualiza la lista.'
           : code === 'group_not_found'
             ? 'El grupo ya no existe.'
-            : err instanceof Error
-              ? err.message
-              : 'Error desconocido',
+            : (err instanceof ApiError ? mapCollectorRuleError(err) : null) ??
+              (err instanceof Error ? err.message : 'Error desconocido'),
       )
     } finally {
       setSubmitting(false)

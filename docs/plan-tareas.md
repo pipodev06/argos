@@ -56,8 +56,8 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 - [ ] **T5 D1 Primer despliegue real** en tu Linux con el paquete (ver `deploy/README.md`).
 
 ## P7 — Servicio hospedado multi-cliente (revisión de seguridad 2026-09-26; `decisiones/2026-09-26-seguridad-multicliente.md`)
-- [ ] **H1 Colector y dispositivo del mismo grupo** (hallazgo #1, alta): 422 en create/update/`SetHostGroup`; ajustar tests que usan un colector de otro grupo. *Hecho cuando:* test de regresión de fuga de credenciales SNMP entre clientes.
-- [ ] **H2 Baja de un cliente (offboarding)** (#2, alta): endpoint admin de purga por host/grupo (métricas por partición, resumen horario, chunks, discos, host, tokens y sesiones). *Hecho cuando:* purga completa probada y auditada.
+- [x] **H1 Colector y dispositivo del mismo grupo** (2026-09-26) (hallazgo #1, alta): 422 en create/update/`SetHostGroup`; ajustar tests que usan un colector de otro grupo. *Hecho cuando:* test de regresión de fuga de credenciales SNMP entre clientes.
+- [x] **H2 Baja de un cliente (offboarding)** (2026-09-26; falta la UI y etiquetas web de `host_purged`/`group_purged`) (#2, alta): endpoint admin de purga por host/grupo (métricas por partición, resumen horario, chunks, discos, host, tokens y sesiones). *Hecho cuando:* purga completa probada y auditada.
 - [ ] **H3 Viewers nuevos con `all_groups=false`** (#5): pedir grupos al crear (UI y API) y migrar el default.
 - [ ] **H4 Bloqueo de cuenta en Internet** (#6, decisión del usuario): Cloudflare Access delante de `/api/v1/auth/*` o bloqueo por (cuenta, IP); aviso al arrancar si no hay proxies confiables.
 - [ ] **H5 Tope real de frecuencia de ingest por host** (#8): descartar muestras a menos de ~10 s de la anterior.
@@ -66,6 +66,6 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 - [x] **H8 Canales ocultos a viewers restringidos; secreto de chequeo sin alcance `all`** (#3, #4; corregidos con test).
 
 ## P8 — Historial por fecha y retención en la web (siguiente)
-- [ ] **E1 Endpoint `GET /hosts/{id}/history` (+ CSV, discos)** con `DetailRange`/`EffectiveDetailDays`; requisitos de seguridad del hallazgo #7 (ámbito, `SetWriteDeadline` para el CSV, cupo propio, nombre de archivo saneado, `csvSafe` en `mount`, respuesta con `detail_retention_days`). La web ya está hecha (`/hosts/:id/historial`) y hoy fija 30 días.
+- [x] **E1 Endpoint `GET /hosts/{id}/history` (+ CSV, discos)** con `DetailRange`/`EffectiveDetailDays`; requisitos de seguridad del hallazgo #7 (ámbito, `SetWriteDeadline` para el CSV, cupo propio, nombre de archivo saneado, `csvSafe` en `mount`, respuesta con `detail_retention_days`). La web ya está hecha (`/hosts/:id/historial`) y hoy fija 30 días.
 - [ ] **E2 Pantalla `/configuracion`** (retención global) y campos "Retención de detalle (días)" en grupo y host con confirmación al reducir; mostrar la retención efectiva en la lista de hosts.
 - [ ] **E3 Probar el empaquetado con volumen** (backfill de particiones de 8–30 días con 1000 hosts) y `disk_samples` en chunks; `check-go.sh --race` del server terminó en FALLO sin causa (investigar).

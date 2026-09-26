@@ -1,4 +1,4 @@
-import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconEraser, IconPencil, IconTrash } from '@tabler/icons-react'
 import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ interface GroupsTableProps {
   canEdit: boolean
   onEdit: (group: Group) => void
   onDelete: (group: Group) => void
+  onPurge: (group: Group) => void
 }
 
 export function GroupsTable({
@@ -21,9 +22,10 @@ export function GroupsTable({
   canEdit,
   onEdit,
   onDelete,
+  onPurge,
 }: GroupsTableProps) {
   return (
-    <DataTable caption="Grupos de hosts" className="min-w-[40rem]">
+    <DataTable caption="Grupos de hosts" className="min-w-[48rem]">
         <thead>
           <HeadRow>
             <RowNumberHeadCell />
@@ -31,8 +33,9 @@ export function GroupsTable({
             <HeadCell>Hosts</HeadCell>
             <HeadCell>Comportamiento</HeadCell>
             <HeadCell>Sin conexión tras</HeadCell>
+            <HeadCell>Retención de detalle</HeadCell>
             {canEdit && (
-              <HeadCell className="w-24">
+              <HeadCell className="w-32">
                 <span className="sr-only">Acciones</span>
               </HeadCell>
             )}
@@ -53,10 +56,17 @@ export function GroupsTable({
                 {formatThreshold(g.down_after_seconds ?? defaultDownAfter)}
                 {g.down_after_seconds === null && <span className="text-text-muted"> (global)</span>}
               </Cell>
+              <Cell className="tabular-nums">
+                {g.effective_detail_days} días
+                {g.retention_source === 'global' && <span className="text-text-muted"> (global)</span>}
+              </Cell>
               {canEdit && (
                 <Cell>
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar ${g.name}`} onClick={() => onEdit(g)}>
                     <IconPencil stroke={1.5} aria-hidden />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" aria-label={`Dar de baja al cliente ${g.name}`} title="Dar de baja al cliente…" onClick={() => onPurge(g)}>
+                    <IconEraser stroke={1.5} aria-hidden />
                   </Button>
                   <Button variant="ghost" size="icon-sm" aria-label={`Eliminar ${g.name}`} onClick={() => onDelete(g)}>
                     <IconTrash stroke={1.5} aria-hidden />
@@ -78,6 +88,7 @@ export function GroupsTable({
               {formatThreshold(defaultDownAfter)}
               <span className="text-text-muted"> (global)</span>
             </Cell>
+            <Cell className="text-text-muted">Global</Cell>
             {canEdit && <Cell />}
           </Row>
         </tbody>

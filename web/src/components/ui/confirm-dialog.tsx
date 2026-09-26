@@ -18,12 +18,16 @@ interface ConfirmDialogProps {
   confirmLabel: string
   busy: boolean
   error: string | null
+  /** Contenido extra bajo la descripcion (p. ej. un campo de confirmacion). */
+  children?: ReactNode
+  /** Deshabilita el boton de confirmar (p. ej. hasta teclear el nombre). */
+  confirmDisabled?: boolean
   onConfirm: () => void
   onClose: () => void
 }
 
 // Confirmacion unica de acciones (eliminar, resolver...): la logica y el estado ocupado/error viven en quien la usa.
-function ConfirmDialog({ open, title, description, confirmLabel, busy, error, onConfirm, onClose }: ConfirmDialogProps) {
+function ConfirmDialog({ open, title, description, confirmLabel, busy, error, children, confirmDisabled = false, onConfirm, onClose }: ConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(next) => !next && onClose()}>
       <AlertDialogContent>
@@ -31,11 +35,12 @@ function ConfirmDialog({ open, title, description, confirmLabel, busy, error, on
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         {error && <InlineError>{error}</InlineError>}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             onClick={(e) => {
               e.preventDefault()
               onConfirm()

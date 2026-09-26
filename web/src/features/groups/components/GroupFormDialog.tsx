@@ -14,8 +14,12 @@ import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ApiError } from '@/lib/api'
+import { RetentionField } from '@/features/retention/components/RetentionField'
+import { ShrinkConfirmDialog } from '@/features/retention/components/ShrinkConfirmDialog'
+import type { ShrinkDetails } from '@/features/retention/types/retention.types'
+import { parseDetailDays, parseShrink } from '@/features/retention/utils/retention'
 import { createGroup, updateGroup } from '../services/groups.service'
-import type { Group } from '../types/group.types'
+import type { Group, GroupInput } from '../types/group.types'
 import { parseThreshold, splitThreshold, type ThresholdUnit } from '../utils/format'
 
 interface GroupFormDialogProps {
@@ -46,14 +50,18 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
   const [alwaysOn, setAlwaysOn] = useState(group?.always_on ?? false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [amountError, setAmountError] = useState<string | null>(null)
+  const [retRaw, setRetRaw] = useState(String(group?.detail_retention_days ?? group?.effective_detail_days ?? ''))
+  const [retInherit, setRetInherit] = useState(group?.detail_retention_days == null)
+  const [retError, setRetError] = useState<string | null>(null)
+  const [shrink, setShrink] = useState<ShrinkDetails | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function submit(confirmShrink: boolean) {
     const trimmed = name.trim()
     setNameError(null)
     setAmountError(null)
+    setRetError(null)
     setError(null)
     if (!trimmed) return setNameError('Ingresa un nombre.')
     if (trimmed.length > MAX_NAME) return setNameError(`Máximo ${MAX_NAME} caracteres.`)
@@ -63,13 +71,24 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
       if ('error' in parsed) return setAmountError(parsed.error)
       downAfter = parsed.seconds
     }
-    const input = { name: trimmed, down_after_seconds: downAfter, always_on: alwaysOn }
+    const input: GroupInput = { name: trimmed, down_after_seconds: downAfter, always_on: alwaysOn }
+    if (group) {
+      const days = retInherit ? null : parseDetailDays(retRaw)
+      if (days && 'error' in days) return setRetError(days.error)
+      const next = days ? days.days : null
+      if (next !== group.detail_retention_days) {
+        input.detail_retention_days = next
+        input.confirm_shrink = confirmShrink
+      }
+    }
     setSubmitting(true)
     try {
       if (group) await updateGroup(group.id, input)
       else await createGroup(input)
       onSaved()
     } catch (err) {
+      const s = parseShrink(err)
+      if (s) return setShrink(s)
       const code = err instanceof ApiError ? err.code : ''
       if (code === 'group_exists') setNameError('Ya existe un grupo con ese nombre.')
       else if (code === 'too_many_groups') setError('Se alcanzó el máximo de 200 grupos.')
@@ -79,10 +98,15 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
     }
   }
 
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    void submit(false)
+  }
+
   const globalMin = Math.round(defaultDownAfter / 60)
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
+    <form onSubmit={handleSubmit} className="grid gap-4">
       <DialogHeader>
         <DialogTitle>{group ? 'Editar grupo' : 'Nuevo grupo'}</DialogTitle>
         <DialogDescription>Define cuándo un host del grupo se considera sin reportar.</DialogDescription>
@@ -150,6 +174,17 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
           </label>
         </RadioGroup>
       </fieldset>
+      {group && (
+        <RetentionField
+          id="group-retention"
+          value={retRaw}
+          inherit={retInherit}
+          error={retError}
+          inheritsFrom="la retención global"
+          onValue={setRetRaw}
+          onInherit={setRetInherit}
+        />
+      )}
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
@@ -159,6 +194,13 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
           {submitting ? 'Guardando...' : 'Guardar'}
         </Button>
       </DialogFooter>
+      <ShrinkConfirmDialog
+        shrink={shrink}
+        busy={submitting}
+        error={error}
+        onConfirm={() => void submit(true)}
+        onClose={() => setShrink(null)}
+      />
     </form>
   )
 }

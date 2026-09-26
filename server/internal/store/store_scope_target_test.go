@@ -13,12 +13,13 @@ import (
 )
 
 // seedTargetFleet crea el escenario comun: el colector col, dos agentes (a1, a2) y dos dispositivos (d1, d2) del grupo
-// g, todos caidos desde hace un dia. Devuelve el grupo.
+// g (col tambien esta en g: un colector solo sondea equipos de su grupo), todos caidos desde hace un dia. Devuelve el grupo.
 func seedTargetFleet(t *testing.T, s *Store) Group {
 	t.Helper()
 	ctx := context.Background()
 	g := mkGroup(t, s, "g", false, nil)
 	seedHost(t, "col", "up", ago(time.Second))
+	setGroupOf(t, "col", g.ID)
 	for _, n := range []string{"a1", "a2"} {
 		seedHost(t, n, "down", ago(time.Hour))
 		if _, err := s.SetHostGroup(ctx, hostID(t, n), &g.ID); err != nil {

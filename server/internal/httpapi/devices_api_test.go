@@ -44,7 +44,7 @@ func (s *scopeEnv) newDevice(body string) string {
 func TestDevicesAdminCRUD(t *testing.T) {
 	x := newScopeEnv(t)
 	body := func(name, addr, collector string) string {
-		return fmt.Sprintf(`{"name":%q,"address":%q,"collector_id":%q}`, name, addr, collector)
+		return fmt.Sprintf(`{"name":%q,"address":%q,"collector_id":%q,"group_id":%q}`, name, addr, collector, x.groupA)
 	}
 	post := func(b string, status int, code string) {
 		t.Helper()
@@ -71,7 +71,7 @@ func TestDevicesAdminCRUD(t *testing.T) {
 	}
 	post(body("", "10.0.0.9", x.hostA), http.StatusBadRequest, "invalid_body")
 	post(body("x", "10.0.0.9", "no-uuid"), http.StatusBadRequest, "invalid_body")
-	post(`{"name":"x","address":"10.0.0.9","collector_id":"`+x.hostA+`","extra":1}`, http.StatusBadRequest, "invalid_body")
+	post(`{"name":"x","address":"10.0.0.9","collector_id":"`+x.hostA+`","group_id":"`+x.groupA+`","extra":1}`, http.StatusBadRequest, "invalid_body")
 	post(body("x", "10.0.0.9", id), http.StatusUnprocessableEntity, "collector_invalid") // un dispositivo no es colector
 	post(body("dup", "192.168.1.1", x.hostA), http.StatusConflict, "device_exists")
 	post(`{"name":"x","address":"10.0.0.9","collector_id":"`+x.hostA+`","group_id":"`+missingID+`"}`, http.StatusUnprocessableEntity, "group_not_found")
@@ -91,10 +91,21 @@ func TestDevicesAdminCRUD(t *testing.T) {
 	// PATCH: nombre, grupo (y quitarlo con null) y direccion.
 	x.wantStatus(x.do("PATCH", "/api/v1/devices/"+id, `{}`, withCookie(x.admin)), http.StatusBadRequest, "invalid_body")
 	x.wantStatus(x.do("PATCH", "/api/v1/devices/"+id, `{"name":"core","group_id":"`+x.groupA+`"}`, withCookie(x.admin)), http.StatusOK, "")
-	rec = x.do("PATCH", "/api/v1/devices/"+id, `{"group_id":null,"address":"192.168.1.2"}`, withCookie(x.admin))
+	// Quitar el grupo o cambiar a un colector de otro grupo separaria al dispositivo de su colector (grupo A): 422 con la
+	// cuenta y sin cambios.
+	for _, b := range []string{`{"group_id":null}`, `{"group_id":"` + x.groupB + `"}`, `{"collector_id":"` + x.hostB + `"}`, `{"collector_id":"` + x.hostNo + `"}`} {
+		rec = x.do("PATCH", "/api/v1/devices/"+id, b, withCookie(x.admin))
+		x.wantStatus(rec, http.StatusUnprocessableEntity, "collector_group_mismatch")
+		if !strings.Contains(rec.Body.String(), `"details":{"devices":1}`) {
+			t.Errorf("PATCH %s: el 422 debe llevar la cuenta de dispositivos: %s", b, rec.Body.String())
+		}
+	}
+	post(`{"name":"x","address":"10.0.0.9","collector_id":"`+x.hostA+`"}`, http.StatusUnprocessableEntity, "collector_group_mismatch")
+	post(`{"name":"x","address":"10.0.0.9","collector_id":"`+x.hostNo+`","group_id":"`+x.groupA+`"}`, http.StatusUnprocessableEntity, "collector_group_mismatch")
+	rec = x.do("PATCH", "/api/v1/devices/"+id, `{"address":"192.168.1.2"}`, withCookie(x.admin))
 	x.wantStatus(rec, http.StatusOK, "")
 	x.dataAs(rec, &got)
-	if got.Device.Name != "core" || got.Device.Group != nil || got.Device.Address != "192.168.1.2" {
+	if got.Device.Name != "core" || got.Device.Group == nil || got.Device.Address != "192.168.1.2" {
 		t.Errorf("tras el PATCH got %+v", got.Device)
 	}
 	x.wantStatus(x.do("PATCH", "/api/v1/devices/"+x.hostA, `{"name":"a"}`, withCookie(x.admin)), http.StatusNotFound, "not_found") // un agente no es dispositivo
@@ -125,11 +136,12 @@ func TestDevicesAdminCRUD(t *testing.T) {
 
 func TestDevicesViewerScopeAndRedaction(t *testing.T) {
 	x := newScopeEnv(t)
-	devA := x.newDevice(fmt.Sprintf(`{"name":"dev-a","address":"10.0.0.1","collector_id":%q,"group_id":%q}`, x.hostB, x.groupA))
+	devA := x.newDevice(fmt.Sprintf(`{"name":"dev-a","address":"10.0.0.1","collector_id":%q,"group_id":%q}`, x.hostA, x.groupA))
 	devB := x.newDevice(fmt.Sprintf(`{"name":"dev-b","address":"10.0.0.2","collector_id":%q,"group_id":%q}`, x.hostB, x.groupB))
-	devN := x.newDevice(fmt.Sprintf(`{"name":"dev-n","address":"10.0.0.3","collector_id":%q}`, x.hostB))
+	devN := x.newDevice(fmt.Sprintf(`{"name":"dev-n","address":"10.0.0.3","collector_id":%q}`, x.hostNo))
 
-	// El viewer restringido ve solo el de su grupo, sin address ni colector (el colector esta en otro grupo).
+	// El viewer restringido ve solo el de su grupo, sin address ni colector (dato solo del admin, aunque el colector
+	// sea de su propio grupo).
 	rec := x.do("GET", "/api/v1/devices", "", withCookie(x.va))
 	x.wantStatus(rec, http.StatusOK, "")
 	var page struct {
@@ -140,7 +152,7 @@ func TestDevicesViewerScopeAndRedaction(t *testing.T) {
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != devA {
 		t.Fatalf("lista del viewer de A got %+v", page)
 	}
-	for _, leak := range []string{"10.0.0", "address", "collector", "host-b", x.hostB, "dev-b", "dev-n"} {
+	for _, leak := range []string{"10.0.0", "address", "collector", "host-a", x.hostA, "host-b", x.hostB, "dev-b", "dev-n"} {
 		if strings.Contains(rec.Body.String(), leak) {
 			t.Errorf("la lista del viewer filtra %q: %.300s", leak, rec.Body.String())
 		}
@@ -169,7 +181,7 @@ func TestDevicesViewerScopeAndRedaction(t *testing.T) {
 	}
 	// Admin: address y colector.
 	rec = x.do("GET", "/api/v1/devices/"+devA, "", withCookie(x.admin))
-	if !strings.Contains(rec.Body.String(), "10.0.0.1") || !strings.Contains(rec.Body.String(), "host-b") {
+	if !strings.Contains(rec.Body.String(), "10.0.0.1") || !strings.Contains(rec.Body.String(), "host-a") {
 		t.Errorf("el admin debe ver address y colector: %.300s", rec.Body.String())
 	}
 }
@@ -177,7 +189,7 @@ func TestDevicesViewerScopeAndRedaction(t *testing.T) {
 func TestDevicesPaginationCursor(t *testing.T) {
 	x := newScopeEnv(t)
 	for i := 1; i <= 3; i++ {
-		x.newDevice(fmt.Sprintf(`{"name":"d%d","address":"10.0.0.%d","collector_id":%q}`, i, i, x.hostA))
+		x.newDevice(fmt.Sprintf(`{"name":"d%d","address":"10.0.0.%d","collector_id":%q,"group_id":%q}`, i, i, x.hostA, x.groupA))
 	}
 	var names []string
 	cursor := ""
@@ -208,8 +220,9 @@ func TestPingChecksEndToEndThroughCollector(t *testing.T) {
 	x := newScopeEnv(t)
 	col, tok, _ := x.enrollHost(x.admin, "colector")
 	_, plainTok, _ := x.enrollHost(x.admin, "sin-dispositivos")
+	x.wantStatus(x.do("PUT", "/api/v1/hosts/"+col+"/group", `{"group_id":"`+x.groupA+`"}`, withCookie(x.admin)), http.StatusOK, "")
 	dev := x.newDevice(fmt.Sprintf(`{"name":"switch","address":"10.20.0.5","collector_id":%q,"group_id":%q}`, col, x.groupA))
-	other := x.newDevice(fmt.Sprintf(`{"name":"otro","address":"10.20.0.6","collector_id":%q}`, x.hostA))
+	other := x.newDevice(fmt.Sprintf(`{"name":"otro","address":"10.20.0.6","collector_id":%q,"group_id":%q}`, x.hostA, x.groupA))
 
 	// Un ping por chequeo de grupo (todos) y uno de dispositivo concreto.
 	rec := x.do("POST", "/api/v1/service-checks", `{"name":"ping","type":"ping","warn_ms":100,"crit_ms":500}`, withCookie(x.admin))
@@ -287,7 +300,7 @@ func TestPingChecksEndToEndThroughCollector(t *testing.T) {
 
 func TestDevicesDisableAndEnableAPI(t *testing.T) {
 	x := newScopeEnv(t)
-	id := x.newDevice(fmt.Sprintf(`{"name":"router","address":"192.168.1.1","collector_id":%q}`, x.hostA))
+	id := x.newDevice(fmt.Sprintf(`{"name":"router","address":"192.168.1.1","collector_id":%q,"group_id":%q}`, x.hostA, x.groupA))
 	status := func() string {
 		t.Helper()
 		rec := x.do("GET", "/api/v1/devices/"+id, "", withCookie(x.admin))

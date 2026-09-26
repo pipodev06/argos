@@ -199,6 +199,33 @@ func TestRuntimeRoleSplit(t *testing.T) {
 		t.Errorf("particiones de metrics tras el mantenimiento = %d (%v), want > 0", parts, err)
 	}
 
+	// La purga de un host (baja de un cliente) corre con el rol de runtime: borra las tablas sin CASCADE (metrics,
+	// metrics_hourly, metrics_chunks, disk_samples, service_checks) y el host, sin ser dueño del esquema.
+	if _, err := app.Exec(ctx, `INSERT INTO metrics_hourly (host_id, hour, samples) VALUES ($1, $2, 1)`, hostID, farNow().Truncate(time.Hour).Add(-3*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO metrics (host_id, ts, cpu_pct) VALUES ($1, $2, 1)`,
+		`INSERT INTO disk_samples (host_id, ts, used_mb, total_mb, mount) VALUES ($1, $2, 1, 2, '/')`,
+		`INSERT INTO service_checks (host_id, name, status, ts) VALUES ($1, 'x', 'up', $2)`,
+	} {
+		if _, err := app.Exec(ctx, q, hostID, farNow()); err != nil {
+			t.Fatalf("sembrando datos del host para la purga (%s): %v", q, err)
+		}
+	}
+	counts, err := store.New(app).PurgeHost(ctx, hostID, "h-roles")
+	if err != nil {
+		t.Fatalf("el runtime debe poder purgar un host: %v", err)
+	}
+	if counts.Metrics != 1 || counts.Hourly != 1 || counts.Disks != 1 || counts.Checks != 1 || counts.Chunks < 1 {
+		t.Errorf("filas borradas por la purga = %+v, want 1 de cada tabla (y algun chunk)", counts)
+	}
+	var left int
+	if err := app.QueryRow(ctx, `SELECT (SELECT count(*) FROM hosts WHERE id = $1) + (SELECT count(*) FROM metrics_chunks WHERE host_id = $1)
+		+ (SELECT count(*) FROM metrics_hourly WHERE host_id = $1)`, hostID).Scan(&left); err != nil || left != 0 {
+		t.Errorf("tras la purga quedan %d filas del host (%v)", left, err)
+	}
+
 	// Una migracion futura sigue siendo posible como migrador (es miembro del rol dueño de las particionadas).
 	if _, err := owner.Exec(ctx, `ALTER TABLE metrics ADD COLUMN IF NOT EXISTS zz_futura int`); err != nil {
 		t.Errorf("el migrador debe poder alterar las tablas particionadas: %v", err)
