@@ -35,6 +35,7 @@ type Store interface {
 	LatestMetrics(ctx context.Context, hostID string) (*store.MetricPoint, error)
 	MetricSeries(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	MetricSeriesHourly(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
+	MetricSeriesMixed(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]store.MetricPoint, error)
 	RevokeHost(ctx context.Context, hostID string) error
 	Summary(ctx context.Context, scope store.Scope) (store.Summary, error)
 

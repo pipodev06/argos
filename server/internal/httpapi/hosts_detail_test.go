@@ -26,14 +26,21 @@ func (f *fakeStore) LatestMetrics(_ context.Context, _ string) (*store.MetricPoi
 func (f *fakeStore) MetricSeries(_ context.Context, _ string, from time.Time, step time.Duration) ([]store.MetricPoint, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.gotFrom, f.gotStep, f.gotHourly = from, step, false
+	f.gotFrom, f.gotStep, f.gotSource = from, step, "raw"
 	return f.series, f.seriesErr
 }
 
 func (f *fakeStore) MetricSeriesHourly(_ context.Context, _ string, from time.Time, step time.Duration) ([]store.MetricPoint, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.gotFrom, f.gotStep, f.gotHourly = from, step, true
+	f.gotFrom, f.gotStep, f.gotSource = from, step, "hourly"
+	return f.series, f.seriesErr
+}
+
+func (f *fakeStore) MetricSeriesMixed(_ context.Context, _ string, from time.Time, step time.Duration) ([]store.MetricPoint, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.gotFrom, f.gotStep, f.gotSource = from, step, "mixed"
 	return f.series, f.seriesErr
 }
 
@@ -202,16 +209,16 @@ func TestHostMetricsRangesAndShape(t *testing.T) {
 		wantName string
 		wantStep int
 		wantFrom time.Duration
-		hourly   bool // lee metrics_hourly en vez del crudo
+		source   string // "raw", "hourly" (metrics_hourly) o "mixed" (resumenes + crudo de la hora en curso)
 	}{
-		{"", "1h", 30, time.Hour, false},
-		{"?range=1h", "1h", 30, time.Hour, false},
-		{"?range=6h", "6h", 120, 6 * time.Hour, false},
-		{"?range=24h", "24h", 600, 24 * time.Hour, false},
-		{"?range=7d", "7d", 3600, 7 * 24 * time.Hour, false},
-		{"?range=30d", "30d", 3600, 30 * 24 * time.Hour, true},
-		{"?range=90d", "90d", 10800, 90 * 24 * time.Hour, true},
-		{"?range=1y", "1y", 43200, 365 * 24 * time.Hour, true},
+		{"", "1h", 30, time.Hour, "raw"},
+		{"?range=1h", "1h", 30, time.Hour, "raw"},
+		{"?range=6h", "6h", 120, 6 * time.Hour, "raw"},
+		{"?range=24h", "24h", 600, 24 * time.Hour, "raw"},
+		{"?range=7d", "7d", 3600, 7 * 24 * time.Hour, "mixed"},
+		{"?range=30d", "30d", 3600, 30 * 24 * time.Hour, "hourly"},
+		{"?range=90d", "90d", 10800, 90 * 24 * time.Hour, "hourly"},
+		{"?range=1y", "1y", 43200, 365 * 24 * time.Hour, "hourly"},
 	}
 	for _, tt := range tests {
 		t.Run("range"+tt.query, func(t *testing.T) {
@@ -238,6 +245,9 @@ func TestHostMetricsRangesAndShape(t *testing.T) {
 			}
 			if want := fixedNow.Add(-tt.wantFrom); !fs.gotFrom.Equal(want) {
 				t.Errorf("from got %v, want %v", fs.gotFrom, want)
+			}
+			if fs.gotSource != tt.source {
+				t.Errorf("fuente de la serie got %q, want %q", fs.gotSource, tt.source)
 			}
 			if fs.gotStep != time.Duration(tt.wantStep)*time.Second {
 				t.Errorf("step al store got %v, want %ds", fs.gotStep, tt.wantStep)

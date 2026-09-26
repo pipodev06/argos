@@ -291,3 +291,85 @@ func TestMigrateGroupsSchemaWithData(t *testing.T) {
 		t.Fatalf("up de nuevo: %v", err)
 	}
 }
+
+// insertRaw inserta muestras crudas (una por minuto desde start) con cpu fija.
+func insertRaw(t *testing.T, hostID string, start time.Time, n int, cpu float64) {
+	t.Helper()
+	for i := range n {
+		mustExec(t,
+			`INSERT INTO metrics (host_id, ts, cpu_pct, mem_used_mb, mem_total_mb, net_rx_bytes, net_tx_bytes) VALUES ($1, $2, $3, 100, 1000, $4, $4)`,
+			hostID, start.Add(time.Duration(i)*time.Minute), cpu, int64(i)*6000)
+	}
+}
+
+func TestMetricSeriesMixedUsesHourlyAndRawTail(t *testing.T) {
+	s := newTestStore(t)
+	h := mkHost(t, "srv-mixed")
+	day := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+
+	// Horas 00..05 resumidas (cpu 10, 20, ... 60). El crudo de la hora 03 (cpu 999) NO debe contar: ya esta resumida.
+	for i := range 6 {
+		insertHourly(t, h, day.Add(time.Duration(i)*time.Hour), 120, ptr(float64(10*(i+1))), ptr(100), ptr(1000), nil, nil)
+	}
+	insertRaw(t, h, day.Add(3*time.Hour), 30, 999)
+	// Horas 06 y 07 aun sin resumen (la 07 es la "hora en curso"): salen del crudo.
+	insertRaw(t, h, day.Add(6*time.Hour), 30, 65)
+	insertRaw(t, h, day.Add(7*time.Hour), 30, 75)
+
+	pts, err := s.MetricSeriesMixed(context.Background(), h, day, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float64{10, 20, 30, 40, 50, 60, 65, 75}
+	if len(pts) != len(want) {
+		t.Fatalf("puntos got %d, want %d: %+v", len(pts), len(want), pts)
+	}
+	for i, w := range want {
+		if !pts[i].TS.Equal(day.Add(time.Duration(i)*time.Hour)) || !near(pts[i].CPUPct, w) {
+			t.Errorf("punto %d got ts=%v cpu=%s, want %v cpu=%v", i, pts[i].TS, fmtRate(pts[i].CPUPct), day.Add(time.Duration(i)*time.Hour), w)
+		}
+	}
+}
+
+func TestMetricSeriesMixedWithoutHourlyEqualsRaw(t *testing.T) {
+	s := newTestStore(t)
+	h := mkHost(t, "srv-mixed-nuevo")
+	day := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	insertRaw(t, h, day.Add(10*time.Minute), 200, 42) // host nuevo: 3 h de crudo, sin resumenes
+	ctx := context.Background()
+
+	got, err := s.MetricSeriesMixed(ctx, h, day, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := s.MetricSeries(ctx, h, day, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || len(got) != len(raw) {
+		t.Fatalf("puntos mixto/crudo got %d/%d", len(got), len(raw))
+	}
+	for i := range raw {
+		if !got[i].TS.Equal(raw[i].TS) || !sameRate(got[i].CPUPct, raw[i].CPUPct) || !sameRate(got[i].NetRxBps, raw[i].NetRxBps) {
+			t.Errorf("punto %d mixto %+v != crudo %+v", i, got[i], raw[i])
+		}
+	}
+}
+
+func TestMetricSeriesMixedEdgeCases(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+
+	h := mkHost(t, "srv-mixed-vacio")
+	pts, err := s.MetricSeriesMixed(ctx, h, from, time.Hour)
+	if err != nil || pts == nil || len(pts) != 0 {
+		t.Errorf("host sin datos got %v, %v; want lista vacia no nula y sin error", pts, err)
+	}
+	if _, err := s.MetricSeriesMixed(ctx, "00000000-0000-4000-8000-000000000000", from, time.Hour); !errors.Is(err, ErrNotFound) {
+		t.Errorf("host inexistente got %v, want ErrNotFound", err)
+	}
+	if _, err := s.MetricSeriesMixed(ctx, h, from, 3*time.Hour); err == nil {
+		t.Error("un paso distinto de 1 h debe ser un error (partiria un bucket entre las dos fuentes)")
+	}
+}

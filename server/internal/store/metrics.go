@@ -228,10 +228,51 @@ func (s *Store) MetricSeriesHourly(ctx context.Context, hostID string, from time
 	return s.series(ctx, hostID, hourlySeriesSQL, "serie horaria de metricas", hostID, from, step.Seconds())
 }
 
+// MetricSeriesMixed sirve los rangos con paso de 1 h (7d) sin barrer el crudo: lee los resumenes por hora de las
+// horas cerradas y solo el crudo desde la primera hora que aun no esta resumida (por lo comun la hora en curso; algo
+// mas si el mantenimiento va atrasado). Un host sin resumenes en el rango (nuevo) sale entero del crudo. Los buckets
+// son los mismos que los del crudo (date_bin de 1 h alineado a la epoch); solo cambia que el primer bucket parcial
+// (la hora que contiene "from") no aparece, igual que en los rangos de resumenes. Con 1 h de paso el limite entre
+// ambas fuentes cae siempre en un borde de bucket, asi que no se parte ningun bucket: cualquier otro paso es un error.
+func (s *Store) MetricSeriesMixed(ctx context.Context, hostID string, from time.Time, step time.Duration) ([]MetricPoint, error) {
+	if step != time.Hour {
+		return nil, fmt.Errorf("MetricSeriesMixed exige paso de 1 h, got %s", step)
+	}
+	var last *time.Time
+	if err := s.pool.QueryRow(ctx, `SELECT max(hour) FROM metrics_hourly WHERE host_id = $1 AND hour >= $2`, hostID, from).Scan(&last); err != nil {
+		return nil, fmt.Errorf("buscando la ultima hora resumida: %w", err)
+	}
+	points := []MetricPoint{}
+	rawFrom := from
+	if last != nil {
+		hourly, err := s.queryPoints(ctx, "serie horaria de metricas", hourlySeriesSQL, hostID, from, step.Seconds())
+		if err != nil {
+			return nil, err
+		}
+		points = hourly
+		rawFrom = last.Add(time.Hour)
+	}
+	raw, err := s.queryPoints(ctx, "serie de metricas", seriesSQL, hostID, rawFrom, step.Seconds(), float64(gapFactor))
+	if err != nil {
+		return nil, err
+	}
+	points = append(points, raw...)
+	return s.orNotFound(ctx, hostID, points)
+}
+
 // series ejecuta una consulta de serie (columnas: bucket, cpu, mem usada, mem total, rx, tx, swap usado,
 // swap total, load1, load5, load15, bateria) y
 // arma los puntos. Sin puntos, distingue "host sin datos en el rango" de "host inexistente".
 func (s *Store) series(ctx context.Context, hostID, query, what string, args ...any) ([]MetricPoint, error) {
+	points, err := s.queryPoints(ctx, what, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return s.orNotFound(ctx, hostID, points)
+}
+
+// queryPoints ejecuta una consulta de serie y arma los puntos (lista vacia, no nula, si no hay).
+func (s *Store) queryPoints(ctx context.Context, what, query string, args ...any) ([]MetricPoint, error) {
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("consultando %s: %w", what, err)
@@ -252,7 +293,11 @@ func (s *Store) series(ctx context.Context, hostID, query, what string, args ...
 		return nil, fmt.Errorf("iterando la %s: %w", what, err)
 	}
 	rows.Close()
+	return points, nil
+}
 
+// orNotFound devuelve ErrNotFound si no hay puntos y el host no existe.
+func (s *Store) orNotFound(ctx context.Context, hostID string, points []MetricPoint) ([]MetricPoint, error) {
 	if len(points) == 0 {
 		var exists bool
 		if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1)`, hostID).Scan(&exists); err != nil {

@@ -33,7 +33,7 @@ Con 8 clientes concurrentes nada se degrada de forma seria (la lista sube a ~700
 ## Hallazgo: la disposición física de `metrics` (riesgo con caché fría)
 Las filas se escriben por tiempo, así que las de un host quedan **una por página** (plan real: `Heap Blocks: exact=2880` para 2880 filas). Con caché caliente no se nota (20–50 ms), pero con la BD más grande que la RAM cada gráfica sería ~2880 lecturas aleatorias por día pedido. Experimento: `CLUSTER metrics_pYYYYMMDD USING …_pkey` en 4 particiones cerradas (27–54 s cada una, 2,9 M filas, bloqueo exclusivo) baja las páginas leídas de la consulta de 7d de 8700 a ~500 (17×) y su tiempo de BD a ~20 ms; la latencia caliente casi no cambia. Además: `Planning Time` ~6,5 ms por la consulta sobre una tabla particionada.
 
-**Opciones (no implementadas; decidir):**
+**Opciones:** (la 1 se implementó el mismo día, ver abajo; la 2 y la 3 no)
 1. Que el rango **7d** lea `metrics_hourly` (mismo paso de 1 h; ~170 filas en vez de 20 k) más el crudo de la hora en curso.
 2. Paso de mantenimiento que haga `CLUSTER` de las particiones diarias ya cerradas (fuera de la hora pico, con `lock_timeout`).
 3. Índice cubridor (`INCLUDE`) para permitir índices-solo: duplica el espacio del índice.
@@ -41,3 +41,8 @@ La 1 es la más barata y con más ganancia; la 2 protege también el rango de 24
 
 ## Sin medir todavía
 Mantenimiento/rollup con 1000 hosts (ciclo completo), evaluador de alertas sobre los 1000 hosts con reglas (medido antes con el arnés de tests: 1,27 s la primera vez y 746 ms en régimen, con intervalo de 15 s), 7 días y 30 días de crudo completos, carga sostenida, y un server Linux dedicado con la BD fría. el `/summary` con 8 concurrentes (p95 92 ms) merece una segunda pasada.
+
+## Implementado: 7d desde resumenes por hora (opción 1)
+- `Store.MetricSeriesMixed` (solo paso de 1 h): lee `metrics_hourly` de las horas cerradas y el crudo solo desde `max(hour)+1 h` del host (por lo común la hora en curso; más si el mantenimiento va atrasado; sin resúmenes, todo del crudo). Los buckets son los mismos del crudo (`date_bin` de 1 h a la epoch). Único cambio visible: el primer bucket parcial (la hora que contiene `from`) ya no sale, igual que en 30d/90d/1y. `GET /hosts/{id}/metrics?range=7d` usa esta fuente; 1h/6h/24h siguen en crudo.
+- Medido en la BD sintética: **7d p50 50 ms → 2,8 ms (p95 4,1 ms)** y ya no depende del volumen de crudo (con 7 días completos habría sido ~120 ms). Tests: mezcla horaria + cola cruda (el crudo de una hora ya resumida no cuenta), host nuevo = idéntico al crudo, casos borde (vacío, inexistente, paso inválido) y el handler verifica qué fuente usa cada rango. La equivalencia crudo/horario en promedios ya la cubría `retention/rollup_test.go` (cpu 1e-3, mem 1 MB, rx 2 %).
+- La BD `argos_perf` se borró tras medir; se regenera con `bash scripts/perf/run.sh setup 1000 3`.
