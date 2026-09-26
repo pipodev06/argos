@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"argos/server/internal/store"
+	"argos/server/internal/testdb"
 )
 
 // Tests de seguridad contra una Postgres real (ver main_test.go). No usan t.Parallel:
@@ -62,8 +63,7 @@ func newEnv(t *testing.T, opts Options) *env {
 	if testPool == nil {
 		t.Skip("ARGOS_TEST_DATABASE_URL no definida")
 	}
-	if _, err := testPool.Exec(context.Background(),
-		`TRUNCATE service_check_defs, service_check_events, service_checks, metrics, metrics_hourly, maintenance_state, disk_samples, enroll_tokens, hosts, host_groups, alert_rules, notification_channels, maintenance_windows, sessions, audit_log, users CASCADE`); err != nil {
+	if err := testdb.ResetData(context.Background(), testPool); err != nil {
 		t.Fatalf("limpiando tablas: %v", err)
 	}
 	logs := &logBuffer{}

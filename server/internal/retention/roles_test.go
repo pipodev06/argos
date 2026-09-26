@@ -43,11 +43,52 @@ func connectAs(t *testing.T, role string) *pgxpool.Pool {
 	return pool
 }
 
-// dropSplit borra la BD y los roles del test (idempotente).
-func dropSplit(ctx context.Context) {
-	_, _ = testPool.Exec(ctx, `DROP DATABASE IF EXISTS `+splitDB+` WITH (FORCE)`)
-	_, _ = testPool.Exec(ctx, `DROP ROLE IF EXISTS `+splitApp)
-	_, _ = testPool.Exec(ctx, `DROP ROLE IF EXISTS `+splitOwner)
+// prepareSplit deja la BD partida con el esquema public vacio. La BD y los roles se crean una sola vez y se
+// conservan entre corridas: DROP DATABASE fuerza un checkpoint inmediato que tardaba ~30 s con los datos sucios de los
+// tests anteriores. Los roles solo existen en el Postgres de test (nombres argos_t_*).
+func prepareSplit(ctx context.Context, t *testing.T) {
+	t.Helper()
+	for _, s := range []string{
+		`DO $$ BEGIN
+		   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '` + splitOwner + `') THEN CREATE ROLE ` + splitOwner + ` LOGIN PASSWORD '` + splitOwner + `_pw'; END IF;
+		   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '` + splitApp + `') THEN CREATE ROLE ` + splitApp + ` LOGIN PASSWORD '` + splitApp + `_pw'; END IF;
+		 END $$`,
+		`GRANT ` + splitApp + ` TO ` + splitOwner,
+	} {
+		if _, err := testPool.Exec(ctx, s); err != nil {
+			t.Fatalf("preparando los roles (%s): %v", s, err)
+		}
+	}
+	var exists bool
+	if err := testPool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_database WHERE datname = $1)`, splitDB).Scan(&exists); err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		if _, err := testPool.Exec(ctx, `CREATE DATABASE `+splitDB+` OWNER `+splitOwner); err != nil {
+			t.Fatalf("creando la BD partida: %v", err)
+		}
+	}
+	// Esquema vacio como superusuario: quita tambien las particionadas que el runtime hubiera heredado y los
+	// permisos por defecto de la corrida anterior.
+	su, err := store.Connect(ctx, suDSN(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer su.Close()
+	if _, err := su.Exec(ctx, `DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION pg_database_owner`); err != nil {
+		t.Fatalf("recreando el esquema de la BD partida: %v", err)
+	}
+}
+
+// suDSN es la URL del superusuario de test (la de ARGOS_TEST_DATABASE_URL) apuntando a la BD partida.
+func suDSN(t *testing.T) string {
+	t.Helper()
+	u, err := url.Parse(testDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Path = "/" + splitDB
+	return u.String()
 }
 
 // Con el server operando como rol de runtime (sin ser dueño del esquema): todo lo que hace de verdad funciona
@@ -58,18 +99,7 @@ func TestRuntimeRoleSplit(t *testing.T) {
 		t.Skip("ARGOS_TEST_DATABASE_URL no definida")
 	}
 	ctx := context.Background()
-	dropSplit(ctx)
-	t.Cleanup(func() { dropSplit(context.Background()) })
-	for _, s := range []string{
-		`CREATE ROLE ` + splitOwner + ` LOGIN PASSWORD '` + splitOwner + `_pw'`,
-		`CREATE ROLE ` + splitApp + ` LOGIN PASSWORD '` + splitApp + `_pw'`,
-		`GRANT ` + splitApp + ` TO ` + splitOwner,
-		`CREATE DATABASE ` + splitDB + ` OWNER ` + splitOwner,
-	} {
-		if _, err := testPool.Exec(ctx, s); err != nil {
-			t.Fatalf("preparando la BD partida (%s): %v", s, err)
-		}
-	}
+	prepareSplit(ctx, t)
 
 	owner := connectAs(t, splitOwner)
 	if err := store.Migrate(ctx, owner); err != nil {

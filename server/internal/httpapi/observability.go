@@ -15,6 +15,8 @@ const (
 	healthTTL = 2 * time.Second
 	// maxLoggedPath acota el largo de la ruta en el log (una ruta enorme no debe inflar el journal).
 	maxLoggedPath = 200
+	// slowRequest: una solicitud que tarda mas sale como Warn aunque haya ido bien (senal temprana de BD fria o sin RAM).
+	slowRequest = time.Second
 )
 
 // healthState recuerda el ultimo resultado del ping a la BD.
@@ -85,13 +87,13 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 // Unwrap deja que http.ResponseController llegue al ResponseWriter real (Flush, deadlines).
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// requestLevel da el nivel del registro: los fallos suben, y el ruido de rutina (sondas, agentes que reportan bien,
-// estaticos y descargas) baja a Debug pa no inundar el journal.
-func requestLevel(path string, status int) slog.Level {
+// requestLevel da el nivel del registro: los fallos y las solicitudes lentas suben, y el ruido de rutina (sondas,
+// agentes que reportan bien, estaticos y descargas) baja a Debug pa no inundar el journal.
+func requestLevel(path string, status int, elapsed time.Duration) slog.Level {
 	switch {
 	case status >= 500:
 		return slog.LevelError
-	case status >= 400:
+	case status >= 400, elapsed >= slowRequest:
 		return slog.LevelWarn
 	case path == "/health", strings.HasPrefix(path, "/api/v1/agent/"), !strings.HasPrefix(path, "/api/"):
 		return slog.LevelDebug
@@ -111,7 +113,8 @@ func (a *API) requestLog(next http.Handler) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		level := requestLevel(r.URL.Path, status)
+		elapsed := time.Since(start)
+		level := requestLevel(r.URL.Path, status, elapsed)
 		if !a.logger.Enabled(r.Context(), level) {
 			return
 		}
@@ -121,6 +124,6 @@ func (a *API) requestLog(next http.Handler) http.Handler {
 		}
 		a.logger.Log(r.Context(), level, "solicitud",
 			"method", r.Method, "path", path, "status", status,
-			"ms", time.Since(start).Milliseconds(), "bytes", sw.bytes, "ip", a.clientIP(r).String())
+			"ms", elapsed.Milliseconds(), "bytes", sw.bytes, "ip", a.clientIP(r).String())
 	})
 }
