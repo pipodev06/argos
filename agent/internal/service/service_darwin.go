@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -262,3 +263,6 @@ func (m Manager) Uninstall(ctx context.Context, keepState bool, out io.Writer) e
 	printf(out, "\n")
 	return nil
 }
+
+// ExePath es el binario instalado del servicio.
+func (Manager) ExePath() (string, error) { return filepath.Join(macInstallDir, Name), nil }

@@ -104,6 +104,42 @@ func (s *Store) Save(c Credentials) error {
 // SaveCA guarda la CA privada del servidor como ca.pem (mismas garantias que Save).
 func (s *Store) SaveCA(pem []byte) error { return s.writeAtomic(CAFileName, pem) }
 
+// WriteFile escribe name dentro del directorio de estado de forma atomica y con permisos restringidos.
+func (s *Store) WriteFile(name string, data []byte) error { return s.writeAtomic(name, data) }
+
+// ReadFile lee name del directorio de estado, hasta limit+1 bytes (el llamador detecta si se paso).
+// El error cumple errors.Is(err, os.ErrNotExist) si el archivo no existe.
+func (s *Store) ReadFile(name string, limit int64) ([]byte, error) {
+	f, err := os.Open(filepath.Join(s.dir, name)) //nolint:gosec // nombre fijo bajo el directorio de estado
+	if err != nil {
+		return nil, fmt.Errorf("abriendo %s: %w", name, err)
+	}
+	defer func() { _ = f.Close() }() // solo lectura
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("leyendo %s: %w", name, err)
+	}
+	return data, nil
+}
+
+// OpenAppend abre (o crea) name en el directorio de estado pa agregar al final, con los mismos
+// permisos restringidos que el resto del estado. El llamador cierra el archivo.
+func (s *Store) OpenAppend(name string) (*os.File, error) {
+	if err := s.Prepare(); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(s.dir, name)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600) //nolint:gosec // ruta bajo el directorio de estado
+	if err != nil {
+		return nil, fmt.Errorf("abriendo %s: %w", name, err)
+	}
+	if err := restrictFile(path, s.serviceAccount); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("restringiendo permisos de %s: %w", name, err)
+	}
+	return f, nil
+}
+
 // writeAtomic escribe name dentro del directorio de estado (temp + fsync + rename) con permisos restringidos.
 func (s *Store) writeAtomic(name string, data []byte) (err error) {
 	if err := s.Prepare(); err != nil {

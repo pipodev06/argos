@@ -3,12 +3,18 @@
 #
 # Uso (como root):
 #   curl --proto '=https' --tlsv1.2 -fsSL <URL>/install.sh | sh -s -- --server <URL> --token <TOKEN>
+#   curl --proto '=https' --tlsv1.2 -fsSL <URL>/install.sh | sh -s -- --update      (host ya enrolado)
 #
 # Opciones:
 #   --server <URL>   origen del server (https://, o http://localhost en desarrollo)
 #   --token <TOKEN>  enroll token. Alternativas sin dejarlo en la lista de procesos: variable ARGOS_ENROLL_TOKEN,
 #                    o no indicarlo y escribirlo cuando el script lo pida (sin eco).
 #   --ca <archivo>   CA privada (PEM) del server: se usa pa las descargas y el agente la copia a su estado.
+#   --inventory <m>  modulos de inventario: ports,services,processes,updates o all (se guarda en el agente).
+#   --probe-allow <redes>  IPs o CIDRs (/24 o mas chicos, separados por comas) que el colector ping puede sondear.
+#   --privileged     modo privilegiado del agente (ve procesos y puertos de otros usuarios).
+#   --insecure       permite un server http:// remoto (token y metricas viajan SIN CIFRAR: usa https).
+#   --update         actualiza el agente ya instalado a la ultima version (sin --token ni otras opciones).
 #
 # Descarga el binario, verifica su SHA-256 contra el manifiesto y ABORTA si no coincide. El token llega al
 # agente por entrada estandar (enroll --token-stdin): no se escribe en disco ni en logs.
@@ -31,29 +37,82 @@ sha256_of() {
 	fi
 }
 
+# update_agent actualiza el agente instalado con su propio subcomando `update` (descarga, verifica el SHA-256
+# del manifiesto, reemplaza el binario del servicio conservando estado y config, y lo reinicia).
+update_agent() {
+	case "$(uname -s)" in
+	Linux) exe=/opt/argos-agent/argos-agent ;;
+	Darwin) exe=/usr/local/libexec/argos-agent/argos-agent ;;
+	*) die "sistema no soportado: $(uname -s)" ;;
+	esac
+	[ -x "$exe" ] || die "el agente no esta instalado en este equipo (no existe $exe): instalalo con --server y --token"
+	"$exe" update
+	# Deja la copia de /usr/local/bin igual que el binario del servicio (si no, su `update` creeria estar vieja).
+	if [ -e /usr/local/bin/argos-agent ]; then
+		install -m 0755 "$exe" /usr/local/bin/argos-agent.new
+		chown 0:0 /usr/local/bin/argos-agent.new
+		mv -f /usr/local/bin/argos-agent.new /usr/local/bin/argos-agent
+	fi
+}
+
 main() {
-	server="" token="${ARGOS_ENROLL_TOKEN:-}" ca=""
+	server="" token="${ARGOS_ENROLL_TOKEN:-}" ca="" inventory="" probe_allow="" privileged=0 insecure=0 update=0 other=0
 	while [ $# -gt 0 ]; do
 		case "$1" in
-		--server | --token | --ca)
+		--server | --token | --ca | --inventory | --probe-allow)
 			[ $# -ge 2 ] || die "$1 necesita un valor"
 			case "$1" in
 			--server) server=$2 ;;
 			--token) token=$2 ;;
 			--ca) ca=$2 ;;
+			--inventory) inventory=$2 ;;
+			--probe-allow) probe_allow=$2 ;;
 			esac
+			other=1
 			shift 2
 			;;
-		*) die "argumento desconocido: $1 (opciones: --server, --token, --ca)" ;;
+		--privileged)
+			privileged=1
+			other=1
+			shift
+			;;
+		--insecure)
+			insecure=1
+			other=1
+			shift
+			;;
+		--update)
+			update=1
+			shift
+			;;
+		*) die "argumento desconocido: $1 (opciones: --server, --token, --ca, --inventory, --probe-allow, --privileged, --insecure, --update)" ;;
 		esac
 	done
 
 	[ "$(id -u)" -eq 0 ] || die "ejecutalo como root (sudo)"
+	if [ "$update" -eq 1 ]; then
+		[ "$other" -eq 0 ] || die "--update no se combina con otras opciones"
+		update_agent
+		printf 'argos install: actualizacion terminada\n'
+		return 0
+	fi
+	# Lista blanca de caracteres: los valores llegan al agente como argumentos, pero se rechaza todo lo raro.
+	case "$inventory" in
+	*[!a-z,]*) die "--inventory solo admite letras minusculas y comas (ej. ports,services o all)" ;;
+	esac
+	case "$probe_allow" in
+	*[!0-9a-fA-F:./,]*) die "--probe-allow solo admite IPs y CIDRs separados por comas (ej. 192.168.1.0/24)" ;;
+	esac
 	[ -n "$server" ] || die "falta --server <URL>"
 	server=${server%/}
 	case "$server" in
 	https://*) proto="=https" ;;
 	http://localhost | http://localhost:* | http://127.0.0.1 | http://127.0.0.1:*) proto="=http" ;;
+	http://*)
+		[ "$insecure" -eq 1 ] || die "el server debe ser https:// (o http://localhost en desarrollo); usa --insecure solo si aceptas que todo viaje sin cifrar"
+		proto="=http"
+		printf 'argos install: AVISO: server http:// sin cifrar (--insecure): el token y las metricas se pueden leer o falsificar en la red\n' >&2
+		;;
 	*) die "el server debe ser https:// (o http://localhost en desarrollo)" ;;
 	esac
 	[ -z "$ca" ] || [ -r "$ca" ] || die "no se puede leer la CA: $ca"
@@ -109,11 +168,13 @@ main() {
 	chown 0:0 "$dest/argos-agent.new"
 	mv -f "$dest/argos-agent.new" "$dest/argos-agent"
 
-	if [ -n "$ca" ]; then
-		"$dest/argos-agent" install --ca-file "$ca"
-	else
-		"$dest/argos-agent" install
-	fi
+	set -- install
+	[ -z "$ca" ] || set -- "$@" --ca-file "$ca"
+	[ -z "$inventory" ] || set -- "$@" --inventory "$inventory"
+	[ -z "$probe_allow" ] || set -- "$@" --probe-allow "$probe_allow"
+	[ "$privileged" -eq 0 ] || set -- "$@" --privileged
+	[ "$insecure" -eq 0 ] || set -- "$@" --insecure
+	"$dest/argos-agent" "$@"
 	printf '%s\n' "$token" | "$dest/argos-agent" enroll --server "$server" --token-stdin
 	token=""
 	"$dest/argos-agent" start

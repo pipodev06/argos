@@ -262,3 +262,6 @@ func installSudoers(ctx context.Context, out io.Writer) bool {
 	printf(out, "sudoers instalado en %s (solo comandos exactos de lectura del modulo updates)\n", filepath.Join(linuxSudoersDir, SudoersName))
 	return true
 }
+
+// ExePath es el binario instalado del servicio.
+func (Manager) ExePath() (string, error) { return filepath.Join(linuxInstallDir, Name), nil }

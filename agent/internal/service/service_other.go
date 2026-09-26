@@ -31,3 +31,9 @@ func (Manager) Stop(context.Context) error { return ErrUnsupported }
 
 // Status no esta soportado en este SO.
 func (Manager) Status(context.Context) (string, error) { return "", ErrUnsupported }
+
+// RequirePrivileges no esta soportado en este SO.
+func (Manager) RequirePrivileges() error { return ErrUnsupported }
+
+// ExePath no esta soportado en este SO.
+func (Manager) ExePath() (string, error) { return "", ErrUnsupported }

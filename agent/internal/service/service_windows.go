@@ -424,3 +424,9 @@ func (m Manager) Uninstall(ctx context.Context, keepState bool, out io.Writer) e
 	printf(out, "\n")
 	return nil
 }
+
+// RequirePrivileges exige una consola elevada (actualizar el binario escribe en Program Files).
+func (Manager) RequirePrivileges() error { return requireElevated() }
+
+// ExePath es el binario instalado del servicio.
+func (Manager) ExePath() (string, error) { return installExe() }

@@ -76,13 +76,19 @@ type snapshot struct {
 	truncated bool
 }
 
-// ParseModules valida la lista de modulos de la config (separada por comas). Vacia = ninguno.
+// ParseModules valida la lista de modulos de la config (separada por comas; "all" = todos). Vacia = ninguno.
 func ParseModules(raw string) ([]string, error) {
 	var out []string
 	for _, m := range strings.Split(raw, ",") {
 		m = strings.ToLower(strings.TrimSpace(m))
 		switch m {
 		case "":
+		case "all": // atajo de `install --inventory all`
+			for _, all := range []string{ModulePorts, ModuleServices, ModuleProcesses, ModuleUpdates} {
+				if !slices.Contains(out, all) {
+					out = append(out, all)
+				}
+			}
 		case ModulePorts, ModuleServices, ModuleProcesses, ModuleUpdates:
 			if !slices.Contains(out, m) {
 				out = append(out, m)
