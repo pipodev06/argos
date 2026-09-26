@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AlertRule } from '../types/alert.types'
-import { buildRuleInput, MAX_NAME, ruleToDraft } from './ruleForm'
+import { buildRuleInput, cloneToDraft, MAX_NAME, ruleToDraft } from './ruleForm'
 
 const base = { ...ruleToDraft(null), name: 'Regla' }
 const errorsOf = (r: ReturnType<typeof buildRuleInput>) => ('errors' in r ? r.errors : {})
@@ -104,5 +104,36 @@ describe('reglas: ida y vuelta (regla -> borrador -> payload)', () => {
     expect(buildRuleInput(d, true)).toMatchObject({
       input: { name: 'CPU', op: 'gt', threshold: 90, clear_threshold: 80, duration_seconds: 300, resolve_seconds: 60, include_offline: true, severity: 'critical', enabled: false },
     })
+  })
+})
+
+describe('reglas: clonar', () => {
+  const metric = {
+    id: 'r1', name: 'CPU', kind: 'metric', metric: 'mem_pct', op: 'lt', threshold: 90, clear_threshold: 95, duration_seconds: 300,
+    duration_days: 0, resolve_seconds: 120, include_offline: true, check_id: null, warn_or_down: false, expected_ports: null,
+    scope: { type: 'all' }, severity: 'critical', enabled: false,
+  } as unknown as AlertRule
+
+  it('agrega " (copia)" al nombre y conserva los demás campos', () => {
+    expect(cloneToDraft(metric)).toMatchObject({
+      name: 'CPU (copia)', kind: 'metric', metric: 'mem_pct', op: 'lt', threshold: '90', clear: '95', durationMin: '5', resolveMin: '2',
+      includeOffline: true, severity: 'critical', enabled: false,
+    })
+  })
+  it('recorta el nombre largo para que la copia quepa en 80 caracteres', () => {
+    const d = cloneToDraft({ ...metric, name: 'x'.repeat(MAX_NAME) })
+    expect(d.name).toHaveLength(MAX_NAME)
+    expect(d.name.endsWith(' (copia)')).toBe(true)
+  })
+  it('no arrastra el id y el cuerpo de creación es válido', () => {
+    const d = cloneToDraft(metric)
+    expect(d).not.toHaveProperty('id')
+    expect(buildRuleInput(d, false)).toMatchObject({ input: { name: 'CPU (copia)', threshold: 90, clear_threshold: 95 } })
+  })
+  it('conserva chequeo y puertos esperados según el tipo', () => {
+    const check = { ...metric, kind: 'service_check', metric: null, check_id: 'c1', warn_or_down: true } as unknown as AlertRule
+    expect(cloneToDraft(check)).toMatchObject({ kind: 'service_check', checkId: 'c1', warnOrDown: true })
+    const ports = { ...metric, kind: 'exposed_port', metric: null, expected_ports: [{ proto: 'tcp', port: 22 }] } as unknown as AlertRule
+    expect(cloneToDraft(ports).expectedPorts).toContain('22')
   })
 })

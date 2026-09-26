@@ -1,11 +1,11 @@
-import { IconCircleCheck, IconCircleOff, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
+import { IconCircleCheck, IconCircleOff, IconCopy, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import type { AlertRule } from '../types/alert.types'
 import { describeCondition, KIND_LABELS, METRIC_LABELS, scopeLabel } from '../utils/format'
 import { SeverityBadge } from './AlertBadges'
 
-export type RuleAction = 'edit' | 'toggle' | 'delete'
+export type RuleAction = 'edit' | 'clone' | 'toggle' | 'delete'
 
 interface RulesTableProps {
   rules: AlertRule[]
@@ -70,6 +70,15 @@ export function RulesTable({ rules, canAct, busy, onAction }: RulesTableProps) {
                   onClick={() => onAction('edit', r)}
                 >
                   <IconPencil stroke={1.5} aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Duplicar regla ${r.name}`}
+                  title="Duplicar"
+                  onClick={() => onAction('clone', r)}
+                >
+                  <IconCopy stroke={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"

@@ -16,6 +16,7 @@ import {
   KIND_OPTIONS,
   MAX_NAME,
   OP_OPTIONS,
+  cloneToDraft,
   ruleToDraft,
   type RuleDraft,
   type RuleErrors,
@@ -24,8 +25,9 @@ import { ScopeFields } from './ScopeFields'
 import { ALL_SCOPE, ruleScopeTypes } from '../utils/scope'
 
 interface RuleFormDialogProps {
-  /** null = crear; una regla = editar. */
+  /** null = crear; una regla = editar (o, con `clone`, crear una copia precargada). */
   rule: AlertRule | null
+  clone?: boolean
   open: boolean
   onClose: () => void
   onSaved: () => void
@@ -50,11 +52,13 @@ const THRESHOLD_LABELS: Partial<Record<RuleKind, string>> = {
   os_eol: 'Días de antelación al fin de vida',
 }
 
-function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
+function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDialogProps) {
+  // Al clonar, el formulario parte de la regla original pero se comporta como creación.
+  const rule = clone ? null : source
   const editing = rule !== null
-  const [draft, setDraft] = useState<RuleDraft>(() => ruleToDraft(rule))
+  const [draft, setDraft] = useState<RuleDraft>(() => (clone && source ? cloneToDraft(source) : ruleToDraft(rule)))
   const [errors, setErrors] = useState<RuleErrors>({})
-  const [channelIds, setChannelIds] = useState<string[]>(() => rule?.channel_ids ?? [])
+  const [channelIds, setChannelIds] = useState<string[]>(() => source?.channel_ids ?? [])
   const [createdId, setCreatedId] = useState<string | null>(null)
   const { error, busy, run } = useUserMutation()
   const set = <K extends keyof RuleDraft>(key: K, value: RuleDraft[K]) => setDraft((d) => ({ ...d, [key]: value }))
@@ -82,8 +86,25 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
       }
       const before = rule?.channel_ids ?? []
       const changed = channelIds.length !== before.length || channelIds.some((c) => !before.includes(c))
-      if (id && (changed || !rule)) await setRuleChannels(id, channelIds)
-    }, (err) => (err.code === 'check_not_found' ? 'El chequeo elegido ya no existe. Elige otro.' : null))
+      if (id && (changed || !rule)) {
+        try {
+          await setRuleChannels(id, channelIds)
+        } catch (err) {
+          if (!rule) {
+            throw new Error(`La regla se creó, pero no se pudieron asignar los canales: ${err instanceof Error ? err.message : 'error desconocido'}. Reintenta para asignarlos.`)
+          }
+          throw err
+        }
+      }
+    }, (err) => {
+      if (err.code === 'check_not_found') return 'El chequeo elegido ya no existe. Elige otro.'
+      // Nombre repetido (único global, sin distinguir mayúsculas): se marca en el campo.
+      if (err.status === 409 || /name/i.test(err.code)) {
+        setErrors({ name: 'Ya existe una regla con ese nombre. Elige otro.' })
+        return 'Ya existe una regla con ese nombre.'
+      }
+      return null
+    })
     if (ok) onSaved()
   }
 
@@ -95,9 +116,9 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2" noValidate>
       <DialogHeader className="sm:col-span-2">
-        <DialogTitle>{editing ? 'Editar regla' : 'Nueva regla'}</DialogTitle>
+        <DialogTitle>{editing ? 'Editar regla' : clone ? 'Duplicar regla' : 'Nueva regla'}</DialogTitle>
         <DialogDescription>
-          {editing ? 'El tipo y la métrica no se pueden cambiar; crea otra regla si los necesitas distintos.' : 'Se evalúa cada 15 segundos sobre los hosts del alcance.'}
+          {clone ? 'Se crea una regla nueva con los mismos valores y canales. Cambia el nombre si quieres.' : editing ?'El tipo y la métrica no se pueden cambiar; crea otra regla si los necesitas distintos.' : 'Se evalúa cada 15 segundos sobre los hosts del alcance.'}
         </DialogDescription>
       </DialogHeader>
       <FormField
@@ -141,7 +162,7 @@ function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {
             id="rule-check"
             value={draft.checkId}
             onChange={(v) => set('checkId', v)}
-            currentName={rule?.check_name}
+            currentName={source?.check_name}
             disabled={editing}
             error={errors.check}
           />
