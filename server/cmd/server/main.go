@@ -5,6 +5,8 @@
 //	argos-server                       arranca el servidor
 //	argos-server create-admin [user]   crea un usuario admin (contraseña por terminal o stdin)
 //	argos-server reset-password <user> fija una contraseña nueva, desbloquea la cuenta y cierra sus sesiones
+//	argos-server migrate               aplica las migraciones con ARGOS_MIGRATE_DATABASE_URL (o DATABASE_URL) y, si
+//	                                   ARGOS_APP_ROLE esta definida, deja los permisos del rol de runtime
 package main
 
 import (
@@ -48,6 +50,9 @@ func main() {
 }
 
 func run(logger *slog.Logger, args []string) error {
+	if len(args) > 0 && args[0] == "migrate" {
+		return runMigrate(logger)
+	}
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("configuracion: %w", err)
@@ -62,8 +67,14 @@ func run(logger *slog.Logger, args []string) error {
 	}
 	defer pool.Close()
 
-	if err := store.Migrate(ctx, pool); err != nil {
+	if cfg.AutoMigrate {
+		if err := store.Migrate(ctx, pool); err != nil {
+			return err
+		}
+	} else if pending, err := store.SchemaPending(ctx, pool); err != nil {
 		return err
+	} else if pending {
+		return errors.New("hay migraciones pendientes y ARGOS_AUTO_MIGRATE=false: ejecuta `argos-server migrate` (en el deploy: sudo argos-admin migrate)")
 	}
 	st := store.New(pool)
 
@@ -77,6 +88,36 @@ func run(logger *slog.Logger, args []string) error {
 	}
 	logger.Info("postgres listo, migraciones aplicadas")
 	return serve(ctx, logger, cfg, pool, st, hasher)
+}
+
+// runMigrate aplica las migraciones con el rol dueño del esquema (ARGOS_MIGRATE_DATABASE_URL; si falta, DATABASE_URL)
+// y, con ARGOS_APP_ROLE, deja listos los permisos del rol de runtime. No lee el resto de la config del server.
+func runMigrate(logger *slog.Logger) error {
+	url := os.Getenv("ARGOS_MIGRATE_DATABASE_URL")
+	if url == "" {
+		url = os.Getenv("DATABASE_URL")
+	}
+	if url == "" {
+		return errors.New("migrate: falta ARGOS_MIGRATE_DATABASE_URL (o DATABASE_URL)")
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	pool, err := store.Connect(ctx, url)
+	if err != nil {
+		return fmt.Errorf("conectando a postgres: %w", err)
+	}
+	defer pool.Close()
+	if err := store.Migrate(ctx, pool); err != nil {
+		return err
+	}
+	role := os.Getenv("ARGOS_APP_ROLE")
+	if role != "" {
+		if err := store.PrepareRuntimeRole(ctx, pool, role); err != nil {
+			return err
+		}
+	}
+	logger.Info("migraciones aplicadas", "app_role", role)
+	return nil
 }
 
 // days convierte dias enteros a Duration.

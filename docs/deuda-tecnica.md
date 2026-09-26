@@ -5,7 +5,6 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 ## Resumen por severidad (leer solo esto; abrir la seccion enlazada si tocas ese area)
 ### Alta
 - Exponer el server fuera de loopback solo tras HTTPS + `ARGOS_PUBLIC_URL`; no verificado con proxy real -> [Seguridad](#seguridad)
-- Un solo rol de BD (migra y opera): el trigger append-only de `audit_log` se puede saltar -> [Seguridad](#seguridad)
 - Instalacion real del servicio del agente sin probar en Windows/Linux/macOS -> [Agente](#agente-y-servicio)
 ### Media
 - Pantallas nuevas sin revisar en navegador (permisos/Acceso, chequeos, mantenimiento, alertas): esperan observaciones del usuario -> [Frontend](#frontend)
@@ -29,7 +28,7 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 
 ## Seguridad
 - Server fuera de loopback (`ARGOS_LISTEN_ADDR` no loopback) solo tras HTTPS (proxy inverso o `ARGOS_TLS_CERT/KEY`) y con `ARGOS_PUBLIC_URL`; verificado solo TLS directo con cert autofirmado y curl.
-- Rol de BD unico: separar migrador/runtime (recomendado, no decidido; ver indice).
+- Roles de BD (hecho 2026-09-25, `decisiones/2026-09-25-roles-bd.md`): en el modo de un solo rol (dev, o `--db-url` sin `--migrate-db-url`) el server sigue siendo dueño y puede saltar el trigger de `audit_log`. El rol de runtime es dueño de las tablas particionadas y tiene CREATE en `public` (limite aceptado).
 - Rate limits y contadores de fallos de agente en memoria (pierden estado al reiniciar, no se comparten entre replicas). La clave HMAC de los cursores de `GET /hosts` es aleatoria por proceso (reinicio o varias instancias -> 400 `invalid_cursor`); si se escala, pasar a BD/Redis y mover la clave a `ARGOS_CURSOR_KEY`.
 - Auditoria best-effort: si la escritura falla solo se loguea; revisar si se exige no repudio.
 - El bloqueo por cuenta (15 min por 10 fallos) permite bloquear a proposito a otro usuario; mitigado por limite por IP y `reset-password`.

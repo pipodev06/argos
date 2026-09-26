@@ -27,7 +27,8 @@ sha256sum -c ../argos-server_<version>_linux_amd64.tar.gz.sha256      # si copia
 sudo bash deploy/install-server.sh --public-url https://argos.lan --create-local-db
 sudo argos-admin create-admin admin
 ```
-- `--create-local-db` crea rol y BD `argos` en el Postgres local con clave aleatoria; con otra BD usa `--db-url 'postgres://usuario:clave@host:5432/argos?sslmode=...'`.
+- **Dos roles de BD** (recomendado). `--create-local-db` crea en el Postgres local `argos_owner` (dueño del esquema: solo migra) y `argos_app` (el que usa el server: DML, sin DDL sobre el resto ni acceso al trigger append-only de `audit_log`), con claves aleatorias. Con otra BD: `--db-url 'postgres://argos_app:…'` y `--migrate-db-url 'postgres://argos_owner:…'` (el dueño debe ser miembro de `argos_app`: `GRANT argos_app TO argos_owner`). Solo `--db-url` = un único rol que migra y opera (funciona, menos seguro).
+- La clave del dueño queda en `/etc/argos/argos-migrate.env` (0600 root) y **solo** la ve `argos-admin migrate`; el server en marcha nunca la tiene.
 - Crea el usuario de sistema `argos`, deja todo en `/opt/argos`, la config en `/etc/argos/argos.env` (0640 root:argos, con `ARGOS_SECRET_KEY` generada) y activa `argos-server.service` y el respaldo diario.
 - **Copia `/etc/argos/argos.env` fuera del server**: sin `ARGOS_SECRET_KEY` los canales de notificación cifrados no se pueden leer.
 
@@ -39,7 +40,7 @@ Alternativa sin proxy: `ARGOS_LISTEN_ADDR=0.0.0.0:8443`, `ARGOS_TLS_CERT` y `ARG
 Desde el dashboard: Hosts → Agregar host → comando de instalación. El server publica los binarios en `/dl` e `/install.sh`.
 
 ## Actualizar
-Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin opciones): reemplaza binario, web y agentes, conserva el env y la BD, y reinicia. Las migraciones se aplican solas al arrancar. **Antes de actualizar, haz un respaldo** (`sudo systemctl start argos-backup.service`).
+Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin opciones): reemplaza binario, web y agentes, conserva los env y la BD, aplica las migraciones con el rol dueño (`argos-admin migrate`) y reinicia. En modo de un solo rol el server migra solo al arrancar. **Antes de actualizar, haz un respaldo** (`sudo systemctl start argos-backup.service`).
 
 ## Respaldo y restauración
 - Diario a las 03:15 en `/var/backups/argos/argos-AAAA-MM-DD.dump` (14 días). Prueba: `sudo systemctl start argos-backup.service && ls /var/backups/argos`.
@@ -48,8 +49,9 @@ Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin o
 ## Operación
 - Salud: `curl -s http://127.0.0.1:8080/health` (200 con BD viva, 503 si Postgres no responde): úsalo en Caddy (`health_uri`) o en un monitor externo. Log de solicitudes: `journalctl -u argos-server | grep solicitud` (los éxitos rutinarios de agentes, `/health` y estáticos van a nivel Debug y no salen).
 - Logs: `journalctl -u argos-server -f`. Estado: `systemctl status argos-server`. Auditar el sandbox: `systemd-analyze security argos-server`.
+- Migraciones a mano: `sudo argos-admin migrate` (idempotente; también reasigna permisos del rol de runtime).
 - Reset de clave de un usuario: `sudo argos-admin reset-password <usuario>`.
 - Si una línea de endurecimiento del unit rompe tu distro, comenta SOLO esa.
 
 ## Qué NO está validado (2026-09-25)
-Se probó: sintaxis de los scripts, el paquete (contenido, sha256, LF), y que el binario con ese layout sirve web y `/dl`. **No** se ha ejecutado el instalador ni el unit en un Linux real ni con Caddy (el desarrollo es en Windows, sin systemd). Primer despliegue: revisa `systemctl status`, `journalctl` y `systemd-analyze security`, y anota cualquier ajuste en `docs/deuda-tecnica.md`.
+Se probó: sintaxis de los scripts, el paquete (contenido, sha256, LF), que el binario con ese layout sirve web y `/dl`, y la separación de roles contra Postgres 18 real (test de integración y prueba de humo con una copia de tu BD real: migrar como dueño, operar como runtime). **No** se ha ejecutado el instalador ni el unit en un Linux real ni con Caddy (el desarrollo es en Windows, sin systemd). Primer despliegue: revisa `systemctl status`, `journalctl` y `systemd-analyze security`, y anota cualquier ajuste en `docs/deuda-tecnica.md`.

@@ -260,3 +260,27 @@ func TestLoadAlertSettings(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadAutoMigrate(t *testing.T) {
+	t.Parallel()
+	load := func(v string) (Config, error) {
+		return Load(func(k string) string {
+			return map[string]string{"DATABASE_URL": "postgres://x", "ARGOS_AUTO_MIGRATE": v}[k]
+		})
+	}
+	tests := []struct {
+		raw     string
+		want    bool
+		wantErr bool
+	}{{"", true, false}, {"true", true, false}, {"false", false, false}, {"0", false, false}, {"quizas", false, true}}
+	for _, tc := range tests {
+		cfg, err := load(tc.raw)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("ARGOS_AUTO_MIGRATE=%q err = %v, wantErr %v", tc.raw, err, tc.wantErr)
+			continue
+		}
+		if err == nil && cfg.AutoMigrate != tc.want {
+			t.Errorf("ARGOS_AUTO_MIGRATE=%q AutoMigrate = %v, want %v", tc.raw, cfg.AutoMigrate, tc.want)
+		}
+	}
+}
