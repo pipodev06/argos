@@ -87,23 +87,27 @@ func TestRequestLogHasNoSecrets(t *testing.T) {
 func TestRequestLevel(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		path   string
-		status int
-		want   slog.Level
+		path    string
+		status  int
+		elapsed time.Duration
+		want    slog.Level
 	}{
-		{"/health", 200, slog.LevelDebug},
-		{"/health", 503, slog.LevelError},
-		{"/api/v1/agent/metrics", 204, slog.LevelDebug},
-		{"/api/v1/agent/metrics", 401, slog.LevelWarn},
-		{"/assets/index.js", 200, slog.LevelDebug},
-		{"/dl/latest/manifest.json", 200, slog.LevelDebug},
-		{"/api/v1/hosts", 200, slog.LevelInfo},
-		{"/api/v1/hosts", 404, slog.LevelWarn},
-		{"/api/v1/hosts", 500, slog.LevelError},
+		{"/health", 200, 0, slog.LevelDebug},
+		{"/health", 503, 0, slog.LevelError},
+		{"/api/v1/agent/metrics", 204, 0, slog.LevelDebug},
+		{"/api/v1/agent/metrics", 401, 0, slog.LevelWarn},
+		{"/assets/index.js", 200, 0, slog.LevelDebug},
+		{"/dl/latest/manifest.json", 200, 0, slog.LevelDebug},
+		{"/api/v1/hosts", 200, 0, slog.LevelInfo},
+		{"/api/v1/hosts", 404, 0, slog.LevelWarn},
+		{"/api/v1/hosts", 500, 0, slog.LevelError},
+		{"/api/v1/hosts/x/metrics", 200, 1500 * time.Millisecond, slog.LevelWarn}, // lenta: sube a Warn
+		{"/api/v1/hosts/x/metrics", 200, 900 * time.Millisecond, slog.LevelInfo},
+		{"/health", 200, 3 * time.Second, slog.LevelWarn},
 	}
 	for _, tc := range tests {
-		if got := requestLevel(tc.path, tc.status); got != tc.want {
-			t.Errorf("requestLevel(%s, %d) = %v, want %v", tc.path, tc.status, got, tc.want)
+		if got := requestLevel(tc.path, tc.status, tc.elapsed); got != tc.want {
+			t.Errorf("requestLevel(%s, %d, %s) = %v, want %v", tc.path, tc.status, tc.elapsed, got, tc.want)
 		}
 	}
 }

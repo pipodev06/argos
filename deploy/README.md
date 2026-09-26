@@ -46,6 +46,11 @@ Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin o
 - Diario a las 03:15 en `/var/backups/argos/argos-AAAA-MM-DD.dump` (14 días). Prueba: `sudo systemctl start argos-backup.service && ls /var/backups/argos`.
 - Restaurar (server parado): `sudo systemctl stop argos-server && pg_restore --clean --if-exists -d "$DATABASE_URL" archivo.dump`.
 
+## Dimensionar (rendimiento)
+- Medido con 1000 hosts (`docs/decisiones/2026-09-25-rendimiento.md`): lectura del dashboard 2–60 ms y el ingest aguantó ~300 req/s (≈9000 agentes a 30 s) en un portátil con todo en la misma máquina.
+- **RAM:** deja libre ~1 GB por cada 1000 hosts (a 30 s) para las particiones de hoy y ayer con su índice, además de la del server y de Postgres, y sube `shared_buffers` de los 128 MB por defecto a ~25 % de la RAM.
+- Una solicitud que tarda ≥ 1 s se registra como Warn en el log: si aparecen seguido en las gráficas de 24 h, falta RAM (o la BD se reinició y la caché está fría).
+
 ## Operación
 - Salud: `curl -s http://127.0.0.1:8080/health` (200 con BD viva, 503 si Postgres no responde): úsalo en Caddy (`health_uri`) o en un monitor externo. Log de solicitudes: `journalctl -u argos-server | grep solicitud` (los éxitos rutinarios de agentes, `/health` y estáticos van a nivel Debug y no salen).
 - Logs: `journalctl -u argos-server -f`. Estado: `systemctl status argos-server`. Auditar el sandbox: `systemd-analyze security argos-server`.

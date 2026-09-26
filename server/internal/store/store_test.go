@@ -15,6 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"argos/server/internal/testdb"
 )
 
 // Estos tests corren contra una Postgres real. Necesitan ARGOS_TEST_DATABASE_URL
@@ -120,9 +122,7 @@ func newTestStore(t *testing.T) *Store {
 	if testPool == nil {
 		t.Skip("ARGOS_TEST_DATABASE_URL no definida")
 	}
-	_, err := testPool.Exec(context.Background(),
-		`TRUNCATE service_check_defs, service_check_events, service_checks, metrics, metrics_hourly, maintenance_state, disk_samples, enroll_tokens, hosts, host_groups, alert_rules, notification_channels, maintenance_windows, sessions, audit_log, users CASCADE`)
-	if err != nil {
+	if err := testdb.ResetData(context.Background(), testPool); err != nil {
 		t.Fatalf("limpiando tablas: %v", err)
 	}
 	return New(testPool)

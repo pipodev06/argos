@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 # Verificacion de un modulo Go con salida MINIMA (ahorra tokens: el log completo va a .check/).
-# Uso: scripts/check-go.sh <server|agent|all> [--fast] [--pkg ./ruta]
+# Uso: scripts/check-go.sh <server|agent|all> [--fast] [--race] [--pkg ./ruta]
 #   --fast   omite golangci-lint y govulncheck (bucle de desarrollo)
+#   --race   corre los tests con el detector de carreras (CGO_ENABLED=1; en Windows necesita gcc en el PATH, ver
+#            docs/estado-del-proyecto.md). Tarda ~2,7 min en el server; el CI lo corre siempre en Linux.
 #   --pkg    acota tests (y vet) a un paquete, p. ej. --pkg ./internal/store
 # Tests de BD: define ARGOS_TEST_DATABASE_URL (BD que termine en _test).
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="$PATH:$HOME/go/bin"
-FAST=0; PKG="./..."; MODS=()
+FAST=0; PKG="./..."; MODS=(); RACEFLAG=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --fast) FAST=1 ;;
+    --race) RACEFLAG=-race; export CGO_ENABLED=1 ;;
     --pkg) shift; PKG="$1" ;;
     server|agent) MODS+=("$1") ;;
     all) MODS=(server agent) ;;
-    *) echo "uso: $0 <server|agent|all> [--fast] [--pkg ./ruta]"; exit 2 ;;
+    *) echo "uso: $0 <server|agent|all> [--fast] [--race] [--pkg ./ruta]"; exit 2 ;;
   esac
   shift
 done
-[ ${#MODS[@]} -gt 0 ] || { echo "uso: $0 <server|agent|all> [--fast] [--pkg ./ruta]"; exit 2; }
+[ ${#MODS[@]} -gt 0 ] || { echo "uso: $0 <server|agent|all> [--fast] [--race] [--pkg ./ruta]"; exit 2; }
 mkdir -p "$ROOT/.check"
 FAILED=0
 
@@ -53,7 +56,7 @@ for mod in "${MODS[@]}"; do
   fi
   # tests: solo lineas FAIL/panic/--- FAIL y el resumen; el detalle queda en el log
   log="$ROOT/.check/$mod-test.log"; t0=$SECONDS
-  if go test -count=1 "$PKG" >"$log" 2>&1; then
+  if go test $RACEFLAG -count=1 "$PKG" >"$log" 2>&1; then
     echo "OK   $mod/test ($((SECONDS - t0))s, $(grep -c '^ok' "$log") paquetes ok)"
   else
     FAILED=1

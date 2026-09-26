@@ -7,11 +7,17 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 - [x] **D3 Request logging mínimo** (2026-09-25) (método, ruta sin query, estado, ms, sin cabeceras ni cuerpos). *Hecho cuando:* visible en journalctl; un test verifica que no se loguean tokens/cookies.
 - [x] **D4 Separar roles de BD** (2026-09-25) (migrador vs runtime; cierra el hueco del trigger append-only de `audit_log`). *Hecho cuando:* el unit corre con rol sin DDL; `install-server.sh` crea ambos; test de que el runtime no puede `DROP TRIGGER`.
 
+## P1a — Rendimiento del server en runtime (nunca medido a escala, 2026-09-25)
+- [x] **P1 Sembrar 1000 hosts** (2026-09-25, `scripts/perf/`) con historial (script en `scripts/`, solo contra una BD `*_test` o de humo, nunca la real). *Hecho cuando:* `bash scripts/seed-load.sh` deja la BD lista y repetible.
+- [x] **P2 Medir p50/p95** (2026-09-25, `decisiones/2026-09-25-rendimiento.md`) de: `GET /hosts` (orden por cpu/mem/disco, filtros, cursor), `/summary`, `/hosts/{id}/metrics` (24h/7d/30d), `/alerts`, `/updates`, informes + CSV, e **ingest** (`POST /agent/metrics` e inventario) con N agentes concurrentes. *Hecho cuando:* tabla de resultados en `decisiones/` con la máquina usada.
+- [ ] **P3 `EXPLAIN (ANALYZE, BUFFERS)`** (nada pasa de 200 ms en caliente; **7d desde `metrics_hourly` hecho**: 50 → 2,8 ms; el `CLUSTER` de particiones cerradas se **descartó** (ver "Cómo se controla el riesgo de la caché fría"); queda medir el ciclo de mantenimiento y el evaluador con 1000 hosts) de lo que pase de 200 ms y corregir (índices, consultas, rollups). *Hecho cuando:* cada consulta lenta mejorada o justificada, y un test de humo de tiempo (con margen) para no regresar.
+- [ ] **P4 Tope y avisos**: cuántos hosts aguanta un server de cierta RAM/CPU; documentarlo en `deploy/README.md`.
+
 ## P1 — Suite del server (lenta: ~190–340 s)
-- [ ] **S1 Medir**: `go test -json` → top 20 tests/paquetes más lentos (sospechas: hash argon2, `TRUNCATE` por test, `sleep`s). *Hecho cuando:* tabla de tiempos en `decisiones/`.
-- [ ] **S2 Recortar** lo medido: params de argon2 baratos en tests, esquema compartido con `t.Parallel()` donde no haya estado global, quitar esperas fijas. *Hecho cuando:* `check-go.sh server` < 90 s sin perder cobertura (comparar `-cover`).
-- [ ] **S3 `-race` en local** (o job propio en CI con caché): hoy solo corre en CI Linux. *Hecho cuando:* documentado el comando y el tiempo.
-- [ ] **S4 Tests dependientes de la hora**: buscar `Now()±N` sin reloj inyectado (fallaron 2 por hora/zona). *Hecho cuando:* grep limpio o justificado.
+- [x] **S1 Medir** (2026-09-25, `decisiones/2026-09-25-rendimiento.md`): `go test -json` → top 20 tests/paquetes más lentos (sospechas: hash argon2, `TRUNCATE` por test, `sleep`s). *Hecho cuando:* tabla de tiempos en `decisiones/`.
+- [x] **S2 Recortar** (204 s → 73 s: `testdb.ResetData` y sin DROP DATABASE por corrida) lo medido: params de argon2 baratos en tests, esquema compartido con `t.Parallel()` donde no haya estado global, quitar esperas fijas. *Hecho cuando:* `check-go.sh server` < 90 s sin perder cobertura (comparar `-cover`).
+- [x] **S3 `-race` en local** (2026-09-25: `bash scripts/check-go.sh server --race`; suite del server con `-race` en 2 min 43 s: httpapi 151 s, store 114 s, retention 62 s; sin carreras) (o job propio en CI con caché): hoy solo corre en CI Linux. *Hecho cuando:* documentado el comando y el tiempo.
+- [ ] **S4 Tests dependientes de la hora** : buscar `Now()±N` sin reloj inyectado (fallaron 2 por hora/zona). *Hecho cuando:* grep limpio o justificado.
 
 ## P2 — Reglas de alerta de parches y alertas en general
 - [ ] **R1 Prueba E2E real** de `pending_updates`, `reboot_pending` y `os_eol` con los 2 hosts (crear regla en la UI, forzar la condición, ver alerta, ver notificación en el webhook). *Hecho cuando:* checklist ejecutado y hallazgos corregidos.

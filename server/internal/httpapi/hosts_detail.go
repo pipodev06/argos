@@ -16,18 +16,21 @@ type metricRange struct {
 	// hourly: lee los resumenes por hora (metrics_hourly) en vez de las muestras crudas.
 	// Como solo hay resumen de horas cerradas, la hora en curso no aparece en estos rangos.
 	hourly bool
+	// mixed: resumenes por hora para lo ya cerrado y crudo solo para la hora en curso (paso de 1 h).
+	mixed bool
 }
 
 // metricRanges es la allowlist estricta de ?range=; cualquier otro valor es 400.
-// 1h..7d leen el crudo (contrato original); 30d, 90d y 1y leen los resumenes por hora.
+// 1h..24h leen el crudo (contrato original); 7d mezcla resumenes por hora y el crudo de la hora en curso; 30d, 90d y 1y
+// leen los resumenes por hora.
 var metricRanges = map[string]metricRange{
-	"1h":  {time.Hour, 30 * time.Second, false},
-	"6h":  {6 * time.Hour, 2 * time.Minute, false},
-	"24h": {24 * time.Hour, 10 * time.Minute, false},
-	"7d":  {7 * 24 * time.Hour, time.Hour, false},
-	"30d": {30 * 24 * time.Hour, time.Hour, true},
-	"90d": {90 * 24 * time.Hour, 3 * time.Hour, true},
-	"1y":  {365 * 24 * time.Hour, 12 * time.Hour, true},
+	"1h":  {time.Hour, 30 * time.Second, false, false},
+	"6h":  {6 * time.Hour, 2 * time.Minute, false, false},
+	"24h": {24 * time.Hour, 10 * time.Minute, false, false},
+	"7d":  {7 * 24 * time.Hour, time.Hour, false, true},
+	"30d": {30 * 24 * time.Hour, time.Hour, true, false},
+	"90d": {90 * 24 * time.Hour, 3 * time.Hour, true, false},
+	"1y":  {365 * 24 * time.Hour, 12 * time.Hour, true, false},
 }
 
 const defaultMetricRange = "1h"
@@ -234,8 +237,11 @@ func (a *API) hostMetrics(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	series := a.store.MetricSeries
-	if rng.hourly {
+	switch {
+	case rng.hourly:
 		series = a.store.MetricSeriesHourly
+	case rng.mixed:
+		series = a.store.MetricSeriesMixed
 	}
 	points, err := series(r.Context(), id, a.now().Add(-rng.duration), rng.step)
 	if err != nil {

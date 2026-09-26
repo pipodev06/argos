@@ -60,7 +60,7 @@ type fakeStore struct {
 	seriesErr error
 	gotFrom   time.Time
 	gotStep   time.Duration
-	gotHourly bool
+	gotSource string // "raw", "hourly" o "mixed": que consulta de serie uso el handler
 }
 
 func (f *fakeStore) CreateEnrollToken(_ context.Context, _, _, _ string, groupID *string, _ time.Time) error {
