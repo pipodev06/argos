@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { InlineError } from '@/components/ui/inline-error'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { DeviceDetailView } from '@/features/devices/components/DeviceDetailView'
@@ -10,7 +11,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useHostDetail } from '../hooks/useHostDetail'
 import { useHostMetrics } from '../hooks/useHostMetrics'
 import type { MetricRange } from '../types/host.types'
-import { RANGES } from '../utils/chart'
+import { RANGES, rangeView } from '../utils/chart'
 import { BackToHostsLink } from './BackToHostsLink'
 import { EditHostDialog } from './EditHostDialog'
 import { HostCharts } from './HostCharts'
@@ -88,7 +89,15 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold">Métricas</h2>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <h2 className="text-sm font-semibold">Métricas</h2>
+                <Link
+                  to={`/hosts/${encodeURIComponent(id)}/historial`}
+                  className="text-sm text-brand underline-offset-4 hover:underline"
+                >
+                  Historial por fecha
+                </Link>
+              </div>
               <SegmentedControl
                 aria-label="Rango de tiempo"
                 options={RANGE_OPTIONS}
@@ -97,9 +106,8 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
               />
             </div>
             <HostCharts
-              range={range}
+              view={rangeView(range, metrics.updatedAt ?? 0)}
               metrics={metrics.data}
-              updatedAt={metrics.updatedAt}
               error={metrics.error}
             />
           </div>

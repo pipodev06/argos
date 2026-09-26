@@ -91,6 +91,30 @@ export function getRange(range: MetricRange): RangeConfig {
   return RANGES.find((r) => r.value === range) ?? RANGES[0]
 }
 
+/** Ventana y formato de ejes de una grafica: relativa a "ahora" (rangos) o fija (historial por fecha). */
+export interface ChartView {
+  startMs: number
+  endMs: number
+  tickMs: number
+  /** Frase para la descripcion accesible ("en la ultima hora"). */
+  phrase: string
+  formatTick: (ms: number) => string
+  formatTooltip: (ms: number) => string
+}
+
+/** Vista de un rango relativo que termina en `endMs`. */
+export function rangeView(range: MetricRange, endMs: number): ChartView {
+  const config = getRange(range)
+  return {
+    startMs: endMs - config.windowMs,
+    endMs,
+    tickMs: config.tickMs,
+    phrase: config.phrase,
+    formatTick: (ms) => formatTick(ms, range),
+    formatTooltip: (ms) => formatTooltipLabel(ms, range),
+  }
+}
+
 /** Fila del grafico: `t` en ms epoch; una serie en null = sin dato (hueco). */
 export interface ChartRow {
   t: number

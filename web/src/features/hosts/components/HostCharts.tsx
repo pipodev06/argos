@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import { InlineError } from '@/components/ui/inline-error'
-import type { HostMetrics, MetricRange } from '../types/host.types'
+import type { MetricSample } from '../types/host.types'
 import {
   buildRows,
   describeSeries,
-  getRange,
   summarize,
   type ChartSeries,
+  type ChartView,
   type SeriesKey,
   type SeriesStyle,
 } from '../utils/chart'
@@ -14,11 +14,16 @@ import { formatBps, formatMemory, formatNumber, formatPercent } from '../utils/f
 import { MetricChartCard, type ChartStatus } from './MetricChartCard'
 import { TimeSeriesChart } from './TimeSeriesChart'
 
+/** Datos que necesitan las graficas: los devuelven tanto `/metrics` como `/history`. */
+export interface ChartData {
+  step_seconds: number
+  points: MetricSample[]
+}
+
 interface HostChartsProps {
-  range: MetricRange
-  metrics: HostMetrics | null
-  /** Instante (ms) de la ultima consulta: fin de la ventana visible. */
-  updatedAt: number | null
+  /** Ventana visible, ejes y frase de la descripcion accesible. */
+  view: ChartView
+  metrics: ChartData | null
   error: string | null
 }
 
@@ -40,15 +45,12 @@ const formatLoad = (v: number) => formatNumber(v, 2)
 const CPU_TICKS = [0, 25, 50, 75, 100]
 const MIN_NET_MAX_BPS = 1000
 
-export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps) {
-  const config = getRange(range)
+export function HostCharts({ view, metrics, error }: HostChartsProps) {
   const rows = useMemo(
     () => (metrics ? buildRows(metrics.points, metrics.step_seconds) : []),
     [metrics],
   )
 
-  const endMs = updatedAt ?? 0
-  const startMs = endMs - config.windowMs
   const memTotal = metrics ? Math.max(0, ...metrics.points.map((p) => p.mem_total_mb)) : 0
   const swapTotal = metrics ? Math.max(0, ...metrics.points.map((p) => p.swap_total_mb ?? 0)) : 0
   // Sin dato en todo el rango (sin swap, Windows sin carga, sin bateria): la grafica se oculta.
@@ -61,7 +63,7 @@ export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps
     return keys.some((k) => summarize(rows, k) !== null) ? 'ready' : 'empty'
   }
 
-  const timeProps = { rows, range, startMs, endMs, tickMs: config.tickMs }
+  const timeProps = { rows, view }
   const cardErrorMessage = 'No se pudieron cargar las métricas.'
 
   return (
@@ -73,7 +75,7 @@ export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps
         legend={[CPU]}
         status={statusFor('cpu')}
         errorMessage={cardErrorMessage}
-        description={`Uso de CPU ${config.phrase}. ${describeSeries('CPU', summarize(rows, 'cpu'), formatPercent)}`}
+        description={`Uso de CPU ${view.phrase}. ${describeSeries('CPU', summarize(rows, 'cpu'), formatPercent)}`}
       >
         <TimeSeriesChart
           {...timeProps}
@@ -89,7 +91,7 @@ export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps
         legend={[MEM, TOTAL_STYLE]}
         status={statusFor('memUsed')}
         errorMessage={cardErrorMessage}
-        description={`Memoria usada ${config.phrase}, de ${formatMemory(memTotal)} en total. ${describeSeries('Usada', summarize(rows, 'memUsed'), formatMemory)}`}
+        description={`Memoria usada ${view.phrase}, de ${formatMemory(memTotal)} en total. ${describeSeries('Usada', summarize(rows, 'memUsed'), formatMemory)}`}
       >
         <TimeSeriesChart
           {...timeProps}
@@ -107,7 +109,7 @@ export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps
         legend={[RX, TX]}
         status={statusFor('rx', 'tx')}
         errorMessage={cardErrorMessage}
-        description={`Tráfico de red ${config.phrase}. ${describeSeries('Bajada', summarize(rows, 'rx'), formatBps)}. ${describeSeries('Subida', summarize(rows, 'tx'), formatBps)}`}
+        description={`Tráfico de red ${view.phrase}. ${describeSeries('Bajada', summarize(rows, 'rx'), formatBps)}. ${describeSeries('Subida', summarize(rows, 'tx'), formatBps)}`}
       >
         <TimeSeriesChart
           {...timeProps}
@@ -123,7 +125,7 @@ export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps
           legend={[SWAP, TOTAL_STYLE]}
           status={statusFor('swapUsed')}
           errorMessage={cardErrorMessage}
-          description={`Swap usada ${config.phrase}, de ${formatMemory(swapTotal)} en total. ${describeSeries('Usada', summarize(rows, 'swapUsed'), formatMemory)}`}
+          description={`Swap usada ${view.phrase}, de ${formatMemory(swapTotal)} en total. ${describeSeries('Usada', summarize(rows, 'swapUsed'), formatMemory)}`}
         >
           <TimeSeriesChart
             {...timeProps}
@@ -142,7 +144,7 @@ export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps
           legend={[LOAD1, LOAD5, LOAD15]}
           status={statusFor('load1', 'load5', 'load15')}
           errorMessage={cardErrorMessage}
-          description={`Carga del sistema ${config.phrase}. ${describeSeries('1 min', summarize(rows, 'load1'), formatLoad)}. ${describeSeries('5 min', summarize(rows, 'load5'), formatLoad)}. ${describeSeries('15 min', summarize(rows, 'load15'), formatLoad)}`}
+          description={`Carga del sistema ${view.phrase}. ${describeSeries('1 min', summarize(rows, 'load1'), formatLoad)}. ${describeSeries('5 min', summarize(rows, 'load5'), formatLoad)}. ${describeSeries('15 min', summarize(rows, 'load15'), formatLoad)}`}
         >
           <TimeSeriesChart
             {...timeProps}
@@ -159,7 +161,7 @@ export function HostCharts({ range, metrics, updatedAt, error }: HostChartsProps
           legend={[BATTERY]}
           status={statusFor('battery')}
           errorMessage={cardErrorMessage}
-          description={`Batería ${config.phrase}. ${describeSeries('Batería', summarize(rows, 'battery'), formatPercent)}`}
+          description={`Batería ${view.phrase}. ${describeSeries('Batería', summarize(rows, 'battery'), formatPercent)}`}
         >
           <TimeSeriesChart
             {...timeProps}
