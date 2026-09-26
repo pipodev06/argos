@@ -17,6 +17,17 @@ sudo bash deploy/install-server.sh --public-url https://argos.lan --install-post
 
 El resto de este documento es el flujo manual y la operación.
 
+## Detrás de un túnel (sin abrir puertos, sin Caddy)
+Si el server está en una red casera y lo sacas a Internet con un túnel (p. ej. Cloudflare Tunnel), el túnel termina el HTTPS y reenvía a `127.0.0.1:8080`; **no** uses `--with-caddy`:
+```bash
+sudo bash deploy/install-server.sh --public-url https://argos.cloud-at-home.net.pe --install-postgres --create-local-db --admin-user admin
+```
+- `ARGOS_LISTEN_ADDR=127.0.0.1:8080` y `ARGOS_TRUSTED_PROXIES=127.0.0.1/32` ya son los valores por defecto del instalador: el túnel (`cloudflared` u otro) se conecta desde loopback, por eso el server confía en su `X-Forwarded-For` para el límite de intentos y la auditoría. **No agregues otros proxies de confianza.** `ARGOS_PUBLIC_URL` debe ser exactamente el nombre público (con `https://`): alimenta la lista de `Host` permitidos, HSTS y la cookie `__Host-`.
+- Configura el túnel para que reenvíe la cabecera `Host` original (es lo normal) hacia `http://127.0.0.1:8080`. Ejemplo de ingreso en `cloudflared`: `hostname: argos.cloud-at-home.net.pe` → `service: http://127.0.0.1:8080`.
+- Los agentes se enrolan contra `https://argos.cloud-at-home.net.pe` (el modal "Agregar host" arma el comando con `ARGOS_PUBLIC_URL`). Sin `--insecure`: es HTTPS real.
+- El puerto 8080 solo escucha en loopback: no hace falta abrir nada en el router. Verifica desde fuera: `curl -s https://argos.cloud-at-home.net.pe/health`.
+- Revisa la revisión de seguridad multi-cliente (`docs/decisiones/`) antes de dar acceso a clientes.
+
 ## Requisitos (flujo manual)
 - Linux con systemd (probado el diseño para Ubuntu 22.04+/Debian 12+), acceso root.
 - **PostgreSQL 18** (el server lo exige) y, para el respaldo, `postgresql-client-18`.
