@@ -1,4 +1,5 @@
 import { IconCircleCheck, IconCircleOff, IconCircleX, IconClock, IconPlugConnectedX } from '@tabler/icons-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusTile, TILE_LINK } from '@/components/ui/status-tile'
@@ -12,6 +13,8 @@ interface StatusBlockProps {
   counts?: StatusCounts
   /** Ruta de la lista a la que enlaza cada tarjeta, con `?status=`. */
   to: string
+  /** Texto `xs` discreto bajo el título (p. ej. agentes desactualizados). */
+  note?: ReactNode
 }
 
 const TILES = [
@@ -23,12 +26,13 @@ const TILES = [
 ] as const
 
 /** Bloque de 3 filas x 2 columnas (Activos/Caídos, Sin conexión/Pendientes, Deshabilitados a ancho completo). */
-export function StatusBlock({ id, title, counts, to }: StatusBlockProps) {
+export function StatusBlock({ id, title, counts, to, note }: StatusBlockProps) {
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
       <h2 id={id} className="text-sm font-semibold">
         {title}
       </h2>
+      {note && <p className="-mt-2 text-xs text-text-muted">{note}</p>}
       <div className="grid grid-cols-2 gap-4">
         {TILES.map((t) => {
           const span = t.status === 'disabled' ? ' col-span-2' : ''

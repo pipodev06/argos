@@ -1,4 +1,5 @@
 import { IconServer2 } from '@tabler/icons-react'
+import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
@@ -6,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertsBlock } from '@/features/alerts/components/AlertsBlock'
 import { useAuth } from '@/features/auth/hooks/useAuth'
+import { outdatedAgentCount } from '@/features/hosts/utils/agentVersion'
 import { useNow } from '@/hooks/useNow'
 import { useSummary } from '../hooks/useSummary'
 import type { Summary } from '../types/summary.types'
@@ -59,6 +61,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
     )
   }
 
+  const outdated = data ? outdatedAgentCount(data.agent_versions) : 0
   const showDevices = data ? total(data.devices) > 0 : false
 
   return (
@@ -79,7 +82,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
 
         {/* Tres bloques de 3 filas (hosts 2x3, dispositivos 2x3, alertas 1x3) alineados; sin dispositivos, dos. */}
         <div className={'grid gap-6 ' + (showDevices ? 'lg:grid-cols-[2fr_2fr_1fr]' : 'lg:grid-cols-[2fr_1fr]')}>
-          <StatusBlock id="summary-hosts" title="Hosts" counts={data?.counts} to="/hosts" />
+          <StatusBlock id="summary-hosts" title="Hosts" counts={data?.counts} to="/hosts" note={data && outdated > 0 && data.agent_versions.latest !== null && <AgentsNote count={outdated} latest={data.agent_versions.latest} />} />
           {showDevices && <StatusBlock id="summary-devices" title="Dispositivos" counts={data?.devices} to="/dispositivos" />}
           <AlertsBlock />
         </div>
@@ -96,6 +99,19 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
           !error && <Skeleton className="h-48 w-full" />
         )}
       </div>
+    </>
+  )
+}
+
+/** "Agentes: N desactualizados (última versión X)" con enlace a la lista filtrada. */
+function AgentsNote({ count, latest }: { count: number; latest: string }) {
+  return (
+    <>
+      Agentes:{' '}
+      <Link to="/hosts?agent_outdated=true" className="text-brand underline">
+        {count} {count === 1 ? 'desactualizado' : 'desactualizados'}
+      </Link>{' '}
+      (última versión {latest})
     </>
   )
 }

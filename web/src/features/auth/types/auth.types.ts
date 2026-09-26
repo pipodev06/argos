@@ -9,6 +9,8 @@ export interface User {
   all_groups: boolean
   can_inventory: boolean
   can_updates: boolean
+  /** Puede reconocer alertas (el admin siempre). */
+  can_ack: boolean
 }
 
 export interface LoginCredentials {

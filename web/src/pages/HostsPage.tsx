@@ -10,6 +10,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { AddHostDialog } from '@/features/hosts/components/AddHostDialog'
 import { BulkBar } from '@/features/hosts/components/BulkBar'
 import { ColumnsMenu } from '@/features/hosts/components/ColumnsMenu'
+import { PendingTokensDialog } from '@/features/hosts/components/PendingTokensDialog'
 import { HostTable } from '@/features/hosts/components/HostTable'
 import { useColumnVisibility } from '@/features/hosts/hooks/useColumnVisibility'
 import { useHostList } from '@/features/hosts/hooks/useHostList'
@@ -35,6 +36,7 @@ export function HostsPage() {
   const summary = useSummary()
   const columns = useColumnVisibility()
   const [addOpen, setAddOpen] = useState(false)
+  const [tokensOpen, setTokensOpen] = useState(false)
 
   // El cursor es opaco y se invalida al reiniciar el servidor (400 invalid_cursor): se vuelve a la 1a pagina.
   const staleCursor = errorStatus === 400 && pagination.cursor !== null
@@ -93,6 +95,11 @@ export function HostsPage() {
               <Button variant="outline" size="sm" onClick={() => void refresh()}>
                 <IconRefresh stroke={1.5} aria-hidden />
                 Actualizar
+              </Button>
+            )}
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setTokensOpen(true)}>
+                Tokens pendientes
               </Button>
             )}
             {isAdmin && (
@@ -164,6 +171,7 @@ export function HostsPage() {
           </>
         )}
       </div>
+      {isAdmin && <PendingTokensDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />}
       {isAdmin && (
         <AddHostDialog
           open={addOpen}

@@ -13,9 +13,13 @@ interface AlertActionDialogProps {
 }
 
 const ALREADY_RESOLVED = 'La alerta ya estaba resuelta (por el sistema u otro administrador). Actualiza la vista.'
-const mapError = (err: ApiError) => (err.code === 'alert_resolved' ? ALREADY_RESOLVED : null)
+const NO_PERMISSION = 'No tienes permiso para esta acción. Pide a un administrador que te habilite "Reconocer alertas".'
+const mapError = (err: ApiError) => {
+  if (err.code === 'alert_resolved') return ALREADY_RESOLVED
+  return err.status === 403 ? NO_PERMISSION : null
+}
 
-/** Confirmación de Reconocer / Resolver una alerta (solo admin). */
+/** Confirmación de Reconocer / Resolver una alerta (Reconocer: admin o con permiso; Resolver: solo admin). */
 export function AlertActionDialog({ target, onClose }: AlertActionDialogProps) {
   const { error, busy, run, clearError } = useUserMutation()
   const resolving = target?.action === 'resolve'

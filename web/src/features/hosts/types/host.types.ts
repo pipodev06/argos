@@ -31,6 +31,8 @@ export interface Host {
   os: string
   os_name?: string | null
   os_version?: string | null
+  /** Versión del agente; null en dispositivos o si aún no la informó. */
+  agent_version: string | null
   ip: string | null
   cpu_pct: number | null
   mem_pct: number | null
@@ -49,6 +51,16 @@ export interface HostListResponse {
 export interface EnrollCommands {
   windows?: string
   linux?: string
+}
+
+/** Token de enrolamiento pendiente (GET /hosts/enroll-tokens); nunca incluye el secreto. */
+export interface PendingEnrollToken {
+  id: string
+  hostname: string
+  group: GroupRef | null
+  created_by: string
+  created_at: string
+  expires_at: string
 }
 
 export interface EnrollToken {

@@ -72,19 +72,19 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 
 ## P9 — Brechas de producto por flujo (análisis K, 2026-09-26; `decisiones/2026-09-26-brechas-producto.md`)
 Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), luego los S/M.
-- [ ] **B1 Viewers con grupos desde el alta** (= H3): `POST /users` acepta `group_ids`/permisos y el default deja de ser `all_groups=true`; UI del alta pide grupos. **Bloquea 1er cliente.**
-- [ ] **B2 Canal/regla sin fuga entre clientes**: `SetRuleChannels`/`updateAlertRule` rechazan asignar a un canal con dueño una regla de alcance `all` o de otro grupo (o canales con `group_id` dueño); una regla `all` como "Host caído" enviaría hostnames de otros clientes al webhook de uno. **Bloquea 1er cliente si hay canal propio.**
+- [x] **B1 Viewers con grupos desde el alta** (= H3; 2026-09-26, server + web): `POST /users` acepta `group_ids`/permisos y el default deja de ser `all_groups=true`; UI del alta pide grupos. **Bloquea 1er cliente.**
+- [x] **B2 Canal/regla sin fuga entre clientes** (2026-09-26: canales con dueño `group_id`, 422 `channel_scope_mismatch`, guard de entregas; server + web): `SetRuleChannels`/`updateAlertRule` rechazan asignar a un canal con dueño una regla de alcance `all` o de otro grupo (o canales con `group_id` dueño); una regla `all` como "Host caído" enviaría hostnames de otros clientes al webhook de uno. **Bloquea 1er cliente si hay canal propio.**
 - [ ] **B3 Bloqueo de la cuenta admin desde Internet** (= H4; decisión del usuario) y aviso al arrancar sin proxies confiables. **Bloquea.**
 - [ ] **B4 Primer despliegue real, instaladores en SO reales y restore probado** (= D1/T3/T5). **Bloquea.**
 - [ ] **B5 Respaldos cifrados y fuera del host** (= H6). **Bloquea.**
 - [ ] **B6 Auto-monitoreo del servicio**: ampliar `/health` (mantenimiento atrasado, cola de notificaciones, evaluador parado, disco) y alertar entregas `dead`/canal roto. (Alta, M)
 - [ ] **B7 Planes y cuotas por cliente** (hosts, dispositivos, chequeos, usuarios, reglas, canales) y consumo visible; hoy los topes son globales (200 reglas, 50 canales…). (Alta, L; depende de la entidad cliente B24)
-- [ ] **B8 Permiso `can_ack`** para que un viewer reconozca sus alertas. (Media, S)
-- [ ] **B9 Vista de versiones del agente** (columna/filtro, `latest` expuesto, "desactualizado"). (Media, S)
-- [ ] **B10 Listar/revocar enroll tokens pendientes** y estado "nunca reportó". (Media, S)
-- [ ] **B11 `DELETE /users`** auditado (y borrar viewers al purgar el grupo). (Media, S)
+- [x] **B8 Permiso `can_ack`** para que un viewer reconozca sus alertas. (Media, S)
+- [x] **B9 Vista de versiones del agente** (columna, chip "desactualizado", línea en el Resumen) (columna/filtro, `latest` expuesto, "desactualizado"). (Media, S)
+- [x] **B10 Listar/revocar enroll tokens pendientes** (falta el estado "nunca reportó") y estado "nunca reportó". (Media, S)
+- [x] **B11 `DELETE /users`** (falta borrar viewers al purgar el grupo) auditado (y borrar viewers al purgar el grupo). (Media, S)
 - [ ] **B12 Informes por mes calendario / rango libre** (hoy 7/30/90 d, tope 91 d; `host_events` guarda 400 d). (Media, S/M)
-- [ ] **B13 Plantillas/clonar reglas por cliente.** (Media, S)
+- [x] **B13 Clonar reglas** (botón Duplicar; plantillas por cliente no) (Media, S)
 - [ ] **B14 Re-enrolar conservando `host_id`** y aviso de hostnames duplicados. (Media, M)
 - [ ] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M)
 - [ ] **B16 Alta masiva / token por grupo** con topes. (Media, M)

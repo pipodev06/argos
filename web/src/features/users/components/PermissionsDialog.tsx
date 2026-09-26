@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -10,21 +9,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { InlineError } from '@/components/ui/inline-error'
-import { Input } from '@/components/ui/input'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { useGroups } from '@/features/groups/hooks/useGroups'
 import { useUserMutation } from '../hooks/useUserMutation'
 import { updateUser } from '../services/users.service'
 import type { ManagedUser } from '../types/user.types'
-import {
-  filterGroups,
-  formFromUser,
-  GROUP_SEARCH_THRESHOLD,
-  isSameForm,
-  MAX_USER_GROUPS,
-  toggleGroupId,
-  toPayload,
-} from '../utils/permissions'
+import { formFromUser, isSameForm, toPayload } from '../utils/permissions'
+import { PermissionsFields } from './PermissionsFields'
 
 interface PermissionsDialogProps {
   user: ManagedUser | null
@@ -43,11 +32,7 @@ export function PermissionsDialog(props: PermissionsDialogProps) {
 function PermissionsForm({ user, onClose, onSaved }: PermissionsDialogProps & { user: ManagedUser }) {
   const [initial] = useState(() => formFromUser(user))
   const [form, setForm] = useState(initial)
-  const [query, setQuery] = useState('')
-  const { groups: data, error: groupsError, loading } = useGroups()
   const { error, busy, run } = useUserMutation()
-  const groups = data?.items ?? []
-  const shown = filterGroups(groups, query)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -65,83 +50,7 @@ function PermissionsForm({ user, onClose, onSaved }: PermissionsDialogProps & { 
         <DialogTitle>Permisos de {user.username}</DialogTitle>
         <DialogDescription>El cambio se aplica en su próxima petición.</DialogDescription>
       </DialogHeader>
-      <RadioGroup
-        aria-label="Acceso a grupos"
-        value={form.allGroups ? 'all' : 'some'}
-        onValueChange={(v) => setForm({ ...form, allGroups: v === 'all' })}
-      >
-        <label htmlFor="perm-all" className="flex items-center gap-2 text-sm">
-          <RadioGroupItem id="perm-all" value="all" />
-          Todos los grupos
-        </label>
-        <label htmlFor="perm-some" className="flex items-center gap-2 text-sm">
-          <RadioGroupItem id="perm-some" value="some" />
-          Solo grupos seleccionados
-        </label>
-      </RadioGroup>
-      {!form.allGroups && (
-        <fieldset className="grid gap-2">
-          <legend className="text-sm font-medium text-text">
-            Grupos ({form.groupIds.length} de máx. {MAX_USER_GROUPS})
-          </legend>
-          {groups.length > GROUP_SEARCH_THRESHOLD && (
-            <Input
-              aria-label="Buscar grupos"
-              placeholder="Buscar grupo"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              maxLength={64}
-            />
-          )}
-          {groupsError && <InlineError>{groupsError}</InlineError>}
-          {loading && <p className="text-xs text-text-muted">Cargando grupos...</p>}
-          {data && groups.length === 0 && <p className="text-sm text-text-muted">Aún no hay grupos.</p>}
-          {data && groups.length > 0 && shown.length === 0 && <p className="text-sm text-text-muted">Ningún grupo coincide.</p>}
-          <div className="grid max-h-56 gap-2 overflow-y-auto">
-            {shown.map((g) => (
-              <label key={g.id} htmlFor={`perm-group-${g.id}`} className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  id={`perm-group-${g.id}`}
-                  checked={form.groupIds.includes(g.id)}
-                  onCheckedChange={(v) => setForm({ ...form, groupIds: toggleGroupId(form.groupIds, g.id, v === true) })}
-                />
-                <span className="truncate">{g.name}</span>
-              </label>
-            ))}
-          </div>
-          <p className="text-xs text-text-muted">
-            Los hosts sin grupo solo los ve un usuario con acceso a todos los grupos.
-          </p>
-        </fieldset>
-      )}
-      <div className="grid gap-1">
-        <label htmlFor="perm-inventory" className="flex items-center gap-2 text-sm font-medium text-text">
-          <Checkbox
-            id="perm-inventory"
-            aria-describedby="perm-inventory-hint"
-            checked={form.canInventory}
-            onCheckedChange={(v) => setForm({ ...form, canInventory: v === true })}
-          />
-          Ver procesos y servicios
-        </label>
-        <p id="perm-inventory-hint" className="text-xs text-text-muted">
-          Dato sensible. Solo aplica a los hosts que el usuario puede ver.
-        </p>
-      </div>
-      <div className="grid gap-1">
-        <label htmlFor="perm-updates" className="flex items-center gap-2 text-sm font-medium text-text">
-          <Checkbox
-            id="perm-updates"
-            aria-describedby="perm-updates-hint"
-            checked={form.canUpdates}
-            onCheckedChange={(v) => setForm({ ...form, canUpdates: v === true })}
-          />
-          Ver parches del SO
-        </label>
-        <p id="perm-updates-hint" className="text-xs text-text-muted">
-          Dato sensible: revela la exposición de cada host (parches de seguridad pendientes, fin de vida). Solo aplica a los hosts que el usuario puede ver.
-        </p>
-      </div>
+      <PermissionsFields idPrefix="perm" form={form} onChange={setForm} />
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>

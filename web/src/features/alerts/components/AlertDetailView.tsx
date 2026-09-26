@@ -8,6 +8,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth'
 import { formatFullDate } from '@/features/hosts/utils/format'
 import { useAlertDetail } from '../hooks/useAlerts'
 import type { Alert, Delivery } from '../types/alert.types'
+import { canAckAlerts, canResolveAlerts } from '../utils/permissions'
 import { exposedPortsText, formatAlertValue, formatMetricValue, isUpdatesKind, KIND_LABELS, METRIC_LABELS, RESOLVE_REASON_LABELS } from '../utils/format'
 import { AlertActionDialog, type AlertActionKind } from './AlertActionDialog'
 import { AlertStateBadge, SeverityBadge } from './AlertBadges'
@@ -55,7 +56,8 @@ export function AlertDetailView({ id }: { id: string }) {
   const [target, setTarget] = useState<{ action: AlertActionKind; alert: Alert } | null>(null)
   const notFound = errorStatus === 400 || errorStatus === 404
   const a = data?.alert
-  const isAdmin = user?.role === 'admin'
+  const canAck = canAckAlerts(user)
+  const canResolve = canResolveAlerts(user)
 
   return (
     <div className="flex flex-col gap-6" aria-busy={loading}>
@@ -79,16 +81,18 @@ export function AlertDetailView({ id }: { id: string }) {
                 <h1 className="min-w-0 truncate text-lg font-semibold">{a.rule_name}</h1>
                 <SeverityBadge severity={a.severity} />
                 <AlertStateBadge alert={a} />
-                {isAdmin && a.state !== 'resolved' && (
+                {(canAck || canResolve) && a.state !== 'resolved' && (
                   <span className="ml-auto flex gap-2">
-                    {a.state === 'open' && (
+                    {canAck && a.state === 'open' && (
                       <Button variant="outline" size="sm" onClick={() => setTarget({ action: 'ack', alert: a })}>
                         Reconocer
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => setTarget({ action: 'resolve', alert: a })}>
-                      Resolver
-                    </Button>
+                    {canResolve && (
+                      <Button variant="outline" size="sm" onClick={() => setTarget({ action: 'resolve', alert: a })}>
+                        Resolver
+                      </Button>
+                    )}
                   </span>
                 )}
               </div>

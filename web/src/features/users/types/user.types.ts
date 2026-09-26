@@ -14,6 +14,7 @@ export interface ManagedUser {
   group_ids: string[]
   can_inventory: boolean
   can_updates: boolean
+  can_ack: boolean
 }
 
 export interface UserListResponse {
@@ -24,6 +25,12 @@ export interface CreateUserInput {
   username: string
   password: string
   role: Role
+  /** Solo viewers. Sin all_groups ni group_ids, el viewer no ve nada. */
+  all_groups?: boolean
+  group_ids?: string[]
+  can_inventory?: boolean
+  can_updates?: boolean
+  can_ack?: boolean
 }
 
 /** Cambio parcial: el servidor exige al menos un campo. */
@@ -36,4 +43,5 @@ export interface UpdateUserInput {
   group_ids?: string[]
   can_inventory?: boolean
   can_updates?: boolean
+  can_ack?: boolean
 }

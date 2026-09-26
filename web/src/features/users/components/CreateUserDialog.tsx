@@ -14,8 +14,10 @@ import { MIN_PASSWORD_LENGTH } from '@/features/auth/constants'
 import type { Role } from '@/features/auth/types/auth.types'
 import { useUserMutation } from '../hooks/useUserMutation'
 import { createUser } from '../services/users.service'
+import { EMPTY_FORM, mapCreateUserError, seesNothing, toCreatePayload } from '../utils/permissions'
 import { passwordError } from '../utils/userQuery'
 import { PasswordField } from './PasswordField'
+import { PermissionsFields } from './PermissionsFields'
 import { RoleSelect } from './RoleSelect'
 
 interface CreateUserDialogProps {
@@ -28,7 +30,7 @@ export function CreateUserDialog({ open, onClose, onSaved }: CreateUserDialogPro
   // El formulario se monta solo abierto: al cerrar se descartan usuario y contraseña.
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>{open && <CreateUserForm onClose={onClose} onSaved={onSaved} />}</DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">{open && <CreateUserForm onClose={onClose} onSaved={onSaved} />}</DialogContent>
     </Dialog>
   )
 }
@@ -37,6 +39,7 @@ function CreateUserForm({ onClose, onSaved }: Omit<CreateUserDialogProps, 'open'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<Role>('viewer')
+  const [perms, setPerms] = useState(EMPTY_FORM)
   const [userError, setUserError] = useState<string | null>(null)
   const [passError, setPassError] = useState<string | null>(null)
   const { error, busy, run } = useUserMutation()
@@ -50,11 +53,11 @@ function CreateUserForm({ onClose, onSaved }: Omit<CreateUserDialogProps, 'open'
     const pe = passwordError(password, MIN_PASSWORD_LENGTH)
     if (pe) return setPassError(pe)
     const ok = await run(
-      () => createUser({ username: name, password, role }),
+      () => createUser(toCreatePayload(name, password, role, perms)),
       (err) => {
         if (err.code === 'weak_password') setPassError(err.message)
         else if (err.status === 409) setUserError('Ya existe un usuario con ese nombre.')
-        else return null
+        else return mapCreateUserError(err.code)
         return ''
       },
     )
@@ -82,6 +85,16 @@ function CreateUserForm({ onClose, onSaved }: Omit<CreateUserDialogProps, 'open'
       />
       <PasswordField id="user-password" label="Contraseña inicial" value={password} onChange={setPassword} error={passError} />
       <RoleSelect id="user-role" label="Rol" value={role} onChange={setRole} />
+      {role === 'viewer' && (
+        <>
+          <PermissionsFields idPrefix="new-user" form={perms} onChange={setPerms} />
+          {seesNothing(role, perms) && (
+            <p role="status" className="rounded-md border border-border p-2 text-xs text-text">
+              Este usuario no verá nada hasta que le asignes grupos o le des acceso a todos.
+            </p>
+          )}
+        </>
+      )}
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
