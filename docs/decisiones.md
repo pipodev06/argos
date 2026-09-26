@@ -1,60 +1,52 @@
-# Decisiones (INDICE: leer primero; abrir solo el tema de tu tarea)
+# Decisiones (ÍNDICE: leer primero; abrir solo el tema de tu tarea)
 
-## Como se usa este directorio
-- Este archivo es solo indice (<=100 lineas). El detalle vive en `docs/decisiones/<tema>.md`; abre unicamente los temas de tu tarea.
-- Decision nueva = archivo propio `docs/decisiones/AAAA-MM-DD-tema.md` (o ampliar el tema existente si es del mismo asunto).
-- Los agentes NO escriben en `docs/`: devuelven "notas para docs" y el orquestador las vuelca y anade la linea al indice.
-- Cada linea: `[estado: vigente | pendiente-usuario | reemplazada]` + tema + enlace. Reemplazada -> mover el detalle a `archivo.md` con una linea de por que.
-- No duplicar datos entre archivos: enlazar. No agregar logs de tests/e2e (eso es git).
-- Lee tambien `estado-del-proyecto.md` (<=60 lineas) y el resumen de `deuda-tecnica.md`.
+## Cómo se usa este directorio
+- Este archivo es solo índice. El detalle vive en `docs/decisiones/<tema>.md`; abre únicamente los temas de tu tarea.
+- Decisión nueva = archivo propio `docs/decisiones/AAAA-MM-DD-tema.md` (o ampliar el tema existente si es del mismo asunto). Cada línea del índice: `[estado]` + tema + enlace. Reemplazada → mover el detalle a `archivo.md` con una línea de por qué.
+- Los agentes NO escriben en `docs/`: devuelven "notas para docs" y el orquestador las vuelca y añade la línea al índice. No duplicar datos entre archivos: enlazar. No agregar logs de tests (eso es git).
+- Lee también `estado-del-proyecto.md`, `plan-tareas.md` y el resumen de `deuda-tecnica.md`.
 
-## Pendientes de decision del usuario
-- Roles de BD migrador/runtime: decidido y hecho el 2026-09-25 -> [roles-bd](decisiones/2026-09-25-roles-bd.md)
-- MFA (TOTP/WebAuthn), rotacion automatica del token de agente y auditoria transaccional: no decididas ni implementadas -> [auth](decisiones/auth-y-sesiones.md)
-- NFKC en contrasenas: requiere `golang.org/x/text` (dependencia no aprobada) -> [auth](decisiones/auth-y-sesiones.md)
-- Lista de contrasenas comprometidas embebida (SecLists 10k, MIT): confirmar; aporta casi nada con minimo 15 -> [auth](decisiones/auth-y-sesiones.md)
-- `x/crypto` con GO-2026-5932 (govulncheck, sin version corregida, codigo no la llama): aceptar o cambiar de libreria -> [deuda](deuda-tecnica.md)
-- Persistir buffer offline del agente en disco: elegir libreria (SQLite u otra) -> [agente](decisiones/agente-transporte-y-estado.md)
-- Firma de binarios (SmartScreen/Gatekeeper) y auto-actualizacion (solo con firmas): no antes -> [servicio](decisiones/agente-colectores-y-servicio.md)
-- Etiqueta launchd `com.argos.agent` y rutas de instalacion (`/opt/argos-agent`, `/usr/local/libexec/argos-agent`, `%ProgramFiles%\argos-agent`) -> [servicio](decisiones/agente-colectores-y-servicio.md)
-- `charging` = conectado a corriente: confirmar con `web/` y motor de alertas -> [servicio](decisiones/agente-colectores-y-servicio.md)
-- Gracia de arranque del detector (no marca nada los primeros `DOWN_AFTER`): confirmar o quitar -> [estados](decisiones/estados-y-deteccion.md)
-- Reclasificacion down<->offline al cambiar de grupo/`always_on` sin mover `status_changed_at`: confirmar -> [estados](decisiones/estados-y-deteccion.md)
-- Migraciones 00012/00013 (propias del backend) y vocabulario CHECK de status: pendientes de revision por `data-infra-engineer` -> [grupos](decisiones/grupos-etiquetas-metricas.md)
-- Respaldar `argos` antes de reiniciar el server (00006 toma `ACCESS EXCLUSIVE`; migrar 00006-00013 a la BD real) -> [datos](decisiones/datos-retencion-particionado.md)
-- CSP y `<style>` inyectados por Radix (scroll de fondo con modal): aceptar degradacion o nonce por request -> [csp](decisiones/csp-y-cabeceras.md)
-- Tests de frontend: adoptar Vitest (no hay runner) -> [datos front](decisiones/frontend-datos-y-navegacion.md)
-- Estilo a confirmar: radio circular de radio buttons (excepcion al 6px), checkbox neutro, tooltip, titulos `text-sm`, marcas UsageBar; `pending`=`info`; badge sin pastilla -> [estilo](decisiones/frontend-estilo-y-componentes.md)
-- CLAUDE.md del repo aun describe `terminal-dark` (y no menciona Slate); decisiones citan reglas de Slate en CLAUDE.md que no estan alli. Actualizar CLAUDE.md (solo el usuario/orquestador) -> [archivo](decisiones/archivo.md)
+## Pendientes de decisión del usuario
+- **Servicio hospedado** (2026-09-26): túnel (¿Cloudflare?) y bloqueo de la cuenta admin (#6/H4); respaldos cifrados (#12/H6: `age`/`gpg` y destino); política del resumen horario (400 d para todos vs limitado a la retención del cliente) -> [seguridad-multicliente](decisiones/2026-09-26-seguridad-multicliente.md)
+- MFA (TOTP/WebAuthn), rotación automática del token de agente y auditoría transaccional: no decididas ni implementadas -> [auth](decisiones/auth-y-sesiones.md)
+- NFKC en contraseñas (requiere `golang.org/x/text`, dependencia no aprobada) y lista de contraseñas comprometidas embebida (aporta casi nada con mínimo 15) -> [auth](decisiones/auth-y-sesiones.md)
+- Firma de binarios (SmartScreen/Gatekeeper; cosign) y actualización con firmas: **reprioriza por el servicio hospedado** (hallazgo #11) -> [servicio](decisiones/agente-colectores-y-servicio.md), [seguridad-multicliente](decisiones/2026-09-26-seguridad-multicliente.md)
+- Etiqueta launchd `com.argos.agent` y rutas de instalación (`/opt/argos-agent`, `/usr/local/libexec/argos-agent`, `%ProgramFiles%\argos-agent`) -> [servicio](decisiones/agente-colectores-y-servicio.md)
+- `charging` = conectado a corriente: confirmar con `web/` y el motor de alertas -> [servicio](decisiones/agente-colectores-y-servicio.md)
+- Gracia de arranque del detector (no marca nada los primeros `DOWN_AFTER`) y reclasificación down↔offline al cambiar de grupo/`always_on` sin mover `status_changed_at`: confirmar -> [estados](decisiones/estados-y-deteccion.md)
+- Migraciones 00012/00013 y vocabulario CHECK de status: pendientes de revisión por `data-infra-engineer` -> [grupos](decisiones/grupos-etiquetas-metricas.md)
+- CSP y `<style>` inyectados por Radix: aceptar degradación o nonce por request -> [csp](decisiones/csp-y-cabeceras.md)
+- Estilo a confirmar: radio circular de radio buttons (excepción al 6px), checkbox neutro, tooltip, títulos `text-sm`, marcas `UsageBar`; `pending`=`info`; badge sin pastilla -> [estilo](decisiones/frontend-estilo-y-componentes.md)
 - Bundle ~660 kB (Recharts): code-splitting del detalle o uPlot -> [datos front](decisiones/frontend-datos-y-navegacion.md)
-- Servir SPA desde el binario Go (fallback `index.html`, cache, CSP) y servir instaladores: sin disenar/implementar -> [csp](decisiones/csp-y-cabeceras.md)
-- CI Linux con `go test -race` (sin gcc en Windows local) y empaquetado: `devops-engineer` -> [operacion](decisiones/operacion-y-tooling.md)
-- Historial de transiciones `host_events` (base de alertas/uptime) y motor de alertas: sin disenar -> [estados](decisiones/estados-y-deteccion.md)
-- `ARGOS_CURSOR_KEY` en config si se escala a varias replicas (hoy clave por proceso) -> [api](decisiones/api-servidor.md)
+- `ARGOS_CURSOR_KEY` en config si se escala a varias réplicas (hoy clave por proceso) -> [api](decisiones/api-servidor.md)
 
-## Indice de temas vigentes
-- [estado: vigente] Auth de dashboard: roles, sesion `__Host-argos_sid`, Argon2id, bloqueo/rate limit, CSRF, usuarios, auditoria, TLS, cliente web de login -> [auth-y-sesiones](decisiones/auth-y-sesiones.md)
-- [estado: vigente] Cabeceras de seguridad, CSP, Host allowlist, `<style>` de Radix/Recharts, fallback SPA -> [csp-y-cabeceras](decisiones/csp-y-cabeceras.md)
-- [estado: vigente] Base servidor: goose, vocabulario CHECK, errores, limites, series de detalle, rangos 1h-1y, lista de hosts keyset, ingest -> [api-servidor](decisiones/api-servidor.md)
-- [estado: vigente] Estados up/down/offline/disabled, detector, umbral por grupo, reclasificacion, `status_changed_at` -> [estados-y-deteccion](decisiones/estados-y-deteccion.md)
-- [estado: vigente] Grupos, etiquetas, resumen, migraciones 00007-00013, metricas nuevas (swap/load/bateria/discos), contratos y errores -> [grupos-etiquetas-metricas](decisiones/grupos-etiquetas-metricas.md)
-- [estado: vigente] Particionado diario UTC, `metrics_hourly`, mantenimiento, guardia de borrado, retenciones -> [datos-retencion-particionado](decisiones/datos-retencion-particionado.md)
-- [estado: vigente] Agente: metricas base, enroll, estado, transporte seguro, resiliencia, exit codes -> [agente-transporte-y-estado](decisiones/agente-transporte-y-estado.md)
-- [estado: vigente] Agente: colectores (swap/load/bateria/discos/host_info) y servicio nativo Windows/Linux/macOS -> [agente-colectores-y-servicio](decisiones/agente-colectores-y-servicio.md)
-- [estado: vigente] Frontend: estilo Slate, tema por boton, shell/sidebar, componentes compartidos, estados de host -> [frontend-estilo-y-componentes](decisiones/frontend-estilo-y-componentes.md)
-- [estado: vigente] Frontend: `lib/api.ts`, polling, react-router 8.4.0, detalle con graficas y rangos -> [frontend-datos-y-navegacion](decisiones/frontend-datos-y-navegacion.md)
-- [estado: vigente] Variables `ARGOS_*` (tabla verificada contra el codigo), tests con BD real, compose, e2e, `-race` -> [operacion-y-tooling](decisiones/operacion-y-tooling.md)
-- [estado: reemplazada] terminal-dark, navegacion por hash, tema por `prefers-color-scheme`, icacls, tokens en claro, cursor, etc. -> [archivo](decisiones/archivo.md) (archivo, no leer salvo que investigues historia)
-
-- [vigente] Fases 2 y 3: pantallas con datos reales e instaladores servidos -> [decisiones/2026-09-24-fases-2-y-3.md](decisiones/2026-09-24-fases-2-y-3.md)
-
-- [vigente] Alertas y notificaciones (diseno aprobado, en revision de seguridad) -> [decisiones/2026-09-24-alertas.md](decisiones/2026-09-24-alertas.md)
-
-- [vigente] Chequeos de servicios: diseno aprobado y tanda 1 (servidor+agente) implementada -> [decisiones/2026-09-24-chequeos-servicios.md](decisiones/2026-09-24-chequeos-servicios.md)
-
-- [vigente] Etiquetas de host ELIMINADAS (migracion 00018): reemplaza las decisiones de etiquetas; los grupos se conservan -> [decisiones/2026-09-24-fases-2-y-3.md](decisiones/2026-09-24-fases-2-y-3.md)
-- [2026-09-25 Permisos por grupo](decisiones/2026-09-25-permisos-por-grupo.md) — ámbito por usuario/grupo, tanda 1 hecha (hosts/resumen/grupos/usuarios), tandas 2 y 3 pendientes
-- [2026-09-25 SLA y CSV](decisiones/2026-09-25-sla-csv.md) — diseño aprobado del punto 7 (host_events, disponibilidad, informes CSV); implementación en 3 tandas
-- [2026-09-25 Ping y SNMP](decisiones/2026-09-25-ping-snmp.md) — diseño aprobado del punto 8 (dispositivos sin agente, agente colector, SNMP v3, gosnmp); se implementa después del 7
-- [2026-09-25 Inventario del host](decisiones/2026-09-25-inventario.md) — puertos/servicios/procesos por agente, permiso can_inventory, 4 tandas (agente, ingest, lectura, UI)
-- [2026-09-25 Parches y vulnerabilidades](decisiones/2026-09-25-parches.md) — diseño propuesto (fase 1: actualizaciones pendientes/seguridad/reinicio/EOL; CVE aplazado), 4 tandas, pendiente de aprobación
+## Índice de temas vigentes
+### Base (2026-09-23/24)
+- [vigente] Auth de dashboard: roles, sesión `__Host-argos_sid`, Argon2id, bloqueo/rate limit, CSRF, usuarios, auditoría, TLS -> [auth-y-sesiones](decisiones/auth-y-sesiones.md)
+- [vigente] Cabeceras de seguridad, CSP, Host allowlist, fallback SPA -> [csp-y-cabeceras](decisiones/csp-y-cabeceras.md)
+- [vigente] Base servidor: goose, vocabulario CHECK, errores, límites, series de detalle, rangos 1h–1y, lista de hosts keyset, ingest -> [api-servidor](decisiones/api-servidor.md)
+- [vigente] Estados up/down/offline/pending/disabled, detector, umbral por grupo, `status_changed_at` -> [estados-y-deteccion](decisiones/estados-y-deteccion.md)
+- [vigente] Grupos, resumen, migraciones 00007–00013, métricas swap/load/batería/discos (etiquetas ELIMINADAS en 00018) -> [grupos-etiquetas-metricas](decisiones/grupos-etiquetas-metricas.md)
+- [vigente, **actualizado 2026-09-26**] Particionado diario UTC, `metrics_hourly`, mantenimiento, guardia de borrado, retenciones (ver el detalle comprimido más abajo: el crudo ahora es la ventana caliente) -> [datos-retencion-particionado](decisiones/datos-retencion-particionado.md)
+- [vigente] Agente: métricas base, enroll, estado, transporte seguro, resiliencia -> [agente-transporte-y-estado](decisiones/agente-transporte-y-estado.md)
+- [vigente] Agente: colectores y servicio nativo Windows/Linux/macOS -> [agente-colectores-y-servicio](decisiones/agente-colectores-y-servicio.md)
+- [vigente] Frontend: estilo Slate, tema por botón, shell/sidebar, componentes compartidos -> [frontend-estilo-y-componentes](decisiones/frontend-estilo-y-componentes.md)
+- [vigente] Frontend: `lib/api.ts`, polling, react-router, detalle con gráficas y rangos -> [frontend-datos-y-navegacion](decisiones/frontend-datos-y-navegacion.md)
+- [vigente] Variables `ARGOS_*`, tests con BD real, compose, e2e, `-race` -> [operacion-y-tooling](decisiones/operacion-y-tooling.md)
+- [vigente] Fases 2 y 3: pantallas con datos reales e instaladores servidos -> [fases-2-y-3](decisiones/2026-09-24-fases-2-y-3.md)
+- [vigente, implementado] Alertas y notificaciones -> [alertas](decisiones/2026-09-24-alertas.md)
+- [vigente, implementado] Chequeos de servicios -> [chequeos-servicios](decisiones/2026-09-24-chequeos-servicios.md)
+### Funcionalidad (2026-09-25)
+- [vigente, implementado] Permisos por grupo (ámbito por usuario/grupo, 3 tandas) -> [permisos-por-grupo](decisiones/2026-09-25-permisos-por-grupo.md)
+- [vigente, implementado] SLA, `host_events` e informes CSV -> [sla-csv](decisiones/2026-09-25-sla-csv.md)
+- [vigente, implementado] Ping y SNMP: dispositivos sin agente, agente colector, SNMP v3; **2026-09-26: deshabilitar/habilitar dispositivos** -> [ping-snmp](decisiones/2026-09-25-ping-snmp.md)
+- [vigente, implementado] Inventario del host (puertos/servicios/procesos, `can_inventory`) -> [inventario](decisiones/2026-09-25-inventario.md)
+- [vigente, implementado] Parches y fin de vida del SO; reglas `pending_updates`/`reboot_pending`/`os_eol`; EOL verificado en línea; E2E de reglas -> [parches](decisiones/2026-09-25-parches.md)
+- [vigente] Roles de BD migrador/runtime (`argos migrate`, `ARGOS_AUTO_MIGRATE`) -> [roles-bd](decisiones/2026-09-25-roles-bd.md)
+- [vigente] Rendimiento con 1000 hosts (lectura, ingest, 7 d desde resúmenes, suite de tests) -> [rendimiento](decisiones/2026-09-25-rendimiento.md)
+### Servicio hospedado (2026-09-26)
+- [vigente] Instalación de un paso: agente (buffer offline, `settings.json`, `update`), server (`install-server.sh`), modal y gráfica de parches -> [instalacion-un-paso](decisiones/2026-09-26-instalacion-un-paso.md)
+- [vigente] Carga de inventario y parches, soak, caché fría; derivados O1–O4 -> [carga-inventario-parches](decisiones/2026-09-26-carga-inventario-parches.md)
+- [vigente] Detalle comprimido por host-día + retención por host/grupo/global -> [detalle-comprimido-retencion](decisiones/2026-09-26-detalle-comprimido-retencion.md)
+- [vigente] Revisión de seguridad multi-cliente, hallazgos H1–H8 y lista de verificación tras el túnel -> [seguridad-multicliente](decisiones/2026-09-26-seguridad-multicliente.md)
+- [reemplazada] terminal-dark, navegación por hash, tema por `prefers-color-scheme`, tokens en claro, y lo resuelto el 2026-09-26 (buffer offline, roles de BD, Vitest, SPA en el binario, CI `-race`…) -> [archivo](decisiones/archivo.md) (no leer salvo que investigues historia)

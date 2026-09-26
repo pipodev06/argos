@@ -1,81 +1,59 @@
-# Deuda tecnica (actualizada 2026-09-25; lo resuelto esta en `decisiones/archivo.md`)
+# Deuda técnica (repaso completo el 2026-09-26; lo resuelto está en `decisiones/archivo.md`)
 
-Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/agent con `-race` en Linux, verde); SPA servida por el server con fallback y CSP (`ARGOS_WEB_DIR`); la CSP con `style-src 'unsafe-inline'` resuelve el `<style>` de `react-remove-scroll`; runner de tests del frontend (Vitest); BD real `argos` migrada hasta 00019 (se aplica al arrancar el server); etiquetas eliminadas; canal Discord verificado por el usuario (con sufijo `/slack`).
+Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites y riesgos conocidos. Hallazgos de seguridad del servicio hospedado: `decisiones/2026-09-26-seguridad-multicliente.md`.
 
-## Resumen por severidad (leer solo esto; abrir la seccion enlazada si tocas ese area)
-### Alta
-- Exponer el server fuera de loopback solo tras HTTPS + `ARGOS_PUBLIC_URL`; no verificado con proxy real -> [Seguridad](#seguridad)
-- Instalacion real del servicio del agente sin probar en Windows/Linux/macOS -> [Agente](#agente-y-servicio)
+## Resumen por severidad (leer solo esto; abrir la sección enlazada si tocas esa área)
+### Alta (antes de entrar el primer cliente)
+- Bloqueo de la cuenta admin desde Internet (único admin), baja/offboarding con respaldos sin limpiar, respaldos sin cifrar, binarios sin firma, viewers nuevos que ven todo por defecto -> [Servicio hospedado](#servicio-hospedado)
+- Instalación real (agente Windows/Linux/macOS y `install-server.sh` en Linux) sin ejecutar en un SO real -> [Instalación](#instalación-de-un-paso-sin-probar-en-so-real)
+- Empaquetado de detalle (`metrics_chunks`) probado solo con particiones pequeñas; probar el backfill con volumen antes de actualizar una BD con historial -> [Datos](#datos-y-api)
 ### Media
-- Pantallas nuevas sin revisar en navegador (permisos/Acceso, chequeos, mantenimiento, alertas): esperan observaciones del usuario -> [Frontend](#frontend)
-- Sin firma de binarios ni auto-actualizacion; `install` no pasa config de entorno al servicio -> [Agente](#agente-y-servicio)
-- Estado en memoria mono-instancia (rate limits, clave HMAC de cursores) -> [Seguridad](#seguridad)
-- Auditoria best-effort (no transaccional) -> [Seguridad](#seguridad)
-- Tests de frontend parciales (Vitest, 55 tests: sin `ruleForm`, `checkForm`, `chart`, `alertQuery` ni componentes) y sin probar contra la API real (30d/90d/1y) -> [Frontend](#frontend)
-- Lista/resumen sin medir con 1000 hosts; serie de 7d ~115 ms/host; filtro de ambito de alertas sin EXPLAIN con volumen (el indice `alerts_host_idx` ya existe desde 00015, no hace falta otro) -> [Datos](#datos-y-api)
-- `host_events` ya existe (00014; extendido en 00020, retencion 400 d); faltan API y pantalla de SLA (punto 7, tandas 2 y 3); `DETACH` aplazado no alerta -> [Datos](#datos-y-api)
-- Webhook: Discord solo funciona con el sufijo `/slack` en la URL (el payload lleva `text`, no `content`); sin formato nativo de Discord -> [Operacion](#operacion)
+- Pantallas nuevas sin revisar en navegador (Resumen sí lo revisó el usuario): parches (gráfica y filtros), modal "Agregar host", historial por fecha, configuración/retención, purga, dispositivos (deshabilitar) -> [Frontend](#frontend)
+- Estado en memoria mono-instancia (rate limits, clave HMAC de cursores, dedup de auditoría) -> [Seguridad](#seguridad)
+- Auditoría best-effort (no transaccional) -> [Seguridad](#seguridad)
+- Evaluador de alertas: la vista `alert_candidates` cuesta ~0,4 s con 1000 hosts (LATERAL por fila) -> `plan-tareas.md` O1
+- Monitorear el propio servicio: un `DETACH`/empaquetado que falla solo deja un ERROR en el log (sin alerta) -> [Operación](#operación)
 ### Baja
-- Bloqueo por cuenta permite bloquear a un usuario ajeno; sin tests del prompt de `create-admin` -> [Seguridad](#seguridad)
-- `govulncheck`: GO-2026-5932 en `x/crypto` (sin fix; no se llama) -> [Seguridad](#seguridad)
-- Bateria, discos, `host_info`, red virtual: limites de los colectores -> [Agente](#agente-y-servicio)
-- Linux solo systemd; macOS sin rotacion de log; Windows estado solo lectura; `install` deja restos si falla -> [Agente](#agente-y-servicio)
-- Series: primer tramo sin tasa, datos tardios >3 h, tasas ponderadas aproximadas, particion ausente tras parada larga -> [Datos](#datos-y-api)
-- Sin test de `main`/SIGTERM real -> [Operacion](#operacion)
-- `-race` no corre en local (falta gcc en Windows); lo cubre el CI de Linux -> [Operacion](#operacion)
-- Permisos por grupo: `check_name` de una regla de alcance `all` puede nombrar un chequeo de un grupo ajeno (fuga menor aceptada); los cambios de permisos de un usuario se ven en su navegador al recargar (el frontend lee `/auth/me` al cargar) -> [Seguridad](#seguridad)
+- Webhook: Discord solo funciona con el sufijo `/slack` (payload con `text`, no `content`) -> [Operación](#operación)
+- Límites de colectores (batería, discos, `host_info`, red virtual), Linux solo systemd, macOS sin rotación de log, Windows con estado de solo lectura -> [Agente](#agente-y-servicio)
+- Series: primer tramo sin tasa, datos tardíos >3 h no se reprocesan, partición ausente tras una parada larga -> [Datos](#datos-y-api)
+- Sin test de `main`/SIGTERM real; tests de BD se SALTAN en silencio sin `ARGOS_TEST_DATABASE_URL` -> [Operación](#operación)
 
-## Instalación de un paso (2026-09-26, sin probar en SO real)
-- Agente: `install`/`update` y los instaladores sin ejecutar en Windows/Linux/macOS reales (macOS sin equipo); `update` sin firmas independientes; cambiar `--privileged`/`--ca-file` de un servicio instalado exige `uninstall --keep-state` + `install`.
-- Server: `install-server.sh` sin ejecutar en un Linux real (apt/PGDG/Caddy/ufw/systemd); URL de BD por argv a `psql` un instante; sin verificar huellas de las claves GPG; usuario existente no admin hace fallar `create-admin` al final.
+## Servicio hospedado
+- Ver la tabla de hallazgos y la lista de verificación de despliegue tras el túnel en `decisiones/2026-09-26-seguridad-multicliente.md`. Abiertos: #5 (viewers con `all_groups=true` por defecto), #6 (bloqueo de cuenta; decisión del usuario), #8 (frecuencia de ingest por host), #11 (firma de binarios), #12 (respaldos cifrados; decisión del usuario) y la política del resumen horario (400 d aunque la retención del cliente sea menor; decisión del usuario).
+- La purga (H2) no limpia respaldos (14 días) ni `audit_log`. El modelo de canales de notificación es global (solo admin): un cliente no puede tener sus propios canales; SMTP aplazado. Los topes de recursos (hosts, dispositivos, chequeos, reglas) son globales, no por cliente.
+
+## Instalación de un paso (sin probar en SO real)
+- Agente: `install`/`update` e instaladores (`install.sh`/`install.ps1`) sin ejecutar en Windows/Linux/macOS reales (macOS sin equipo); `update` verifica solo el sha256 del manifiesto (sin firmas independientes); cambiar `--privileged`/`--ca-file` de un servicio ya instalado exige `uninstall --keep-state` + `install`; `--token` visible en `ps` durante la instalación; el manifiesto se verifica solo al arrancar el server.
+- Server: `install-server.sh` (apt/PGDG/Caddy/ufw/systemd) sin ejecutar en Linux; la URL de la BD viaja un instante por argv a `psql`; sin verificar huellas de las claves GPG; si el usuario elegido ya existe sin ser admin, `create-admin` falla al final.
+- Falta `systemd-analyze security` de ambas unidades, la lectura de `/sys/class/power_supply` con la unit endurecida y `dscl`/`launchctl` reales. Si `PrivateDevices=true` o `MemoryDenyWriteExecute=true` rompen una distro, quitar solo esa línea y anotarlo.
 
 ## Seguridad
-- Server fuera de loopback (`ARGOS_LISTEN_ADDR` no loopback) solo tras HTTPS (proxy inverso o `ARGOS_TLS_CERT/KEY`) y con `ARGOS_PUBLIC_URL`; verificado solo TLS directo con cert autofirmado y curl.
-- Roles de BD (hecho 2026-09-25, `decisiones/2026-09-25-roles-bd.md`): en el modo de un solo rol (dev, o `--db-url` sin `--migrate-db-url`) el server sigue siendo dueño y puede saltar el trigger de `audit_log`. El rol de runtime es dueño de las tablas particionadas y tiene CREATE en `public` (limite aceptado).
-- Rate limits y contadores de fallos de agente en memoria (pierden estado al reiniciar, no se comparten entre replicas). La clave HMAC de los cursores de `GET /hosts` es aleatoria por proceso (reinicio o varias instancias -> 400 `invalid_cursor`); si se escala, pasar a BD/Redis y mover la clave a `ARGOS_CURSOR_KEY`.
-- Auditoria best-effort: si la escritura falla solo se loguea; revisar si se exige no repudio.
-- El bloqueo por cuenta (15 min por 10 fallos) permite bloquear a proposito a otro usuario; mitigado por limite por IP y `reset-password`.
-- Sin tests del prompt sin eco de `create-admin`/`reset-password` (solo stdin por tuberia; los flujos de store/handlers si).
-- `govulncheck` reporta GO-2026-5932 en `golang.org/x/crypto@v0.57.0` (sin version corregida; el codigo no llama la funcion afectada); preexistente.
+- Server fuera de loopback solo tras HTTPS (túnel/proxy o `ARGOS_TLS_CERT/KEY`) con `ARGOS_PUBLIC_URL` y `ARGOS_TRUSTED_PROXIES`; sin proxies confiables todos los clientes comparten la IP del proxy (el límite de login/enroll se vuelve un DoS). Verificado solo TLS directo con cert autofirmado y curl; **no con un túnel real**.
+- Roles de BD: en el modo de un solo rol (dev, o `--db-url` sin `--migrate-db-url`) el server es dueño y puede saltar el trigger de `audit_log`; el rol de runtime es dueño de las tablas particionadas y tiene CREATE en `public` (límite aceptado; ver `2026-09-25-roles-bd.md`).
+- Rate limits, fallos de agente, dedup de auditoría y la clave HMAC de cursores viven en memoria (se pierden al reiniciar; no se comparten entre réplicas → `ARGOS_CURSOR_KEY`/BD si se escala).
+- Permisos por grupo: `check_name` de una regla de alcance `all` puede nombrar un chequeo de un grupo ajeno (fuga menor aceptada); los cambios de permisos de un usuario se ven al recargar (el front lee `/auth/me` al cargar).
+- Sin tests del prompt sin eco de `create-admin`/`reset-password` (solo stdin; los flujos de store/handlers sí). Ingest: un token robado puede escribir hasta ~15× la frecuencia normal (H5).
 
 ## Agente y servicio
-- Instalacion real sin probar en ningun SO (requiere elevacion; hay unit tests, ACL real en dir temporal, cross-compile). Falta: `install` -> `enroll` -> `start` en cada SO, `systemd-analyze security argos-agent`, lectura de `/sys/class/power_supply` con la unit endurecida, `dscl`/`launchctl` reales, log en el registro de eventos. Si `PrivateDevices=true` o `MemoryDenyWriteExecute=true` rompen una distro, quitar solo esa linea y anotarlo.
-- Buffer offline persistente (hecho 2026-09-26, `decisiones/2026-09-26-instalacion-un-paso.md`): los extras (discos/host_info) de un reporte descartado por tope no se persisten.
-- Sin firma de binarios (SmartScreen, Gatekeeper/notarizacion; un binario Go en darwin/arm64 con firma ad-hoc del linker corre pero no esta notarizado) ni auto-actualizacion (actualizar = `uninstall --keep-state` + `install`; auto-update solo con firmas).
-- Config del servicio por env (intervalo, `ARGOS_ALLOW_INSECURE`...) no la pasa `install`: ponerla a mano (drop-in de systemd, `EnvironmentVariables` del plist, `Environment` del registro). Un server `http` remoto no funciona como servicio sin `ARGOS_ALLOW_INSECURE`.
-- Windows: el servicio solo LEE el estado (ACL de solo lectura); con rotacion de token habra que darle escritura en `%ProgramData%\argos-agent` y revisar el modelo de amenazas. `install` deja binario y usuario aunque falle un paso posterior (solo en Windows se revierte el servicio); `uninstall` los limpia.
-- macOS: sin rotacion de `/var/log/argos-agent.log` (newsyslog no reabre el archivo que mantiene launchd); con el server caido se escribe cada ciclo. Linux exige systemd (sin sysvinit/OpenRC/Alpine).
-- Bateria: estado `Unknown` de sysfs omite el bloque (se podria mirar `AC*/online`); solo `BAT*` (no `macsmc-battery`, `qcom-battmgr-bat`); baterias multiples sin ponderar por capacidad.
-- Discos: excluidos red y `fuse.*` (p. ej. `mergerfs`); Windows solo unidades fijas (un USB marcado removible no se reporta); sin proteccion contra `statfs` colgado en un montaje local roto.
-- `host_info`: IPv6 temporales rotan (envios extra, tope 1 cada 5 min); interfaces virtuales filtradas por prefijo de nombre (puede dejar pasar alguna); `os_name` en Linux = id de distro ("ubuntu"). Contadores de red suman interfaces virtuales (docker, veth, VPN).
-- Apagado por senal solo probado por cancelacion de contexto (no Ctrl+C/SIGTERM real en Windows).
+- `IngestMetrics` no distingue 404/409 si el host se purga entre autenticar e ingerir (FK → 500); ahora posible con la purga (H2), improbable en la práctica.
+- Buffer offline persistente: los extras (discos/`host_info`) de un reporte descartado por tope no se persisten; tras reiniciar con buffer viejo reenvía a 1 reporte cada 2,5 s.
+- Windows: el servicio solo LEE el estado (ACL de solo lectura; con rotación de token habrá que darle escritura); `install` deja binario y usuario si falla un paso posterior (solo en Windows se revierte el servicio). macOS: sin rotación de `/var/log/argos-agent.log`. Linux exige systemd.
+- Batería: `Unknown` de sysfs omite el bloque; solo `BAT*`; baterías múltiples sin ponderar. Discos: excluidos red y `fuse.*`, Windows solo unidades fijas, sin protección contra `statfs` colgado. `host_info`: IPv6 temporales rotan; interfaces virtuales filtradas por prefijo; `os_name` en Linux = id de distro; los contadores de red suman interfaces virtuales.
+- Apagado por señal solo probado por cancelación de contexto (no Ctrl+C/SIGTERM real en Windows).
 
 ## Datos y API
-- Migracion 00006: `ADD CONSTRAINT ... CHECK` y resumen inicial del historial legacy (48 h por ciclo) no medidos con decenas de millones de filas; con `argos` (~1000 filas) es instantaneo (la BD real ya esta migrada hasta 00019).
-- Lista de hosts y resumen sin medir con 1000 hosts (orden por cpu/mem/disco sobre `host_latest` con seq scan; revisar planes). Serie de 7d ~115 ms por host con 60k muestras (calculo en CPU por peticion); si crece: rollup por hora / TimescaleDB. Sin test de carga automatico de la consulta.
-- `host_events`: diseño aprobado en `decisiones/2026-09-25-sla-csv.md` (trigger sobre `hosts`, retencion 400 d, siembra inicial; el pasado no se reconstruye; una caida se subcuenta hasta `down_after_seconds`; editar una ventana de mantenimiento cambia el % pasado). Un `DETACH ... CONCURRENTLY` espera a todas las transacciones anteriores (consulta larga o "idle in transaction" aplaza el borrado; con `lock_timeout` 5 s falla con log ERROR y reintenta cada ciclo, sin alerta propia: avisar cuando exista el motor de alertas).
-- Si el server/mantenimiento estuvo parado varios dias no se crean particiones pasadas: una muestra con `ts` en ese hueco da 503 hasta caer fuera de la ventana de 7 dias del ingest (el buffer del agente se limpia solo; sin backfill).
-- Datos tardios de mas de 3 h no se reprocesan en `metrics_hourly`. El promedio de buckets de 3 h/12 h es ponderado por `samples` de tasas ya promediadas (error <2 % en el test).
-- `MetricSeries`/`MetricSeriesHourly` no leen la muestra previa al rango: el primer tramo no tiene tasa; con solo 2 muestras muy separadas no se marca hueco.
-- `disks` del detalle mira 7 dias; un equipo apagado mas tiempo no muestra discos. `summary.by_group` rotula "Sin grupo" en espanol (el front puede usar `group_id: null`).
-- `IngestMetrics` no distingue 404/409 si el host se borra entre auth e ingest (FK -> 500); improbable (no hay borrado de hosts). Con varias instancias cada una tiene su propia gracia de arranque del detector (sin coordinacion; el UPDATE es idempotente).
+- **`metrics_chunks`** (`decisiones/2026-09-26-detalle-comprimido-retencion.md`): ningún test empaqueta una partición grande (la mayor: 60 filas); un chunk que falle siempre deja la partición sin borrar y loguea ERROR cada ciclo; `disk_samples` sigue en particiones diarias con retención global; validaciones aceptan 730 d aunque `HOT_DAYS` sea mayor que 8; la lista de hosts no muestra la retención propia.
+- Si el server/mantenimiento estuvo parado varios días no se crean particiones pasadas: una muestra con `ts` en ese hueco da 503 hasta caer fuera de la ventana de 7 días del ingest (sin backfill).
+- Datos tardíos de más de 3 h no se reprocesan en `metrics_hourly`; el promedio de buckets de 3 h/12 h pondera tasas ya promediadas (error <2 % en test). `MetricSeries*` no lee la muestra previa al rango (el primer tramo no tiene tasa). El CSV crudo del historial usa hueco fijo de 10 min y el JSON la mediana. `disks` del detalle mira 7 días. `summary.by_group` rotula "Sin grupo" en español.
+- Un `DETACH ... CONCURRENTLY` espera a todas las transacciones anteriores (una consulta larga aplaza el borrado; con `lock_timeout` 5 s falla con ERROR y reintenta cada ciclo, sin alerta propia). Con varias instancias cada una tiene su propia gracia de arranque del detector (el UPDATE es idempotente).
+- `host_events`: el pasado no se reconstruye; una caída se subcuenta hasta `down_after_seconds`; editar una ventana de mantenimiento cambia el % de disponibilidad pasado.
 
 ## Frontend
-- Vitest (`npm test`, 55 tests junto al codigo; corre en `check-web.sh` y CI): sin cobertura de `ruleForm`, `checkForm`, `chart`, `alertQuery`, otros hooks ni componentes. Sin probar en navegador (visual, teclado), ni los rangos 30d/90d/1y ni el contrato de grupos/summary contra la API real. Bundle ~660 kB (Recharts). "Ver procesos y servicios" es un Checkbox (no hay componente Switch).
+- Bundle ~660 kB (Recharts): code-splitting o uPlot. Vitest (267+ tests) cubre la lógica pura; sin tests de componentes ni de accesibilidad automatizados; sin probar en navegador ni los rangos 30d/90d/1y contra la API real. En la tabla de dispositivos el aviso de desfase puede desbordar los 36 px de fila en pantallas angostas. El origen para `--insecure` del modal es `window.location.origin`.
 
-## Operacion
-- El server sirve el frontend con `ARGOS_WEB_DIR` (fallback SPA, CSP con `style-src 'unsafe-inline'`, ruta invalida = no arranca; un POST a ruta desconocida da 405). Lo que sigue pendiente es HTTPS/proxy para exponerlo fuera de loopback (ver Seguridad).
-- Tests de BD: sin `ARGOS_TEST_DATABASE_URL` (BD que termine en `_test`; local: `postgres://argos:argos@localhost:5432/argos_test?sslmode=disable`) se SALTAN en silencio, y el resultado sigue en verde; verificar siempre con la variable definida. El CI define la suya.
-- `-race`: sin gcc en Windows local; corre en el CI de Linux (verde el 2026-09-25).
-- Sin test de `main` (cableado/apagado por senal); e2e cerrados con `taskkill /F` en Windows.
-
-## Fase 3 instaladores (2026-09-24)
-- ALTA: binarios servidos sin firma: un server comprometido da codigo como root/SYSTEM en hosts nuevos. Requiere firmas independientes del server antes de cualquier auto-update. Ver decisiones/2026-09-24-fases-2-y-3.md.
-- Media: manifiesto verificado solo al arrancar; `--token` visible en `ps` durante la instalacion; instaladores y PowerShell no ejecutados de verdad (solo `bash -n` y parseo); bundle web >500 kB.
-
-## Diseños aprobados, sin implementar (2026-09-25)
-- Ping y SNMP para equipos sin agente (punto 8): `decisiones/2026-09-25-ping-snmp.md` (agente colector con `ARGOS_PROBE_ALLOW`, `hosts.kind='device'`, SNMP v3 por defecto, `gosnmp` aprobado, solo interfaces marcadas). Se implementa despues del SLA.
-- Inventario de procesos/servicios/puertos (permiso `can_inventory` y guard `requireInventory` ya listos; falta el agente y el endpoint) y estado de parches/vulnerabilidades del SO: siguientes tras 7 y 8.
-- Canal de correo (SMTP): no por ahora (decision del usuario).
-- Corregido (2026-09-25): `TestLatestMetricsAndSeriesIncludeNewColumns` fallaba en el CI entre :00 y :01 de cada hora (4 muestras cruzaban el límite de la hora); ahora se alinea a la hora anterior. Revisar otros tests con "ahora ± N" si aparece otro fallo horario.
-- Corregido (2026-09-25): el CI del agente falló 2 veces por `G115` (gosec) en `ping_native_unix.go`, invisible en el lint local de Windows; `scripts/check-go.sh` ahora corre `golangci-lint` también con `GOOS=linux` y `darwin` (pasos `lint-linux`/`lint-darwin`).
+## Operación
+- El server sirve el frontend con `ARGOS_WEB_DIR` (fallback SPA, CSP con `style-src 'unsafe-inline'`); nivel de log fijo en Info (sin `ARGOS_LOG_LEVEL`) y una línea WARN por cada 429 (`plan-tareas.md` O3).
+- Tests de BD: sin `ARGOS_TEST_DATABASE_URL` (BD que termine en `_test`) se SALTAN en silencio y el resultado sigue en verde; verificar siempre con la variable (el CI define la suya). `check-go.sh --race` del server terminó una vez en FALLO sin causa visible (los paquetes pasan con `-race` por separado). La suite tarda ~90 s cuando la máquina está libre; con carga (Firefox/antivirus) llegó a ~200 s.
+- Sin test de `main` (cableado/apagado por señal); e2e cerrados con `taskkill /F` en Windows.
+- Diseños aprobados y ya implementados: ping/SNMP, inventario, parches, SLA/CSV, permisos por grupo (ver el índice). Canal SMTP: aplazado por el usuario.
