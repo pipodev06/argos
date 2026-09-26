@@ -112,6 +112,10 @@ type Config struct {
 	// InsecureCookies quita el prefijo __Host- y el atributo Secure de la cookie de sesion.
 	// SOLO desarrollo sobre http (p. ej. Safari en localhost); nunca en produccion.
 	InsecureCookies bool
+	// AutoMigrate (ARGOS_AUTO_MIGRATE, por defecto true) hace que el server aplique las migraciones al arrancar.
+	// Con false no migra y se niega a arrancar si hay migraciones pendientes: las corre `argos-server migrate` con
+	// otro rol (el dueño del esquema), y el server opera con un rol sin DDL (ver deploy/README.md).
+	AutoMigrate bool
 }
 
 // Load lee la configuracion usando getenv (os.Getenv en produccion) y falla
@@ -119,6 +123,7 @@ type Config struct {
 func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
 		DatabaseURL:        getenv("DATABASE_URL"),
+		AutoMigrate:        true,
 		ListenAddr:         getenv("ARGOS_LISTEN_ADDR"),
 		TLSCert:            getenv("ARGOS_TLS_CERT"),
 		TLSKey:             getenv("ARGOS_TLS_KEY"),
@@ -211,6 +216,13 @@ func Load(getenv func(string) string) (Config, error) {
 			return Config{}, errors.New("ARGOS_INSECURE_COOKIES debe ser true o false")
 		}
 		cfg.InsecureCookies = b
+	}
+	if raw := getenv("ARGOS_AUTO_MIGRATE"); raw != "" {
+		b, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, errors.New("ARGOS_AUTO_MIGRATE debe ser true o false")
+		}
+		cfg.AutoMigrate = b
 	}
 	return cfg, nil
 }

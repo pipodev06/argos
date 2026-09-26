@@ -1,0 +1,9 @@
+# Proxy inverso con TLS automatico. Para una LAN sin dominio publico usa la CA interna de Caddy
+# (`tls internal`): hay que confiar UNA vez en su raiz en los navegadores y pasarsela a los agentes con
+# `argos-agent install --ca-file root.crt`. Con un dominio real, quita `tls internal` (Let's Encrypt).
+# Pon en ARGOS_PUBLIC_URL exactamente este nombre (https://argos.lan).
+argos.lan {
+	tls internal
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+}

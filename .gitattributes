@@ -1,2 +1,4 @@
 # los scripts se embeben y ejecutan en hosts Linux/macOS: siempre LF
 *.sh text eol=lf
+# unidades, env y Caddyfile de deploy/ se copian a Linux: siempre LF
+deploy/* text eol=lf

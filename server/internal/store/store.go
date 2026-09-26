@@ -83,6 +83,11 @@ func New(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
+// Ping comprueba que Postgres responde (lo usa GET /health; el llamador acota el tiempo con el contexto).
+func (s *Store) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
+}
+
 // CreateEnrollToken guarda el hash SHA-256 de un enroll token (nunca el token en claro)
 // ligado al usuario que lo creo y, opcionalmente, al grupo con el que quedara el host enrolado
 // (ErrGroupNotFound si no existe). Devuelve ErrTooManyTokens si ya hay MaxActiveEnrollTokens

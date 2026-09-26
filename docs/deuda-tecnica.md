@@ -5,7 +5,6 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 ## Resumen por severidad (leer solo esto; abrir la seccion enlazada si tocas ese area)
 ### Alta
 - Exponer el server fuera de loopback solo tras HTTPS + `ARGOS_PUBLIC_URL`; no verificado con proxy real -> [Seguridad](#seguridad)
-- Un solo rol de BD (migra y opera): el trigger append-only de `audit_log` se puede saltar -> [Seguridad](#seguridad)
 - Instalacion real del servicio del agente sin probar en Windows/Linux/macOS -> [Agente](#agente-y-servicio)
 ### Media
 - Pantallas nuevas sin revisar en navegador (permisos/Acceso, chequeos, mantenimiento, alertas): esperan observaciones del usuario -> [Frontend](#frontend)
@@ -23,13 +22,13 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - Bateria, discos, `host_info`, red virtual: limites de los colectores -> [Agente](#agente-y-servicio)
 - Linux solo systemd; macOS sin rotacion de log; Windows estado solo lectura; `install` deja restos si falla -> [Agente](#agente-y-servicio)
 - Series: primer tramo sin tasa, datos tardios >3 h, tasas ponderadas aproximadas, particion ausente tras parada larga -> [Datos](#datos-y-api)
-- Sin request logging ni `/health` con chequeo de DB; sin test de `main`/SIGTERM real -> [Operacion](#operacion)
+- Sin test de `main`/SIGTERM real -> [Operacion](#operacion)
 - `-race` no corre en local (falta gcc en Windows); lo cubre el CI de Linux -> [Operacion](#operacion)
 - Permisos por grupo: `check_name` de una regla de alcance `all` puede nombrar un chequeo de un grupo ajeno (fuga menor aceptada); los cambios de permisos de un usuario se ven en su navegador al recargar (el frontend lee `/auth/me` al cargar) -> [Seguridad](#seguridad)
 
 ## Seguridad
 - Server fuera de loopback (`ARGOS_LISTEN_ADDR` no loopback) solo tras HTTPS (proxy inverso o `ARGOS_TLS_CERT/KEY`) y con `ARGOS_PUBLIC_URL`; verificado solo TLS directo con cert autofirmado y curl.
-- Rol de BD unico: separar migrador/runtime (recomendado, no decidido; ver indice).
+- Roles de BD (hecho 2026-09-25, `decisiones/2026-09-25-roles-bd.md`): en el modo de un solo rol (dev, o `--db-url` sin `--migrate-db-url`) el server sigue siendo dueño y puede saltar el trigger de `audit_log`. El rol de runtime es dueño de las tablas particionadas y tiene CREATE en `public` (limite aceptado).
 - Rate limits y contadores de fallos de agente en memoria (pierden estado al reiniciar, no se comparten entre replicas). La clave HMAC de los cursores de `GET /hosts` es aleatoria por proceso (reinicio o varias instancias -> 400 `invalid_cursor`); si se escala, pasar a BD/Redis y mover la clave a `ARGOS_CURSOR_KEY`.
 - Auditoria best-effort: si la escritura falla solo se loguea; revisar si se exige no repudio.
 - El bloqueo por cuenta (15 min por 10 fallos) permite bloquear a proposito a otro usuario; mitigado por limite por IP y `reset-password`.
@@ -65,7 +64,7 @@ Resuelto el 2026-09-25 (ya no es deuda): CI en GitHub Actions (web + go server/a
 - El server sirve el frontend con `ARGOS_WEB_DIR` (fallback SPA, CSP con `style-src 'unsafe-inline'`, ruta invalida = no arranca; un POST a ruta desconocida da 405). Lo que sigue pendiente es HTTPS/proxy para exponerlo fuera de loopback (ver Seguridad).
 - Tests de BD: sin `ARGOS_TEST_DATABASE_URL` (BD que termine en `_test`; local: `postgres://argos:argos@localhost:5432/argos_test?sslmode=disable`) se SALTAN en silencio, y el resultado sigue en verde; verificar siempre con la variable definida. El CI define la suya.
 - `-race`: sin gcc en Windows local; corre en el CI de Linux (verde el 2026-09-25).
-- Sin middleware de request logging ni `/health` con chequeo de DB. Sin test de `main` (cableado/apagado por senal); e2e cerrados con `taskkill /F` en Windows.
+- Sin test de `main` (cableado/apagado por senal); e2e cerrados con `taskkill /F` en Windows.
 
 ## Fase 3 instaladores (2026-09-24)
 - ALTA: binarios servidos sin firma: un server comprometido da codigo como root/SYSTEM en hosts nuevos. Requiere firmas independientes del server antes de cualquier auto-update. Ver decisiones/2026-09-24-fases-2-y-3.md.

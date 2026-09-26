@@ -28,7 +28,7 @@ export function AddHostDialog({ open, onClose }: AddHostDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       {/* El contenido se monta solo abierto: al cerrar se descartan hostname, token y comandos del estado. */}
-      <DialogContent>{open && <AddHostBody onClose={onClose} />}</DialogContent>
+      <DialogContent className="sm:max-w-2xl">{open && <AddHostBody onClose={onClose} />}</DialogContent>
     </Dialog>
   )
 }
@@ -94,7 +94,7 @@ function TokenStep({ token, onClose, onAnother }: TokenStepProps) {
   const commands = enrollCommands(token, window.location.origin)
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       <DialogHeader>
         <DialogTitle>Instala el agente</DialogTitle>
         <DialogDescription>

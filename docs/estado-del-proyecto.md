@@ -2,14 +2,19 @@
 Detalle por tema en `decisiones/` (índice: `decisiones.md`; abre solo el tema de tu tarea). Deuda: `deuda-tecnica.md`. Historia: git. Reglas del orquestador y lecciones de agentes: memoria del proyecto y `~/.claude/agents/*.md`.
 
 ## Qué es
-Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/Postgres 18 (`server/`, goose 00001–00024) + dashboard React (`web/`, Vite, Tailwind v4, shadcn, estilo Slate congelado en `CLAUDE.md`). Repo privado `pipodev06/argos` (rama `main`; CI de GitHub Actions verde (último commit revisado 3468a13): web, go server, go agent con `-race` en Linux).
+Monitoreo tipo Zabbix/PRTG: agente Go multiplataforma (`agent/`) + servidor Go/Postgres 18 (`server/`, goose 00001–00031) + dashboard React (`web/`, Vite, Tailwind v4, shadcn, estilo Slate congelado en `CLAUDE.md`). Repo privado `pipodev06/argos` (rama `main`; CI de GitHub Actions verde (último commit revisado 3468a13): web, go server, go agent con `-race` en Linux).
 
 ## Hecho (implementado y probado con tests; lo visual NO está probado en navegador)
 - Server: auth (admin/viewer, cookies, CSRF, auditoría), enroll de agentes, ingest, detector de caídos, grupos, resumen, retención y particionado; motor de alertas (reglas metric/host_status/no_data/service_check, mantenimiento, canales webhook con `/slack` para Discord); chequeos de servicios (tcp/http/tls/servicio, ejecutados por el agente); permisos por grupo (`store.Scope` obligatorio; viewers restringidos; canales/auditoría solo admin); `host_events` (00014 + 00020, retención 400 d); informes de disponibilidad (`/reports/*`, CSV); inventario del host (ingest 00021 + lectura con `can_inventory`); frontend servido por el server con `ARGOS_WEB_DIR`; etiquetas eliminadas.
 - Agente: métricas, servicio nativo, chequeos con política local `ARGOS_CHECK_ALLOW`, inventario (`ARGOS_INVENTORY_MODULES`, apagado por defecto; verificado con el agente local real), reintento del reemplazo atómico de `agent.json`.
 - Web: hosts (filtros, detalle, inventario), grupos, chequeos, alertas/reglas/mantenimiento/canales, usuarios con permisos, auditoría, Informes (`/informes`); Vitest (72+ tests).
 
-## En curso / siguiente (orden acordado)
+## Siguiente: plan de tareas y despliegue (2026-09-25)
+- Lista priorizada de deuda con "hecho cuando": `docs/plan-tareas.md` (P0 despliegue Linux, P1 suite lenta, P2 reglas de parches, P3 ideas).
+- Paquete de despliegue Linux/systemd: `scripts/package-server.sh <ver>` → `dist/server/*.tar.gz`; instalación y HTTPS en `deploy/README.md`. Validado: paquete y layout; NO ejecutado el instalador en un Linux real.
+- Hecho después: inventario (puertos/servicios/procesos), parches del SO + fin de vida (00026–00031, fechas verificadas en línea), permisos por grupo, SNMP v3, discos físicos, `--privileged` (verificado en el Ubuntu: 23/23 dueños de puertos), renombrar host, historial de estado paginado.
+
+## Cola anterior (histórico; parte ya hecha)
 Hecho desde la versión anterior de este archivo: Informes con exportar CSV y filtro por grupo; inventario en ruta propia (`/hosts/:id/inventario`, 15 filas por página; tamaños de página globales 15/30/50/100); servicios de Linux; alerta "puerto nuevo expuesto" (00022, regla `exposed_port` con `expected_ports`); ping + dispositivos sin agente (00023, agente colector con `ARGOS_PROBE_ALLOW`).
 1. Punto 8: pantallas de perfiles SNMP y chequeo `snmp` (tanda 3b); luego contadores de interfaz/CPU/almacenamiento; probar SNMP v3 con un equipo real. Dispositivos ya separados de Hosts (viven en `/dispositivos`). Partir las tandas grandes en dos agentes.
 2. Punto 2: parches/vulnerabilidades del SO (falta diseño).

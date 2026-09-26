@@ -9,7 +9,7 @@
 - Lee tambien `estado-del-proyecto.md` (<=60 lineas) y el resumen de `deuda-tecnica.md`.
 
 ## Pendientes de decision del usuario
-- Separar rol de BD migrador/runtime (hoy el trigger append-only de `audit_log` se puede saltar). Recomendado, no decidido -> [auth](decisiones/auth-y-sesiones.md)
+- Roles de BD migrador/runtime: decidido y hecho el 2026-09-25 -> [roles-bd](decisiones/2026-09-25-roles-bd.md)
 - MFA (TOTP/WebAuthn), rotacion automatica del token de agente y auditoria transaccional: no decididas ni implementadas -> [auth](decisiones/auth-y-sesiones.md)
 - NFKC en contrasenas: requiere `golang.org/x/text` (dependencia no aprobada) -> [auth](decisiones/auth-y-sesiones.md)
 - Lista de contrasenas comprometidas embebida (SecLists 10k, MIT): confirmar; aporta casi nada con minimo 15 -> [auth](decisiones/auth-y-sesiones.md)
