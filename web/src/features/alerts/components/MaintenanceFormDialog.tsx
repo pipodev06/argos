@@ -27,7 +27,7 @@ interface MaintenanceFormDialogProps {
 export function MaintenanceFormDialog(props: MaintenanceFormDialogProps) {
   return (
     <Dialog open={props.open} onOpenChange={(next) => !next && props.onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">{props.open && <MaintenanceForm {...props} />}</DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">{props.open && <MaintenanceForm {...props} />}</DialogContent>
     </Dialog>
   )
 }
