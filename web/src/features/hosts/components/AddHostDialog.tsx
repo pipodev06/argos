@@ -15,8 +15,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GroupSelect } from '@/features/groups/components/GroupSelect'
 import { useGroups } from '@/features/groups/hooks/useGroups'
 import { useNow } from '@/hooks/useNow'
+import { AgentOptionsForm } from './AgentOptionsForm'
 import { useEnrollHost } from '../hooks/useEnrollHost'
-import { enrollCommands, minutesLeft } from '../utils/enroll'
+import { applyAgentOptions, DEFAULT_AGENT_OPTIONS, enrollCommands, isHttpOrigin, minutesLeft, parseNets, type AgentOptions } from '../utils/enroll'
 import { formatExpiry } from '../utils/format'
 
 interface AddHostDialogProps {
@@ -91,7 +92,16 @@ function TokenStep({ token, onClose, onAnother }: TokenStepProps) {
   // Cuenta regresiva cada 30 s, sin aria-live (no interrumpe a lectores de pantalla).
   const now = useNow(30_000)
   const left = minutesLeft(token.expires_at, now)
-  const commands = enrollCommands(token, window.location.origin)
+  const origin = window.location.origin
+  const showInsecure = isHttpOrigin(origin)
+  const commands = enrollCommands(token, origin)
+  const [options, setOptions] = useState<AgentOptions>(DEFAULT_AGENT_OPTIONS)
+  const effective = { ...options, insecure: options.insecure && showInsecure }
+  const netsResult = options.probe ? parseNets(options.probeNets) : null
+  // Con la casilla recién marcada y el campo vacío no se grita: el error aparece al escribir; la copia sigue bloqueada.
+  const netsError = netsResult && !netsResult.ok && options.probeNets.trim() !== '' ? netsResult.error : null
+  const windows = applyAgentOptions(commands.windows, 'windows', effective)
+  const linux = applyAgentOptions(commands.linux, 'linux', effective)
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
@@ -111,16 +121,17 @@ function TokenStep({ token, onClose, onAnother }: TokenStepProps) {
 
       {left > 0 ? (
         <>
+          <AgentOptionsForm value={options} onChange={setOptions} netsError={netsError} showInsecure={showInsecure} />
           <Tabs defaultValue="windows">
             <TabsList aria-label="Sistema operativo">
               <TabsTrigger value="windows">Windows (PowerShell)</TabsTrigger>
               <TabsTrigger value="linux">Linux / macOS (bash)</TabsTrigger>
             </TabsList>
             <TabsContent value="windows">
-              <CopyBlock value={commands.windows} label="Comando para Windows" />
+              {windows.ok ? <CopyBlock value={windows.command} label="Comando para Windows" /> : <BlockedCommand />}
             </TabsContent>
             <TabsContent value="linux">
-              <CopyBlock value={commands.linux} label="Comando para Linux o macOS" />
+              {linux.ok ? <CopyBlock value={linux.command} label="Comando para Linux o macOS" /> : <BlockedCommand />}
             </TabsContent>
           </Tabs>
           <div className="grid gap-1">
@@ -149,5 +160,13 @@ function TokenStep({ token, onClose, onAnother }: TokenStepProps) {
         </Button>
       </DialogFooter>
     </div>
+  )
+}
+
+function BlockedCommand() {
+  return (
+    <p role="status" className="text-sm text-text-muted">
+      Corrige las redes permitidas para ver y copiar el comando.
+    </p>
   )
 }

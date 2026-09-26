@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseFilters } from '@/components/filters/urlState'
 import type { Eol } from '../types/updates.types'
 import { buildFleetQuery, FLEET_FIELDS } from './fleetQuery'
+import { buildPatchRows, describePatchRows } from './patchChart'
 import { canViewUpdates, countText, eolInfo, formatDataAge, rebootInfo } from './updates'
 
 const NOW = Date.parse('2026-09-25T12:00:00Z')
@@ -46,17 +47,55 @@ describe('parches: query de la flota', () => {
     const f = parseFilters(FLEET_FIELDS, new URLSearchParams())
     expect(buildFleetQuery(f, null).toString()).toBe('sort=security&dir=desc&limit=15')
   })
-  it('flags -> security/reboot, eol_days, grupos y cursor', () => {
-    const f = parseFilters(FLEET_FIELDS, new URLSearchParams('flags=security&flags=reboot&eol_days=90&group=none&os=linux&sort=eol&dir=asc&limit=50&q=web'))
+  it('chips security/reboot, eol_days (≤), grupos y cursor', () => {
+    const f = parseFilters(FLEET_FIELDS, new URLSearchParams('security=true&reboot=true&eol_days=90&group=none&os=linux&sort=eol&dir=asc&limit=50&q=web'))
     const p = buildFleetQuery(f, 'abc')
     expect(p.get('security')).toBe('true')
     expect(p.get('reboot')).toBe('true')
-    expect(p.has('flags')).toBe(false)
     expect(p.get('eol_days')).toBe('90')
     expect(p.getAll('group')).toEqual(['none'])
     expect(p.get('sort')).toBe('eol')
     expect(p.get('dir')).toBe('asc')
     expect(p.get('limit')).toBe('50')
     expect(p.get('cursor')).toBe('abc')
+  })
+  it('cada chip booleano va por separado y solo si está encendido', () => {
+    const only = (qs: string) => buildFleetQuery(parseFilters(FLEET_FIELDS, new URLSearchParams(qs)), null)
+    expect(only('security=true').get('reboot')).toBeNull()
+    expect(only('security=true').get('security')).toBe('true')
+    expect(only('reboot=true').get('security')).toBeNull()
+    expect(only('security=false&reboot=1').has('security')).toBe(false)
+    expect(only('reboot=1').has('reboot')).toBe(false)
+  })
+  it('eol_days usa ≤ en el chip y no acepta negativos', () => {
+    const f = FLEET_FIELDS.find((x) => x.key === 'eol_days')
+    expect(f?.kind === 'numeric' && f.op).toBe('≤')
+    expect(parseFilters(FLEET_FIELDS, new URLSearchParams('eol_days=-3')).eol_days).toBeNull()
+  })
+})
+
+describe('parches: gráfica del historial', () => {
+  const pt = (at: string, total: number | null, security: number | null, reboot: boolean | null) => ({ at, pending_total: total, pending_security: security, reboot_required: reboot })
+  it('ordena ascendente (el servidor manda lo más nuevo primero), conserva null y marca reinicio', () => {
+    const rows = buildPatchRows([
+      pt('2026-09-25T12:00:00Z', 12, 3, true),
+      pt('2026-09-24T12:00:00Z', null, null, null),
+      pt('2026-09-23T12:00:00Z', 20, 5, false),
+    ])
+    expect(rows.map((r) => r.total)).toEqual([20, null, 12])
+    expect(rows.map((r) => r.security)).toEqual([5, null, 3])
+    expect(rows.map((r) => r.reboot)).toEqual([false, false, true])
+    expect(rows[0].t).toBe(Date.parse('2026-09-23T12:00:00Z'))
+  })
+  it('descarta fechas inválidas y vacío da lista vacía', () => {
+    expect(buildPatchRows([pt('no-fecha', 1, 1, false)])).toEqual([])
+    expect(buildPatchRows([])).toEqual([])
+  })
+  it('descripción accesible', () => {
+    expect(describePatchRows([])).toBe('Sin datos de parches en el historial.')
+    const d = describePatchRows(buildPatchRows([pt('2026-09-25T12:00:00Z', 12, 3, true), pt('2026-09-24T12:00:00Z', 20, 5, false)]))
+    expect(d).toContain('2 puntos')
+    expect(d).toContain('Último: 12 pendientes, 3 de seguridad')
+    expect(d).toContain('Reinicio pendiente en 1 puntos')
   })
 })

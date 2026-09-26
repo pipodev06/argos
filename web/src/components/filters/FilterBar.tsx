@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { BooleanFilter } from './BooleanFilter'
 import { DateTimeFilter } from './DateTimeFilter'
 import { RemovableChip } from './FilterPill'
 import { MoreFilters } from './MoreFilters'
@@ -56,6 +57,8 @@ export function FilterBar<F extends readonly FilterField[]>({
               return <SearchBox key={`${f.key}-${resetKey}`} field={f} value={v[f.key] as string} onCommit={(q) => change({ [f.key]: q })} />
             case 'multi':
               return <MultiFilter key={f.key} field={f} selected={v[f.key] as string[]} onChange={(next) => change({ [f.key]: next })} />
+            case 'boolean':
+              return <BooleanFilter key={f.key} field={f} value={v[f.key] as boolean} onChange={(next) => change({ [f.key]: next })} />
             case 'datetime':
               return <DateTimeFilter key={f.key} field={f} value={v[f.key] as string} onChange={(next) => change({ [f.key]: next })} />
             default:

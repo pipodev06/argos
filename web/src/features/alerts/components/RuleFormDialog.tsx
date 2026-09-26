@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { CheckField } from '@/components/ui/check-field'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
@@ -48,18 +48,6 @@ const THRESHOLD_LABELS: Partial<Record<RuleKind, string>> = {
   pending_updates: 'Pendientes de seguridad (mínimo)',
   reboot_pending: 'Días con reinicio pendiente',
   os_eol: 'Días de antelación al fin de vida',
-}
-
-function CheckField({ id, label, hint, checked, onChange }: { id: string; label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label htmlFor={id} className="flex items-start gap-2 text-sm">
-      <Checkbox id={id} className="mt-0.5" checked={checked} onCheckedChange={(v) => onChange(v === true)} />
-      <span>
-        {label}
-        {hint && <span className="block text-xs text-text-muted">{hint}</span>}
-      </span>
-    </label>
-  )
 }
 
 function RuleForm({ rule, onClose, onSaved }: RuleFormDialogProps) {

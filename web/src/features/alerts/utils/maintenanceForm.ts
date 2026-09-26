@@ -38,8 +38,9 @@ export function maintenanceToDraft(w: MaintenanceWindow | null, now: number = Da
 }
 
 /**
- * Valida con las mismas reglas del servidor (tope 31 d; "todos los hosts" máx. 24 h; al crear o mover fechas,
- * que no haya terminado ni empiece hace más de 1 h). En edición solo envía las fechas si cambiaron.
+ * Valida con las mismas reglas del servidor (tope 31 d; "todos los hosts" máx. 24 h; el fin no puede haber pasado y
+ * el inicio no puede ser de hace más de 1 h, pero cada regla solo se pide al crear o si ESA fecha cambia: una ventana
+ * en curso que empezó hace horas se puede alargar). En edición solo envía las fechas que cambiaron.
  */
 export function buildMaintenanceInput(
   d: MaintenanceDraft,
@@ -58,7 +59,8 @@ export function buildMaintenanceInput(
   const end = d.endsAt ? new Date(d.endsAt) : null
   if (!start || Number.isNaN(start.getTime())) errors.startsAt = 'Indica el inicio.'
   if (!end || Number.isNaN(end.getTime())) errors.endsAt = 'Indica el fin.'
-  const datesChanged = !original || original.startsAt !== d.startsAt || original.endsAt !== d.endsAt
+  const startChanged = !original || original.startsAt !== d.startsAt
+  const endChanged = !original || original.endsAt !== d.endsAt
 
   if (start && end && !errors.startsAt && !errors.endsAt) {
     const span = end.getTime() - start.getTime()
@@ -66,17 +68,15 @@ export function buildMaintenanceInput(
     else if (span > MAX_SPAN) errors.endsAt = 'La ventana no puede durar más de 31 días.'
     else if (d.scope.type === 'all' && span > MAX_SPAN_ALL) {
       errors.endsAt = 'Sobre todos los hosts no puede durar más de 24 horas: acota el alcance a un grupo, host o dispositivo.'
-    } else if (datesChanged) {
-      if (end.getTime() <= now) errors.endsAt = 'El fin ya pasó.'
-      else if (start.getTime() < now - MAX_PAST_START) errors.startsAt = 'El inicio no puede ser anterior a 1 hora atrás.'
+    } else {
+      if (endChanged && end.getTime() <= now) errors.endsAt = 'El fin ya pasó.'
+      if (startChanged && start.getTime() < now - MAX_PAST_START) errors.startsAt = 'El inicio no puede ser anterior a 1 hora atrás.'
     }
   }
 
   if (Object.keys(errors).length > 0 || 'error' in scope || !start || !end) return { errors }
   const input: MaintenanceInput = { name, scope: scope.scope }
-  if (datesChanged) {
-    input.starts_at = start.toISOString()
-    input.ends_at = end.toISOString()
-  }
+  if (startChanged) input.starts_at = start.toISOString()
+  if (endChanged) input.ends_at = end.toISOString()
   return { input }
 }

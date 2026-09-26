@@ -26,5 +26,6 @@ describe('numericChipText', () => {
     expect(numericChipText({ ...base, suffix: '%' }, 80)).toBe('CPU > 80 %')
     expect(numericChipText({ ...base, label: 'Visto hace', units: UNITS, baseUnit: 's' }, 7200)).toBe('Visto hace > 2 horas')
     expect(numericChipText(base, 5)).toBe('CPU > 5')
+    expect(numericChipText({ ...base, label: 'Días al fin de vida', op: '≤', suffix: 'd' }, 90)).toBe('Días al fin de vida ≤ 90 d')
   })
 })

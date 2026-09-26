@@ -219,6 +219,39 @@ func TestOSEOLAlertSoonExpiredAndUnknown(t *testing.T) {
 	}
 }
 
+// El pico de una alerta os_eol es el peor valor (los dias que faltan solo bajan: el minimo) y la severidad sube a
+// critica cuando el SO vence aunque la alerta ya estuviera abierta como warn.
+func TestOSEOLAlertTracksWorstValueAndEscalatesWhenExpired(t *testing.T) {
+	s := newTestStore(t)
+	seedHost(t, "srv", "up", ago(time.Second))
+	setOS(t, "srv", "debian", "12.5")
+	setEOL(t, "debian", "12", `(now() AT TIME ZONE 'UTC')::date + 20`)
+	mkRule(t, s, updatesRule("eol", "os_eol", 30))
+
+	evalOnce(t, s)
+	a := oneAlert(t)
+	if a.Severity != "warn" || a.Peak == nil || *a.Peak < 19 || *a.Peak > 21 {
+		t.Fatalf("al abrir got severidad %q y pico %v, want warn y ~20", a.Severity, a.Peak)
+	}
+	setDays := func(d int) {
+		mustExec(t, fmt.Sprintf(`UPDATE os_eol SET eol_date = (now() AT TIME ZONE 'UTC')::date + %d WHERE family = 'debian' AND cycle = '12'`, d))
+		evalOnce(t, s)
+	}
+	setDays(5)
+	if a = oneAlert(t); a.Severity != "warn" || a.Peak == nil || *a.Peak < 4 || *a.Peak > 6 {
+		t.Errorf("a 5 dias got severidad %q y pico %v, want warn y ~5 (el peor, no el primero)", a.Severity, a.Peak)
+	}
+	setDays(-1)
+	if a = oneAlert(t); a.Severity != "critical" || a.Peak == nil || *a.Peak > -0.5 {
+		t.Errorf("vencido got severidad %q y pico %v, want critical y ~-1", a.Severity, a.Peak)
+	}
+	// Nunca baja: si la fecha se aleja pero sigue dentro del umbral, se conserva la severidad alcanzada.
+	setDays(10)
+	if a = oneAlert(t); a.Severity != "critical" {
+		t.Errorf("la severidad no debe bajar, got %q", a.Severity)
+	}
+}
+
 func TestUpdatesAlertsMaintenanceSuppressesAndRespectsGroupScope(t *testing.T) {
 	s := newTestStore(t)
 	g := mkGroup(t, s, "prod", false, nil)

@@ -109,7 +109,7 @@ function PagedList<T>({ items, itemLabel, render }: { items: T[]; itemLabel: str
 
 const NOTE_PORTS = 'Lista truncada: el agente guarda como máximo 512 puertos.'
 const NOTE_SERVICES = 'Lista truncada: el agente guarda como máximo 1024 servicios.'
-const NOTE_PROCESSES = 'Solo los 100 procesos con más memoria (agrupados por nombre); hay más.'
+const NOTE_PROCESSES = 'Solo los 100 procesos con más memoria'
 
 function PortsView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'ports')
