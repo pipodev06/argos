@@ -31,14 +31,14 @@ export type EolState = 'none' | 'ok' | 'soon' | 'expired'
 /** Umbral de "pronto" para el icono de fin de vida (dias). */
 export const EOL_SOON_DAYS = 90
 
-/** Fin de vida: fecha + "faltan N d" / "Vencido"; "(estimado)" cuando el servidor lo estima. Sin dato = "Desconocido". */
+/** Fin de vida: fecha + "faltan N d" / "Vencido". Sin dato = "Desconocido". */
 export function eolInfo(eol: Eol | null): { state: EolState; text: string } {
   if (!eol) return { state: 'none', text: 'Desconocido' }
-  const est = eol.estimated ? ' (estimado)' : ''
-  if (eol.expired || eol.days_left <= 0) return { state: 'expired', text: `Vencido desde ${eol.eol_date}${est}` }
+  // Las fechas estimadas ya no se rotulan (decision del usuario 2026-09-25): el texto es el mismo que el de una oficial.
+  if (eol.expired || eol.days_left <= 0) return { state: 'expired', text: `Vencido desde ${eol.eol_date}` }
   return {
     state: eol.days_left <= EOL_SOON_DAYS ? 'soon' : 'ok',
-    text: `${eol.eol_date}, faltan ${formatNumber(eol.days_left, 0)} d${est}`,
+    text: `${eol.eol_date}, faltan ${eol.days_left} d`,
   }
 }
 

@@ -24,7 +24,7 @@ describe('parches: textos', () => {
     expect(eolInfo(eol({})).state).toBe('soon')
     expect(eolInfo(eol({ days_left: 30 })).state).toBe('soon')
     expect(eolInfo(eol({ expired: true, days_left: -10, eol_date: '2026-09-15' }))).toEqual({ state: 'expired', text: 'Vencido desde 2026-09-15' })
-    expect(eolInfo(eol({ estimated: true })).text).toBe('2026-12-01, faltan 67 d (estimado)')
+    expect(eolInfo(eol({ estimated: true })).text).toBe('2026-12-01, faltan 67 d')
     expect(eolInfo(null).state).toBe('none')
   })
   it('edad del dato', () => {
