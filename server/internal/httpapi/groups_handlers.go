@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"argos/server/internal/store"
 )
@@ -190,5 +191,34 @@ func (a *API) setHostGroup(w http.ResponseWriter, r *http.Request) error {
 	a.audit(r, e, map[string]any{"group_id": req.GroupID.Value})
 
 	writeJSON(w, http.StatusOK, map[string]any{"group": toGroupRefDTO(res.Group), "status": res.Status})
+	return nil
+}
+
+type renameHostReq struct {
+	Hostname string `json:"hostname"`
+}
+
+// renameHost cambia el nombre con el que se muestra un host con agente (los dispositivos se renombran con
+// PATCH /devices/{id}). El agente no lo pisa: el nombre lo fija el alta (token) y ahora tambien el admin.
+func (a *API) renameHost(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if !isUUID(id) {
+		return invalidID()
+	}
+	var req renameHostReq
+	if err := decodeJSON(w, r, &req, maxSmallBodyBytes, true); err != nil {
+		return err
+	}
+	name, err := checkName("hostname", req.Hostname, maxHostnameLen)
+	if err != nil {
+		return err
+	}
+	if err := a.store.RenameHost(r.Context(), strings.ToLower(id), name); err != nil {
+		return err
+	}
+	e := actor(currentUser(r))
+	e.Event, e.Outcome, e.TargetType, e.TargetID = evHostRenamed, store.OutcomeOK, "host", id
+	a.audit(r, e, map[string]any{"name": name})
+	writeJSON(w, http.StatusOK, map[string]any{"hostname": name})
 	return nil
 }

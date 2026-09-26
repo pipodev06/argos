@@ -157,6 +157,12 @@ func TestOSEOLAlertSoonExpiredAndUnknown(t *testing.T) {
 	setOS(t, "vencido", "debian", "11.9") // 2026-08-31: ya vencido
 	setOS(t, "raro", "arch", "rolling")   // sin fila en os_eol: desconocido
 	setEOL(t, "debian", "12", `(now() AT TIME ZONE 'UTC')::date + 20`)
+	// La fila 12 de Debian ya es oficial (verificada en 00031): el test necesita una estimada, la marca aqui.
+	var origSource string
+	if err := testPool.QueryRow(context.Background(), `UPDATE os_eol SET source = 'estimate' WHERE family = 'debian' AND cycle = '12' RETURNING 'official'`).Scan(&origSource); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { mustExec(t, `UPDATE os_eol SET source = 'official' WHERE family = 'debian' AND cycle = '12'`) })
 	mkRule(t, s, updatesRule("eol", "os_eol", 30))
 
 	if r := evalOnce(t, s); r.Opened != 2 {

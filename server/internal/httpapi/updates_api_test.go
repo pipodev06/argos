@@ -75,7 +75,7 @@ func TestUpdatesIngestRejectsBadInput(t *testing.T) {
 	for i := range manyAdv {
 		manyAdv[i] = fmt.Sprintf(`"KB%07d"`, i)
 	}
-	future := e.clock.Now().Add(72 * time.Hour).Format(time.DateOnly)
+	future := e.clock.Now().UTC().Add(96 * time.Hour).Format(time.DateOnly) // UTC y con holgura: la fecha se trunca a medianoche
 	tests := []struct{ name, items string }{
 		{"items lista", `[]`},
 		{"items null", `null`},

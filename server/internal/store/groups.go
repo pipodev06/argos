@@ -311,3 +311,16 @@ func (s *Store) BulkHosts(ctx context.Context, b Bulk) (int, error) {
 	}
 	return affected, nil
 }
+
+// RenameHost cambia el nombre mostrado de un host con agente. ErrNotFound si no existe o es un dispositivo (esos se
+// renombran con UpdateDevice).
+func (s *Store) RenameHost(ctx context.Context, hostID, name string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE hosts SET hostname = $2 WHERE id = $1 AND kind = 'agent'`, hostID, name)
+	if err != nil {
+		return fmt.Errorf("renombrando host: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
