@@ -8,9 +8,9 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 - [x] **D4 Separar roles de BD** (2026-09-25) (migrador vs runtime; cierra el hueco del trigger append-only de `audit_log`). *Hecho cuando:* el unit corre con rol sin DDL; `install-server.sh` crea ambos; test de que el runtime no puede `DROP TRIGGER`.
 
 ## P1a — Rendimiento del server en runtime (nunca medido a escala, 2026-09-25)
-- [ ] **P1 Sembrar 1000 hosts** con historial (script en `scripts/`, solo contra una BD `*_test` o de humo, nunca la real). *Hecho cuando:* `bash scripts/seed-load.sh` deja la BD lista y repetible.
-- [ ] **P2 Medir p50/p95** de: `GET /hosts` (orden por cpu/mem/disco, filtros, cursor), `/summary`, `/hosts/{id}/metrics` (24h/7d/30d), `/alerts`, `/updates`, informes + CSV, e **ingest** (`POST /agent/metrics` e inventario) con N agentes concurrentes. *Hecho cuando:* tabla de resultados en `decisiones/` con la máquina usada.
-- [ ] **P3 `EXPLAIN (ANALYZE, BUFFERS)`** de lo que pase de 200 ms y corregir (índices, consultas, rollups). *Hecho cuando:* cada consulta lenta mejorada o justificada, y un test de humo de tiempo (con margen) para no regresar.
+- [x] **P1 Sembrar 1000 hosts** (2026-09-25, `scripts/perf/`) con historial (script en `scripts/`, solo contra una BD `*_test` o de humo, nunca la real). *Hecho cuando:* `bash scripts/seed-load.sh` deja la BD lista y repetible.
+- [x] **P2 Medir p50/p95** (2026-09-25, `decisiones/2026-09-25-rendimiento.md`) de: `GET /hosts` (orden por cpu/mem/disco, filtros, cursor), `/summary`, `/hosts/{id}/metrics` (24h/7d/30d), `/alerts`, `/updates`, informes + CSV, e **ingest** (`POST /agent/metrics` e inventario) con N agentes concurrentes. *Hecho cuando:* tabla de resultados en `decisiones/` con la máquina usada.
+- [ ] **P3 `EXPLAIN (ANALYZE, BUFFERS)`** (medido: nada pasa de 200 ms en caliente; queda decidir la opción 1 y/o 2 del hallazgo de `metrics`: 7d desde `metrics_hourly` y/o `CLUSTER` de particiones cerradas; medir además el ciclo de mantenimiento y el evaluador con 1000 hosts) de lo que pase de 200 ms y corregir (índices, consultas, rollups). *Hecho cuando:* cada consulta lenta mejorada o justificada, y un test de humo de tiempo (con margen) para no regresar.
 - [ ] **P4 Tope y avisos**: cuántos hosts aguanta un server de cierta RAM/CPU; documentarlo en `deploy/README.md`.
 
 ## P1 — Suite del server (lenta: ~190–340 s)
