@@ -10,7 +10,9 @@ const FOLD_AFTER = 6
 function VolumeRow({ d }: { d: HostDisk }) {
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border px-3 py-2 last:border-b-0">
-      <span className="w-32 min-w-0 truncate text-sm">{d.mount}</span>
+      <span className="w-56 max-w-full min-w-0 break-all text-sm" title={d.mount}>
+        {d.mount}
+      </span>
       <span className="w-36 text-xs text-text-muted tabular-nums">
         {formatCapacity(d.used_mb)} / {formatCapacity(d.total_mb)}
       </span>

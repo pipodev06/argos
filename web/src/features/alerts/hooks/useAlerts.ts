@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { isClientError, usePolledFetch } from '@/hooks/usePolledFetch'
-import { getAlert, getAlertSummary, listAlerts, listHostEvents, listMaintenance, listRules } from '../services/alerts.service'
+import { getAlert, getAlertSummary, listAlerts, listHostEvents, listHostEventsPage, listMaintenance, listRules } from '../services/alerts.service'
 import { buildAlertQuery, type AlertFilters } from '../utils/alertQuery'
 
 const REFRESH_MS = 30_000
@@ -32,7 +32,12 @@ export function useMaintenanceList() {
   return usePolledFetch(listMaintenance, listOptions)
 }
 
-export function useHostEvents(hostId: string) {
-  const fetcher = useCallback((signal: AbortSignal) => listHostEvents(hostId, signal), [hostId])
+export function useHostEvents(hostId: string, limit = 50) {
+  const fetcher = useCallback((signal: AbortSignal) => listHostEvents(hostId, signal, limit), [hostId, limit])
+  return usePolledFetch(fetcher, { intervalMs: REFRESH_MS, stopOn: isClientError })
+}
+
+export function useHostEventsPage(hostId: string, limit: number, cursor: string | null) {
+  const fetcher = useCallback((signal: AbortSignal) => listHostEventsPage(hostId, limit, cursor, signal), [hostId, limit, cursor])
   return usePolledFetch(fetcher, { intervalMs: REFRESH_MS, stopOn: isClientError })
 }

@@ -246,3 +246,26 @@ func TestBusFromPath(t *testing.T) {
 		}
 	}
 }
+
+// Con PrivateDevices=true /dev/mapper no existe: el nodo dm-N se encuentra por /sys/block/dm-N/dm/name.
+func TestDmNodeByName(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for node, name := range map[string]string{"dm-0": "ubuntu--vg-ubuntu--lv", "dm-1": "vg-swap"} {
+		dir := filepath.Join(root, "block", node, "dm")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "name"), []byte(name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "block", "nvme0n1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]string{"ubuntu--vg-ubuntu--lv": "dm-0", "vg-swap": "dm-1", "nada": "", "": ""} {
+		if got := (sysfs{root: root}).dmNodeByName(name); got != want {
+			t.Errorf("dmNodeByName(%q) = %q, want %q", name, got, want)
+		}
+	}
+}

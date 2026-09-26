@@ -136,3 +136,17 @@ func busFromPath(id, target string) string {
 	}
 	return "other"
 }
+
+// dmNodeByName busca en sysfs el nodo dm-N cuyo nombre (dm/name) es el de /dev/mapper/<name>; "" si no hay.
+func (s sysfs) dmNodeByName(name string) string {
+	entries, err := os.ReadDir(filepath.Join(s.root, "block"))
+	if err != nil || name == "" {
+		return ""
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "dm-") && s.readSmall("block", e.Name(), "dm", "name") == name {
+			return e.Name()
+		}
+	}
+	return ""
+}
