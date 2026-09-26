@@ -37,4 +37,6 @@ export interface DeviceInput {
   collector_id?: string
   group_id?: string | null
   snmp_profile_id?: string | null
+  /** false deshabilita el dispositivo; true lo habilita (vuelve a pendiente hasta el siguiente ping). */
+  enabled?: boolean
 }

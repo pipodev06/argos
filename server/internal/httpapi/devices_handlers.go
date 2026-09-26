@@ -229,6 +229,8 @@ type updateDeviceReq struct {
 	GroupID     optional[string] `json:"group_id"`
 	// SNMPProfileID: un id asigna el perfil y null lo quita.
 	SNMPProfileID optional[string] `json:"snmp_profile_id"`
+	// Enabled: false deshabilita el dispositivo; true lo habilita (vuelve a pending hasta el siguiente ping).
+	Enabled *bool `json:"enabled"`
 }
 
 func (a *API) updateDevice(w http.ResponseWriter, r *http.Request) error {
@@ -289,8 +291,12 @@ func (a *API) updateDevice(w http.ResponseWriter, r *http.Request) error {
 		}
 		fields = append(fields, "snmp_profile_id")
 	}
+	if req.Enabled != nil {
+		ch.Enabled = req.Enabled
+		fields = append(fields, "enabled")
+	}
 	if len(fields) == 0 {
-		return badRequest("nada que cambiar: envia name, address, collector_id, group_id o snmp_profile_id")
+		return badRequest("nada que cambiar: envia name, address, collector_id, group_id, snmp_profile_id o enabled")
 	}
 	d, err := a.store.UpdateDevice(r.Context(), strings.ToLower(id), ch)
 	if err != nil {

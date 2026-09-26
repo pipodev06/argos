@@ -1,4 +1,4 @@
-import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
 import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
@@ -8,13 +8,13 @@ import { rowNumber } from '@/lib/pagination'
 import type { Device } from '../types/device.types'
 import { DeviceStatusBadge } from './DeviceBadges'
 
-export type DeviceAction = 'edit' | 'delete'
+export type DeviceAction = 'edit' | 'toggle' | 'delete'
 
 interface DeviceTableProps {
   devices: Device[] | null
   page: number
   pageSize: number
-  /** Solo un admin recibe direccion y colector, y puede editar/eliminar. */
+  /** Solo un admin recibe direccion y colector, y puede editar, deshabilitar/habilitar y eliminar. */
   isAdmin: boolean
   onAction: (action: DeviceAction, device: Device) => void
 }
@@ -64,6 +64,15 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
                 <Cell className="relative z-10">
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar dispositivo ${d.name}`} title="Editar" onClick={() => onAction('edit', d)}>
                     <IconPencil stroke={1.5} aria-hidden />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`${d.status === 'disabled' ? 'Habilitar' : 'Deshabilitar'} dispositivo ${d.name}`}
+                    title={d.status === 'disabled' ? 'Habilitar' : 'Deshabilitar'}
+                    onClick={() => onAction('toggle', d)}
+                  >
+                    {d.status === 'disabled' ? <IconPlayerPlay stroke={1.5} aria-hidden /> : <IconPlayerPause stroke={1.5} aria-hidden />}
                   </Button>
                   <Button variant="ghost" size="icon-sm" aria-label={`Eliminar dispositivo ${d.name}`} title="Eliminar" onClick={() => onAction('delete', d)}>
                     <IconTrash stroke={1.5} aria-hidden />

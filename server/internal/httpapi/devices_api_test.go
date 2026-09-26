@@ -284,3 +284,36 @@ func TestPingChecksEndToEndThroughCollector(t *testing.T) {
 		t.Errorf("un colector escribio estado de un dispositivo que no es suyo: %d filas", n)
 	}
 }
+
+func TestDevicesDisableAndEnableAPI(t *testing.T) {
+	x := newScopeEnv(t)
+	id := x.newDevice(fmt.Sprintf(`{"name":"router","address":"192.168.1.1","collector_id":%q}`, x.hostA))
+	status := func() string {
+		t.Helper()
+		rec := x.do("GET", "/api/v1/devices/"+id, "", withCookie(x.admin))
+		x.wantStatus(rec, http.StatusOK, "")
+		var got struct {
+			Device deviceView `json:"device"`
+		}
+		x.dataAs(rec, &got)
+		return got.Device.Status
+	}
+	patch := func(c *http.Cookie, body string, code int, errCode string) {
+		t.Helper()
+		x.wantStatus(x.do("PATCH", "/api/v1/devices/"+id, body, withCookie(c)), code, errCode)
+	}
+
+	patch(x.admin, `{"enabled":false}`, http.StatusOK, "")
+	if got := status(); got != "disabled" {
+		t.Errorf("estado tras deshabilitar got %q, want disabled", got)
+	}
+	patch(x.admin, `{"enabled":true}`, http.StatusOK, "")
+	if got := status(); got != "pending" {
+		t.Errorf("estado tras habilitar got %q, want pending", got)
+	}
+	patch(x.admin, `{"enabled":"si"}`, http.StatusBadRequest, "invalid_body")
+	patch(x.va, `{"enabled":false}`, http.StatusForbidden, "")
+	if got := status(); got != "pending" {
+		t.Errorf("un viewer no debe poder deshabilitar: estado got %q", got)
+	}
+}

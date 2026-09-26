@@ -1,33 +1,22 @@
-import {
-  IconCircleCheck,
-  IconCircleOff,
-  IconCircleX,
-  IconClock,
-  IconPlugConnectedX,
-  IconServer2,
-} from '@tabler/icons-react'
-import { Link } from 'react-router'
+import { IconServer2 } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusTile } from '@/components/ui/status-tile'
-import { AlertsTile } from '@/features/alerts/components/AlertsTile'
+import { AlertsBlock } from '@/features/alerts/components/AlertsBlock'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useNow } from '@/hooks/useNow'
 import { useSummary } from '../hooks/useSummary'
 import type { Summary } from '../types/summary.types'
 import { AttentionPanel } from './AttentionPanel'
 import { GroupBreakdown } from './GroupBreakdown'
+import { StatusBlock } from './StatusBlock'
 import { TopUsagePanel } from './TopUsagePanel'
 
 interface SummaryViewProps {
   onAddHost: () => void
 }
-
-const TILE_LINK =
-  'block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
 
 function ago(from: number, now: number): string {
   const seconds = Math.max(0, Math.floor((now - from) / 1000))
@@ -70,20 +59,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
     )
   }
 
-  const c = data?.counts
-  const tiles = [
-    { label: 'Activos', value: c?.up, status: 'up', Icon: IconCircleCheck, icon: 'text-ok' },
-    { label: 'Caídos', value: c?.down, status: 'down', Icon: IconCircleX, icon: 'text-danger' },
-    { label: 'Sin conexión', value: c?.offline, status: 'offline', Icon: IconPlugConnectedX, icon: 'text-text-muted' },
-    { label: 'Pendientes', value: c?.pending, status: 'pending', Icon: IconClock, icon: 'text-info' },
-    { label: 'Deshabilitados', value: c?.disabled, status: 'disabled', Icon: IconCircleOff, icon: 'text-text-muted' },
-  ] as const
-  const d = data?.devices
-  const deviceTiles = [
-    { label: 'Activos', value: d?.up, status: 'up', Icon: IconCircleCheck, icon: 'text-ok' },
-    { label: 'Caídos', value: d?.down, status: 'down', Icon: IconCircleX, icon: 'text-danger' },
-    { label: 'Sin conexión', value: d?.offline, status: 'offline', Icon: IconPlugConnectedX, icon: 'text-text-muted' },
-  ] as const
+  const showDevices = data ? total(data.devices) > 0 : false
 
   return (
     <>
@@ -101,46 +77,12 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-          {tiles.map((t) =>
-            c ? (
-              <Link key={t.status} to={`/hosts?status=${t.status}`} className={TILE_LINK}>
-                <StatusTile
-                  label={t.label}
-                  value={t.value ?? 0}
-                  Icon={t.Icon}
-                  iconClassName={t.icon}
-                  alert={t.status === 'down' && (t.value ?? 0) > 0}
-                />
-              </Link>
-            ) : (
-              <Skeleton key={t.status} className="h-24" />
-            ),
-          )}
+        {/* Tres bloques de 3 filas (hosts 2x3, dispositivos 2x3, alertas 1x3) alineados; sin dispositivos, dos. */}
+        <div className={'grid gap-6 ' + (showDevices ? 'lg:grid-cols-[2fr_2fr_1fr]' : 'lg:grid-cols-[2fr_1fr]')}>
+          <StatusBlock id="summary-hosts" title="Hosts" counts={data?.counts} to="/hosts" />
+          {showDevices && <StatusBlock id="summary-devices" title="Dispositivos" counts={data?.devices} to="/dispositivos" />}
+          <AlertsBlock />
         </div>
-
-        {d && total(d) > 0 && (
-          <section aria-labelledby="summary-devices" className="flex flex-col gap-3">
-            <h2 id="summary-devices" className="text-sm font-semibold">
-              Dispositivos
-            </h2>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-              {deviceTiles.map((t) => (
-                <Link key={t.status} to={`/dispositivos?status=${t.status}`} className={TILE_LINK}>
-                  <StatusTile
-                    label={t.label}
-                    value={t.value ?? 0}
-                    Icon={t.Icon}
-                    iconClassName={t.icon}
-                    alert={t.status === 'down' && (t.value ?? 0) > 0}
-                  />
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <AlertsTile />
 
         {data ? (
           <div className="grid gap-6 lg:grid-cols-2">

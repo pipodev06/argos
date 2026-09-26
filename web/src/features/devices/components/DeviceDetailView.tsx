@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
 import { Link, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
@@ -9,6 +9,7 @@ import { BackToHostsLink } from '@/features/hosts/components/BackToHostsLink'
 import { Item } from '@/features/hosts/components/HostSystemInfo'
 import { formatFullDate, formatLastSeen } from '@/features/hosts/utils/format'
 import { versionLabel } from '@/features/snmp-profiles/utils/profileForm'
+import { useDeviceEnabled } from '../hooks/useDeviceEnabled'
 import { useDeviceDetail } from '../hooks/useDevices'
 import { deviceStateOverride } from '../utils/status'
 import { DeleteDeviceConfirm } from './DeleteDeviceConfirm'
@@ -21,6 +22,7 @@ export function DeviceDetailView({ id }: { id: string }) {
   const isAdmin = user?.role === 'admin'
   const navigate = useNavigate()
   const detail = useDeviceDetail(id)
+  const enabling = useDeviceEnabled(() => void detail.refresh())
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const device = detail.data
@@ -45,6 +47,10 @@ export function DeviceDetailView({ id }: { id: string }) {
                     <IconPencil stroke={1.5} aria-hidden />
                     Editar
                   </Button>
+                  <Button variant="outline" size="sm" disabled={enabling.busy} onClick={() => void enabling.toggle(device)}>
+                    {device.status === 'disabled' ? <IconPlayerPlay stroke={1.5} aria-hidden /> : <IconPlayerPause stroke={1.5} aria-hidden />}
+                    {device.status === 'disabled' ? 'Habilitar' : 'Deshabilitar'}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setDeleting(true)}>
                     <IconTrash stroke={1.5} aria-hidden />
                     Eliminar
@@ -53,6 +59,8 @@ export function DeviceDetailView({ id }: { id: string }) {
               )}
             </div>
             {override && <p className="text-sm">{override.reason}: no se está evaluando su estado.</p>}
+            {enabling.error && <InlineError>{enabling.error}</InlineError>}
+            {device.status === 'disabled' && <p className="text-sm text-text-muted">Deshabilitado: el colector no lo sondea y sus alertas se resolvieron. Habilítalo para volver a monitorearlo.</p>}
           </div>
           <dl className="grid gap-x-6 gap-y-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2">
             {isAdmin && <Item term="Dirección">{device.address}</Item>}

@@ -21,4 +21,8 @@ function StatusTile({ label, value, Icon, iconClassName, alert }: StatusTileProp
   )
 }
 
-export { StatusTile }
+/** Clases del enlace que envuelve una tarjeta (foco visible, mismo radio). */
+const TILE_LINK =
+  "block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+
+export { StatusTile, TILE_LINK }
