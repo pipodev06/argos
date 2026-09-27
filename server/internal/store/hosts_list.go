@@ -364,6 +364,8 @@ type DiskUsage struct {
 
 // diskWindow acota cuanto hacia atras se busca la ultima muestra de cada montaje (poda particiones y
 // esconde montajes que ya no existen). Un equipo apagado un fin de semana largo aun muestra su ultimo dato.
+// Siempre lee disk_samples crudo, nunca disk_chunks: diskWindow (7 d) es menor que la ventana caliente fija de
+// disk_samples (internal/retention.diskHotDays, 8 d), asi que estas ultimas muestras nunca estan empaquetadas.
 const diskWindow = 7 * 24 * time.Hour
 
 // HostDisks devuelve la ultima muestra de cada montaje del host dentro de diskWindow, por punto de montaje.

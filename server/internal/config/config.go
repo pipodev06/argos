@@ -87,7 +87,9 @@ type Config struct {
 	MetricsHourlyRetentionDays int
 	// ServiceChecksRetentionDays es cuanto se conservan los chequeos de servicio (>= 8).
 	ServiceChecksRetentionDays int
-	// DiskRetentionDays es cuanto se conserva el uso de disco por montaje (disk_samples, >= 8).
+	// DiskRetentionDays es cuanto se conserva el uso de disco por montaje (disk_samples, >= 8), sin distincion
+	// por host/grupo. Los primeros dias viven crudos (ventana caliente fija, no configurable: ver
+	// internal/retention.diskHotDays) y el resto empaquetado en disk_chunks; el total no cambia por eso.
 	DiskRetentionDays int
 	// MetricsMaintenanceInterval es cada cuanto corre el mantenimiento de particiones y resumenes (>= 5 s).
 	MetricsMaintenanceInterval time.Duration

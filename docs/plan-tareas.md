@@ -68,7 +68,7 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 ## P8 — Historial por fecha y retención en la web (siguiente)
 - [x] **E1 Endpoint `GET /hosts/{id}/history` (+ CSV, discos)** con `DetailRange`/`EffectiveDetailDays`; requisitos de seguridad del hallazgo #7 (ámbito, `SetWriteDeadline` para el CSV, cupo propio, nombre de archivo saneado, `csvSafe` en `mount`, respuesta con `detail_retention_days`). La web ya está hecha (`/hosts/:id/historial`) y hoy fija 30 días.
 - [x] **E2 Pantalla `/configuracion`** (2026-09-26; sin revisión visual) (retención global) y campos "Retención de detalle (días)" en grupo y host con confirmación al reducir; mostrar la retención efectiva en la lista de hosts.
-- [ ] **E3 Probar el empaquetado con volumen** (backfill de particiones de 8–30 días con 1000 hosts) y `disk_samples` en chunks; `check-go.sh --race` del server terminó en FALLO sin causa (investigar).
+- [x] **E3 Probar el empaquetado con volumen** (backfill de particiones de 8–30 días con 1000 hosts) y `disk_samples` en chunks; `check-go.sh --race` del server terminó en FALLO sin causa (investigar). *2026-09-27: medido con 1000×10 días, disk_samples en chunks hecho (migracion 00036), --race no reproducido.*
 
 ## P9 — Brechas de producto por flujo (análisis K, 2026-09-26; `decisiones/2026-09-26-brechas-producto.md`)
 Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), luego los S/M.

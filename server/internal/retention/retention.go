@@ -10,8 +10,10 @@
 //  1. crear las particiones de hoy a hoy+7 dias;
 //  2. resumir por hora las metricas crudas (marca de agua metrics_rollup_through);
 //  3. borrar las particiones vencidas (las de `metrics` solo si ya estan resumidas y empaquetadas: antes de
-//     borrarlas se guarda cada host-dia en `metrics_chunks`, ver pack.go);
-//  4. recortar `metrics_chunks` segun la retencion de detalle efectiva de cada host (trim.go);
+//     borrarlas se guarda cada host-dia en `metrics_chunks`, ver pack.go; las de `disk_samples` se empaquetan
+//     igual en `disk_chunks` antes de borrarse, con una ventana caliente fija sin marca de agua, ver pack_disk.go);
+//  4. recortar `metrics_chunks` segun la retencion de detalle efectiva de cada host (trim.go) y `disk_chunks`
+//     segun la retencion global unica de disco (pack_disk.go: disk_samples no tiene retencion por host/grupo);
 //  5. purgar `metrics_hourly` vencido, en lotes.
 package retention
 
@@ -141,6 +143,7 @@ func (m *Maintainer) RunOnce(ctx context.Context) (ran bool) {
 		{"rollup", func() error { return m.rollup(ctx, conn, now) }},
 		{"drop_partitions", func() error { return m.dropExpired(ctx, conn, now) }},
 		{"trim_chunks", func() error { return m.trimChunks(ctx, conn, now) }},
+		{"trim_disk_chunks", func() error { return m.trimDiskChunks(ctx, conn, now) }},
 		{"purge_hourly", func() error { return m.purgeHourly(ctx, conn, now) }},
 	}
 	failed := false

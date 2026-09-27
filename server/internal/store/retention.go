@@ -320,6 +320,99 @@ func (s *Store) rawRange(ctx context.Context, hostID string, from, to time.Time,
 	return nil
 }
 
+// DiskDetailSample es una muestra de disk_samples empaquetada o cruda (lo que devuelve DiskDetailRange).
+type DiskDetailSample = chunk.DiskRow
+
+// DiskDetailRange entrega en orden las muestras de disco del host con from <= ts < to, sin cargarlas todas en
+// memoria: simetrico a DetailRange pero contra disk_chunks/disk_samples (sin retencion por host/grupo: la
+// ventana caliente de disk_samples es fija, ver internal/retention.diskHotDays). Un dia con chunk se lee siempre
+// del chunk (la particion cruda puede haber sido borrada).
+func (s *Store) DiskDetailRange(ctx context.Context, hostID string, from, to time.Time, fn func(DiskDetailSample) error) error {
+	from, to = from.UTC(), to.UTC()
+	if !from.Before(to) {
+		return nil
+	}
+	firstDay, lastDay := from.Truncate(24*time.Hour), to.Add(-time.Microsecond).Truncate(24*time.Hour)
+
+	rows, err := s.pool.Query(ctx, `SELECT day FROM disk_chunks WHERE host_id = $1 AND day >= $2::date AND day <= $3::date ORDER BY day`,
+		hostID, firstDay, lastDay)
+	if err != nil {
+		return fmt.Errorf("listando los dias empaquetados de disco: %w", err)
+	}
+	chunkDays, err := pgx.CollectRows(rows, pgx.RowTo[time.Time])
+	if err != nil {
+		return fmt.Errorf("leyendo los dias empaquetados de disco: %w", err)
+	}
+
+	cursor := from
+	for _, d := range chunkDays {
+		day := d.UTC().Truncate(24 * time.Hour)
+		if day.After(cursor) {
+			if err := s.rawDiskRange(ctx, hostID, cursor, minTime(day, to), fn); err != nil {
+				return err
+			}
+		}
+		if err := s.diskChunkRange(ctx, hostID, day, from, to, fn); err != nil {
+			return err
+		}
+		cursor = day.AddDate(0, 0, 1)
+	}
+	if cursor.Before(to) {
+		return s.rawDiskRange(ctx, hostID, cursor, to, fn)
+	}
+	return nil
+}
+
+// rawDiskRange entrega las filas crudas de disco de [from, to), en orden de ts y luego mount (igual que el chunk).
+func (s *Store) rawDiskRange(ctx context.Context, hostID string, from, to time.Time, fn func(DiskDetailSample) error) error {
+	rows, err := s.pool.Query(ctx,
+		`SELECT ts, mount, used_mb, total_mb FROM disk_samples WHERE host_id = $1 AND ts >= $2 AND ts < $3 ORDER BY ts, mount`,
+		hostID, from, to)
+	if err != nil {
+		return fmt.Errorf("leyendo el detalle de disco crudo: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r DiskDetailSample
+		if err := rows.Scan(&r.TS, &r.Mount, &r.UsedMB, &r.TotalMB); err != nil {
+			return fmt.Errorf("leyendo una muestra de disco cruda: %w", err)
+		}
+		r.TS = r.TS.UTC()
+		if err := fn(r); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterando el detalle de disco crudo: %w", err)
+	}
+	return nil
+}
+
+// diskChunkRange decodifica el chunk de disco del dia y entrega las muestras de [from, to).
+func (s *Store) diskChunkRange(ctx context.Context, hostID string, day, from, to time.Time, fn func(DiskDetailSample) error) error {
+	var data []byte
+	err := s.pool.QueryRow(ctx, `SELECT data FROM disk_chunks WHERE host_id = $1 AND day = $2::date`, hostID, day).Scan(&data)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // lo borro el mantenimiento entre el listado y la lectura
+	}
+	if err != nil {
+		return fmt.Errorf("leyendo el chunk de disco del %s: %w", day.Format(time.DateOnly), err)
+	}
+	rows, err := chunk.DecodeDisk(data)
+	if err != nil {
+		return fmt.Errorf("decodificando el chunk de disco del %s: %w", day.Format(time.DateOnly), err)
+	}
+	for _, r := range rows {
+		if r.TS.Before(from) || !r.TS.Before(to) {
+			continue
+		}
+		if err := fn(r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // chunkRange decodifica el chunk del dia y entrega las muestras de [from, to).
 func (s *Store) chunkRange(ctx context.Context, hostID string, day, from, to time.Time, fn func(DetailSample) error) error {
 	var data []byte

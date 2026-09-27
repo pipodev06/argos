@@ -18,7 +18,7 @@ var ErrPurgeConfirm = errors.New("el nombre de confirmacion no coincide")
 
 // PurgeCounts son las filas borradas de un host.
 type PurgeCounts struct {
-	Metrics, Hourly, Chunks, Disks, Checks int64
+	Metrics, Hourly, Chunks, Disks, DiskChunks, Checks int64
 }
 
 func (c *PurgeCounts) add(o PurgeCounts) {
@@ -26,6 +26,7 @@ func (c *PurgeCounts) add(o PurgeCounts) {
 	c.Hourly += o.Hourly
 	c.Chunks += o.Chunks
 	c.Disks += o.Disks
+	c.DiskChunks += o.DiskChunks
 	c.Checks += o.Checks
 }
 
@@ -58,7 +59,7 @@ func purgeHostTx(ctx context.Context, tx pgx.Tx, hostID string) (PurgeCounts, er
 		n     *int64
 	}{
 		{"metrics", &c.Metrics}, {"metrics_hourly", &c.Hourly}, {"metrics_chunks", &c.Chunks},
-		{"disk_samples", &c.Disks}, {"service_checks", &c.Checks},
+		{"disk_samples", &c.Disks}, {"disk_chunks", &c.DiskChunks}, {"service_checks", &c.Checks},
 	} {
 		// El nombre de tabla es una constante de esta funcion (no entrada de usuario).
 		tag, err := tx.Exec(ctx, `DELETE FROM `+d.table+` WHERE host_id = $1`, hostID)

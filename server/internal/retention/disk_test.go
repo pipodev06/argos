@@ -2,22 +2,26 @@ package retention
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"argos/server/internal/chunk"
+	"argos/server/internal/store"
 )
 
-// disk_samples se poda por dias (sin marca de agua ni resumen): vencidas las que terminan <= hoy - DiskDays,
-// incluida la legacy; las vigentes conservan sus filas.
+// disk_samples se poda con una ventana caliente fija (diskHotDays, sin marca de agua ni resumen): vencidas las
+// que terminan <= hoy - diskHotDays, incluida la legacy; las vigentes conservan sus filas. Antes de borrarse cada
+// host-dia se empaqueta en disk_chunks (con budget alto para no depender del limite por ciclo aqui).
 func TestDropExpiredDiskSamples(t *testing.T) {
 	fresh(t)
 	ctx := context.Background()
 	now := farNow()
 	today := utcDay(now)
-	cfg := testCfg
-	cfg.DiskDays = 10
-	m, logs := newMaint(t, cfg, now)
+	m, logs := newMaint(t, testCfg, now)
+	m.packBudget = 100
 	day := func(off int) time.Time { return today.AddDate(0, 0, off) }
 
 	h := mkHost(t, "srv-disk")
@@ -32,15 +36,76 @@ func TestDropExpiredDiskSamples(t *testing.T) {
 			t.Fatalf("dropExpired: %v", err)
 		}
 	})
-	// Retencion 10 d: se van los dias cuya cota superior es <= hoy-10, o sea los dias <= -11.
-	wantDays(t, "disk_samples", dayOffsets(t, tableDiskSamples, today), -10, 0)
+	// Ventana caliente diskHotDays (8): se van los dias cuya cota superior es <= hoy-8, o sea los dias <= -9.
+	wantDays(t, "disk_samples", dayOffsets(t, tableDiskSamples, today), -8, 0)
 	if hasLegacy(t, tableDiskSamples) {
 		t.Errorf("disk_samples_legacy sigue existiendo pese a estar vencida")
 	}
 	if got := count(t, `SELECT count(*) FROM disk_samples`); got != 1 {
-		t.Errorf("filas de disk_samples got %d, want 1 (la de -12 se fue con su particion)", got)
+		t.Errorf("filas de disk_samples got %d, want 1 (la de -12 se fue con su particion, empaquetada)", got)
+	}
+	if got := count(t, `SELECT count(*) FROM disk_chunks WHERE host_id = $1 AND day = $2::date AND n = 1`, h, day(-12)); got != 1 {
+		t.Errorf("el dia -12 debia quedar empaquetado en disk_chunks, got %d", got)
 	}
 	logs.noErrors(t)
+}
+
+// diskDetail lee todo el detalle de disco de un host entre from y to con Store.DiskDetailRange.
+func diskDetail(t *testing.T, hostID string, from, to time.Time) []chunk.DiskRow {
+	t.Helper()
+	var got []chunk.DiskRow
+	err := store.New(testPool).DiskDetailRange(context.Background(), hostID, from, to, func(r store.DiskDetailSample) error {
+		got = append(got, r)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("DiskDetailRange: %v", err)
+	}
+	return got
+}
+
+// Empaquetar disco y borrar la particion: DiskDetailRange devuelve las mismas filas, mezclando montajes.
+func TestPackDiskThenDropKeepsDetail(t *testing.T) {
+	fresh(t)
+	ctx := context.Background()
+	now := farNow()
+	today := utcDay(now)
+	m, logs := newMaint(t, testCfg, now)
+	m.packBudget = 100
+	h := mkHost(t, "srv-disco-empaque")
+
+	d := today.AddDate(0, 0, -12)
+	mkPartition(t, tableDiskSamples, d)
+	want := []chunk.DiskRow{
+		{TS: d.Add(time.Hour), Mount: "/", UsedMB: 1000, TotalMB: 500000},
+		{TS: d.Add(time.Hour), Mount: "/data", UsedMB: 2000, TotalMB: 1000000},
+		{TS: d.Add(2 * time.Hour), Mount: "/", UsedMB: 1010, TotalMB: 500000},
+		{TS: d.Add(2 * time.Hour), Mount: "/data", UsedMB: 2050, TotalMB: 1000000},
+	}
+	for _, r := range want {
+		mustExec(t, `INSERT INTO disk_samples (host_id, ts, used_mb, total_mb, mount) VALUES ($1, $2, $3, $4, $5)`,
+			h, r.TS, r.UsedMB, r.TotalMB, r.Mount)
+	}
+
+	if !m.RunOnce(ctx) {
+		t.Fatal("RunOnce got ran=false")
+	}
+	logs.noErrors(t)
+	if hasPartition(t, tableDiskSamples, d) {
+		t.Fatal("la particion de disco vencida y empaquetada debia borrarse")
+	}
+	if got := count(t, `SELECT count(*) FROM disk_chunks WHERE host_id = $1 AND day = $2::date AND n = $3 AND mount_count = 2`, h, d, len(want)); got != 1 {
+		t.Fatalf("chunks de disco del host-dia = %d, want 1", got)
+	}
+	got := diskDetail(t, h, d, d.AddDate(0, 0, 1))
+	if len(got) != len(want) {
+		t.Fatalf("DiskDetailRange devolvio %d filas, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if !reflect.DeepEqual(got[i], want[i]) {
+			t.Errorf("fila %d:\n got  %+v\n want %+v", i, got[i], want[i])
+		}
+	}
 }
 
 // Un ciclo completo crea las particiones de disk_samples hoy..hoy+7.

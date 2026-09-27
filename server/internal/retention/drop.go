@@ -66,7 +66,18 @@ func (m *Maintainer) dropExpired(ctx context.Context, conn *pgx.Conn, now time.T
 		metrics.unpacked = unpacked
 	}
 	checks := dropPolicy{table: tableServiceChecks, cutoff: today.AddDate(0, 0, -m.cfg.ServiceChecksDays)}
-	disks := dropPolicy{table: tableDiskSamples, cutoff: today.AddDate(0, 0, -m.cfg.DiskDays)}
+
+	// disk_samples: ventana caliente fija diskHotDays (no configurable, ver pack_disk.go); empaqueta antes de
+	// borrar, igual que metrics pero sin marca de agua (disk_samples no tiene resumen por hora).
+	disks := dropPolicy{table: tableDiskSamples, cutoff: today.AddDate(0, 0, -diskHotDays)}
+	unpackedDisks, err := m.packDiskExpired(ctx, conn, disks)
+	if err != nil {
+		errs = append(errs, err)
+		if unpackedDisks == nil {
+			disks.blocked = true
+		}
+	}
+	disks.unpacked = unpackedDisks
 
 	for _, policy := range []dropPolicy{metrics, checks, disks} {
 		if err := m.dropTable(ctx, conn, policy); err != nil {
