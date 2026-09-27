@@ -85,8 +85,8 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [x] **B11 `DELETE /users`** (falta borrar viewers al purgar el grupo) auditado (y borrar viewers al purgar el grupo). (Media, S)
 - [ ] **B12 Informes por mes calendario / rango libre** (hoy 7/30/90 d, tope 91 d; `host_events` guarda 400 d). (Media, S/M)
 - [x] **B13 Clonar reglas** (botón Duplicar; plantillas por cliente no) (Media, S)
-- [ ] **B14 Re-enrolar conservando `host_id`** y aviso de hostnames duplicados. (Media, M)
-- [ ] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M)
+- [x] **B14 Re-enrolar conservando `host_id`** y aviso de hostnames duplicados. (Media, M) *2026-09-27*
+- [x] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M) *2026-09-27: mismo mecanismo que B14.*
 - [ ] **B16 Alta masiva / token por grupo** con topes. (Media, M)
 - [ ] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M)
 - [x] **B18 Rotación de `ARGOS_SECRET_KEY`** (doble clave y recifrado). (Media, M) *2026-09-27: `ARGOS_SECRET_KEY_PREVIOUS` + `argos-server rotate-secret-key`.*

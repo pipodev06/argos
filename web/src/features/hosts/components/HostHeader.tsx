@@ -1,4 +1,4 @@
-import { IconEraser, IconPencil } from '@tabler/icons-react'
+import { IconEraser, IconPencil, IconPlayerPause, IconRefresh } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
 import type { HostDetail } from '../types/host.types'
 import { formatLastSeen } from '../utils/format'
@@ -14,11 +14,17 @@ interface HostHeaderProps {
   onEdit: () => void
   /** Baja del host y de todos sus datos (solo admin). */
   onPurge?: () => void
+  /** Deshabilita el host (solo host `agent` no deshabilitado; solo admin). */
+  onRevoke?: () => void
+  /** Reactiva (si esta `disabled`) o re-enrola (token nuevo) el host `agent`; solo admin. */
+  onReEnroll?: () => void
 }
 
-export function HostHeader({ host, ip, canEdit, onEdit, onPurge }: HostHeaderProps) {
+export function HostHeader({ host, ip, canEdit, onEdit, onPurge, onRevoke, onReEnroll }: HostHeaderProps) {
   const seen = host.last_seen_at ? `Visto ${formatLastSeen(host.last_seen_at)}` : 'Sin reportes todavía'
   const line = [host.group?.name ?? 'Sin grupo', formatOs(host.os), ip, seen].filter(Boolean).join(' · ')
+  const isAgent = host.kind === 'agent'
+  const isDisabled = host.status === 'disabled'
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -30,6 +36,18 @@ export function HostHeader({ host, ip, canEdit, onEdit, onPurge }: HostHeaderPro
               <IconPencil stroke={1.5} aria-hidden />
               Editar
             </Button>
+            {isAgent && onRevoke && !isDisabled && (
+              <Button variant="outline" size="sm" onClick={onRevoke}>
+                <IconPlayerPause stroke={1.5} aria-hidden />
+                Deshabilitar
+              </Button>
+            )}
+            {isAgent && onReEnroll && (
+              <Button variant="outline" size="sm" onClick={onReEnroll}>
+                <IconRefresh stroke={1.5} aria-hidden />
+                {isDisabled ? 'Reactivar' : 'Re-enrolar'}
+              </Button>
+            )}
             {onPurge && (
               <Button variant="outline" size="sm" onClick={onPurge}>
                 <IconEraser stroke={1.5} aria-hidden />

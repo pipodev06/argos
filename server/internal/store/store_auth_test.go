@@ -404,7 +404,7 @@ func TestEnrollTokenCapAndCreator(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errs[i] = s.CreateEnrollToken(ctx, th(fmt.Sprint("t", i)), "srv", admin, nil, future)
+			errs[i] = s.CreateEnrollToken(ctx, th(fmt.Sprint("t", i)), "srv", admin, nil, future, nil)
 		}()
 	}
 	wg.Wait()
@@ -429,7 +429,7 @@ func TestEnrollTokenCapAndCreator(t *testing.T) {
 
 	// Los usados y los vencidos no cuentan como activos.
 	mustExec(t, `UPDATE enroll_tokens SET used_at = now() WHERE token_hash = (SELECT token_hash FROM enroll_tokens LIMIT 1)`)
-	if err := s.CreateEnrollToken(ctx, th("extra"), "srv", admin, nil, future); err != nil {
+	if err := s.CreateEnrollToken(ctx, th("extra"), "srv", admin, nil, future, nil); err != nil {
 		t.Errorf("con un token usado debe caber uno mas: %v", err)
 	}
 }
@@ -439,7 +439,7 @@ func TestNoPlaintextEnrollTokenInDB(t *testing.T) {
 	ctx := context.Background()
 	admin := mkUser(t, s, "alice", RoleAdmin)
 	const plain = "token-que-jamas-debe-quedar-en-claro"
-	if err := s.CreateEnrollToken(ctx, th(plain), "srv", admin, nil, time.Now().Add(time.Hour)); err != nil {
+	if err := s.CreateEnrollToken(ctx, th(plain), "srv", admin, nil, time.Now().Add(time.Hour), nil); err != nil {
 		t.Fatal(err)
 	}
 	// Busca el valor en claro en todas las columnas de texto de enroll_tokens.

@@ -67,10 +67,18 @@ export interface PendingEnrollToken {
   expires_at: string
 }
 
+/** Host `agent` existente cuyo hostname coincide con el que se intenta enrolar (alta normal). */
+export interface HostnameConflict {
+  host_id: string
+  status: HostStatus
+}
+
 export interface EnrollToken {
   enroll_token: string
   expires_at: string
   commands?: EnrollCommands
+  /** Solo en la respuesta de alta normal; el servidor puede no enviarlo todavia. */
+  hostname_conflict?: HostnameConflict | null
 }
 
 // --- Detalle de host y metricas (GET /hosts/{id} y /hosts/{id}/metrics) ---

@@ -20,6 +20,8 @@ import { HostDisks } from './HostDisks'
 import { HostHeader } from './HostHeader'
 import { HostLatestCards } from './HostLatestCards'
 import { HostSystemInfo } from './HostSystemInfo'
+import { ReEnrollHostDialog } from './ReEnrollHostDialog'
+import { RevokeHostDialog } from './RevokeHostDialog'
 
 const RANGE_OPTIONS = RANGES.map(({ value, label, ariaLabel }) => ({ value, label, ariaLabel }))
 
@@ -44,6 +46,8 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
   const [range, setRange] = useState<MetricRange>('1h')
   const [editing, setEditing] = useState(false)
   const [purging, setPurging] = useState(false)
+  const [revoking, setRevoking] = useState(false)
+  const [reEnrolling, setReEnrolling] = useState(false)
   const navigate = useNavigate()
   const metrics = useHostMetrics(id, range)
 
@@ -66,6 +70,8 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
               canEdit={user?.role === 'admin'}
               onEdit={() => setEditing(true)}
               onPurge={() => setPurging(true)}
+              onRevoke={() => setRevoking(true)}
+              onReEnroll={() => setReEnrolling(true)}
             />
           ) : (
             detail.loading && <p className="text-sm text-text-muted">Cargando…</p>
@@ -130,6 +136,27 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
               onClose={() => setEditing(false)}
               onSaved={() => {
                 setEditing(false)
+                void detail.refresh()
+              }}
+            />
+          )}
+
+          {data && (
+            <RevokeHostDialog
+              host={revoking ? data.host : null}
+              onClose={() => setRevoking(false)}
+              onDone={() => {
+                setRevoking(false)
+                void detail.refresh()
+              }}
+            />
+          )}
+
+          {data && (
+            <ReEnrollHostDialog
+              host={reEnrolling ? data.host : null}
+              onClose={() => {
+                setReEnrolling(false)
                 void detail.refresh()
               }}
             />

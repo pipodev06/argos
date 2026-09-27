@@ -55,8 +55,12 @@ func TestRuleScopeHostAndDeviceContract(t *testing.T) {
 		}
 		return rec.Code, d.Rule.Scope, d.Rule.ID
 	}
+	// Contador en vez de time.Now().UnixNano(): con muchas reglas seguidas dos llamadas pueden caer en el mismo
+	// nanosegundo (resolucion de reloj) y colisionar el nombre unico (409 en vez de 201, visto de forma intermitente).
+	var ruleSeq int
 	rule := func(kind, extra, scope string) string {
-		return fmt.Sprintf(`{"name":"r-%d","kind":%q,%s"duration_seconds":0,"severity":"warn","scope":%s}`, time.Now().UnixNano(), kind, extra, scope)
+		ruleSeq++
+		return fmt.Sprintf(`{"name":"r-%d-%d","kind":%q,%s"duration_seconds":0,"severity":"warn","scope":%s}`, time.Now().UnixNano(), ruleSeq, kind, extra, scope)
 	}
 	hostSc := fmt.Sprintf(`{"type":"host","host_id":%q}`, x.hostA)
 	devSc := fmt.Sprintf(`{"type":"device","device_id":%q}`, x.device)

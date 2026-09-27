@@ -79,13 +79,56 @@ func (a *API) createEnrollToken(w http.ResponseWriter, r *http.Request) error {
 	}
 	expiresAt := a.now().Add(enrollTokenTTL)
 	// En la BD solo va el hash: el token en claro se entrega una unica vez, en esta respuesta.
-	if err := a.store.CreateEnrollToken(r.Context(), hashToken(token), req.Hostname, admin.ID, req.GroupID, expiresAt); err != nil {
+	if err := a.store.CreateEnrollToken(r.Context(), hashToken(token), req.Hostname, admin.ID, req.GroupID, expiresAt, nil); err != nil {
 		return err
 	}
 
 	e := actor(admin)
 	e.Event, e.Outcome, e.TargetType = evEnrollTokenCreated, store.OutcomeOK, "enroll_token"
 	a.audit(r, e, map[string]any{"hostname": req.Hostname, "group_id": req.GroupID})
+
+	resp := map[string]any{
+		"enroll_token": token,
+		"expires_at":   expiresAt,
+	}
+	if a.cmdOrigin != "" {
+		resp["commands"] = installCommands(a.cmdOrigin, token)
+	}
+	// Aviso (no bloqueante, no es error): ya existe un host con este hostname. Crear un segundo host
+	// con el mismo nombre puede ser intencional; la web solo muestra el aviso.
+	conflictID, conflictStatus, hasConflict, err := a.store.HostConflictByHostname(r.Context(), req.Hostname)
+	if err != nil {
+		return err
+	}
+	if hasConflict {
+		resp["hostname_conflict"] = map[string]any{"host_id": conflictID, "status": conflictStatus}
+	}
+	writeJSON(w, http.StatusCreated, resp)
+	return nil
+}
+
+// reEnrollHost crea un enroll token que, al canjearse, actualiza este host en vez de crear uno nuevo
+// (conserva su id y todo su historial): sirve pa reactivar un host disabled (B15) o pa re-enrolarlo
+// tras perder sus credenciales o reinstalarlo (B14). Solo admin; 404 si no existe o es un dispositivo.
+func (a *API) reEnrollHost(w http.ResponseWriter, r *http.Request) error {
+	admin := currentUser(r)
+	id := r.PathValue("id")
+	if !isUUID(id) {
+		return invalidID()
+	}
+
+	token, err := randomToken(16)
+	if err != nil {
+		return fmt.Errorf("generando enroll token: %w", err)
+	}
+	expiresAt := a.now().Add(enrollTokenTTL)
+	if err := a.store.CreateEnrollToken(r.Context(), hashToken(token), "", admin.ID, nil, expiresAt, &id); err != nil {
+		return err
+	}
+
+	e := actor(admin)
+	e.Event, e.Outcome, e.TargetType, e.TargetID = evEnrollTokenCreated, store.OutcomeOK, "enroll_token", id
+	a.audit(r, e, map[string]any{"target_host_id": id})
 
 	resp := map[string]any{
 		"enroll_token": token,
@@ -179,7 +222,7 @@ func (a *API) agentEnroll(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("generando agent token: %w", err)
 	}
-	hostID, err := a.store.EnrollHost(r.Context(), hashToken(req.EnrollToken), req.OS, req.Arch, hashToken(agentToken))
+	hostID, reenroll, err := a.store.EnrollHost(r.Context(), hashToken(req.EnrollToken), req.OS, req.Arch, hashToken(agentToken))
 	if err != nil {
 		if reason, ok := enrollRejection(err); ok {
 			// Una sola respuesta externa pa token inexistente/usado/expirado: el motivo real solo va al log.
@@ -189,7 +232,11 @@ func (a *API) agentEnroll(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
-	a.audit(r, store.AuditEntry{Event: evHostEnrolled, Outcome: store.OutcomeOK, TargetType: "host", TargetID: hostID}, nil)
+	var detail map[string]any
+	if reenroll {
+		detail = map[string]any{"re_enroll": true, "host_id": hostID}
+	}
+	a.audit(r, store.AuditEntry{Event: evHostEnrolled, Outcome: store.OutcomeOK, TargetType: "host", TargetID: hostID}, detail)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"host_id":     hostID,
