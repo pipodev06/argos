@@ -23,12 +23,12 @@ const (
 
 type checkEnv struct {
 	*alertEnv
-	box *notify.Box
+	box *notify.KeyRing
 }
 
 func newCheckEnv(t *testing.T) *checkEnv {
 	t.Helper()
-	box, err := notify.NewBox(channelKey)
+	box, err := notify.NewKeyRing(channelKey, "")
 	if err != nil {
 		t.Fatal(err)
 	}

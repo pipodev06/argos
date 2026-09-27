@@ -86,10 +86,11 @@ type KeyIDLister interface {
 	ChannelKeyIDs(ctx context.Context) ([]string, error)
 }
 
-// CheckSecretKey se llama al arrancar: si hay canales con secreto cifrado exige que box exista y que su
-// identificador coincida con el de TODAS las filas. Sin canales cifrados no exige nada (la clave solo se
-// necesita al crear el primer canal). El error dice que hacer, sin revelar la clave.
-func CheckSecretKey(ctx context.Context, l KeyIDLister, box *Box) error {
+// CheckSecretKey se llama al arrancar: si hay canales con secreto cifrado exige que el anillo exista y que su
+// clave actual o alguna previa (ARGOS_SECRET_KEY_PREVIOUS) cubra el identificador de TODAS las filas. Sin
+// canales cifrados no exige nada (la clave solo se necesita al crear el primer canal). El error dice que hacer,
+// sin revelar la clave.
+func CheckSecretKey(ctx context.Context, l KeyIDLister, ring *KeyRing) error {
 	ids, err := l.ChannelKeyIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("leyendo las claves de los canales: %w", err)
@@ -97,12 +98,12 @@ func CheckSecretKey(ctx context.Context, l KeyIDLister, box *Box) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	if box == nil {
+	if ring == nil {
 		return errors.New("hay canales de notificacion con secretos cifrados y ARGOS_SECRET_KEY no esta definida: define la clave con la que se cifraron")
 	}
 	for _, id := range ids {
-		if id != box.KeyID() {
-			return errors.New("ARGOS_SECRET_KEY no coincide con la clave con la que se cifraron los secretos de los canales (secret_key_id distinto): restaura la clave original o borra los canales")
+		if !ring.HasKeyID(id) {
+			return errors.New("ARGOS_SECRET_KEY (ni ARGOS_SECRET_KEY_PREVIOUS) no coincide con la clave con la que se cifraron los secretos de los canales (secret_key_id distinto): restaura la clave original, agregala a ARGOS_SECRET_KEY_PREVIOUS, o borra los canales")
 		}
 	}
 	return nil

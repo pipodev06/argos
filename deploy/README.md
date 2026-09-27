@@ -64,6 +64,15 @@ Alternativa sin proxy: `ARGOS_LISTEN_ADDR=0.0.0.0:8443`, `ARGOS_TLS_CERT` y `ARG
 ## 4. Agentes
 Desde el dashboard: Hosts → Agregar host → comando de instalación. El server publica los binarios en `/dl` e `/install.sh`.
 
+## Firma de binarios del agente (H7)
+Quien controla el server (o el túnel) puede servir un binario y un manifiesto maliciosos; el sha256 del manifiesto solo protege de corrupción, no de eso. Por eso el manifiesto se firma con una clave ed25519 que **nunca vive en el server desplegado** — solo su clave pública, embebida en el propio binario del agente al compilarlo.
+
+- **Una sola vez** (en tu máquina de desarrollo, no en el server): `argos-server keygen ~/.argos-dev/agent-sign.key`. Guarda ese archivo fuera del repo y fuera del server (un gestor de secretos, un USB, donde tú decidas); si se pierde, tienes que generar uno nuevo y todos los agentes existentes dejan de poder verificar `update` hasta reinstalarse con el binario nuevo. La clave pública que imprime, guárdala aparte (por ejemplo aquí mismo, en tu copia privada de este documento) para poder confirmarla fuera de banda si alguna vez dudas de un build.
+- **En cada build**: `bash scripts/build-agent.sh <version> [dir] --key ~/.argos-dev/agent-sign.key` compila los 6 binarios con la clave pública embebida y firma el manifiesto (`manifest.json.sig`), imprimiendo también el sha256 de la firma — anótalo fuera de banda (aparte de este server) para poder comparar si alguna vez sospechas de un manifiesto servido.
+- Sin `--key` el agente compila igual pero sin clave pública: sirve para desarrollo local, pero ese binario **nunca podrá `update`** (falla cerrado, no inseguro).
+- El server nunca ve la clave privada ni verifica la firma criptográficamente: solo la sirve en `GET /dl/latest/manifest.json.sig`, igual que el manifiesto. La verificación real la hace cada agente con la clave pública que trae compilada.
+- La instalación inicial (`install`/`enroll`) no verifica firma porque el binario ya lo trae el instalador; solo `update`/`install.sh --update` la exigen.
+
 ## Actualizar
 Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin opciones): reemplaza binario, web y agentes, conserva los env y la BD, aplica las migraciones con el rol dueño (`argos-admin migrate`) y reinicia. En modo de un solo rol el server migra solo al arrancar. **Antes de actualizar, haz un respaldo** (`sudo systemctl start argos-backup.service`).
 
@@ -73,7 +82,9 @@ Descomprime el paquete nuevo y corre `sudo bash deploy/install-server.sh` (sin o
 
 ## Dimensionar (rendimiento)
 - Medido con 1000 hosts (`docs/decisiones/2026-09-25-rendimiento.md`): lectura del dashboard 2–60 ms y el ingest aguantó ~300 req/s (≈9000 agentes a 30 s) en un portátil con todo en la misma máquina.
+- **Evaluador de alertas** (`docs/decisiones/2026-09-27-alert-candidates-split.md`): con 1000 hosts y `alert_candidates` ya optimizada (migración 00035), un ciclo completo (8 pasadas SQL) tarda **menos de 100 ms** — antes de esa migración llegaba a 0,7–3,7 s. El intervalo por defecto (15 s) tiene margen de sobra incluso con más reglas.
 - **RAM:** deja libre ~1 GB por cada 1000 hosts (a 30 s) para las particiones de hoy y ayer con su índice, además de la del server y de Postgres, y sube `shared_buffers` de los 128 MB por defecto a ~25 % de la RAM.
+- **Cuántos hosts aguanta un server** (estimado a partir de lo medido arriba, no probado con más de 1000 hosts reales): el server en sí es liviano (RSS ~35–40 MB en la soak de 30 min) y el evaluador/consultas no son el cuello de botella hasta varios miles de hosts; el límite práctico hoy es la RAM para la caché caliente de Postgres (regla de arriba). Orientativo: **2 GB de RAM → hasta ~1500–2000 hosts**, **4 GB → ~3000–4000 hosts**, **8 GB → ~6000–8000 hosts**, siempre con CPU de sobra (no se ha visto el CPU como límite en las pruebas). Por encima de eso, medir de nuevo antes de prometerlo: nadie ha probado 5000+ hosts reales todavía.
 - Una solicitud que tarda ≥ 1 s se registra como Warn en el log: si aparecen seguido en las gráficas de 24 h, falta RAM (o la BD se reinició y la caché está fría).
 
 ## Respaldos, baja de un cliente y llaves (runbooks cortos)

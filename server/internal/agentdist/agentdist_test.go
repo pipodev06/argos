@@ -33,6 +33,11 @@ func writeDist(t *testing.T, version string) string {
 	if err := os.WriteFile(filepath.Join(dir, manifestFile), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// El server nunca valida esta firma (no tiene la clave publica): Load solo exige que exista y que
+	// tenga forma de firma ed25519 hex; una firma "de prueba" (no criptografica) alcanza aca.
+	if err := os.WriteFile(filepath.Join(dir, sigFile), []byte(strings.Repeat("ab", 64)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(root, latestFile), []byte(version+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -63,6 +68,9 @@ func TestLoadOK(t *testing.T) {
 	lines := strings.Split(string(c.Manifest()), "\n")
 	if lines[1] != `"version":"1.2.3",` || !strings.HasPrefix(lines[3], `{"name":"argos-agent_windows_amd64.exe"`) {
 		t.Errorf("formato del manifiesto inesperado: %q", lines[:4])
+	}
+	if got := string(c.Signature()); got != strings.Repeat("ab", 64)+"\n" {
+		t.Errorf("Signature got %q", got)
 	}
 }
 
@@ -96,6 +104,17 @@ func TestLoadRejects(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := os.WriteFile(p, []byte(strings.Replace(string(b), `"size":`, `"size":9`, 1)), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"firma ausente", func(t *testing.T, root string) {
+			if err := os.Remove(filepath.Join(root, "1.0.0", sigFile)); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"firma con formato invalido", func(t *testing.T, root string) {
+			p := filepath.Join(root, "1.0.0", sigFile)
+			if err := os.WriteFile(p, []byte("no-es-hex\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 		}},
@@ -133,6 +152,30 @@ func TestLoadRejects(t *testing.T) {
 				t.Fatalf("Load acepto un directorio invalido: %+v", c)
 			}
 		})
+	}
+}
+
+// TestCanonicalManifestMatchesServed fija el contrato que necesita la firma (H7): CanonicalManifest,
+// que usa `sign-manifest` pa saber que bytes firmar, tiene que devolver EXACTAMENTE lo que Load/Manifest
+// terminan sirviendo por HTTP. Si algun dia se cambia el formato de uno sin el otro, la firma deja de
+// verificar en los agentes reales aunque los tests de agentsig sigan en verde.
+func TestCanonicalManifestMatchesServed(t *testing.T) {
+	t.Parallel()
+	root := writeDist(t, "1.2.3")
+	raw, err := os.ReadFile(filepath.Join(root, "1.2.3", manifestFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	canon, err := CanonicalManifest(raw)
+	if err != nil {
+		t.Fatalf("CanonicalManifest: %v", err)
+	}
+	c, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(canon) != string(c.Manifest()) {
+		t.Errorf("CanonicalManifest y Catalog.Manifest difieren:\n%q\n%q", canon, c.Manifest())
 	}
 }
 

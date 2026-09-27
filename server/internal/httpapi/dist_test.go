@@ -51,6 +51,11 @@ func newDist(t *testing.T, bigLinux int) *agentdist.Catalog {
 	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// El server nunca valida esta firma (H7: no tiene la clave); Load solo exige que tenga forma de
+	// firma ed25519 hex, y aqui solo probamos que la sirve tal cual.
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json.sig"), []byte(strings.Repeat("cd", 64)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(root, "latest"), []byte(distVersion+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -131,6 +136,21 @@ func TestDistManifest(t *testing.T) {
 	}
 }
 
+func TestDistManifestSig(t *testing.T) {
+	t.Parallel()
+	h, _ := newDistAPI(t, Options{Dist: newDist(t, 0)})
+	rec := get(t, h, "GET", "/dl/latest/manifest.json.sig")
+	if rec.Code != 200 {
+		t.Fatalf("status got %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control got %q, want no-cache", got)
+	}
+	if want := strings.Repeat("cd", 64) + "\n"; rec.Body.String() != want {
+		t.Errorf("body got %q, want %q", rec.Body.String(), want)
+	}
+}
+
 func TestDistScriptsServed(t *testing.T) {
 	t.Parallel()
 	h, _ := newDistAPI(t, Options{Dist: newDist(t, 0)})
@@ -154,7 +174,7 @@ func TestDistScriptsServed(t *testing.T) {
 func TestDistMethodsNotAllowed(t *testing.T) {
 	t.Parallel()
 	h, _ := newDistAPI(t, Options{Dist: newDist(t, 0)})
-	paths := []string{"/install.sh", "/install.ps1", "/dl/latest/manifest.json", "/dl/" + distVersion + "/argos-agent_linux_amd64"}
+	paths := []string{"/install.sh", "/install.ps1", "/dl/latest/manifest.json", "/dl/latest/manifest.json.sig", "/dl/" + distVersion + "/argos-agent_linux_amd64"}
 	for _, p := range paths {
 		for _, m := range []string{"POST", "PUT", "PATCH", "DELETE"} {
 			if rec := get(t, h, m, p); rec.Code != http.StatusMethodNotAllowed {
@@ -216,7 +236,7 @@ func TestDistRateLimit(t *testing.T) {
 func TestDistDisabled(t *testing.T) {
 	t.Parallel()
 	h, _ := newDistAPI(t, Options{}) // sin ARGOS_AGENT_DIST_DIR (o dist invalida)
-	for _, p := range []string{"/install.sh", "/install.ps1", "/dl/latest/manifest.json", "/dl/" + distVersion + "/argos-agent_linux_amd64"} {
+	for _, p := range []string{"/install.sh", "/install.ps1", "/dl/latest/manifest.json", "/dl/latest/manifest.json.sig", "/dl/" + distVersion + "/argos-agent_linux_amd64"} {
 		if rec := get(t, h, "GET", p); rec.Code != http.StatusNotFound {
 			t.Errorf("GET %s status got %d, want 404", p, rec.Code)
 		}

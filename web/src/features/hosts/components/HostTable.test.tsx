@@ -2,6 +2,7 @@
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { checkA11y, renderWithRouter } from '@/test/utils'
+import type { OptionalColumn } from '../utils/columns'
 import type { Host } from '../types/host.types'
 import { HostTable } from './HostTable'
 
@@ -23,13 +24,14 @@ function host(over: Partial<Host>): Host {
     disk: { pct: 50, mount: '/' },
     boot_time: null,
     battery: null,
+    physical_disks: null,
     ...over,
   }
 }
 
-function table(hosts: Host[]) {
+function table(hosts: Host[], visible: OptionalColumn[] = []) {
   return renderWithRouter(
-    <HostTable hosts={hosts} page={1} pageSize={15} visible={[]} sort="name" dir="asc" onSort={() => {}} selected={null} onToggle={() => {}} onToggleAll={() => {}} />,
+    <HostTable hosts={hosts} page={1} pageSize={15} visible={visible} sort="name" dir="asc" onSort={() => {}} selected={null} onToggle={() => {}} onToggleAll={() => {}} />,
   )
 }
 
@@ -48,6 +50,20 @@ describe('HostTable', () => {
     expect(rows[1].textContent).toContain('Desactualizado')
     expect(rows[2].textContent).not.toContain('Desactualizado')
     expect(rows[2].textContent).not.toContain('dev')
+  })
+
+  it('columna Disco físico: oculta por defecto, resumen cuenta + capacidad al mostrarla', () => {
+    table([host({ physical_disks: [{ id: 'nvme0n1', model: 'WD SN770', bus: 'nvme', size_mb: 512000, mounts: ['/'] }] })])
+    expect(screen.queryByText(/1 disco/)).toBeNull()
+    table(
+      [
+        host({ physical_disks: [{ id: 'nvme0n1', model: 'WD SN770', bus: 'nvme', size_mb: 512000, mounts: ['/'] }] }),
+        host({ id: 'h2', hostname: 'db-01', physical_disks: null }),
+      ],
+      ['physical_disk'],
+    )
+    expect(screen.getByText('1 disco · 500 GB')).toBeTruthy()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('sin violaciones de accesibilidad', async () => {

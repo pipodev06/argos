@@ -1,4 +1,5 @@
 import type { HostDisk, PhysicalDisk } from '../types/host.types'
+import { formatCapacity } from './format'
 
 function isSystemMount(mount: string): boolean {
   return mount === '/' || /^c:/i.test(mount)
@@ -26,6 +27,15 @@ export function physicalDiskLabel(disk: Pick<PhysicalDisk, 'id'>): string {
 /** Detalle corto de un disco fisico: modelo y bus (lo que se sepa). */
 export function physicalDiskDetail(disk: Pick<PhysicalDisk, 'model' | 'bus'>): string {
   return [disk.model, disk.bus ? BUS_LABELS[disk.bus] : null].filter(Boolean).join(' · ')
+}
+
+/** Resumen para la columna "Disco" de la tabla: "N discos · X TB" (capacidad conocida) o solo la cuenta. */
+export function physicalDisksSummary(physical: readonly PhysicalDisk[] | null): string {
+  if (!physical || physical.length === 0) return '—'
+  const known = physical.filter((d) => d.size_mb !== null)
+  const totalMb = known.reduce((sum, d) => sum + (d.size_mb ?? 0), 0)
+  const count = `${physical.length} ${physical.length === 1 ? 'disco' : 'discos'}`
+  return known.length === physical.length ? `${count} · ${formatCapacity(totalMb)}` : count
 }
 
 export interface DiskGroup {

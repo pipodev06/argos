@@ -4,9 +4,8 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 
 ## Resumen por severidad (leer solo esto; abrir la sección enlazada si tocas esa área)
 ### Alta (antes de entrar el primer cliente)
-- Bloqueo de la cuenta admin desde Internet (único admin), baja/offboarding con respaldos sin limpiar, respaldos sin cifrar, binarios sin firma, viewers nuevos que ven todo por defecto -> [Servicio hospedado](#servicio-hospedado)
+- Bloqueo de la cuenta admin desde Internet (único admin), baja/offboarding con respaldos sin limpiar, respaldos sin cifrar -> [Servicio hospedado](#servicio-hospedado)
 - Instalación real (agente Windows/Linux/macOS y `install-server.sh` en Linux) sin ejecutar en un SO real -> [Instalación](#instalación-de-un-paso-sin-probar-en-so-real)
-- Empaquetado de detalle (`metrics_chunks`) probado solo con particiones pequeñas; probar el backfill con volumen antes de actualizar una BD con historial -> [Datos](#datos-y-api)
 ### Media
 - Pantallas nuevas sin revisar en navegador (Resumen sí lo revisó el usuario): parches (gráfica y filtros), modal "Agregar host", historial por fecha, configuración/retención, purga, dispositivos (deshabilitar) -> [Frontend](#frontend)
 - Estado en memoria mono-instancia (rate limits, clave HMAC de cursores, dedup de auditoría) -> [Seguridad](#seguridad)
@@ -16,6 +15,7 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Webhook: Discord solo funciona con el sufijo `/slack` (payload con `text`, no `content`) -> [Operación](#operación)
 - Límites de colectores (batería, discos, `host_info`, red virtual), Linux solo systemd, macOS sin rotación de log, Windows con estado de solo lectura -> [Agente](#agente-y-servicio)
 - Series: primer tramo sin tasa, datos tardíos >3 h no se reprocesan, partición ausente tras una parada larga -> [Datos](#datos-y-api)
+- Un chequeo deshabilitado no se distingue de "sin chequeos" en el detalle del host/dispositivo (hallazgo 2026-09-27) -> [Frontend](#frontend)
 - Sin test de `main`/SIGTERM real; tests de BD se SALTAN en silencio sin `ARGOS_TEST_DATABASE_URL` -> [Operación](#operación)
 
 ## Servicio hospedado
@@ -32,7 +32,7 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Roles de BD: en el modo de un solo rol (dev, o `--db-url` sin `--migrate-db-url`) el server es dueño y puede saltar el trigger de `audit_log`; el rol de runtime es dueño de las tablas particionadas y tiene CREATE en `public` (límite aceptado; ver `2026-09-25-roles-bd.md`).
 - Rate limits, fallos de agente, dedup de auditoría y la clave HMAC de cursores viven en memoria (se pierden al reiniciar; no se comparten entre réplicas → `ARGOS_CURSOR_KEY`/BD si se escala).
 - Permisos por grupo: `check_name` de una regla de alcance `all` puede nombrar un chequeo de un grupo ajeno (fuga menor aceptada); los cambios de permisos de un usuario se ven al recargar (el front lee `/auth/me` al cargar).
-- Sin tests del prompt sin eco de `create-admin`/`reset-password` (solo stdin; los flujos de store/handlers sí). Ingest: el tope H5 (4 s por `ts`) vive en memoria y se pierde al reiniciar.
+- Sin tests del prompt sin eco de `create-admin`/`reset-password` (solo stdin; los flujos de store/handlers sí). Ingest: el tope H5 (4 s por `ts`) vive en memoria y se pierde al reiniciar. Firma de binarios (H7): sin rotación de la clave de firma; si se pierde/filtra, todo agente existente queda sin poder `update` hasta reinstalarse.
 
 ## Agente y servicio
 - `IngestMetrics` no distingue 404/409 si el host se purga entre autenticar e ingerir (FK → 500); ahora posible con la purga (H2), improbable en la práctica.

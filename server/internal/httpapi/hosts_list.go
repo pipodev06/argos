@@ -71,13 +71,15 @@ type hostItemDTO struct {
 	AgentVersion *string `json:"agent_version"`
 	// AgentOutdated: la version del agente es anterior a la del catalogo (misma regla que ?agent=outdated).
 	AgentOutdated bool `json:"agent_outdated"`
+	// PhysicalDisks es null si el agente no lo reporta (desconocido), nunca [] por defecto.
+	PhysicalDisks []physicalDiskDTO `json:"physical_disks"`
 }
 
 func toHostItemDTO(h store.HostRow) hostItemDTO {
 	dto := hostItemDTO{
 		ID: h.ID, Hostname: h.Hostname, Kind: h.Kind, Status: h.Status, StatusChangedAt: h.StatusChangedAt.UTC(), LastSeenAt: utcPtr(h.LastSeenAt),
 		Group: toGroupRefDTO(h.Group), OS: h.OS, AgentVersion: h.AgentVersion, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
-		CPUPct: round1(h.CPUPct),
+		CPUPct: round1(h.CPUPct), PhysicalDisks: toPhysicalDiskDTOs(h.PhysicalDisks),
 	}
 	if h.MemUsedMB != nil && h.MemTotalMB != nil && *h.MemTotalMB > 0 {
 		pct := float64(*h.MemUsedMB) * 100 / float64(*h.MemTotalMB)

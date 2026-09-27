@@ -118,27 +118,43 @@ type fakeKeys struct {
 
 func (f fakeKeys) ChannelKeyIDs(context.Context) ([]string, error) { return f.ids, f.err }
 
+func mustRing(t *testing.T, currentFill byte, previousFill ...byte) *KeyRing {
+	t.Helper()
+	var prev []string
+	for _, f := range previousFill {
+		prev = append(prev, testKey(f))
+	}
+	r, err := NewKeyRing(testKey(currentFill), strings.Join(prev, ","))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
 func TestCheckSecretKeyAtStartup(t *testing.T) {
 	t.Parallel()
-	box := mustBox(t, 1)
+	ring := mustRing(t, 1)
+	ringWithPrevious := mustRing(t, 1, 9)
 	tests := []struct {
 		name    string
 		keys    fakeKeys
-		box     *Box
+		ring    *KeyRing
 		wantErr string // fragmento del mensaje; "" = sin error
 	}{
 		{"sin canales cifrados y sin clave", fakeKeys{}, nil, ""},
-		{"sin canales cifrados y con clave", fakeKeys{}, box, ""},
-		{"canales cifrados y sin clave", fakeKeys{ids: []string{box.KeyID()}}, nil, "ARGOS_SECRET_KEY no esta definida"},
-		{"key id distinto", fakeKeys{ids: []string{"otra"}}, box, "no coincide"},
-		{"una fila con otro key id", fakeKeys{ids: []string{box.KeyID(), "otra"}}, box, "no coincide"},
-		{"coincide", fakeKeys{ids: []string{box.KeyID()}}, box, ""},
-		{"falla la lectura", fakeKeys{err: errors.New("db caida")}, box, "db caida"},
+		{"sin canales cifrados y con clave", fakeKeys{}, ring, ""},
+		{"canales cifrados y sin clave", fakeKeys{ids: []string{ring.KeyID()}}, nil, "ARGOS_SECRET_KEY no esta definida"},
+		{"key id distinto", fakeKeys{ids: []string{"otra"}}, ring, "no coincide"},
+		{"una fila con otro key id", fakeKeys{ids: []string{ring.KeyID(), "otra"}}, ring, "no coincide"},
+		{"coincide", fakeKeys{ids: []string{ring.KeyID()}}, ring, ""},
+		{"falla la lectura", fakeKeys{err: errors.New("db caida")}, ring, "db caida"},
+		{"coincide con una clave previa", fakeKeys{ids: []string{ringWithPrevious.KeyID(), mustBox(t, 9).KeyID()}}, ringWithPrevious, ""},
+		{"ni la actual ni las previas cubren la fila", fakeKeys{ids: []string{"otra"}}, ringWithPrevious, "no coincide"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := CheckSecretKey(context.Background(), tt.keys, tt.box)
+			err := CheckSecretKey(context.Background(), tt.keys, tt.ring)
 			if tt.wantErr == "" && err != nil {
 				t.Fatalf("got %v, want nil", err)
 			}

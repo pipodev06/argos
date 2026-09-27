@@ -98,6 +98,11 @@ type Config struct {
 	// SecretKey es ARGOS_SECRET_KEY (base64 de 32 bytes): cifra los secretos de los canales. Es un secreto: no se
 	// loguea. Vacia = no hay canales con secreto (el arranque la exige si ya existen filas cifradas).
 	SecretKey string
+	// SecretKeyPrevious es ARGOS_SECRET_KEY_PREVIOUS: una o varias claves anteriores (mismo formato, separadas
+	// por coma) que solo descifran, para poder cambiar SecretKey sin perder lo ya cifrado con la anterior.
+	// `argos-server rotate-secret-key` recifra todo con la clave actual; despues se puede quitar. Es un secreto:
+	// no se loguea.
+	SecretKeyPrevious string
 	// WebhookAllowHosts es ARGOS_WEBHOOK_ALLOW_HOSTS: hostnames, IPs o CIDRs a los que un webhook puede apuntar
 	// aunque sean privados o usen otro puerto que 443. Solo se decide aqui, nunca por la API.
 	WebhookAllowHosts string
@@ -158,6 +163,7 @@ func Load(getenv func(string) string) (Config, error) {
 		AlertEvalInterval:          defaultAlertEvalInterval,
 		NotifyInterval:             defaultNotifyInterval,
 		SecretKey:                  getenv("ARGOS_SECRET_KEY"),
+		SecretKeyPrevious:          getenv("ARGOS_SECRET_KEY_PREVIOUS"),
 		WebhookAllowHosts:          getenv("ARGOS_WEBHOOK_ALLOW_HOSTS"),
 		WebhookCAFile:              getenv("ARGOS_WEBHOOK_CA_FILE"),
 		HostEventsRetentionDays:    defaultHostEventsRetentionDays,

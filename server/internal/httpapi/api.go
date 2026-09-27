@@ -178,8 +178,9 @@ type Options struct {
 	// Dist es el catalogo verificado de binarios del agente (ARGOS_AGENT_DIST_DIR); nil = /dl e /install.*
 	// responden 404 y el dashboard no ofrece comandos de instalacion.
 	Dist *agentdist.Catalog
-	// Secrets cifra los secretos de los canales (ARGOS_SECRET_KEY); nil = crear o editar secretos responde 503.
-	Secrets *notify.Box
+	// Secrets cifra y descifra los secretos de los canales con el anillo de claves (ARGOS_SECRET_KEY y, si esta
+	// definida, ARGOS_SECRET_KEY_PREVIOUS); nil = crear o editar secretos responde 503.
+	Secrets *notify.KeyRing
 	// Webhook valida y envia los webhooks (con la politica anti-SSRF); nil = igual que Secrets nil.
 	Webhook WebhookClient
 	// Web es el build del frontend (ARGOS_WEB_DIR, ya acotado por os.Root); nil = el server no sirve la SPA.

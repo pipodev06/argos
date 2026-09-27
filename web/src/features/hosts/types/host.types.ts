@@ -41,6 +41,8 @@ export interface Host {
   disk: DiskUsage | null
   boot_time: string | null
   battery: Battery | null
+  /** Discos fisicos; null = el agente aun no lo reporta. */
+  physical_disks: PhysicalDisk[] | null
 }
 
 export interface HostListResponse {

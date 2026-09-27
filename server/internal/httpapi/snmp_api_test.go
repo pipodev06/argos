@@ -23,7 +23,7 @@ const (
 
 func newSNMPEnv(t *testing.T) *scopeEnv {
 	t.Helper()
-	box, err := notify.NewBox(channelKey)
+	box, err := notify.NewKeyRing(channelKey, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -62,11 +62,13 @@ type serviceManager interface {
 // app agrupa las dependencias de los subcomandos (inyectables en tests).
 type app struct {
 	version string
-	getenv  func(string) string
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
-	logger  *slog.Logger
+	// publicKey verifica la firma del manifiesto en `update` (H7); "" en builds de dev.
+	publicKey string
+	getenv    func(string) string
+	stdin     io.Reader
+	stdout    io.Writer
+	stderr    io.Writer
+	logger    *slog.Logger
 	// collector es el medidor; nil = el real (gopsutil). Si tambien implementa
 	// agent.DiskCollector / agent.HostInfoCollector, se usan pa discos y host_info.
 	collector agent.Collector
@@ -669,7 +671,7 @@ func (a *app) update(ctx context.Context, args []string) error {
 		swapper = updater.FileSwapper{Svc: a.svc, IsRunning: service.StatusRunning, Logger: a.logger}
 	}
 	err = updater.Run(ctx, updater.Options{
-		Server: serverURL, Version: a.version, HTTP: client, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
+		Server: serverURL, Version: a.version, PubKeyHex: a.publicKey, HTTP: client, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
 		Swapper: swapper, Out: a.stdout,
 	})
 	if err != nil {

@@ -33,6 +33,11 @@ import (
 // version se inyecta en el build: go build -ldflags "-X main.version=1.2.3".
 var version = "dev"
 
+// publicKey es la clave publica ed25519 (hex) que verifica la firma del manifiesto de `update` (H7); se
+// inyecta igual que version: -ldflags "-X main.publicKey=<hex>". Vacia en builds de dev: `update` falla
+// cerrado (ver updater.ErrNoPublicKey).
+var publicKey = ""
+
 const (
 	exitError         = 1
 	exitTokenRejected = 2
@@ -49,12 +54,13 @@ func realMain() int {
 	defer stop()
 
 	a := &app{
-		version: version,
-		getenv:  os.Getenv,
-		stdin:   os.Stdin,
-		stdout:  os.Stdout,
-		stderr:  os.Stderr,
-		svc:     service.Manager{},
+		version:   version,
+		publicKey: publicKey,
+		getenv:    os.Getenv,
+		stdin:     os.Stdin,
+		stdout:    os.Stdout,
+		stderr:    os.Stderr,
+		svc:       service.Manager{},
 	}
 
 	// Windows: si lo lanzo el gestor de servicios no hay consola; los logs van al registro de eventos.

@@ -192,7 +192,8 @@ func TestListHostsRowContent(t *testing.T) {
 	s := newTestStore(t)
 	seedFleet(t, s)
 	ctx := context.Background()
-	mustExec(t, `INSERT INTO host_info (host_id, boot_time, ips) SELECT id, now() - interval '1 day', ARRAY['127.0.0.1', '192.168.1.25']::inet[]
+	mustExec(t, `INSERT INTO host_info (host_id, boot_time, ips, physical_disks) SELECT id, now() - interval '1 day', ARRAY['127.0.0.1', '192.168.1.25']::inet[],
+	             '[{"id":"nvme0n1","model":"WD SN770","bus":"nvme","size_mb":512000,"mounts":["/"]}]'::jsonb
 	             FROM hosts WHERE hostname = 'alpha'`)
 	mustExec(t, `UPDATE host_latest SET battery_pct = 80, battery_charging = true WHERE host_id = (SELECT id FROM hosts WHERE hostname = 'alpha')`)
 
@@ -209,6 +210,9 @@ func TestListHostsRowContent(t *testing.T) {
 	}
 	if len(h.IPs) != 2 || !h.IPs[0].IsLoopback() || h.BootTime == nil {
 		t.Errorf("host_info got ips=%v boot=%v", h.IPs, h.BootTime)
+	}
+	if len(h.PhysicalDisks) != 1 || h.PhysicalDisks[0].ID != "nvme0n1" || h.PhysicalDisks[0].SizeMB == nil || *h.PhysicalDisks[0].SizeMB != 512000 {
+		t.Errorf("physical_disks got %+v", h.PhysicalDisks)
 	}
 	if h.BatteryPct == nil || *h.BatteryPct != 80 || h.BatteryCharging == nil || !*h.BatteryCharging {
 		t.Errorf("bateria got %v/%v", h.BatteryPct, h.BatteryCharging)

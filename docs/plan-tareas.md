@@ -10,8 +10,8 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 ## P1a — Rendimiento del server en runtime (nunca medido a escala, 2026-09-25)
 - [x] **P1 Sembrar 1000 hosts** (2026-09-25, `scripts/perf/`) con historial (script en `scripts/`, solo contra una BD `*_test` o de humo, nunca la real). *Hecho cuando:* `bash scripts/seed-load.sh` deja la BD lista y repetible.
 - [x] **P2 Medir p50/p95** (2026-09-25, `decisiones/2026-09-25-rendimiento.md`) de: `GET /hosts` (orden por cpu/mem/disco, filtros, cursor), `/summary`, `/hosts/{id}/metrics` (24h/7d/30d), `/alerts`, `/updates`, informes + CSV, e **ingest** (`POST /agent/metrics` e inventario) con N agentes concurrentes. *Hecho cuando:* tabla de resultados en `decisiones/` con la máquina usada.
-- [ ] **P3 `EXPLAIN (ANALYZE, BUFFERS)`** (nada pasa de 200 ms en caliente; **7d desde `metrics_hourly` hecho**: 50 → 2,8 ms; el `CLUSTER` de particiones cerradas se **descartó** (ver "Cómo se controla el riesgo de la caché fría"); queda medir el ciclo de mantenimiento y el evaluador con 1000 hosts) de lo que pase de 200 ms y corregir (índices, consultas, rollups). *Hecho cuando:* cada consulta lenta mejorada o justificada, y un test de humo de tiempo (con margen) para no regresar.
-- [ ] **P4 Tope y avisos**: cuántos hosts aguanta un server de cierta RAM/CPU; documentarlo en `deploy/README.md`.
+- [x] **P3 `EXPLAIN (ANALYZE, BUFFERS)`** (nada pasa de 200 ms en caliente; **7d desde `metrics_hourly` hecho**: 50 → 2,8 ms; `alert_candidates` optimizada en O1 (13-64ms); evaluador medido el 2026-09-27: <100 ms/ciclo con 1000 hosts, antes 0,7-3,7s; el `CLUSTER` de particiones cerradas se **descartó**) de lo que pase de 200 ms y corregir (índices, consultas, rollups). *Hecho cuando:* cada consulta lenta mejorada o justificada, y un test de humo de tiempo (con margen) para no regresar.
+- [x] **P4 Tope y avisos**: cuántos hosts aguanta un server de cierta RAM/CPU; documentado en `deploy/README.md` (2026-09-27, estimado a partir de lo medido, no probado con >1000 hosts reales).
 
 ## P1 — Suite del server (lenta: ~190–340 s)
 - [x] **S1 Medir** (2026-09-25, `decisiones/2026-09-25-rendimiento.md`): `go test -json` → top 20 tests/paquetes más lentos (sospechas: hash argon2, `TRUNCATE` por test, `sleep`s). *Hecho cuando:* tabla de tiempos en `decisiones/`.
@@ -28,7 +28,7 @@ Una tarea = un commit (o pocos) con su prueba. Marca `[x]` al cerrar y mueve el 
 ## P3 — Mejoras de producto (ideas; una por vez, con diseño corto antes)
 - [ ] **I1 Windows con servicio privilegiado**: `root_home` conoce el dueño de 41/103 puertos (sin privilegios) vs 23/23 en Ubuntu (elevated). Instalar con `--privileged` y comparar. *Hecho cuando:* medido y documentado.
 - [ ] **I2 Parches: más que "pendientes"** (pregunta del usuario). Hoy solo Windows Update `Type='Software'` (drivers excluidos) y gestores Linux; el antivirus solo entra si Defender publica firmas por Windows Update, sin distinguirlo. Propuestas: (a) módulo `security` con estado de Defender (`Get-MpComputerStatus`: protección en tiempo real, edad de firmas), (b) drivers pendientes de Windows Update (opt-in), (c) Linux: kernel en uso vs instalado, `needrestart`. *Hecho cuando:* el usuario elige y hay diseño en `decisiones/`.
-- [ ] **I3 Disco físico en la lista de Hosts** (columna o tooltip). 
+- [x] **I3 Disco físico en la lista de Hosts** (columna o tooltip). *2026-09-27: columna opcional "Disco físico".*
 - [ ] **I4 SNMP**: contadores de interfaz, CPU y almacenamiento; gráfica.
 - [x] **I5 Gráfica del historial de parches** (2026-09-26; sin revisión visual) y filtro booleano/`≤` en `FilterBar`.
 
@@ -58,11 +58,11 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 ## P7 — Servicio hospedado multi-cliente (revisión de seguridad 2026-09-26; `decisiones/2026-09-26-seguridad-multicliente.md`)
 - [x] **H1 Colector y dispositivo del mismo grupo** (2026-09-26) (hallazgo #1, alta): 422 en create/update/`SetHostGroup`; ajustar tests que usan un colector de otro grupo. *Hecho cuando:* test de regresión de fuga de credenciales SNMP entre clientes.
 - [x] **H2 Baja de un cliente (offboarding)** (2026-09-26; UI y etiquetas de auditoría hechas en la web) (#2, alta): endpoint admin de purga por host/grupo (métricas por partición, resumen horario, chunks, discos, host, tokens y sesiones). *Hecho cuando:* purga completa probada y auditada.
-- [ ] **H3 Viewers nuevos con `all_groups=false`** (#5): pedir grupos al crear (UI y API) y migrar el default.
+- [x] **H3 Viewers nuevos con `all_groups=false`** (#5): pedir grupos al crear (UI y API) y migrar el default. *(= B1, hecho 2026-09-26)*
 - [ ] **H4 Bloqueo de cuenta en Internet** (#6, decisión del usuario): Cloudflare Access delante de `/api/v1/auth/*` o bloqueo por (cuenta, IP); aviso al arrancar si no hay proxies confiables.
 - [x] **H5 Tope real de frecuencia de ingest por host** (#8): descartar muestras a menos de ~10 s de la anterior.
 - [ ] **H6 Respaldos cifrados y fuera del host** (#12; elección de tecnología del usuario: age/gpg + destino).
-- [ ] **H7 Firma de binarios (cosign) y hash por canal aparte** (#11; reprioriza la deuda aplazada).
+- [x] **H7 Firma de binarios (cosign) y hash por canal aparte** (#11; 2026-09-27: ed25519 propio, no cosign; ver decisiones/2026-09-27-firma-binarios-agente.md).
 - [x] **H8 Canales ocultos a viewers restringidos; secreto de chequeo sin alcance `all`** (#3, #4; corregidos con test).
 
 ## P8 — Historial por fecha y retención en la web (siguiente)
@@ -89,6 +89,6 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [ ] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M)
 - [ ] **B16 Alta masiva / token por grupo** con topes. (Media, M)
 - [ ] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M)
-- [ ] **B18 Rotación de `ARGOS_SECRET_KEY`** (doble clave y recifrado). (Media, M)
+- [x] **B18 Rotación de `ARGOS_SECRET_KEY`** (doble clave y recifrado). (Media, M) *2026-09-27: `ARGOS_SECRET_KEY_PREVIOUS` + `argos-server rotate-secret-key`.*
 - [ ] **B19 El plan también limita el resumen horario, eventos, alertas e inventario** (decisión del usuario pendiente). (Media, M)
 - [ ] **B20–B30** (consumo por cliente, revisión visual y tests de componentes, restauración por cliente y DR, SMTP, entidad cliente, MFA/sesiones/recuperación, informes programados/PDF/marca, retención en `POST /groups`, flapping/escalamiento, silenciar por el cliente, ayuda/i18n/móvil): ver el informe.

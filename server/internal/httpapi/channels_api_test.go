@@ -54,13 +54,13 @@ func (f *fakeWebhook) Send(_ context.Context, t notify.Target, body []byte) (int
 
 type channelEnv struct {
 	*alertEnv
-	box  *notify.Box
+	box  *notify.KeyRing
 	hook *fakeWebhook
 }
 
 func newChannelEnv(t *testing.T) *channelEnv {
 	t.Helper()
-	box, err := notify.NewBox(channelKey)
+	box, err := notify.NewKeyRing(channelKey, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -588,11 +588,20 @@ func TestStartupRefusesAMissingOrDifferentKeyWhenChannelsExist(t *testing.T) {
 	if err := notify.CheckSecretKey(ctx, e.st, nil); err == nil || !strings.Contains(err.Error(), "ARGOS_SECRET_KEY") {
 		t.Errorf("sin clave y con canales debe fallar diciendo que falta: %v", err)
 	}
-	other, err := notify.NewBox(base64.StdEncoding.EncodeToString([]byte("otra-clave-de-32-bytes-exactos!!")))
+	other, err := notify.NewKeyRing(base64.StdEncoding.EncodeToString([]byte("otra-clave-de-32-bytes-exactos!!")), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := notify.CheckSecretKey(ctx, e.st, other); err == nil || !strings.Contains(err.Error(), "no coincide") {
 		t.Errorf("con otra clave debe fallar diciendo que no coincide: %v", err)
+	}
+
+	// Con la clave vieja en ARGOS_SECRET_KEY_PREVIOUS, arranca (rotacion en curso).
+	ring, err := notify.NewKeyRing(base64.StdEncoding.EncodeToString([]byte("otra-clave-de-32-bytes-exactos!!")), channelKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := notify.CheckSecretKey(ctx, e.st, ring); err != nil {
+		t.Errorf("con la clave vieja en ARGOS_SECRET_KEY_PREVIOUS debe arrancar: %v", err)
 	}
 }
