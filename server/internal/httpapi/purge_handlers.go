@@ -25,11 +25,15 @@ type deletedRowsDTO struct {
 	MetricsHourly int64 `json:"metrics_hourly"`
 	MetricsChunks int64 `json:"metrics_chunks"`
 	DiskSamples   int64 `json:"disk_samples"`
+	DiskChunks    int64 `json:"disk_chunks"`
 	ServiceChecks int64 `json:"service_checks"`
 }
 
 func toDeletedRowsDTO(c store.PurgeCounts) deletedRowsDTO {
-	return deletedRowsDTO{Metrics: c.Metrics, MetricsHourly: c.Hourly, MetricsChunks: c.Chunks, DiskSamples: c.Disks, ServiceChecks: c.Checks}
+	return deletedRowsDTO{
+		Metrics: c.Metrics, MetricsHourly: c.Hourly, MetricsChunks: c.Chunks,
+		DiskSamples: c.Disks, DiskChunks: c.DiskChunks, ServiceChecks: c.Checks,
+	}
 }
 
 // purgeHost borra un host con agente y todos sus datos (baja de un cliente). Irreversible: exige el nombre del host.

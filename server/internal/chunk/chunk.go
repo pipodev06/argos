@@ -193,15 +193,57 @@ func Encode(rows []Row) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// marshalPayload arma el contenido sin comprimir: la columna de tiempo (delta-de-delta) y las opcionales.
-func marshalPayload(ts []int64, cols []col) []byte {
-	b := make([]byte, 0, len(ts)*8+64)
+// appendDeltaTS codifica una serie de timestamps (unix micros, ya ordenada) como delta-de-delta con zigzag+varint.
+// La comparten el codec de metrics (marshalPayload) y el de disk_samples (marshalDiskPayload).
+func appendDeltaTS(b []byte, ts []int64) []byte {
 	var prev, prevDelta int64
 	for _, t := range ts {
 		delta := t - prev
 		b = binary.AppendUvarint(b, zigzag(delta-prevDelta))
 		prev, prevDelta = t, delta
 	}
+	return b
+}
+
+// readDeltaTS decodifica n timestamps (unix micros) escritos por appendDeltaTS.
+func readDeltaTS(r *reader, n int) []int64 {
+	ts := make([]int64, n)
+	var prev, prevDelta int64
+	for i := range ts {
+		delta := prevDelta + unzigzag(r.uvarint())
+		prev += delta
+		prevDelta = delta
+		ts[i] = prev
+	}
+	return ts
+}
+
+// appendDeltaVarint codifica una serie de enteros (siempre presentes, sin NULL) como delta+zigzag+varint.
+// La usa el codec de disk_samples, cuyas columnas nunca son NULL (a diferencia de metrics).
+func appendDeltaVarint(b []byte, vals []int64) []byte {
+	var last int64
+	for _, v := range vals {
+		b = binary.AppendUvarint(b, zigzag(v-last))
+		last = v
+	}
+	return b
+}
+
+// readDeltaVarint decodifica n enteros escritos por appendDeltaVarint.
+func readDeltaVarint(r *reader, n int) []int64 {
+	vals := make([]int64, n)
+	var last int64
+	for i := range vals {
+		last += unzigzag(r.uvarint())
+		vals[i] = last
+	}
+	return vals
+}
+
+// marshalPayload arma el contenido sin comprimir: la columna de tiempo (delta-de-delta) y las opcionales.
+func marshalPayload(ts []int64, cols []col) []byte {
+	b := make([]byte, 0, len(ts)*8+64)
+	b = appendDeltaTS(b, ts)
 	for _, c := range cols {
 		b = appendPresence(b, c.present)
 		var last int64
@@ -305,12 +347,8 @@ func (r *reader) uvarint() uint64 {
 func unmarshalPayload(payload []byte, n int) ([]Row, error) {
 	r := &reader{b: payload}
 	rows := make([]Row, n)
-	var prev, prevDelta int64
-	for i := range rows {
-		delta := prevDelta + unzigzag(r.uvarint())
-		prev += delta
-		prevDelta = delta
-		rows[i].TS = time.UnixMicro(prev).UTC()
+	for i, t := range readDeltaTS(r, n) {
+		rows[i].TS = time.UnixMicro(t).UTC()
 	}
 	for c := range numCols {
 		present, err := readPresence(r, n)

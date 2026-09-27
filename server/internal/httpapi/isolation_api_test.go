@@ -157,13 +157,14 @@ func rowsOf(t *testing.T, hostID string) int {
 }
 
 // seedHostData da al host una fila en cada tabla sin CASCADE (metrics, metrics_hourly, metrics_chunks, disk_samples,
-// service_checks) ademas de lo que ya tenga (host_latest, host_info y host_events del alta).
+// disk_chunks, service_checks) ademas de lo que ya tenga (host_latest, host_info y host_events del alta).
 func seedHostData(t *testing.T, hostID string) {
 	t.Helper()
 	mustExec(t, `INSERT INTO metrics (host_id, ts, cpu_pct, mem_used_mb, mem_total_mb) VALUES ($1, now(), 5, 100, 200)`, hostID)
 	mustExec(t, `INSERT INTO metrics_hourly (host_id, hour, samples) VALUES ($1, date_trunc('hour', now()) - interval '3 hours', 10)`, hostID)
 	mustExec(t, `INSERT INTO metrics_chunks (host_id, day, n, codec, data) VALUES ($1, current_date - 20, 0, 1, '\x00')`, hostID)
 	mustExec(t, `INSERT INTO disk_samples (host_id, ts, used_mb, total_mb, mount) VALUES ($1, now(), 1, 2, '/')`, hostID)
+	mustExec(t, `INSERT INTO disk_chunks (host_id, day, mount_count, n, codec, data) VALUES ($1, current_date - 20, 0, 0, 1, '\x00')`, hostID)
 	mustExec(t, `INSERT INTO service_checks (host_id, name, status, ts) VALUES ($1, 'x', 'up', now())`, hostID)
 }
 
@@ -204,7 +205,7 @@ func TestPurgeHostAPI(t *testing.T) {
 	// Purga del host A: sin rastro suyo, con B intacto.
 	rec = purge(x.hostA, `{"confirm_hostname":"host-a"}`)
 	x.wantStatus(rec, http.StatusOK, "")
-	for _, k := range []string{`"metrics":2`, `"metrics_hourly":1`, `"metrics_chunks":1`, `"disk_samples":1`, `"service_checks":1`} {
+	for _, k := range []string{`"metrics":2`, `"metrics_hourly":1`, `"metrics_chunks":1`, `"disk_samples":1`, `"disk_chunks":1`, `"service_checks":1`} {
 		if !strings.Contains(rec.Body.String(), k) {
 			t.Errorf("la respuesta debe informar %s: %s", k, rec.Body.String())
 		}

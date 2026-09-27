@@ -229,29 +229,12 @@ type DiskHistoryRow struct {
 }
 
 // DiskSampleRange entrega en orden (ts, montaje) las muestras de disco con from <= ts < to, sin cargarlas todas.
-// disk_samples solo conserva la retencion de disco: lo mas viejo simplemente no aparece.
+// disk_samples solo conserva la retencion de disco (global, sin ventana caliente configurable ni por host/grupo):
+// lo mas viejo simplemente no aparece. Mezcla crudo y disk_chunks empaquetados, igual que DetailRange con metrics.
 func (s *Store) DiskSampleRange(ctx context.Context, hostID string, from, to time.Time, fn func(DiskHistoryRow) error) error {
-	rows, err := s.pool.Query(ctx,
-		`SELECT ts, mount, used_mb, total_mb FROM disk_samples
-		  WHERE host_id = $1 AND ts >= $2 AND ts < $3 ORDER BY ts, mount`, hostID, from, to)
-	if err != nil {
-		return fmt.Errorf("leyendo muestras de disco: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var d DiskHistoryRow
-		if err := rows.Scan(&d.TS, &d.Mount, &d.UsedMB, &d.TotalMB); err != nil {
-			return fmt.Errorf("leyendo una muestra de disco: %w", err)
-		}
-		d.TS = d.TS.UTC()
-		if err := fn(d); err != nil {
-			return err
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterando muestras de disco: %w", err)
-	}
-	return nil
+	return s.DiskDetailRange(ctx, hostID, from, to, func(r DiskDetailSample) error {
+		return fn(DiskHistoryRow{TS: r.TS, Mount: r.Mount, UsedMB: int(r.UsedMB), TotalMB: int(r.TotalMB)})
+	})
 }
 
 // RateTracker calcula las tasas de red (bytes/s) de una secuencia de muestras en streaming, contra la muestra
