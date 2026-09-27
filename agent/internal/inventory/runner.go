@@ -28,7 +28,12 @@ const (
 	unsupportedBase = time.Hour
 	unsupportedMax  = 24 * time.Hour
 
-	startJitter = 5 * time.Second
+	// startJitter reparte el primer envio completo de puertos, servicios y procesos: sin esto una flota que
+	// arranca junta (reinicio del servidor o despliegue) manda todos los inventarios a la vez. No retrasa las
+	// metricas: van por otro camino (agent.Run) y el host aparece de inmediato.
+	startJitter = 60 * time.Second
+	// periodSpread es la fraccion (+-) de jitter sobre el periodo de recoleccion de esos tres modulos.
+	periodSpread = 0.1
 
 	// El modulo de parches arranca con un retardo aleatorio (no todos los hosts a la vez).
 	updatesStartJitter = 10 * time.Minute
@@ -45,6 +50,8 @@ type Options struct {
 	Logger     *slog.Logger
 	Sources    *Sources // nil = las lecturas reales del SO
 	Updates    UpdatesConfig
+	// Jitter devuelve un valor uniforme en [0, d]; nil = aleatorio. Inyectable en tests.
+	Jitter func(d time.Duration) time.Duration
 }
 
 // module es un colector con su cadencia.
@@ -60,14 +67,14 @@ type module struct {
 func buildModule(name string, src Sources, ucfg UpdatesConfig) (module, bool) {
 	switch name {
 	case ModulePorts:
-		return module{name: name, interval: time.Minute, heartbeat: 6 * time.Hour, collect: func(ctx context.Context) (snapshot, error) { return collectPorts(ctx, src) }, start: startJitter}, true
+		return module{name: name, interval: time.Minute, heartbeat: 6 * time.Hour, collect: func(ctx context.Context) (snapshot, error) { return collectPorts(ctx, src) }, start: startJitter, spread: periodSpread}, true
 	case ModuleServices:
 		if src.Services == nil {
 			return module{}, false
 		}
-		return module{name: name, interval: 10 * time.Minute, heartbeat: 6 * time.Hour, collect: func(ctx context.Context) (snapshot, error) { return collectServices(ctx, src) }, start: startJitter}, true
+		return module{name: name, interval: 10 * time.Minute, heartbeat: 6 * time.Hour, collect: func(ctx context.Context) (snapshot, error) { return collectServices(ctx, src) }, start: startJitter, spread: periodSpread}, true
 	case ModuleProcesses:
-		return module{name: name, interval: 5 * time.Minute, heartbeat: 30 * time.Minute, collect: func(ctx context.Context) (snapshot, error) { return collectProcesses(ctx, src) }, start: startJitter}, true
+		return module{name: name, interval: 5 * time.Minute, heartbeat: 30 * time.Minute, collect: func(ctx context.Context) (snapshot, error) { return collectProcesses(ctx, src) }, start: startJitter, spread: periodSpread}, true
 	case ModuleUpdates:
 		if src.Updates == nil {
 			return module{}, false
@@ -121,7 +128,7 @@ func Run(ctx context.Context, o Options) {
 			logger.Warn("modulo de inventario no disponible en este sistema, se omite", "module", name)
 			continue
 		}
-		w := &worker{mod: m, cl: cl, log: logger.With("module", name), now: time.Now}
+		w := &worker{mod: m, cl: cl, log: logger.With("module", name), now: time.Now, rnd: o.Jitter}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -137,6 +144,7 @@ type worker struct {
 	cl  *client
 	log *slog.Logger
 	now func() time.Time
+	rnd func(time.Duration) time.Duration // nil = jitter aleatorio
 
 	sent     bool // ya hay un envio completo aceptado
 	lastRev  string
@@ -149,7 +157,7 @@ type worker struct {
 }
 
 func (w *worker) loop(ctx context.Context) {
-	wait := jitter(w.mod.start)
+	wait := w.jitter(w.mod.start)
 	for {
 		t := time.NewTimer(wait)
 		select {
@@ -169,7 +177,15 @@ func (w *worker) every() time.Duration {
 		return d
 	}
 	span := time.Duration(float64(d) * w.mod.spread)
-	return d - span + jitter(2*span)
+	return d - span + w.jitter(2*span)
+}
+
+// jitter usa la fuente inyectada o, si no hay, la aleatoria.
+func (w *worker) jitter(d time.Duration) time.Duration {
+	if w.rnd != nil {
+		return w.rnd(d)
+	}
+	return jitter(d)
 }
 
 // step hace un ciclo (recolectar, decidir, enviar) y devuelve cuanto esperar al siguiente.

@@ -71,6 +71,8 @@ type createGroupReq struct {
 	Name             string `json:"name"`
 	DownAfterSeconds *int   `json:"down_after_seconds"`
 	AlwaysOn         bool   `json:"always_on"`
+	// DetailRetentionDays: dias de detalle propios del grupo (8..730); omitido o null = hereda la global.
+	DetailRetentionDays *int `json:"detail_retention_days"`
 }
 
 func (a *API) createGroup(w http.ResponseWriter, r *http.Request) error {
@@ -85,7 +87,10 @@ func (a *API) createGroup(w http.ResponseWriter, r *http.Request) error {
 	if err := checkDownAfter(req.DownAfterSeconds); err != nil {
 		return err
 	}
-	g, err := a.store.CreateGroup(r.Context(), name, req.DownAfterSeconds, req.AlwaysOn)
+	if err := checkDetailDays(req.DetailRetentionDays); err != nil {
+		return err
+	}
+	g, err := a.store.CreateGroup(r.Context(), name, req.DownAfterSeconds, req.AlwaysOn, req.DetailRetentionDays)
 	if err != nil {
 		return err
 	}
@@ -93,6 +98,9 @@ func (a *API) createGroup(w http.ResponseWriter, r *http.Request) error {
 	e := actor(currentUser(r))
 	e.Event, e.Outcome, e.TargetType, e.TargetID = evGroupCreated, store.OutcomeOK, "group", g.ID
 	a.audit(r, e, map[string]any{"name": g.Name, "always_on": g.AlwaysOn, "down_after_seconds": g.DownAfterSeconds})
+	if g.DetailRetentionDays != nil {
+		a.auditRetention(r, store.TargetGroup, g.ID, g.DetailRetentionDays)
+	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{"group": toGroupDTO(g)})
 	return nil

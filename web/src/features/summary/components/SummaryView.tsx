@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertsBlock } from '@/features/alerts/components/AlertsBlock'
 import { useAuth } from '@/features/auth/hooks/useAuth'
-import { outdatedAgentCount } from '@/features/hosts/utils/agentVersion'
+import { ServiceAttention } from '@/features/system-status/components/ServiceAttention'
 import { useNow } from '@/hooks/useNow'
 import { useSummary } from '../hooks/useSummary'
 import type { Summary } from '../types/summary.types'
@@ -37,14 +37,17 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
   const isAdmin = user?.role === 'admin'
 
   const title = (
-    <PageHeader
-      title="Resumen"
-      actions={
-        updatedAt !== null && (
-          <span className="text-xs text-text-muted tabular-nums">Actualizado hace {ago(updatedAt, now)}</span>
-        )
-      }
-    />
+    <>
+      <PageHeader
+        title="Resumen"
+        actions={
+          updatedAt !== null && (
+            <span className="text-xs text-text-muted tabular-nums">Actualizado hace {ago(updatedAt, now)}</span>
+          )
+        }
+      />
+      {isAdmin && <ServiceAttention />}
+    </>
   )
 
   if (data && total(data.counts) === 0) {
@@ -61,7 +64,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
     )
   }
 
-  const outdated = data ? outdatedAgentCount(data.agent_versions) : 0
+  const outdated = data ? data.agent_versions.outdated : 0
   const showDevices = data ? total(data.devices) > 0 : false
 
   return (

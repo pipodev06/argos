@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"argos/server/internal/beat"
 	"argos/server/internal/store"
 )
 
@@ -18,7 +19,7 @@ type alertEvaluator interface {
 // bajo lock advisory: con varias instancias solo una trabaja). Durante los primeros grace tras el arranque no
 // evalua nada: si el server (o la BD) estuvo caido, los agentes no pudieron reportar y el detector de hosts
 // caidos tambien espera; juzgar antes abriria alertas falsas de "sin datos" o "host caido".
-func runAlertEvaluator(ctx context.Context, logger *slog.Logger, st alertEvaluator, interval, grace time.Duration) {
+func runAlertEvaluator(ctx context.Context, logger *slog.Logger, st alertEvaluator, interval, grace time.Duration, hb *beat.Beat) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	graceUntil := time.Now().Add(grace)
@@ -32,25 +33,28 @@ func runAlertEvaluator(ctx context.Context, logger *slog.Logger, st alertEvaluat
 			if now.Before(graceUntil) {
 				continue
 			}
-			evaluateAlerts(ctx, logger, st)
+			evaluateAlerts(ctx, logger, st, hb)
 		}
 	}
 }
 
-func evaluateAlerts(ctx context.Context, logger *slog.Logger, st alertEvaluator) {
+func evaluateAlerts(ctx context.Context, logger *slog.Logger, st alertEvaluator, hb *beat.Beat) {
 	start := time.Now()
 	res, err := st.EvaluateAlerts(ctx)
 	if errors.Is(err, context.Canceled) {
 		return // apagado en curso: no es un fallo del evaluador
 	}
 	if err != nil {
+		hb.Fail(time.Now(), err)
 		logger.Error("fallo la evaluacion de alertas", "err", err)
 		return
 	}
 	if !res.Ran {
+		hb.OK(time.Now()) // otra instancia evalua: el servicio sigue vivo
 		logger.Debug("evaluacion de alertas en curso en otra instancia: ciclo saltado")
 		return
 	}
+	hb.OK(time.Now())
 	logger.Debug("ciclo de alertas", "ms", time.Since(start).Milliseconds())
 	if res.Opened+res.Resolved+res.Released+res.Reminders > 0 {
 		logger.Info("alertas evaluadas", "opened", res.Opened, "resolved", res.Resolved,

@@ -1,8 +1,9 @@
-import { useState, type MouseEvent } from 'react'
+import { Suspense, useState, type MouseEvent } from 'react'
 import { IconEye, IconMenu2 } from '@tabler/icons-react'
 import { cn } from 'cn'
 import { Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeToggle } from '@/features/theme/components/ThemeToggle'
@@ -64,7 +65,15 @@ export function AppShell() {
 
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
           <div className="w-full px-4 py-6 md:px-8 md:py-8">
-            <Outlet />
+            <Suspense
+              fallback={
+                <div role="status" aria-label="Cargando">
+                  <Skeleton className="h-64 w-full" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

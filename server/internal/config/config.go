@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"net/url"
@@ -121,6 +122,8 @@ type Config struct {
 	// InsecureCookies quita el prefijo __Host- y el atributo Secure de la cookie de sesion.
 	// SOLO desarrollo sobre http (p. ej. Safari en localhost); nunca en produccion.
 	InsecureCookies bool
+	// LogLevel es ARGOS_LOG_LEVEL (debug, info, warn o error; por defecto info).
+	LogLevel slog.Level
 	// AutoMigrate (ARGOS_AUTO_MIGRATE, por defecto true) hace que el server aplique las migraciones al arrancar.
 	// Con false no migra y se niega a arrancar si hay migraciones pendientes: las corre `argos-server migrate` con
 	// otro rol (el dueño del esquema), y el server opera con un rol sin DDL (ver deploy/README.md).
@@ -133,6 +136,7 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
 		DatabaseURL:        getenv("DATABASE_URL"),
 		AutoMigrate:        true,
+		LogLevel:           slog.LevelInfo,
 		ListenAddr:         getenv("ARGOS_LISTEN_ADDR"),
 		TLSCert:            getenv("ARGOS_TLS_CERT"),
 		TLSKey:             getenv("ARGOS_TLS_KEY"),
@@ -227,6 +231,13 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 		cfg.InsecureCookies = b
 	}
+	if raw := getenv("ARGOS_LOG_LEVEL"); raw != "" {
+		lvl, err := parseLogLevel(raw)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.LogLevel = lvl
+	}
 	if raw := getenv("ARGOS_AUTO_MIGRATE"); raw != "" {
 		b, err := strconv.ParseBool(raw)
 		if err != nil {
@@ -301,6 +312,50 @@ func loadRetention(getenv func(string) string, cfg *Config) error {
 		cfg.NotifyInterval = d
 	}
 	return nil
+}
+
+func parseLogLevel(raw string) (slog.Level, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	}
+	return 0, errors.New("ARGOS_LOG_LEVEL debe ser debug, info, warn o error")
+}
+
+// ProxyWarning devuelve un aviso si la config pide un proxy inverso delante (URL publica https, o escucha fuera de
+// loopback) y ARGOS_TRUSTED_PROXIES esta vacia: sin ella todos los clientes comparten la IP del proxy y el limite de
+// login y enroll (por IP) se vuelve un DoS. Devuelve "" si no hay nada que avisar.
+func (c Config) ProxyWarning() string {
+	if len(c.TrustedProxies) > 0 {
+		return ""
+	}
+	https := c.PublicURL != nil && c.PublicURL.Scheme == "https"
+	if !https && listensOnLoopbackOnly(c.ListenAddr) {
+		return ""
+	}
+	return "ARGOS_TRUSTED_PROXIES esta vacia con ARGOS_PUBLIC_URL https o escucha fuera de loopback: si hay un proxy inverso delante, " +
+		"todos los clientes compartiran la IP del proxy y el limite de intentos de login y enroll (por IP) bloqueara a todos a la vez; " +
+		"define ARGOS_TRUSTED_PROXIES con la IP del proxy"
+}
+
+// listensOnLoopbackOnly dice si addr (host:puerto) solo acepta conexiones locales. Un host vacio o 0.0.0.0/:: escucha
+// en todas las interfaces; un nombre que no es IP (salvo localhost) se trata como no-loopback.
+func listensOnLoopbackOnly(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.IsLoopback()
 }
 
 func validateListenAddr(addr string) error {

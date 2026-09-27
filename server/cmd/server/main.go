@@ -28,6 +28,7 @@ import (
 
 	"argos/server/internal/agentdist"
 	"argos/server/internal/auth"
+	"argos/server/internal/beat"
 	"argos/server/internal/config"
 	"argos/server/internal/httpapi"
 	"argos/server/internal/notify"
@@ -41,16 +42,21 @@ const (
 	maxConcurrentHashes = 4
 )
 
+// version se inyecta al compilar (-ldflags "-X main.version=...");  "dev" en un build sin ella.
+var version = "dev"
+
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// El nivel arranca en Info y se ajusta con ARGOS_LOG_LEVEL apenas se lee la config.
+	level := new(slog.LevelVar)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	// os.Exit solo aca, despues de que run() retorno y corrieron sus defers.
-	if err := run(logger, os.Args[1:]); err != nil {
+	if err := run(logger, level, os.Args[1:]); err != nil {
 		logger.Error("argos-server termino con error", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, args []string) error {
+func run(logger *slog.Logger, level *slog.LevelVar, args []string) error {
 	if len(args) > 0 && args[0] == "migrate" {
 		return runMigrate(logger)
 	}
@@ -58,6 +64,7 @@ func run(logger *slog.Logger, args []string) error {
 	if err != nil {
 		return fmt.Errorf("configuracion: %w", err)
 	}
+	level.Set(cfg.LogLevel)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -104,6 +111,9 @@ func run(logger *slog.Logger, args []string) error {
 		logger.Warn("no se pudo comprobar el alcance de los canales", "err", err)
 	} else if n > 0 {
 		logger.Warn("reglas con un canal de otro grupo: no se les envian avisos de hosts ajenos al dueño del canal; corrigelas (PUT /api/v1/alert-rules/{id}/channels o el dueño del canal)", "count", n)
+	}
+	if msg := cfg.ProxyWarning(); msg != "" {
+		logger.Warn(msg)
 	}
 	return serve(ctx, logger, cfg, pool, st, hasher)
 }
@@ -177,7 +187,13 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 		web = root.FS()
 		logger.Info("frontend servido desde ARGOS_WEB_DIR", "dir", cfg.WebDir)
 	}
+	var maintBeat, evalBeat beat.Beat
 	api := httpapi.New(st, hasher, logger, time.Now, httpapi.Options{
+		Status: httpapi.StatusSources{
+			Version: version, StartedAt: time.Now(),
+			Maintenance: &maintBeat, Evaluator: &evalBeat,
+			MaintenanceInterval: cfg.MetricsMaintenanceInterval, EvalInterval: cfg.AlertEvalInterval, EvalGrace: cfg.HostDownAfter,
+		},
 		PublicURL:       cfg.PublicURL,
 		TrustedProxies:  cfg.TrustedProxies,
 		InsecureCookies: cfg.InsecureCookies,
@@ -232,12 +248,14 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 		DiskDays:          cfg.DiskRetentionDays,
 		Interval:          cfg.MetricsMaintenanceInterval,
 	}, time.Now)
+	metricsMaint.WithBeat(&maintBeat)
 	maint.Go(func() { metricsMaint.Run(maintCtx) })
+	maint.Go(func() { api.RunStatusMonitor(maintCtx) })
 	maint.Go(func() {
 		runHostDownDetector(maintCtx, logger, st, cfg.HostDownAfter, cfg.HostCheckInterval)
 	})
 	maint.Go(func() {
-		runAlertEvaluator(maintCtx, logger, st, cfg.AlertEvalInterval, cfg.HostDownAfter)
+		runAlertEvaluator(maintCtx, logger, st, cfg.AlertEvalInterval, cfg.HostDownAfter, &evalBeat)
 	})
 	baseURL := ""
 	if cfg.PublicURL != nil {

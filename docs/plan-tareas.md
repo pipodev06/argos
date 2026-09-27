@@ -43,9 +43,9 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 - [x] **L4 `pg_prewarm`/`shared_buffers` y caché fría**: reproducir el primer acceso frío de una gráfica de 24 h (reiniciando Postgres) y decidir si hace falta `pg_prewarm`.
 
 ## P6 — Derivado de la carga (2026-09-26, `decisiones/2026-09-26-carga-inventario-parches.md`)
-- [ ] **O1 Optimizar la vista `alert_candidates`** (420 ms por pasada con 1000 hosts; LATERAL de os_eol/parches por fila aunque la regla no exista). *Hecho cuando:* <100 ms con 1000 hosts y 8 reglas, sin cambiar resultados (test de equivalencia).
-- [ ] **O2 Jitter del envío completo al arrancar el agente** (ráfaga de 3000 completos atrasa las métricas hasta 2,3 s).
-- [ ] **O3 Log de solicitudes: muestrear los 429** (un flood deja una línea WARN por solicitud) y **variable de nivel de log** (`ARGOS_LOG_LEVEL`; hoy Info fijo).
+- [x] **O1 Optimizar la vista `alert_candidates`** (420 ms por pasada con 1000 hosts; LATERAL de os_eol/parches por fila aunque la regla no exista). *Hecho cuando:* <100 ms con 1000 hosts y 8 reglas, sin cambiar resultados (test de equivalencia).
+- [x] **O2 Jitter del envío completo al arrancar el agente** (ráfaga de 3000 completos atrasa las métricas hasta 2,3 s).
+- [x] **O3 Log de solicitudes: muestrear los 429** (un flood deja una línea WARN por solicitud) y **variable de nivel de log** (`ARGOS_LOG_LEVEL`; hoy Info fijo).
 - [ ] **O4 Repetir la soak** (30–60 min) en un equipo sin uso concurrente (degradación no reproducida).
 
 ## P5 — Meta: el server solo se instala y el agente solo se instala, se ejecuta y se enrola (pedido del usuario, 2026-09-26)
@@ -60,7 +60,7 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 - [x] **H2 Baja de un cliente (offboarding)** (2026-09-26; UI y etiquetas de auditoría hechas en la web) (#2, alta): endpoint admin de purga por host/grupo (métricas por partición, resumen horario, chunks, discos, host, tokens y sesiones). *Hecho cuando:* purga completa probada y auditada.
 - [ ] **H3 Viewers nuevos con `all_groups=false`** (#5): pedir grupos al crear (UI y API) y migrar el default.
 - [ ] **H4 Bloqueo de cuenta en Internet** (#6, decisión del usuario): Cloudflare Access delante de `/api/v1/auth/*` o bloqueo por (cuenta, IP); aviso al arrancar si no hay proxies confiables.
-- [ ] **H5 Tope real de frecuencia de ingest por host** (#8): descartar muestras a menos de ~10 s de la anterior.
+- [x] **H5 Tope real de frecuencia de ingest por host** (#8): descartar muestras a menos de ~10 s de la anterior.
 - [ ] **H6 Respaldos cifrados y fuera del host** (#12; elección de tecnología del usuario: age/gpg + destino).
 - [ ] **H7 Firma de binarios (cosign) y hash por canal aparte** (#11; reprioriza la deuda aplazada).
 - [x] **H8 Canales ocultos a viewers restringidos; secreto de chequeo sin alcance `all`** (#3, #4; corregidos con test).
@@ -77,7 +77,7 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [ ] **B3 Bloqueo de la cuenta admin desde Internet** (= H4; decisión del usuario) y aviso al arrancar sin proxies confiables. **Bloquea.**
 - [ ] **B4 Primer despliegue real, instaladores en SO reales y restore probado** (= D1/T3/T5). **Bloquea.**
 - [ ] **B5 Respaldos cifrados y fuera del host** (= H6). **Bloquea.**
-- [ ] **B6 Auto-monitoreo del servicio**: ampliar `/health` (mantenimiento atrasado, cola de notificaciones, evaluador parado, disco) y alertar entregas `dead`/canal roto. (Alta, M)
+- [~] **B6 Auto-monitoreo del servicio** (2026-09-27: `GET /system/status` hecho; faltan la pantalla web y la alerta por canal): ampliar `/health` (mantenimiento atrasado, cola de notificaciones, evaluador parado, disco) y alertar entregas `dead`/canal roto. (Alta, M)
 - [ ] **B7 Planes y cuotas por cliente** (hosts, dispositivos, chequeos, usuarios, reglas, canales) y consumo visible; hoy los topes son globales (200 reglas, 50 canales…). (Alta, L; depende de la entidad cliente B24)
 - [x] **B8 Permiso `can_ack`** para que un viewer reconozca sus alertas. (Media, S)
 - [x] **B9 Vista de versiones del agente** (columna, chip "desactualizado", línea en el Resumen) (columna/filtro, `latest` expuesto, "desactualizado"). (Media, S)

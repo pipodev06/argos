@@ -111,13 +111,13 @@ export function HostHistoryView({ id }: { id: string }) {
             noValidate
           >
             <div className="flex flex-wrap items-start gap-3">
-              <div className="w-56">
+              <div className="w-72">
                 <FormField id="history-from" label="Desde" type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
               </div>
-              <div className="w-56">
+              <div className="w-72">
                 <FormField id="history-to" label="Hasta" type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
               </div>
-              <div className="w-44">
+              <div className="w-52">
                 <FormField id="history-day" label="Día:" type="date" value={day} onChange={(e) => onDayChange(e.target.value)} />
               </div>
               <Button type="submit" className="mt-[1.625rem]">

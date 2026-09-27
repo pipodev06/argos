@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"argos/server/internal/beat"
 	"argos/server/internal/store"
 )
 
@@ -39,7 +40,7 @@ func TestRunAlertEvaluatorWaitsForGraceThenEvaluates(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		runAlertEvaluator(ctx, slog.New(slog.NewJSONHandler(io.Discard, nil)), f, 10*time.Millisecond, 200*time.Millisecond)
+		runAlertEvaluator(ctx, slog.New(slog.NewJSONHandler(io.Discard, nil)), f, 10*time.Millisecond, 200*time.Millisecond, nil)
 		close(done)
 	}()
 
@@ -82,13 +83,39 @@ func TestEvaluateAlertsLogging(t *testing.T) {
 			t.Parallel()
 			var buf syncBuffer
 			logger := slog.New(slog.NewJSONHandler(&buf, nil))
-			evaluateAlerts(context.Background(), logger, &fakeEvaluator{result: tt.result, err: tt.err})
+			evaluateAlerts(context.Background(), logger, &fakeEvaluator{result: tt.result, err: tt.err}, nil)
 			out := buf.String()
 			if tt.wantLog == "" && out != "" {
 				t.Errorf("no debia loguear, got %s", out)
 			}
 			if tt.wantLog != "" && (!strings.Contains(out, tt.wantLog) || !strings.Contains(out, tt.wantLevel)) {
 				t.Errorf("log got %s, want %q (%s)", out, tt.wantLog, tt.wantLevel)
+			}
+		})
+	}
+}
+
+func TestEvaluateAlertsRecordsBeat(t *testing.T) {
+	t.Parallel()
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	tests := []struct {
+		name               string
+		f                  *fakeEvaluator
+		wantOK, wantFailed bool
+	}{
+		{name: "ciclo correcto", f: &fakeEvaluator{result: store.EvalResult{Ran: true}}, wantOK: true},
+		{name: "otra instancia evalua", f: &fakeEvaluator{result: store.EvalResult{Ran: false}}, wantOK: true},
+		{name: "error", f: &fakeEvaluator{err: errors.New("boom")}, wantFailed: true},
+		{name: "apagado en curso", f: &fakeEvaluator{err: context.Canceled}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var hb beat.Beat
+			evaluateAlerts(context.Background(), logger, tt.f, &hb)
+			st := hb.Snapshot()
+			if !st.LastOK.IsZero() != tt.wantOK || !st.LastFail.IsZero() != tt.wantFailed {
+				t.Errorf("beat got %+v, want ok=%v failed=%v", st, tt.wantOK, tt.wantFailed)
 			}
 		})
 	}

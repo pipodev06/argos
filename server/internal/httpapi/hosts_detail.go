@@ -62,9 +62,11 @@ type hostInfoDTO struct {
 	OSVersion     *string    `json:"os_version"`
 	KernelVersion *string    `json:"kernel_version"`
 	AgentVersion  *string    `json:"agent_version"`
-	Privilege     *string    `json:"privilege"`
-	IPs           []string   `json:"ips"`
-	MemTotalMB    *int       `json:"mem_total_mb"`
+	// AgentOutdated: la version del agente es anterior a la del catalogo (misma regla que ?agent=outdated).
+	AgentOutdated bool     `json:"agent_outdated"`
+	Privilege     *string  `json:"privilege"`
+	IPs           []string `json:"ips"`
+	MemTotalMB    *int     `json:"mem_total_mb"`
 	// PhysicalDisks es null si el agente no lo reporta (desconocido), nunca [] por defecto.
 	PhysicalDisks []physicalDiskDTO `json:"physical_disks"`
 }
@@ -204,6 +206,8 @@ func (a *API) getHost(w http.ResponseWriter, r *http.Request) error {
 	for _, d := range disks {
 		diskDTOs = append(diskDTOs, diskDTO{Mount: d.Mount, UsedMB: d.UsedMB, TotalMB: d.TotalMB, TS: d.TS.UTC()})
 	}
+	info := toHostInfoDTO(host.Info)
+	info.AgentOutdated = a.isAgentOutdated(host.Info.AgentVersion)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"host": hostDetailDTO{
 			ID: host.ID, Hostname: host.Hostname, Kind: host.Kind, OS: host.OS, Arch: host.Arch, Status: host.Status,
@@ -211,7 +215,7 @@ func (a *API) getHost(w http.ResponseWriter, r *http.Request) error {
 			Group:               toGroupRefDTO(host.Group),
 			DetailRetentionDays: host.DetailRetentionDays, EffectiveDetailDays: host.EffectiveDetailDays, RetentionSource: host.RetentionSource,
 		},
-		"info":   toHostInfoDTO(host.Info),
+		"info":   info,
 		"latest": latest,
 		"disks":  diskDTOs,
 	})

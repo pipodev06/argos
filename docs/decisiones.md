@@ -50,4 +50,6 @@
 - [vigente] Detalle comprimido por host-día + retención por host/grupo/global -> [detalle-comprimido-retencion](decisiones/2026-09-26-detalle-comprimido-retencion.md)
 - [vigente] Revisión de seguridad multi-cliente, hallazgos H1–H8 y lista de verificación tras el túnel -> [seguridad-multicliente](decisiones/2026-09-26-seguridad-multicliente.md)
 - [vigente] Brechas de producto por flujo (análisis 2026-09-26) y riesgos del servicio hospedado -> [brechas-producto](decisiones/2026-09-26-brechas-producto.md)
+- [vigente] O1: `alert_candidates` por rama de tipo (0,4s -> 13-64ms) y `dead_at` real -> [alert-candidates-split](decisiones/2026-09-27-alert-candidates-split.md)
+- [vigente] Lote O/P/Q: auto-monitoreo `/system/status`, tope de ingest H5, `ARGOS_LOG_LEVEL`, jitter del agente, tests de componentes y code-splitting -> [operacion-tests-splitting](decisiones/2026-09-27-operacion-tests-splitting.md)
 - [reemplazada] terminal-dark, navegación por hash, tema por `prefers-color-scheme`, tokens en claro, y lo resuelto el 2026-09-26 (buffer offline, roles de BD, Vitest, SPA en el binario, CI `-race`…) -> [archivo](decisiones/archivo.md) (no leer salvo que investigues historia)

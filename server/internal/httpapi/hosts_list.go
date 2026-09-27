@@ -69,6 +69,8 @@ type hostItemDTO struct {
 	Battery         *batteryDTO  `json:"battery"`
 	// AgentVersion es la version del agente (null en dispositivos o si no la informa).
 	AgentVersion *string `json:"agent_version"`
+	// AgentOutdated: la version del agente es anterior a la del catalogo (misma regla que ?agent=outdated).
+	AgentOutdated bool `json:"agent_outdated"`
 }
 
 func toHostItemDTO(h store.HostRow) hostItemDTO {
@@ -385,7 +387,9 @@ func (a *API) listHosts(w http.ResponseWriter, r *http.Request) error {
 	}
 	items := make([]hostItemDTO, 0, len(page.Items))
 	for _, h := range page.Items {
-		items = append(items, toHostItemDTO(h))
+		dto := toHostItemDTO(h)
+		dto.AgentOutdated = a.isAgentOutdated(h.AgentVersion)
+		items = append(items, dto)
 	}
 	var next *string
 	if page.NextCursor != nil {

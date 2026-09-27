@@ -19,6 +19,13 @@ func (a *API) latestAgentVersion() *string {
 	return &v
 }
 
+// isAgentOutdated dice si la version informada por un host esta desactualizada respecto del catalogo. Sin catalogo
+// o sin version informada (dispositivos, agentes viejos) es false.
+func (a *API) isAgentOutdated(version *string) bool {
+	latest := a.latestAgentVersion()
+	return latest != nil && version != nil && agentOutdated(*version, *latest)
+}
+
 // agentOutdated dice si un agente con la version dada esta desactualizado respecto de latest. "dev" y la version
 // vacia no lo estan. Con las dos versiones numericas (1.2.3, con "v" y sufijo -pre o +build opcionales) esta
 // desactualizado solo si es MENOR (un agente por delante del catalogo no lo esta); si alguna no se puede leer, si

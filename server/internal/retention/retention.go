@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"argos/server/internal/beat"
 )
 
 const (
@@ -69,6 +71,15 @@ type Maintainer struct {
 	lockTimeout time.Duration
 	// packBudget es cuantas particiones con trabajo empaqueta un ciclo (los tests lo suben).
 	packBudget int
+	// beat anota el resultado de cada ciclo pa el auto-monitoreo (nil = no se anota).
+	beat *beat.Beat
+}
+
+// WithBeat hace que cada ciclo anote su resultado en b (GET /system/status): OK si ningun paso fallo, Fail si
+// alguno fallo o no se pudo preparar la conexion. Un ciclo saltado por el lock de otra instancia cuenta como OK.
+func (m *Maintainer) WithBeat(b *beat.Beat) *Maintainer {
+	m.beat = b
+	return m
 }
 
 // New crea el mantenedor. now permite fijar el reloj en tests (time.Now en produccion).
@@ -112,6 +123,7 @@ func (m *Maintainer) RunOnce(ctx context.Context) (ran bool) {
 	}
 	if !locked {
 		m.log.Debug("mantenimiento de metricas en curso en otra instancia: ciclo saltado")
+		m.beat.OK(m.now())
 		return false
 	}
 	// lock_timeout no admite parametros ($1); el valor sale de una constante o del test, nunca de input externo.
@@ -131,10 +143,15 @@ func (m *Maintainer) RunOnce(ctx context.Context) (ran bool) {
 		{"trim_chunks", func() error { return m.trimChunks(ctx, conn, now) }},
 		{"purge_hourly", func() error { return m.purgeHourly(ctx, conn, now) }},
 	}
+	failed := false
 	for _, s := range steps {
 		if err := s.run(); err != nil {
+			failed = true
 			m.logFailure(ctx, "fallo un paso del mantenimiento de metricas", err, "step", s.name)
 		}
+	}
+	if !failed {
+		m.beat.OK(m.now())
 	}
 	return true
 }
@@ -168,6 +185,7 @@ func (m *Maintainer) logFailure(ctx context.Context, msg string, err error, attr
 	if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 		return
 	}
+	m.beat.Fail(m.now(), err)
 	m.log.Error(msg, append(attrs, "err", err)...)
 }
 
