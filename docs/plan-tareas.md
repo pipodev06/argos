@@ -87,8 +87,8 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [x] **B13 Clonar reglas** (botón Duplicar; plantillas por cliente no) (Media, S)
 - [x] **B14 Re-enrolar conservando `host_id`** y aviso de hostnames duplicados. (Media, M) *2026-09-27*
 - [x] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M) *2026-09-27: mismo mecanismo que B14.*
-- [ ] **B16 Alta masiva / token por grupo** con topes. (Media, M)
-- [ ] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M)
+- [x] **B16 Alta masiva / token por grupo** con topes. (Media, M) *2026-09-27*
+- [x] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M) *2026-09-27: purga verificable ya estaba resuelta.*
 - [x] **B18 Rotación de `ARGOS_SECRET_KEY`** (doble clave y recifrado). (Media, M) *2026-09-27: `ARGOS_SECRET_KEY_PREVIOUS` + `argos-server rotate-secret-key`.*
 - [ ] **B19 El plan también limita el resumen horario, eventos, alertas e inventario** (decisión del usuario pendiente). (Media, M)
 - [ ] **B20–B30** (consumo por cliente, revisión visual y tests de componentes, restauración por cliente y DR, SMTP, entidad cliente, MFA/sesiones/recuperación, informes programados/PDF/marca, retención en `POST /groups`, flapping/escalamiento, silenciar por el cliente, ayuda/i18n/móvil): ver el informe.

@@ -39,6 +39,15 @@ var (
 	ErrTooManyGroups = errors.New("demasiados grupos")
 	// ErrUnknownHosts: alguno de los hosts pedidos no existe.
 	ErrUnknownHosts = errors.New("algun host no existe")
+
+	// Alta masiva (B16).
+
+	// ErrBulkTargetConflict: un enroll token no puede pedir a la vez alta masiva (MaxUses > 1) y
+	// target_host_id (re-enroll/reactivacion): uno crea hosts nuevos, el otro actualiza uno existente.
+	ErrBulkTargetConflict = errors.New("alta masiva y target_host_id no pueden combinarse")
+	// ErrEnrollHostnameRequired: un enroll token de grupo (sin hostname fijo) exige que el agente
+	// mande el suyo al enrolar.
+	ErrEnrollHostnameRequired = errors.New("falta el hostname del agente para este enroll token")
 )
 
 // MaxGroups es el maximo de grupos.
@@ -91,15 +100,40 @@ func (s *Store) Ping(ctx context.Context) error {
 	return s.pool.Ping(ctx)
 }
 
+// CreateEnrollTokenParams son los parametros de CreateEnrollToken. Alta normal (como hoy): Hostname
+// fijo, MaxUses <= 1 (o 0, que se trata como 1). Alta masiva (B16): Hostname vacio, GroupID
+// obligatorio (lo valida el llamador: aca solo lo exige el CHECK de la tabla), MaxUses entre 2 y 500;
+// cada canje toma el hostname que reporte el agente en vez de uno fijo. TargetHostID (B14/B15,
+// re-enroll/reactivacion) es incompatible con alta masiva (ErrBulkTargetConflict).
+type CreateEnrollTokenParams struct {
+	TokenHash    string
+	Hostname     string
+	CreatedBy    string
+	GroupID      *string
+	ExpiresAt    time.Time
+	TargetHostID *string
+	// MaxUses: 0 o 1 es alta normal; 2..500 es alta masiva. El llamador valida el rango (400 al
+	// cliente); aca solo se defiende de la combinacion imposible con TargetHostID.
+	MaxUses int
+}
+
 // CreateEnrollToken guarda el hash SHA-256 de un enroll token (nunca el token en claro)
 // ligado al usuario que lo creo y, opcionalmente, al grupo con el que quedara el host enrolado
 // (ErrGroupNotFound si no existe). Devuelve ErrTooManyTokens si ya hay MaxActiveEnrollTokens
 // vigentes; el lock advisory serializa creaciones concurrentes pa que el tope sea exacto.
 //
-// Si targetHostID no es nil (B14/B15: re-enrolar o reactivar), el hostname se ignora y se toma el
+// Si TargetHostID no es nil (B14/B15: re-enrolar o reactivar), el hostname se ignora y se toma el
 // del host targeteado; ErrNotFound si ese host no existe o no es kind = 'agent' (un dispositivo no
-// se re-enrola asi). El grupo (groupID) no se usa en ese caso: EnrollHost no mueve de grupo al host.
-func (s *Store) CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time, targetHostID *string) error {
+// se re-enrola asi). El grupo (GroupID) no se usa en ese caso: EnrollHost no mueve de grupo al host.
+func (s *Store) CreateEnrollToken(ctx context.Context, p CreateEnrollTokenParams) error {
+	maxUses := p.MaxUses
+	if maxUses <= 0 {
+		maxUses = 1
+	}
+	if p.TargetHostID != nil && maxUses > 1 {
+		return ErrBulkTargetConflict
+	}
+	hostname := p.Hostname
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('argos.enroll_tokens.cap'))`); err != nil {
 			return fmt.Errorf("lock de enroll tokens: %w", err)
@@ -113,9 +147,9 @@ func (s *Store) CreateEnrollToken(ctx context.Context, tokenHash, hostname, crea
 		if active >= MaxActiveEnrollTokens {
 			return ErrTooManyTokens
 		}
-		if targetHostID != nil {
+		if p.TargetHostID != nil {
 			var kind string
-			err := tx.QueryRow(ctx, `SELECT kind, hostname FROM hosts WHERE id = $1`, *targetHostID).Scan(&kind, &hostname)
+			err := tx.QueryRow(ctx, `SELECT kind, hostname FROM hosts WHERE id = $1`, *p.TargetHostID).Scan(&kind, &hostname)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
@@ -126,10 +160,14 @@ func (s *Store) CreateEnrollToken(ctx context.Context, tokenHash, hostname, crea
 				return ErrNotFound
 			}
 		}
+		var hostnameArg *string
+		if hostname != "" {
+			hostnameArg = &hostname
+		}
 		if _, err := tx.Exec(ctx,
-			`INSERT INTO enroll_tokens (token_hash, hostname, created_by, group_id, expires_at, target_host_id)
-			 VALUES ($1, $2, $3, $4, $5, $6)`,
-			tokenHash, hostname, createdBy, groupID, expiresAt, targetHostID); err != nil {
+			`INSERT INTO enroll_tokens (token_hash, hostname, created_by, group_id, expires_at, target_host_id, max_uses)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			p.TokenHash, hostnameArg, p.CreatedBy, p.GroupID, p.ExpiresAt, p.TargetHostID, maxUses); err != nil {
 			if isFKViolation(err, "enroll_tokens_group_id_fkey") {
 				return ErrGroupNotFound
 			}
@@ -170,20 +208,28 @@ WITH prev AS (
 )
 SELECT prev_status FROM upd`
 
-// EnrollHost consume el enroll token en una sola transaccion. Devuelve ErrNotFound, ErrTokenUsed o
-// ErrTokenExpired segun el estado del token. El FOR UPDATE serializa consumos concurrentes del mismo
-// token. Si el token tiene target_host_id (B14/B15), actualiza ese host en vez de crear uno nuevo:
-// el segundo valor de retorno indica si fue ese caso (re-enroll), pa que el llamador audite distinto.
-func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, reenroll bool, err error) {
+// EnrollHost consume el enroll token en una sola transaccion. Devuelve ErrNotFound, ErrTokenUsed,
+// ErrTokenExpired o ErrEnrollHostnameRequired segun el estado del token. El FOR UPDATE serializa
+// consumos concurrentes del mismo token: tambien acota un token de grupo (B16) a su max_uses exacto,
+// bajo la misma fila bloqueada. Si el token tiene target_host_id (B14/B15), actualiza ese host en vez
+// de crear uno nuevo: el segundo valor de retorno indica si fue ese caso (re-enroll), pa que el
+// llamador audite distinto.
+//
+// agentHostname es el hostname que reporta el propio agente al enrolar. Si el token trae hostname
+// fijo (columna enroll_tokens.hostname NOT NULL, alta normal o re-enroll) se usa ESE y agentHostname
+// se ignora; si el token es de grupo (hostname NULL, B16) se usa agentHostname, y si viene vacio se
+// devuelve ErrEnrollHostnameRequired sin consumir el token.
+func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash, agentHostname string) (hostID string, reenroll bool, err error) {
 	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var hostname string
+		var hostname *string
 		var groupID, targetHostID *string
+		var maxUses, usesCount int
 		var used, expired bool
 		err := tx.QueryRow(ctx,
-			`SELECT hostname, group_id, target_host_id, used_at IS NOT NULL, expires_at <= now()
+			`SELECT hostname, group_id, target_host_id, max_uses, uses_count, used_at IS NOT NULL, expires_at <= now()
 			   FROM enroll_tokens WHERE token_hash = $1 FOR UPDATE`,
 			enrollTokenHash,
-		).Scan(&hostname, &groupID, &targetHostID, &used, &expired)
+		).Scan(&hostname, &groupID, &targetHostID, &maxUses, &usesCount, &used, &expired)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -195,6 +241,13 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 		}
 		if expired {
 			return ErrTokenExpired
+		}
+
+		useHostname := agentHostname
+		if hostname != nil {
+			useHostname = *hostname
+		} else if useHostname == "" {
+			return ErrEnrollHostnameRequired
 		}
 
 		if targetHostID != nil {
@@ -215,7 +268,7 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 			if err := tx.QueryRow(ctx,
 				`INSERT INTO hosts (hostname, os, arch, agent_token_hash, status, last_seen_at, group_id)
 				 VALUES ($1, $2, $3, $4, 'up', now(), $5) RETURNING id`,
-				hostname, osName, arch, agentTokenHash, groupID,
+				useHostname, osName, arch, agentTokenHash, groupID,
 			).Scan(&hostID); err != nil {
 				return fmt.Errorf("creando host: %w", err)
 			}
@@ -224,8 +277,11 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 				return fmt.Errorf("registrando evento inicial del host: %w", err)
 			}
 		}
-		if _, err := tx.Exec(ctx, `UPDATE enroll_tokens SET used_at = now() WHERE token_hash = $1`, enrollTokenHash); err != nil {
-			return fmt.Errorf("marcando enroll token usado: %w", err)
+		if _, err := tx.Exec(ctx,
+			`UPDATE enroll_tokens SET uses_count = uses_count + 1,
+			        used_at = CASE WHEN uses_count + 1 >= max_uses THEN now() ELSE used_at END
+			  WHERE token_hash = $1`, enrollTokenHash); err != nil {
+			return fmt.Errorf("marcando uso del enroll token: %w", err)
 		}
 		return nil
 	})
@@ -283,22 +339,26 @@ func (s *Store) RevokeHost(ctx context.Context, hostID string) error {
 	})
 }
 
-// PendingEnrollToken es un enroll token vigente sin usar. Nunca lleva el token ni su hash: ID es un identificador
-// aparte (enroll_tokens.id) pa listar y revocar.
+// PendingEnrollToken es un enroll token vigente sin usar (o, en un token de grupo B16, no agotado
+// del todo). Nunca lleva el token ni su hash: ID es un identificador aparte (enroll_tokens.id) pa
+// listar y revocar. Hostname es nil en un token de grupo (sin uno fijo). MaxUses/UsesCount son 1/0
+// en un alta normal; en alta masiva reflejan cuanto se lleva canjeado del tope.
 type PendingEnrollToken struct {
 	ID        string
-	Hostname  string
+	Hostname  *string
 	Group     *GroupRef
 	CreatedBy *string // username; nil si el usuario ya no existe
 	CreatedAt time.Time
 	ExpiresAt time.Time
+	MaxUses   int
+	UsesCount int
 }
 
-// ListPendingEnrollTokens devuelve los tokens sin usar y sin expirar, los mas recientes por vencer primero (hay un
-// tope natural de MaxActiveEnrollTokens).
+// ListPendingEnrollTokens devuelve los tokens sin usar (o sin agotar, B16) y sin expirar, los mas
+// recientes por vencer primero (hay un tope natural de MaxActiveEnrollTokens).
 func (s *Store) ListPendingEnrollTokens(ctx context.Context) ([]PendingEnrollToken, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT t.id, t.hostname, g.id, g.name, u.username, t.created_at, t.expires_at
+		`SELECT t.id, t.hostname, g.id, g.name, u.username, t.created_at, t.expires_at, t.max_uses, t.uses_count
 		   FROM enroll_tokens t
 		   LEFT JOIN host_groups g ON g.id = t.group_id
 		   LEFT JOIN users u ON u.id = t.created_by
@@ -310,7 +370,7 @@ func (s *Store) ListPendingEnrollTokens(ctx context.Context) ([]PendingEnrollTok
 	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (PendingEnrollToken, error) {
 		var t PendingEnrollToken
 		var gid, gname *string
-		if err := row.Scan(&t.ID, &t.Hostname, &gid, &gname, &t.CreatedBy, &t.CreatedAt, &t.ExpiresAt); err != nil {
+		if err := row.Scan(&t.ID, &t.Hostname, &gid, &gname, &t.CreatedBy, &t.CreatedAt, &t.ExpiresAt, &t.MaxUses, &t.UsesCount); err != nil {
 			return t, err
 		}
 		if gid != nil && gname != nil {
@@ -324,16 +384,17 @@ func (s *Store) ListPendingEnrollTokens(ctx context.Context) ([]PendingEnrollTok
 	return out, nil
 }
 
-// RevokeEnrollToken borra un enroll token pendiente y devuelve su hostname. ErrNotFound si no existe, ya se uso o
-// expiro (un token usado ya dio origen a un host: se revoca el host, no el token).
-func (s *Store) RevokeEnrollToken(ctx context.Context, id string) (hostname string, err error) {
+// RevokeEnrollToken borra un enroll token pendiente y devuelve su hostname (nil en un token de
+// grupo, B16). ErrNotFound si no existe, ya se agoto o expiro (un token agotado ya dio origen a sus
+// hosts: se revoca cada host, no el token).
+func (s *Store) RevokeEnrollToken(ctx context.Context, id string) (hostname *string, err error) {
 	err = s.pool.QueryRow(ctx,
 		`DELETE FROM enroll_tokens WHERE id = $1 AND used_at IS NULL AND expires_at > now() RETURNING hostname`, id).Scan(&hostname)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
+		return nil, ErrNotFound
 	}
 	if err != nil {
-		return "", fmt.Errorf("revocando enroll token: %w", err)
+		return nil, fmt.Errorf("revocando enroll token: %w", err)
 	}
 	return hostname, nil
 }

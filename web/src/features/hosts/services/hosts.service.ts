@@ -22,11 +22,18 @@ export function listHosts(query: URLSearchParams, signal?: AbortSignal): Promise
   return apiRequest<HostListResponse>(`/hosts?${query.toString()}`, { signal })
 }
 
-export function createEnrollToken(hostname: string, groupId: string | null): Promise<EnrollToken> {
-  return apiRequest<EnrollToken>('/hosts/enroll-token', {
-    method: 'POST',
-    body: groupId ? { hostname, group_id: groupId } : { hostname },
-  })
+export interface CreateEnrollTokenInput {
+  /** Vacío en alta masiva: el hostname lo pone cada agente al enrolar. */
+  hostname: string
+  groupId: string | null
+  /** > 1 = alta masiva (token reusable hasta agotar los usos); ausente o 1 = alta normal. */
+  maxUses?: number
+}
+
+export function createEnrollToken({ hostname, groupId, maxUses }: CreateEnrollTokenInput): Promise<EnrollToken> {
+  const body: Record<string, unknown> = maxUses && maxUses > 1 ? { max_uses: maxUses } : { hostname }
+  if (groupId) body.group_id = groupId
+  return apiRequest<EnrollToken>('/hosts/enroll-token', { method: 'POST', body })
 }
 
 /** Re-enrola (o reactiva si estaba `disabled`) un host `agent` existente: token nuevo, conserva su historial. */

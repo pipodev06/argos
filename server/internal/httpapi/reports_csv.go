@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/csv"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -170,6 +171,38 @@ func (a *API) finishExport(r *http.Request, kind string, p reportParams, ex *csv
 	}
 }
 
+// availabilityHeader son las columnas de disponibilidad.csv, compartidas entre el informe en streaming y el export
+// del cliente (zip, B17).
+var availabilityHeader = []string{"host_id", "hostname", "grupo", "desde", "hasta", "up_s", "down_s",
+	"down_mantenimiento_s", "offline_s", "incidentes", "disponibilidad_pct", "cobertura_pct", "historial_desde"}
+
+// availabilityRow arma las celdas de una fila de disponibilidad.csv para un host.
+func availabilityRow(h store.HostAvailability, from, to time.Time) []string {
+	t := store.Totals([]store.HostAvailability{h}, from, to)
+	cov := round3(t.CoveragePct(from, to))
+	return []string{csvSafe(h.HostID), csvSafe(h.Hostname), csvStrPtr(h.GroupName), from.UTC().Format(time.RFC3339),
+		to.UTC().Format(time.RFC3339), itoa(t.UpS), itoa(t.DownS), itoa(t.DownMaintS), itoa(t.OfflineS),
+		strconv.Itoa(t.Incidents), csvPct(t.Pct()), csvPct(&cov), csvTime(h.TrackedFrom)}
+}
+
+// writeAvailabilityCSV escribe disponibilidad.csv (cabecera y una fila por host) en cualquier io.Writer; lo usa el
+// export del cliente (zip) para reusar exactamente las mismas columnas que el informe en streaming.
+func writeAvailabilityCSV(w io.Writer, hosts []store.HostAvailability, from, to time.Time) (int, error) {
+	cw := csv.NewWriter(w)
+	if err := cw.Write(availabilityHeader); err != nil {
+		return 0, err
+	}
+	rows := 0
+	for _, h := range hosts {
+		if err := cw.Write(availabilityRow(h, from, to)); err != nil {
+			return rows, err
+		}
+		rows++
+	}
+	cw.Flush()
+	return rows, cw.Error()
+}
+
 // availabilityCSV: GET /reports/availability.csv?range=7d|30d|90d&group_id= (una fila por host).
 func (a *API) availabilityCSV(w http.ResponseWriter, r *http.Request) error {
 	p, err := a.parseReportParams(r)
@@ -182,19 +215,12 @@ func (a *API) availabilityCSV(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer release()
 
-	ex := newCSVExport(w, csvFilename("disponibilidad", p.rangeName, p.to), []string{"host_id", "hostname", "grupo",
-		"desde", "hasta", "up_s", "down_s", "down_mantenimiento_s", "offline_s", "incidentes", "disponibilidad_pct",
-		"cobertura_pct", "historial_desde"})
+	ex := newCSVExport(w, csvFilename("disponibilidad", p.rangeName, p.to), availabilityHeader)
 	// El informe ya acota a MaxReportHosts (2000) filas: cabe en memoria y falla con 422 antes de escribir.
 	hosts, err := a.store.AvailabilityReport(r.Context(), currentUser(r).Scope, p.groupID, p.from, p.to)
 	if err == nil {
-		from, to := p.from.UTC().Format(time.RFC3339), p.to.UTC().Format(time.RFC3339)
 		for _, h := range hosts {
-			t := store.Totals([]store.HostAvailability{h}, p.from, p.to)
-			cov := round3(t.CoveragePct(p.from, p.to))
-			if err = ex.row(csvSafe(h.HostID), csvSafe(h.Hostname), csvStrPtr(h.GroupName), from, to, itoa(t.UpS), itoa(t.DownS),
-				itoa(t.DownMaintS), itoa(t.OfflineS), strconv.Itoa(t.Incidents), csvPct(t.Pct()),
-				csvPct(&cov), csvTime(h.TrackedFrom)); err != nil {
+			if err = ex.row(availabilityRow(h, p.from, p.to)...); err != nil {
 				break
 			}
 		}

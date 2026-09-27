@@ -1,5 +1,18 @@
 import type { EnrollCommands, EnrollToken } from '../types/host.types'
 
+export const MIN_BULK_ENROLL_USES = 2
+export const MAX_BULK_ENROLL_USES = 500
+
+/** Valida el campo "cuántos equipos" del alta masiva (entero entre MIN y MAX). */
+export function parseBulkUses(raw: string): { ok: true; uses: number } | { ok: false; error: string } {
+  const n = Number(raw.trim())
+  if (!raw.trim() || !Number.isInteger(n)) return { ok: false, error: 'Ingresa un número entero.' }
+  if (n < MIN_BULK_ENROLL_USES || n > MAX_BULK_ENROLL_USES) {
+    return { ok: false, error: `Debe estar entre ${MIN_BULK_ENROLL_USES} y ${MAX_BULK_ENROLL_USES}.` }
+  }
+  return { ok: true, uses: n }
+}
+
 /** Minutos que faltan para `expiresAt` (redondeado hacia arriba); 0 = expiro. */
 export function minutesLeft(expiresAt: string, now: number): number {
   const ms = new Date(expiresAt).getTime() - now

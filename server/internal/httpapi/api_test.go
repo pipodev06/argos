@@ -63,13 +63,13 @@ type fakeStore struct {
 	gotSource string // "raw", "hourly" o "mixed": que consulta de serie uso el handler
 }
 
-func (f *fakeStore) CreateEnrollToken(_ context.Context, _, _, _ string, groupID *string, _ time.Time, _ *string) error {
+func (f *fakeStore) CreateEnrollToken(_ context.Context, p store.CreateEnrollTokenParams) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.createErr != nil {
 		return f.createErr
 	}
-	f.enrollGroup = groupID
+	f.enrollGroup = p.GroupID
 	return nil
 }
 
@@ -98,7 +98,7 @@ func (f *fakeStore) InsertAudit(_ context.Context, e store.AuditEntry) error {
 	return nil
 }
 
-func (f *fakeStore) EnrollHost(_ context.Context, _, _, _, agentTokenHash string) (string, bool, error) {
+func (f *fakeStore) EnrollHost(_ context.Context, _, _, _, agentTokenHash, _ string) (string, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.enrollErr != nil {

@@ -42,8 +42,8 @@ export function EnrollTokenStep({ token, title, onClose, onAnother }: EnrollToke
         <DialogDescription>
           {left > 0 ? (
             <>
-              Se usa una sola vez y expira a las{' '}
-              <span className="tabular-nums">{formatExpiry(token.expires_at)}</span> (en {left} min).
+              {token.max_uses > 1 ? `Sirve para ${token.max_uses} equipos (el mismo comando en cada uno) y expira` : 'Se usa una sola vez y expira'} a
+              las <span className="tabular-nums">{formatExpiry(token.expires_at)}</span> (en {left} min).
             </>
           ) : (
             'El token expiró.'

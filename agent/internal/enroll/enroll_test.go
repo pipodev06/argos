@@ -26,7 +26,7 @@ func TestDoHappyPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	res, err := Do(context.Background(), srv.Client(), srv.URL, enrollToken, "linux", "amd64")
+	res, err := Do(context.Background(), srv.Client(), srv.URL, enrollToken, "linux", "amd64", "mi-host")
 	if err != nil {
 		t.Fatalf("Do: %v", err)
 	}
@@ -36,7 +36,8 @@ func TestDoHappyPath(t *testing.T) {
 	if gotPath != "/api/v1/agent/enroll" || gotAuth != "" {
 		t.Errorf("path=%q auth=%q, want el endpoint de enroll y sin Authorization", gotPath, gotAuth)
 	}
-	if gotBody["enroll_token"] != enrollToken || gotBody["os"] != "linux" || gotBody["arch"] != "amd64" || len(gotBody) != 3 {
+	if gotBody["enroll_token"] != enrollToken || gotBody["os"] != "linux" || gotBody["arch"] != "amd64" ||
+		gotBody["hostname"] != "mi-host" || len(gotBody) != 4 {
 		t.Errorf("body got %v", gotBody)
 	}
 }
@@ -71,7 +72,7 @@ func TestDoErrors(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			_, err := Do(context.Background(), srv.Client(), srv.URL, enrollToken, "linux", "amd64")
+			_, err := Do(context.Background(), srv.Client(), srv.URL, enrollToken, "linux", "amd64", "mi-host")
 			if err == nil {
 				t.Fatal("se esperaba error")
 			}
@@ -95,7 +96,7 @@ func TestDoNetworkErrorDoesNotLeakToken(t *testing.T) {
 	url := srv.URL
 	srv.Close() // puerto cerrado: connection refused
 
-	_, err := Do(context.Background(), http.DefaultClient, url, enrollToken, "linux", "amd64")
+	_, err := Do(context.Background(), http.DefaultClient, url, enrollToken, "linux", "amd64", "mi-host")
 	if err == nil {
 		t.Fatal("se esperaba error de red")
 	}

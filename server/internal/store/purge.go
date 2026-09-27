@@ -118,8 +118,12 @@ type PurgeGroupResult struct {
 	Failed []string
 
 	Rules, Windows, Checks, EnrollTokens int
-	UsersDisabled, UsersScopeReduced     int // UsersScopeReduced: viewers a los que se quito el grupo (incluye los deshabilitados)
-	GroupDeleted                         bool
+	// Channels: canales de notificacion propios del grupo (group_id = X; los globales, group_id NULL, nunca se tocan).
+	// SnmpProfiles: perfiles SNMP de dispositivos del grupo que, tras purgarlos, quedaron sin ningun host que los use
+	// (uno compartido con un dispositivo de otro grupo sobrevive).
+	Channels, SnmpProfiles           int
+	UsersDisabled, UsersScopeReduced int // UsersScopeReduced: viewers a los que se quito el grupo (incluye los deshabilitados)
+	GroupDeleted                     bool
 }
 
 // purgeFailedCap acota los ids de fallos que se devuelven.
@@ -157,6 +161,18 @@ func (s *Store) PurgeGroup(ctx context.Context, groupID string, o PurgeGroupOpts
 		return PurgeGroupResult{}, fmt.Errorf("leyendo hosts del grupo: %w", err)
 	}
 
+	// Perfiles SNMP de los dispositivos del grupo: se recolectan antes de purgar los hosts (snmp_profiles no tiene
+	// group_id, solo se llega a ellos por hosts.snmp_profile_id) para poder borrar despues los que queden sin uso.
+	profileRows, err := s.pool.Query(ctx,
+		`SELECT DISTINCT snmp_profile_id::text FROM hosts WHERE group_id = $1 AND snmp_profile_id IS NOT NULL`, groupID)
+	if err != nil {
+		return PurgeGroupResult{}, fmt.Errorf("listando perfiles snmp del grupo: %w", err)
+	}
+	profileIDs, err := pgx.CollectRows(profileRows, pgx.RowTo[string])
+	if err != nil {
+		return PurgeGroupResult{}, fmt.Errorf("leyendo perfiles snmp del grupo: %w", err)
+	}
+
 	var res PurgeGroupResult
 	for _, t := range targets {
 		if err := ctx.Err(); err != nil {
@@ -184,7 +200,9 @@ func (s *Store) PurgeGroup(ctx context.Context, groupID string, o PurgeGroupOpts
 		}
 	}
 
-	if err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error { return purgeGroupConfig(ctx, tx, groupID, o, &res) }); err != nil {
+	if err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		return purgeGroupConfig(ctx, tx, groupID, profileIDs, o, &res)
+	}); err != nil {
 		return res, err
 	}
 	if o.DeleteGroup && len(res.Failed) == 0 {
@@ -199,8 +217,10 @@ func (s *Store) PurgeGroup(ctx context.Context, groupID string, o PurgeGroupOpts
 	return res, nil
 }
 
-// purgeGroupConfig borra la configuracion con alcance solo a ese grupo y ajusta a los viewers.
-func purgeGroupConfig(ctx context.Context, tx pgx.Tx, groupID string, o PurgeGroupOpts, res *PurgeGroupResult) error {
+// purgeGroupConfig borra la configuracion con alcance solo a ese grupo y ajusta a los viewers. profileIDs son los
+// perfiles SNMP recolectados de los dispositivos del grupo (antes de purgarlos); aqui, con los hosts ya purgados, se
+// borran los que quedaron sin ningun host que los use (uno compartido con un dispositivo de otro grupo sobrevive).
+func purgeGroupConfig(ctx context.Context, tx pgx.Tx, groupID string, profileIDs []string, o PurgeGroupOpts, res *PurgeGroupResult) error {
 	for _, d := range []struct {
 		sql string
 		n   *int
@@ -210,12 +230,24 @@ func purgeGroupConfig(ctx context.Context, tx pgx.Tx, groupID string, o PurgeGro
 		{`DELETE FROM service_check_defs WHERE scope_type = 'group' AND scope_group_id = $1`, &res.Checks},
 		// Un enroll token del grupo enrolaria un host nuevo (sin grupo, al borrarse el grupo por SET NULL).
 		{`DELETE FROM enroll_tokens WHERE group_id = $1`, &res.EnrollTokens},
+		// Canales de notificacion propios del grupo; los globales (group_id NULL) nunca se tocan.
+		{`DELETE FROM notification_channels WHERE group_id = $1`, &res.Channels},
 	} {
 		tag, err := tx.Exec(ctx, d.sql, groupID)
 		if err != nil {
 			return fmt.Errorf("borrando configuracion del grupo: %w", err)
 		}
 		*d.n = int(tag.RowsAffected())
+	}
+
+	if len(profileIDs) > 0 {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM snmp_profiles WHERE id = ANY($1) AND NOT EXISTS (SELECT 1 FROM hosts WHERE hosts.snmp_profile_id = snmp_profiles.id)`,
+			profileIDs)
+		if err != nil {
+			return fmt.Errorf("borrando perfiles snmp sin uso: %w", err)
+		}
+		res.SnmpProfiles = int(tag.RowsAffected())
 	}
 
 	// Viewers restringidos con el grupo en su ambito: solo-este-grupo vs. tambien otros.

@@ -37,6 +37,9 @@ type request struct {
 	EnrollToken string `json:"enroll_token"`
 	OS          string `json:"os"`
 	Arch        string `json:"arch"`
+	// Hostname (B16): el servidor lo exige cuando el enroll token es "de grupo" (alta masiva, sin
+	// hostname fijo); un token normal lo ignora.
+	Hostname string `json:"hostname"`
 }
 
 type response struct {
@@ -51,12 +54,12 @@ type response struct {
 
 // Do llama a POST /api/v1/agent/enroll. serverURL es la URL base. Los errores
 // nunca incluyen el enroll token ni el agent token.
-func Do(ctx context.Context, client *http.Client, serverURL, enrollToken, osName, arch string) (Result, error) {
+func Do(ctx context.Context, client *http.Client, serverURL, enrollToken, osName, arch, hostname string) (Result, error) {
 	endpoint, err := url.JoinPath(serverURL, enrollPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("construyendo url del enroll: %w", err)
 	}
-	body, err := json.Marshal(request{EnrollToken: enrollToken, OS: osName, Arch: arch})
+	body, err := json.Marshal(request{EnrollToken: enrollToken, OS: osName, Arch: arch, Hostname: hostname})
 	if err != nil {
 		return Result{}, fmt.Errorf("serializando enroll: %w", err)
 	}
