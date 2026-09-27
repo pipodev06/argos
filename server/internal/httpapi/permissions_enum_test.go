@@ -134,6 +134,7 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/reports/service-checks.csv": {"scope", fixed(api + "/reports/service-checks.csv")},
 		"GET /api/v1/reports/alerts.csv":         {"scope", fixed(api + "/reports/alerts.csv")},
 		"GET /api/v1/groups":                     {"scope", fixed(api + "/groups")},
+		"GET /api/v1/groups/{id}/usage":          {"admin", fixed(api + "/groups/" + x.groupA + "/usage")},
 		"GET /api/v1/alerts":                     {"scope", fixed(api + "/alerts")},
 		"GET /api/v1/alerts/summary":             {"scope", fixed(api + "/alerts/summary")},
 		"GET /api/v1/alert-rules":                {"scope", fixed(api + "/alert-rules")},

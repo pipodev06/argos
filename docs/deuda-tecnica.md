@@ -42,6 +42,7 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Apagado por señal solo probado por cancelación de contexto (no Ctrl+C/SIGTERM real en Windows).
 
 ## Datos y API
+- B7: mover un host entre grupos (`SetHostGroup`, `BulkHosts set_group`) no aplica la cuota `max_hosts` del grupo destino (solo dispositivos la tienen al moverse; alta de host nuevo si la tiene).
 - Con `ARGOS_METRICS_MAINTENANCE_INTERVAL` muy bajo (solo pruebas) el check `maintenance` de B6 puede dar falso crit durante un backfill grande (el umbral se calcula sobre el intervalo configurado); con el valor de produccion (5 min) no pasa.
 - Sin benchmark de tiempo automatizado para `alert_candidates` (solo medición manual con `EXPLAIN`); un gate de rendimiento en CI necesitaría decidir margen y máquina de referencia. Entregas `dead` de antes de la migración 00035 llevan `dead_at = created_at` (backfill sin fecha real).
 - **`metrics_chunks`** (`decisiones/2026-09-26-detalle-comprimido-retencion.md`; probado con volumen real el 2026-09-27, ver `decisiones/2026-09-27-e3-volumen-disk-chunks.md`; `disk_samples` ya tiene su propio chunk, `disk_chunks`, con retención solo global): un chunk que falle siempre deja la partición sin borrar y loguea ERROR cada ciclo; validaciones aceptan 730 d aunque `HOT_DAYS` sea mayor que 8; la lista de hosts no muestra la retención propia.

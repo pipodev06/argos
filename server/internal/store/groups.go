@@ -29,6 +29,145 @@ type Group struct {
 	DetailRetentionDays *int
 	EffectiveDetailDays int
 	RetentionSource     string
+	// Cuotas del cliente (B7; "cliente" = grupo, 1 a 1). nil = sin limite propio: el tope global de la
+	// plataforma para ese recurso (si existe) sigue rigiendo igual; esto es un tope ADICIONAL por cliente.
+	MaxHosts, MaxDevices, MaxChecks, MaxUsers, MaxRules, MaxChannels *int
+}
+
+// GroupQuota es el consumo de un recurso de un grupo frente a su cuota (nil = sin limite propio).
+type GroupQuota struct {
+	Current int
+	Limit   *int
+}
+
+// GroupUsage es el consumo actual de los 6 recursos con cuota de un grupo (B7, "consumo visible").
+type GroupUsage struct {
+	Hosts, Devices, Checks, Users, Rules, Channels GroupQuota
+}
+
+// quotaResource identifica el recurso al pedir/chequear una cuota.
+type quotaResource string
+
+const (
+	QuotaHosts    quotaResource = "hosts"
+	QuotaDevices  quotaResource = "devices"
+	QuotaChecks   quotaResource = "checks"
+	QuotaUsers    quotaResource = "users"
+	QuotaRules    quotaResource = "rules"
+	QuotaChannels quotaResource = "channels"
+)
+
+// ErrGroupQuota: el grupo ya esta en su cuota de un recurso (B7); GroupQuotaError trae el detalle.
+var ErrGroupQuota = errors.New("cuota del grupo agotada")
+
+// GroupQuotaError es el detalle de ErrGroupQuota: que recurso, cuanto hay y cuanto permite el grupo.
+type GroupQuotaError struct {
+	Resource       quotaResource
+	Current, Limit int
+}
+
+func (e *GroupQuotaError) Error() string {
+	return fmt.Sprintf("%v: %s (%d/%d)", ErrGroupQuota, e.Resource, e.Current, e.Limit)
+}
+
+// Unwrap devuelve ErrGroupQuota.
+func (e *GroupQuotaError) Unwrap() error { return ErrGroupQuota }
+
+// countSQL da la consulta de conteo actual de cada recurso, parametrizada por el id del grupo ($1).
+var quotaCountSQL = map[quotaResource]string{
+	QuotaHosts:    `SELECT count(*)::int FROM hosts WHERE group_id = $1 AND kind = 'agent'`,
+	QuotaDevices:  `SELECT count(*)::int FROM hosts WHERE group_id = $1 AND kind = 'device'`,
+	QuotaChecks:   `SELECT count(*)::int FROM service_check_defs WHERE scope_type = 'group' AND scope_group_id = $1`,
+	QuotaUsers:    `SELECT count(DISTINCT ug.user_id)::int FROM user_groups ug WHERE ug.group_id = $1`,
+	QuotaRules:    `SELECT count(*)::int FROM alert_rules WHERE scope_type = 'group' AND scope_group_id = $1`,
+	QuotaChannels: `SELECT count(*)::int FROM notification_channels WHERE group_id = $1`,
+}
+
+// quotaLimit devuelve el limite (columna max_*) configurado de un recurso.
+func (g Group) quotaLimit(r quotaResource) *int {
+	switch r {
+	case QuotaHosts:
+		return g.MaxHosts
+	case QuotaDevices:
+		return g.MaxDevices
+	case QuotaChecks:
+		return g.MaxChecks
+	case QuotaUsers:
+		return g.MaxUsers
+	case QuotaRules:
+		return g.MaxRules
+	default:
+		return g.MaxChannels
+	}
+}
+
+// checkGroupQuota falla con *GroupQuotaError si el grupo ya tiene (o al sumar `extra` tendria) mas
+// filas de `resource` que su cuota. `extra` es cuantas filas nuevas se estan por agregar (1 casi siempre;
+// mas en un alta masiva). Sin cuota propia (nil) no hace ninguna consulta. Debe llamarse DENTRO de la misma
+// transaccion que hace el alta, para que el conteo sea consistente con el resto de la operacion; `q` puede
+// ser el pool o una tx (ambos implementan QueryRow).
+func checkGroupQuota(ctx context.Context, q rowQuerier, groupID string, resource quotaResource, extra int) error {
+	var limit *int
+	if err := q.QueryRow(ctx, `SELECT `+quotaColumn(resource)+` FROM host_groups WHERE id = $1`, groupID).Scan(&limit); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // el grupo no existe: quien llama ya deberia haberlo validado antes; no es cosa de cuotas
+		}
+		return fmt.Errorf("leyendo cuota de %s: %w", resource, err)
+	}
+	if limit == nil {
+		return nil
+	}
+	var current int
+	if err := q.QueryRow(ctx, quotaCountSQL[resource], groupID).Scan(&current); err != nil {
+		return fmt.Errorf("contando %s del grupo: %w", resource, err)
+	}
+	if current+extra > *limit {
+		return &GroupQuotaError{Resource: resource, Current: current, Limit: *limit}
+	}
+	return nil
+}
+
+func quotaColumn(r quotaResource) string {
+	switch r {
+	case QuotaHosts:
+		return "max_hosts"
+	case QuotaDevices:
+		return "max_devices"
+	case QuotaChecks:
+		return "max_checks"
+	case QuotaUsers:
+		return "max_users"
+	case QuotaRules:
+		return "max_rules"
+	default:
+		return "max_channels"
+	}
+}
+
+// GroupUsageByID devuelve el consumo actual de los 6 recursos con cuota de un grupo. ErrNotFound si no existe.
+func (s *Store) GroupUsageByID(ctx context.Context, groupID string) (GroupUsage, error) {
+	var g Group
+	err := s.pool.QueryRow(ctx,
+		`SELECT max_hosts, max_devices, max_checks, max_users, max_rules, max_channels FROM host_groups WHERE id = $1`,
+		groupID,
+	).Scan(&g.MaxHosts, &g.MaxDevices, &g.MaxChecks, &g.MaxUsers, &g.MaxRules, &g.MaxChannels)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return GroupUsage{}, ErrNotFound
+	}
+	if err != nil {
+		return GroupUsage{}, fmt.Errorf("leyendo cuotas del grupo: %w", err)
+	}
+	var u GroupUsage
+	for res, dst := range map[quotaResource]*GroupQuota{
+		QuotaHosts: &u.Hosts, QuotaDevices: &u.Devices, QuotaChecks: &u.Checks,
+		QuotaUsers: &u.Users, QuotaRules: &u.Rules, QuotaChannels: &u.Channels,
+	} {
+		if err := s.pool.QueryRow(ctx, quotaCountSQL[res], groupID).Scan(&dst.Current); err != nil {
+			return GroupUsage{}, fmt.Errorf("contando %s: %w", res, err)
+		}
+		dst.Limit = g.quotaLimit(res)
+	}
+	return u, nil
 }
 
 // GroupChange es un cambio parcial de un grupo: cada campo nil se deja como esta.
@@ -41,6 +180,9 @@ type GroupChange struct {
 	// DetailSet distingue "no tocar" de "heredar la global" (DetailDays nil).
 	DetailSet  bool
 	DetailDays *int
+	// Cuotas (B7): cada Set distingue "no tocar" de "quitar el limite" (valor nil). Sin Set, la columna no se toca.
+	MaxHostsSet, MaxDevicesSet, MaxChecksSet, MaxUsersSet, MaxRulesSet, MaxChannelsSet bool
+	MaxHosts, MaxDevices, MaxChecks, MaxUsers, MaxRules, MaxChannels                   *int
 }
 
 // Constraint del indice unico del nombre (00007) y FK de hosts.group_id (nombre autogenerado por Postgres).
@@ -55,7 +197,8 @@ func (s *Store) ListGroups(ctx context.Context, scope Scope) (groups []Group, un
 	var args argList
 	// Un grupo esta en el ambito si sus hosts lo estan: la misma condicion, sobre g.id.
 	rows, err := s.pool.Query(ctx,
-		`SELECT g.id, g.name, g.down_after_seconds, g.always_on, g.detail_retention_days, count(h.id)::int
+		`SELECT g.id, g.name, g.down_after_seconds, g.always_on, g.detail_retention_days, count(h.id)::int,
+		        g.max_hosts, g.max_devices, g.max_checks, g.max_users, g.max_rules, g.max_channels
 		   FROM host_groups g LEFT JOIN hosts h ON h.group_id = g.id
 		  WHERE `+scope.groupCond("g.id", &args)+`
 		  GROUP BY g.id ORDER BY lower(g.name), g.id`, []any(args)...)
@@ -64,7 +207,8 @@ func (s *Store) ListGroups(ctx context.Context, scope Scope) (groups []Group, un
 	}
 	groups, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (Group, error) {
 		var g Group
-		err := row.Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn, &g.DetailRetentionDays, &g.HostCount)
+		err := row.Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn, &g.DetailRetentionDays, &g.HostCount,
+			&g.MaxHosts, &g.MaxDevices, &g.MaxChecks, &g.MaxUsers, &g.MaxRules, &g.MaxChannels)
 		return g, err
 	})
 	if err != nil {
@@ -148,11 +292,21 @@ func (s *Store) UpdateGroup(ctx context.Context, id string, ch GroupChange) (Gro
 			     name = COALESCE($2, name),
 			     down_after_seconds = CASE WHEN $3 THEN $4 ELSE down_after_seconds END,
 			     always_on = COALESCE($5, always_on),
-			     detail_retention_days = CASE WHEN $6 THEN $7 ELSE detail_retention_days END
+			     detail_retention_days = CASE WHEN $6 THEN $7 ELSE detail_retention_days END,
+			     max_hosts    = CASE WHEN $8  THEN $9  ELSE max_hosts    END,
+			     max_devices  = CASE WHEN $10 THEN $11 ELSE max_devices  END,
+			     max_checks   = CASE WHEN $12 THEN $13 ELSE max_checks   END,
+			     max_users    = CASE WHEN $14 THEN $15 ELSE max_users    END,
+			     max_rules    = CASE WHEN $16 THEN $17 ELSE max_rules    END,
+			     max_channels = CASE WHEN $18 THEN $19 ELSE max_channels END
 			  WHERE id = $1
-			RETURNING id, name, down_after_seconds, always_on, detail_retention_days`,
+			RETURNING id, name, down_after_seconds, always_on, detail_retention_days,
+			          max_hosts, max_devices, max_checks, max_users, max_rules, max_channels`,
 			id, ch.Name, ch.DownAfterSet, ch.DownAfterSeconds, ch.AlwaysOn, ch.DetailSet, ch.DetailDays,
-		).Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn, &g.DetailRetentionDays)
+			ch.MaxHostsSet, ch.MaxHosts, ch.MaxDevicesSet, ch.MaxDevices, ch.MaxChecksSet, ch.MaxChecks,
+			ch.MaxUsersSet, ch.MaxUsers, ch.MaxRulesSet, ch.MaxRules, ch.MaxChannelsSet, ch.MaxChannels,
+		).Scan(&g.ID, &g.Name, &g.DownAfterSeconds, &g.AlwaysOn, &g.DetailRetentionDays,
+			&g.MaxHosts, &g.MaxDevices, &g.MaxChecks, &g.MaxUsers, &g.MaxRules, &g.MaxChannels)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}

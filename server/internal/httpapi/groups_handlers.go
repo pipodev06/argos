@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -32,14 +33,76 @@ type groupDTO struct {
 	AlwaysOn         bool   `json:"always_on"`
 	HostCount        int    `json:"host_count"`
 	// Retencion del detalle de metricas: el valor propio (null = hereda), el vigente y su origen (group o global).
-	DetailRetentionDays *int   `json:"detail_retention_days"`
-	EffectiveDetailDays int    `json:"effective_detail_days"`
-	RetentionSource     string `json:"retention_source"`
+	DetailRetentionDays *int          `json:"detail_retention_days"`
+	EffectiveDetailDays int           `json:"effective_detail_days"`
+	RetentionSource     string        `json:"retention_source"`
+	Quotas              groupQuotaDTO `json:"quotas"`
+}
+
+// groupQuotaDTO son los limites propios del grupo (B7, "cliente" = grupo); null = sin limite propio (el tope
+// global de la plataforma, si existe para ese recurso, sigue rigiendo igual). El consumo actual de cada uno
+// (no solo hosts, que ya viene en HostCount) se pide aparte con GET /groups/{id}/usage.
+type groupQuotaDTO struct {
+	MaxHosts    *int `json:"max_hosts"`
+	MaxDevices  *int `json:"max_devices"`
+	MaxChecks   *int `json:"max_checks"`
+	MaxUsers    *int `json:"max_users"`
+	MaxRules    *int `json:"max_rules"`
+	MaxChannels *int `json:"max_channels"`
 }
 
 func toGroupDTO(g store.Group) groupDTO {
 	return groupDTO{ID: g.ID, Name: g.Name, DownAfterSeconds: g.DownAfterSeconds, AlwaysOn: g.AlwaysOn, HostCount: g.HostCount,
-		DetailRetentionDays: g.DetailRetentionDays, EffectiveDetailDays: g.EffectiveDetailDays, RetentionSource: g.RetentionSource}
+		DetailRetentionDays: g.DetailRetentionDays, EffectiveDetailDays: g.EffectiveDetailDays, RetentionSource: g.RetentionSource,
+		Quotas: groupQuotaDTO{MaxHosts: g.MaxHosts, MaxDevices: g.MaxDevices, MaxChecks: g.MaxChecks, MaxUsers: g.MaxUsers, MaxRules: g.MaxRules, MaxChannels: g.MaxChannels}}
+}
+
+// groupQuotaDTO(usage) es el consumo actual de cada recurso frente a su cuota.
+type groupUsageItemDTO struct {
+	Current int  `json:"current"`
+	Limit   *int `json:"limit"`
+}
+
+type groupUsageDTO struct {
+	Hosts    groupUsageItemDTO `json:"hosts"`
+	Devices  groupUsageItemDTO `json:"devices"`
+	Checks   groupUsageItemDTO `json:"checks"`
+	Users    groupUsageItemDTO `json:"users"`
+	Rules    groupUsageItemDTO `json:"rules"`
+	Channels groupUsageItemDTO `json:"channels"`
+}
+
+func toGroupUsageDTO(u store.GroupUsage) groupUsageDTO {
+	conv := func(q store.GroupQuota) groupUsageItemDTO {
+		return groupUsageItemDTO{Current: q.Current, Limit: q.Limit}
+	}
+	return groupUsageDTO{
+		Hosts: conv(u.Hosts), Devices: conv(u.Devices), Checks: conv(u.Checks),
+		Users: conv(u.Users), Rules: conv(u.Rules), Channels: conv(u.Channels),
+	}
+}
+
+// groupQuotaDetails arma details de group_quota_exceeded: {"resource","current","limit"}.
+func groupQuotaDetails(err error) any {
+	var qe *store.GroupQuotaError
+	if !errors.As(err, &qe) {
+		return nil
+	}
+	return map[string]any{"resource": string(qe.Resource), "current": qe.Current, "limit": qe.Limit}
+}
+
+// getGroupUsage: GET /api/v1/groups/{id}/usage (admin) — consumo actual de los 6 recursos con cuota (B7).
+func (a *API) getGroupUsage(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if !isUUID(id) {
+		return badRequest("id invalido")
+	}
+	u, err := a.store.GroupUsageByID(r.Context(), id)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, toGroupUsageDTO(u))
+	return nil
 }
 
 func (a *API) listGroups(w http.ResponseWriter, r *http.Request) error {
@@ -113,6 +176,21 @@ type updateGroupReq struct {
 	// DetailRetentionDays: dias de detalle propios del grupo (8..730, null = heredar el global).
 	DetailRetentionDays optional[int] `json:"detail_retention_days"`
 	ConfirmShrink       bool          `json:"confirm_shrink"`
+	// Cuotas del cliente (B7): cada una null = sin limite propio (>= 0; 0 = no se permite ninguno).
+	MaxHosts    optional[int] `json:"max_hosts"`
+	MaxDevices  optional[int] `json:"max_devices"`
+	MaxChecks   optional[int] `json:"max_checks"`
+	MaxUsers    optional[int] `json:"max_users"`
+	MaxRules    optional[int] `json:"max_rules"`
+	MaxChannels optional[int] `json:"max_channels"`
+}
+
+// checkQuota valida una cuota (nil = sin limite; si viene, debe ser >= 0).
+func checkQuota(field string, v *int) error {
+	if v != nil && *v < 0 {
+		return badRequest("%s debe ser >= 0 (o null para sin límite)", field)
+	}
+	return nil
 }
 
 func (a *API) updateGroup(w http.ResponseWriter, r *http.Request) error {
@@ -124,12 +202,34 @@ func (a *API) updateGroup(w http.ResponseWriter, r *http.Request) error {
 	if err := decodeJSON(w, r, &req, maxSmallBodyBytes, true); err != nil {
 		return err
 	}
-	if req.Name == nil && !req.DownAfterSeconds.Set && req.AlwaysOn == nil && !req.DetailRetentionDays.Set {
-		return badRequest("nada que cambiar: envia name, down_after_seconds, always_on o detail_retention_days")
+	anyQuotaSet := req.MaxHosts.Set || req.MaxDevices.Set || req.MaxChecks.Set || req.MaxUsers.Set || req.MaxRules.Set || req.MaxChannels.Set
+	if req.Name == nil && !req.DownAfterSeconds.Set && req.AlwaysOn == nil && !req.DetailRetentionDays.Set && !anyQuotaSet {
+		return badRequest("nada que cambiar: envia name, down_after_seconds, always_on, detail_retention_days o una cuota (max_hosts, max_devices, max_checks, max_users, max_rules, max_channels)")
 	}
 	change := store.GroupChange{
 		AlwaysOn: req.AlwaysOn, DownAfterSet: req.DownAfterSeconds.Set, DownAfterSeconds: req.DownAfterSeconds.Value,
 		DetailSet: req.DetailRetentionDays.Set, DetailDays: req.DetailRetentionDays.Value,
+		MaxHostsSet: req.MaxHosts.Set, MaxHosts: req.MaxHosts.Value,
+		MaxDevicesSet: req.MaxDevices.Set, MaxDevices: req.MaxDevices.Value,
+		MaxChecksSet: req.MaxChecks.Set, MaxChecks: req.MaxChecks.Value,
+		MaxUsersSet: req.MaxUsers.Set, MaxUsers: req.MaxUsers.Value,
+		MaxRulesSet: req.MaxRules.Set, MaxRules: req.MaxRules.Value,
+		MaxChannelsSet: req.MaxChannels.Set, MaxChannels: req.MaxChannels.Value,
+	}
+	for _, q := range []struct {
+		field string
+		v     *int
+		set   bool
+	}{
+		{"max_hosts", req.MaxHosts.Value, req.MaxHosts.Set}, {"max_devices", req.MaxDevices.Value, req.MaxDevices.Set},
+		{"max_checks", req.MaxChecks.Value, req.MaxChecks.Set}, {"max_users", req.MaxUsers.Value, req.MaxUsers.Set},
+		{"max_rules", req.MaxRules.Value, req.MaxRules.Set}, {"max_channels", req.MaxChannels.Value, req.MaxChannels.Set},
+	} {
+		if q.set {
+			if err := checkQuota(q.field, q.v); err != nil {
+				return err
+			}
+		}
 	}
 	detail := map[string]any{}
 	if req.Name != nil {
@@ -148,6 +248,19 @@ func (a *API) updateGroup(w http.ResponseWriter, r *http.Request) error {
 	}
 	if req.AlwaysOn != nil {
 		detail["always_on"] = *req.AlwaysOn
+	}
+	for _, q := range []struct {
+		key string
+		set bool
+		v   *int
+	}{
+		{"max_hosts", req.MaxHosts.Set, req.MaxHosts.Value}, {"max_devices", req.MaxDevices.Set, req.MaxDevices.Value},
+		{"max_checks", req.MaxChecks.Set, req.MaxChecks.Value}, {"max_users", req.MaxUsers.Set, req.MaxUsers.Value},
+		{"max_rules", req.MaxRules.Set, req.MaxRules.Value}, {"max_channels", req.MaxChannels.Set, req.MaxChannels.Value},
+	} {
+		if q.set {
+			detail[q.key] = q.v
+		}
 	}
 	if req.DetailRetentionDays.Set {
 		if err := checkDetailDays(req.DetailRetentionDays.Value); err != nil {

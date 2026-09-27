@@ -192,6 +192,14 @@ func (s *Store) CreateServiceCheck(ctx context.Context, d ServiceCheckDef, creat
 		if n >= MaxServiceChecks {
 			return ErrTooManyChecks
 		}
+		// Cuota por cliente (B7): solo cuenta contra el grupo cuando el alcance del chequeo ES ese grupo
+		// (scope_type = 'group'). Un chequeo con alcance host/device/all no se computa contra ninguna
+		// cuota en esta primera version (simplificacion documentada en la spec CC-B7 parte 2).
+		if d.Scope.Type == ScopeGroup && d.Scope.GroupID != nil {
+			if err := checkGroupQuota(ctx, tx, *d.Scope.GroupID, QuotaChecks, 1); err != nil {
+				return err
+			}
+		}
 		if err := requireScopeHost(ctx, tx, d.Scope); err != nil {
 			return err
 		}

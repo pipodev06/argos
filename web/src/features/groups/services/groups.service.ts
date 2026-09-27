@@ -1,6 +1,6 @@
 import { ApiError, apiRequest } from '@/lib/api'
 import { filenameFromDisposition } from '@/features/hosts/utils/history'
-import type { Group, GroupInput, GroupListResponse } from '../types/group.types'
+import type { Group, GroupInput, GroupListResponse, GroupUsage } from '../types/group.types'
 
 export function listGroups(signal?: AbortSignal): Promise<GroupListResponse> {
   return apiRequest<GroupListResponse>('/groups', { signal })
@@ -21,6 +21,11 @@ export async function updateGroup(id: string, input: GroupInput): Promise<Group>
 
 export function deleteGroup(id: string): Promise<unknown> {
   return apiRequest<unknown>(`/groups/${encodeURIComponent(id)}`, { method: 'DELETE', noData: true })
+}
+
+/** Consumo actual de cada recurso con cuota del cliente (B7). */
+export function getGroupUsage(id: string, signal?: AbortSignal): Promise<GroupUsage> {
+  return apiRequest<GroupUsage>(`/groups/${encodeURIComponent(id)}/usage`, { signal })
 }
 
 /** Descarga el respaldo del cliente (hosts + disponibilidad, zip) antes de darlo de baja. */

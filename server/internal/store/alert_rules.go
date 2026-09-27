@@ -231,6 +231,14 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		if n >= MaxAlertRules {
 			return ErrTooManyRules
 		}
+		// Cuota por cliente (B7): solo cuenta contra el grupo cuando el alcance de la regla ES ese grupo
+		// (scope_type = 'group'). Reglas con alcance host/device/all no se computan en esta primera version
+		// (simplificacion documentada en la spec CC-B7 parte 2).
+		if r.Scope.Type == ScopeGroup && r.Scope.GroupID != nil {
+			if err := checkGroupQuota(ctx, tx, *r.Scope.GroupID, QuotaRules, 1); err != nil {
+				return err
+			}
+		}
 		if err := requireScopeHost(ctx, tx, r.Scope); err != nil {
 			return err
 		}

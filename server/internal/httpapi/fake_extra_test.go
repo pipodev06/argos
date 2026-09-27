@@ -20,7 +20,8 @@ type fakeExtra struct {
 
 	groups    []store.Group
 	ungrouped int
-	group     store.Group // lo que devuelven CreateGroup/UpdateGroup
+	group     store.Group      // lo que devuelven CreateGroup/UpdateGroup
+	usage     store.GroupUsage // lo que devuelve GroupUsageByID
 	gotChange store.GroupChange
 	gotName   string
 	gotDown   *int
@@ -73,6 +74,12 @@ func (f *fakeStore) UpdateGroup(_ context.Context, _ string, ch store.GroupChang
 	defer f.mu.Unlock()
 	f.x.gotChange = ch
 	return f.x.group, f.x.err
+}
+
+func (f *fakeStore) GroupUsageByID(_ context.Context, _ string) (store.GroupUsage, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.x.usage, f.x.err
 }
 
 func (f *fakeStore) DeleteGroup(_ context.Context, id string) error {

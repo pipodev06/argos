@@ -178,7 +178,7 @@ func TestListGroupsShape(t *testing.T) {
 	if err := json.Unmarshal(resp.Data, &data); err != nil {
 		t.Fatal(err)
 	}
-	wantKeys(t, "grupo", data.Items[0], "id", "name", "down_after_seconds", "always_on", "host_count", "detail_retention_days", "effective_detail_days", "retention_source")
+	wantKeys(t, "grupo", data.Items[0], "id", "name", "down_after_seconds", "always_on", "host_count", "detail_retention_days", "effective_detail_days", "retention_source", "quotas")
 	if data.Items[0]["down_after_seconds"] != 300.0 || data.Items[1]["down_after_seconds"] != nil || data.Items[0]["host_count"] != 3.0 || data.Items[1]["always_on"] != true {
 		t.Errorf("items got %v", data.Items)
 	}
@@ -238,6 +238,7 @@ func TestSetHostGroup(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+func intPtr(n int) *int       { return &n }
 
 func TestBulkHosts(t *testing.T) {
 	t.Parallel()
@@ -317,6 +318,31 @@ func TestBulkHosts(t *testing.T) {
 				t.Errorf("auditoria got %+v", fs.audits)
 			}
 		})
+	}
+}
+
+// TestGroupUsageShape fija el contrato de GET /groups/{id}/usage (B7): claves en minusculas y anidadas
+// current/limit por recurso. Bug real encontrado y corregido aqui mismo: el DTO no tenia json tags y
+// serializaba con mayusculas (Hosts, Devices...) en vez de hosts/devices.
+func TestGroupUsageShape(t *testing.T) {
+	t.Parallel()
+	fs := &fakeStore{x: fakeExtra{usage: store.GroupUsage{
+		Hosts: store.GroupQuota{Current: 3, Limit: intPtr(10)},
+	}}}
+	h := New(fs, testHasher(), slog.New(slog.NewJSONHandler(io.Discard, nil)), func() time.Time { return fixedNow }, Options{HostDownAfter: 2 * time.Minute}).Routes()
+	rec, resp := do(t, h, "GET", "/api/v1/groups/"+groupUUID+"/usage", "", "", asSession)
+	if rec.Code != 200 {
+		t.Fatalf("status %d (%s)", rec.Code, rec.Body.String())
+	}
+	data := dataMap(t, resp)
+	wantKeys(t, "usage", data, "hosts", "devices", "checks", "users", "rules", "channels")
+	hosts, ok := data["hosts"].(map[string]any)
+	if !ok {
+		t.Fatalf("hosts no es un objeto: %v", data["hosts"])
+	}
+	wantKeys(t, "usage.hosts", hosts, "current", "limit")
+	if hosts["current"] != 3.0 || hosts["limit"] != 10.0 {
+		t.Errorf("usage.hosts got %v", hosts)
 	}
 }
 

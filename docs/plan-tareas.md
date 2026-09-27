@@ -78,7 +78,7 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [ ] **B4 Primer despliegue real, instaladores en SO reales y restore probado** (= D1/T3/T5). **Bloquea.**
 - [ ] **B5 Respaldos cifrados y fuera del host** (= H6). **Bloquea.**
 - [~] **B6 Auto-monitoreo del servicio** (2026-09-27: `GET /system/status` hecho; faltan la pantalla web y la alerta por canal): ampliar `/health` (mantenimiento atrasado, cola de notificaciones, evaluador parado, disco) y alertar entregas `dead`/canal roto. (Alta, M)
-- [ ] **B7 Planes y cuotas por cliente** (hosts, dispositivos, chequeos, usuarios, reglas, canales) y consumo visible; hoy los topes son globales (200 reglas, 50 canales…). (Alta, L; depende de la entidad cliente B24)
+- [x] **B7 Planes y cuotas por cliente** (hosts, dispositivos, chequeos, usuarios, reglas, canales) y consumo visible. (Alta, L) *2026-09-27: cliente = grupo 1 a 1 (decisión del usuario, sin entidad nueva); ver decisiones/2026-09-27-b7-cuotas-por-cliente.md.*
 - [x] **B8 Permiso `can_ack`** para que un viewer reconozca sus alertas. (Media, S)
 - [x] **B9 Vista de versiones del agente** (columna, chip "desactualizado", línea en el Resumen) (columna/filtro, `latest` expuesto, "desactualizado"). (Media, S)
 - [x] **B10 Listar/revocar enroll tokens pendientes** (falta el estado "nunca reportó") y estado "nunca reportó". (Media, S)

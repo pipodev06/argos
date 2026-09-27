@@ -50,6 +50,7 @@
 - [vigente] Detalle comprimido por host-día + retención por host/grupo/global -> [detalle-comprimido-retencion](decisiones/2026-09-26-detalle-comprimido-retencion.md)
 - [vigente] Revisión de seguridad multi-cliente, hallazgos H1–H8 y lista de verificación tras el túnel -> [seguridad-multicliente](decisiones/2026-09-26-seguridad-multicliente.md)
 - [vigente] Brechas de producto por flujo (análisis 2026-09-26) y riesgos del servicio hospedado -> [brechas-producto](decisiones/2026-09-26-brechas-producto.md)
+- [vigente] B7: planes y cuotas por cliente (cliente = grupo) -> [b7-cuotas-por-cliente](decisiones/2026-09-27-b7-cuotas-por-cliente.md)
 - [vigente] B16/B17: alta masiva de hosts, exportar cliente antes de purgar -> [b16-b17-alta-masiva-exportar](decisiones/2026-09-27-b16-b17-alta-masiva-exportar.md)
 - [vigente] O4: soak de 30 min repetida (sin fuga, cola de latencia no empeoro) -> [o4-soak-repetida](decisiones/2026-09-27-o4-soak-repetida.md)
 - [vigente] B14/B15: re-enrolar conservando historial + reactivar host -> [reenrolar-host](decisiones/2026-09-27-reenrolar-host.md)

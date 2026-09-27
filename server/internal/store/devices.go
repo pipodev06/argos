@@ -261,6 +261,11 @@ func (s *Store) CreateDevice(ctx context.Context, name string, addr netip.Addr, 
 		if err != nil {
 			return err
 		}
+		if groupID != nil {
+			if err := checkGroupQuota(ctx, tx, *groupID, QuotaDevices, 1); err != nil {
+				return err
+			}
+		}
 		if err := tx.QueryRow(ctx,
 			`INSERT INTO hosts (hostname, kind, address, collector_host_id, group_id, status)
 			 VALUES ($1, 'device', $2, $3, $4, 'pending') RETURNING id::text`,
@@ -317,6 +322,12 @@ func (s *Store) UpdateDevice(ctx context.Context, id string, ch DeviceChange) (D
 		}
 		if ch.SetGroup {
 			group = ch.GroupID
+		}
+		// Solo cuenta si el dispositivo entra a un grupo nuevo (no si se le vuelve a fijar el mismo, ni al quitarlo).
+		if ch.SetGroup && group != nil && !sameGroup(cur.group, group) {
+			if err := checkGroupQuota(ctx, tx, *group, QuotaDevices, 1); err != nil {
+				return err
+			}
 		}
 		mismatch := false
 		if ch.CollectorID != nil || ch.SetGroup {
