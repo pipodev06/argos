@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconAlertTriangle } from '@tabler/icons-react'
+import { IconAlertTriangle, IconDownload } from '@tabler/icons-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,10 +10,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { CheckField } from '@/components/ui/check-field'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
+import { downloadGroupExport } from '@/features/groups/services/groups.service'
 import type { Group } from '@/features/groups/types/group.types'
 import { purgeGroup } from '../services/purge.service'
 import type { GroupPurgeResult } from '../types/purge.types'
@@ -37,6 +39,11 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
   const [disableUsers, setDisableUsers] = useState(false)
   const [result, setResult] = useState<GroupPurgeResult | null>(null)
   const { error, busy, run } = useUserMutation()
+  const exportMutation = useUserMutation()
+
+  async function exportBackup() {
+    await exportMutation.run(() => downloadGroupExport(group.id, group.name))
+  }
 
   async function confirm() {
     // Sin reintentos automaticos: una sola llamada; si falla, el usuario decide repetirla (es idempotente).
@@ -77,6 +84,13 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
           </ul>
         ) : (
           <div className="grid gap-3">
+            <div className="flex flex-col items-start gap-1.5">
+              <Button type="button" variant="outline" size="sm" disabled={exportMutation.busy} onClick={() => void exportBackup()}>
+                <IconDownload stroke={1.5} aria-hidden />
+                {exportMutation.busy ? 'Exportando...' : 'Exportar antes de purgar'}
+              </Button>
+              {exportMutation.error && <InlineError>{exportMutation.error}</InlineError>}
+            </div>
             <FormField
               id="purge-group-name"
               label={`Escribe "${group.name}" para confirmar`}

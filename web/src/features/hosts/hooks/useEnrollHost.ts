@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { createEnrollToken } from '../services/hosts.service'
+import { createEnrollToken, type CreateEnrollTokenInput } from '../services/hosts.service'
 import type { EnrollToken } from '../types/host.types'
 
 export function useEnrollHost() {
@@ -7,11 +7,11 @@ export function useEnrollHost() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const submit = useCallback(async (hostname: string, groupId: string | null) => {
+  const submit = useCallback(async (input: CreateEnrollTokenInput) => {
     setSubmitting(true)
     setError(null)
     try {
-      setToken(await createEnrollToken(hostname, groupId))
+      setToken(await createEnrollToken(input))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
     } finally {

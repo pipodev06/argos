@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { applyAgentOptions, DEFAULT_AGENT_OPTIONS, isHttpOrigin, isValidCidr, parseNets, type AgentOptions } from './enroll'
+import { applyAgentOptions, DEFAULT_AGENT_OPTIONS, isHttpOrigin, isValidCidr, parseBulkUses, parseNets, type AgentOptions } from './enroll'
+
+describe('alta masiva: parseBulkUses', () => {
+  it('acepta enteros entre 2 y 500', () => {
+    expect(parseBulkUses('50')).toEqual({ ok: true, uses: 50 })
+    expect(parseBulkUses('2')).toEqual({ ok: true, uses: 2 })
+    expect(parseBulkUses('500')).toEqual({ ok: true, uses: 500 })
+  })
+  it('rechaza fuera de rango, vacío o no entero', () => {
+    expect(parseBulkUses('1').ok).toBe(false)
+    expect(parseBulkUses('501').ok).toBe(false)
+    expect(parseBulkUses('').ok).toBe(false)
+    expect(parseBulkUses('3.5').ok).toBe(false)
+    expect(parseBulkUses('abc').ok).toBe(false)
+  })
+})
 
 const LINUX = 'curl -fsSL https://argos.lan/install.sh | sh -s -- --server https://argos.lan --token T0K'
 const WIN = `powershell -NoProfile -Command "iwr https://argos.lan/install.ps1 | iex; Install -Server 'https://argos.lan' -Token 'T0K'"`

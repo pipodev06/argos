@@ -41,6 +41,9 @@ done
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 out="${out:-$root/dist/agent}"
+# Absoluto: el build hace "cd" a agent/ antes de compilar, y un $out relativo se resolveria mal desde ahi.
+mkdir -p "$out"
+out="$(cd "$out" && pwd)"
 dir="$out/$version"
 
 if [[ -e "$dir" ]]; then
@@ -51,6 +54,7 @@ fi
 pubkey=""
 if [[ -n "$keyfile" ]]; then
 	[[ -f "$keyfile" ]] || { echo "no existe la clave privada: $keyfile" >&2; exit 1; }
+	keyfile="$(cd "$(dirname "$keyfile")" && pwd)/$(basename "$keyfile")" # absoluto: los sub-go run hacen cd antes
 	pubkey="$(cd "$root/server" && go run ./cmd/server pubkey "$keyfile")"
 	echo "clave publica (para --key en futuros builds y para deploy/README.md): $pubkey"
 else

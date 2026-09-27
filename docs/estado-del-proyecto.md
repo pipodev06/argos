@@ -1,5 +1,5 @@
 # Estado del proyecto (actualizado 2026-09-26) — LEER ESTO AL INICIAR UNA SESIÓN NUEVA
-Detalle por tema en `decisiones/` (índice: `decisiones.md`; abre solo el tema de tu tarea). Tareas: `plan-tareas.md`. Límites conocidos: `deuda-tecnica.md`. Historia: git. Reglas del orquestador y lecciones de agentes: memoria del proyecto y `~/.claude/agents/*.md`.
+Detalle por tema en `decisiones/` (índice: `decisiones.md`; abre solo el tema de tu tarea). Tareas: `plan-tareas.md`. Límites conocidos: `deuda-tecnica.md`. Tests que se saltaron a propósito mientras se cierra el core: `tests-pendientes.md`. Historia: git. Reglas del orquestador y lecciones de agentes: memoria del proyecto y `~/.claude/agents/*.md`.
 
 ## Qué es
 Monitoreo tipo Zabbix/PRTG que el usuario **hospeda como servicio** para varios clientes con suscripción (retención de detalle distinta por cliente). Agente Go multiplataforma (`agent/`) + servidor Go/Postgres 18 (`server/`, goose 00001–00034) + dashboard React (`web/`, Vite, Tailwind v4, shadcn, estilo Slate congelado en `CLAUDE.md`). Repo privado `pipodev06/argos` (rama `main`; CI de GitHub Actions: web, go server/agent con `-race`, y `go-tz` en husos extremos). El server irá en un Linux propio tras un túnel: `https://argos.cloud-at-home.net.pe`.

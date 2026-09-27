@@ -335,6 +335,12 @@ func TestEnrollTokenWithGroup(t *testing.T) {
 		{"group_id null", `{"hostname":"a","group_id":null}`, nil, 201, "", nil},
 		{"group_id invalido", `{"hostname":"a","group_id":"x"}`, nil, 400, "invalid_body", nil},
 		{"grupo inexistente", `{"hostname":"a","group_id":"` + groupUUID + `"}`, store.ErrGroupNotFound, 422, "group_not_found", nil},
+		// B16: alta masiva (max_uses > 1).
+		{"alta masiva ok", `{"group_id":"` + groupUUID + `","max_uses":50}`, nil, 201, "", strPtr(groupUUID)},
+		{"alta masiva sin group_id", `{"hostname":"a","max_uses":10}`, nil, 400, "invalid_body", nil},
+		{"alta masiva max_uses bajo", `{"hostname":"a","group_id":"` + groupUUID + `","max_uses":1}`, nil, 201, "", strPtr(groupUUID)}, // 1 = alta normal (exige hostname), no dispara la validacion de masiva
+		{"alta masiva max_uses fuera de rango alto", `{"group_id":"` + groupUUID + `","max_uses":501}`, nil, 400, "invalid_body", nil},
+		{"alta masiva max_uses negativo", `{"group_id":"` + groupUUID + `","max_uses":0}`, nil, 400, "invalid_body", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -349,8 +355,8 @@ func TestEnrollTokenWithGroup(t *testing.T) {
 			if rec.Code != 201 {
 				t.Fatalf("status %d", rec.Code)
 			}
-			// La respuesta no cambia: solo enroll_token y expires_at.
-			wantKeys(t, "respuesta", dataMap(t, resp), "enroll_token", "expires_at")
+			// La respuesta ahora incluye max_uses (B16, alta masiva): 1 en una alta normal como esta.
+			wantKeys(t, "respuesta", dataMap(t, resp), "enroll_token", "expires_at", "max_uses")
 			if (fs.enrollGroup == nil) != (tt.wantGroup == nil) || (tt.wantGroup != nil && *fs.enrollGroup != *tt.wantGroup) {
 				t.Errorf("group_id al store got %v, want %v", fs.enrollGroup, tt.wantGroup)
 			}

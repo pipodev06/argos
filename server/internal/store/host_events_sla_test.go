@@ -37,10 +37,10 @@ func TestHostEventsRecordEveryPath(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	admin := mkUser(t, s, "admin", "admin")
-	if err := s.CreateEnrollToken(ctx, th("tok"), "srv", admin, nil, time.Now().Add(time.Hour), nil); err != nil {
+	if err := mkEnrollToken(ctx, s, th("tok"), "srv", admin, nil, time.Now().Add(time.Hour), nil); err != nil {
 		t.Fatal(err)
 	}
-	id, _, err := s.EnrollHost(ctx, th("tok"), "linux", "amd64", th("agent"))
+	id, _, err := enrollHost(ctx, s, th("tok"), "linux", "amd64", th("agent"))
 	if err != nil {
 		t.Fatal(err)
 	}

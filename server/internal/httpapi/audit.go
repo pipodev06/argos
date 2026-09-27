@@ -74,6 +74,7 @@ const (
 	evInventoryRead          = "inventory_read"
 	evUpdatesRead            = "updates_read"
 	evReportExported         = "report_exported"
+	evGroupExported          = "group_exported"
 )
 
 // auditDetailKeys es la lista blanca de claves permitidas en audit_log.detail.
@@ -108,6 +109,9 @@ var auditDetailKeys = map[string]bool{
 	// Purga de un cliente: conteos, nunca nombres ni contenido.
 	"agents": true, "devices": true, "metrics_rows": true, "failed": true, "rules": true, "windows": true, "checks": true,
 	"users_disabled": true, "users_scope_reduced": true, "group_deleted": true, "enroll_tokens": true,
+	"channels": true, "snmp_profiles": true,
+	// Exportacion del cliente (zip): filas por cada csv, nunca contenido.
+	"hosts_rows": true, "availability_rows": true,
 }
 
 // audit registra un evento sin fallar la solicitud si la escritura falla: se loguea

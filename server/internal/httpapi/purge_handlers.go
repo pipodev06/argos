@@ -122,7 +122,8 @@ func (a *API) purgeGroup(w http.ResponseWriter, r *http.Request) error {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agents": res.Agents, "devices": res.Devices, "deleted_rows": toDeletedRowsDTO(res.Rows),
 		"failed_host_ids": failed, "rules": res.Rules, "windows": res.Windows, "checks": res.Checks,
-		"enroll_tokens": res.EnrollTokens, "users_disabled": res.UsersDisabled, "users_scope_reduced": res.UsersScopeReduced,
+		"enroll_tokens": res.EnrollTokens, "channels": res.Channels, "snmp_profiles": res.SnmpProfiles,
+		"users_disabled": res.UsersDisabled, "users_scope_reduced": res.UsersScopeReduced,
 		"group_deleted": res.GroupDeleted,
 	})
 	return nil
@@ -133,6 +134,7 @@ func purgeGroupAudit(res store.PurgeGroupResult) map[string]any {
 	return map[string]any{
 		"agents": res.Agents, "devices": res.Devices, "metrics_rows": res.Rows.Metrics, "failed": len(res.Failed),
 		"rules": res.Rules, "windows": res.Windows, "checks": res.Checks, "enroll_tokens": res.EnrollTokens,
+		"channels": res.Channels, "snmp_profiles": res.SnmpProfiles,
 		"users_disabled": res.UsersDisabled, "users_scope_reduced": res.UsersScopeReduced, "group_deleted": res.GroupDeleted,
 	}
 }

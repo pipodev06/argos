@@ -46,7 +46,7 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 - [x] **O1 Optimizar la vista `alert_candidates`** (420 ms por pasada con 1000 hosts; LATERAL de os_eol/parches por fila aunque la regla no exista). *Hecho cuando:* <100 ms con 1000 hosts y 8 reglas, sin cambiar resultados (test de equivalencia).
 - [x] **O2 Jitter del envío completo al arrancar el agente** (ráfaga de 3000 completos atrasa las métricas hasta 2,3 s).
 - [x] **O3 Log de solicitudes: muestrear los 429** (un flood deja una línea WARN por solicitud) y **variable de nivel de log** (`ARGOS_LOG_LEVEL`; hoy Info fijo).
-- [ ] **O4 Repetir la soak** (30–60 min) en un equipo sin uso concurrente (degradación no reproducida).
+- [~] **O4 Repetir la soak** (30–60 min) en un equipo sin uso concurrente (degradación no reproducida). *2026-09-27: repetida en máquina compartida (no limpia), 0 errores, sin fuga, la cola de latencia mejoró en vez de empeorar; sigue pendiente repetirla en un equipo realmente libre.*
 
 ## P5 — Meta: el server solo se instala y el agente solo se instala, se ejecuta y se enrola (pedido del usuario, 2026-09-26)
 - [x] **T1 Config del agente (2026-09-26, `decisiones/2026-09-26-instalacion-un-paso.md`; sin probar en SO real) sin variables de entorno a mano.** Hoy inventario, parches, colector de pings (`ARGOS_PROBE_ALLOW`), `--privileged` y `ARGOS_ALLOW_INSECURE` se activan a mano en cada equipo (el instalador no pasa la config al servicio). Propuesta: `install` acepta flags (`--inventory ports,services,processes,updates`, `--probe-allow <cidr>`, `--privileged`, `--insecure`) que se guardan en la config persistente del servicio, y el modal "Agregar host" arma el comando con casillas. *Hecho cuando:* un host nuevo queda con inventario y parches funcionando con solo pegar el comando.
@@ -87,8 +87,8 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [x] **B13 Clonar reglas** (botón Duplicar; plantillas por cliente no) (Media, S)
 - [x] **B14 Re-enrolar conservando `host_id`** y aviso de hostnames duplicados. (Media, M) *2026-09-27*
 - [x] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M) *2026-09-27: mismo mecanismo que B14.*
-- [ ] **B16 Alta masiva / token por grupo** con topes. (Media, M)
-- [ ] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M)
+- [x] **B16 Alta masiva / token por grupo** con topes. (Media, M) *2026-09-27*
+- [x] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M) *2026-09-27: purga verificable ya estaba resuelta.*
 - [x] **B18 Rotación de `ARGOS_SECRET_KEY`** (doble clave y recifrado). (Media, M) *2026-09-27: `ARGOS_SECRET_KEY_PREVIOUS` + `argos-server rotate-secret-key`.*
 - [ ] **B19 El plan también limita el resumen horario, eventos, alertas e inventario** (decisión del usuario pendiente). (Media, M)
 - [ ] **B20–B30** (consumo por cliente, revisión visual y tests de componentes, restauración por cliente y DR, SMTP, entidad cliente, MFA/sesiones/recuperación, informes programados/PDF/marca, retención en `POST /groups`, flapping/escalamiento, silenciar por el cliente, ayuda/i18n/móvil): ver el informe.

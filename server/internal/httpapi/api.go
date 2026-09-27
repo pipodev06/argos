@@ -26,11 +26,11 @@ type Store interface {
 	Ping(ctx context.Context) error
 	SystemStats(ctx context.Context, deadSince time.Time) (store.SystemStats, error)
 	// Hosts y agentes.
-	CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time, targetHostID *string) error
+	CreateEnrollToken(ctx context.Context, p store.CreateEnrollTokenParams) error
 	HostConflictByHostname(ctx context.Context, hostname string) (id, status string, found bool, err error)
 	ListPendingEnrollTokens(ctx context.Context) ([]store.PendingEnrollToken, error)
-	RevokeEnrollToken(ctx context.Context, id string) (hostname string, err error)
-	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, reenroll bool, err error)
+	RevokeEnrollToken(ctx context.Context, id string) (hostname *string, err error)
+	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash, agentHostname string) (hostID string, reenroll bool, err error)
 	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
 	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
 	ListHosts(ctx context.Context, scope store.Scope, f store.HostFilter) (store.HostPage, error)
@@ -81,6 +81,8 @@ type Store interface {
 	UpdateAlertRule(ctx context.Context, id string, mutate func(*store.AlertRule) error) (store.AlertRule, error)
 	DeleteAlertRule(ctx context.Context, id string) (name string, err error)
 	AvailabilityReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.HostAvailability, error)
+	GroupName(ctx context.Context, groupID string) (string, error)
+	ExportGroupHosts(ctx context.Context, groupID string) ([]store.GroupExportHost, error)
 	ServiceChecksReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.CheckAvailability, error)
 	ExportAlerts(ctx context.Context, scope store.Scope, f store.AlertExportFilter, fn func(store.AlertExportRow) error) (int, error)
 	ListMaintenance(ctx context.Context, scope store.Scope) ([]store.MaintenanceWindow, error)
@@ -375,6 +377,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "PATCH /api/v1/groups/{id}", accessAdmin, a.updateGroup)
 	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
 	a.route(mux, "POST /api/v1/groups/{id}/purge", accessAdmin, a.purgeGroup)
+	a.route(mux, "GET /api/v1/groups/{id}/export.zip", accessAdmin, a.exportGroupZip)
 
 	// Alertas (lectura: cualquier sesion; ack: admin o viewer con can_ack; escritura y resolve: solo admin).
 	a.route(mux, "GET /api/v1/reports/availability", accessSession, a.availabilityReport)
@@ -470,6 +473,8 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 			"un canal de un grupo solo puede usarse en reglas cuyo alcance quede dentro de ese grupo", channelScopeDetails(err))
 	case errors.Is(err, store.ErrTooManyTokens):
 		writeError(w, http.StatusConflict, "too_many_tokens", "hay demasiados enroll tokens activos, espera a que expiren")
+	case errors.Is(err, store.ErrBulkTargetConflict):
+		writeError(w, http.StatusBadRequest, "invalid_body", "alta masiva y target_host_id no pueden combinarse")
 	case errors.Is(err, store.ErrGroupNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "group_not_found", "el grupo indicado no existe")
 	case errors.Is(err, store.ErrGroupExists):

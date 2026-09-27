@@ -55,8 +55,13 @@ func hashToken(token string) string {
 
 type createEnrollTokenReq struct {
 	Hostname string `json:"hostname"`
-	// GroupID (opcional): grupo con el que queda el host que canjee el token.
+	// GroupID (opcional en alta normal; obligatorio en alta masiva): grupo con el que queda el host
+	// (o los hosts) que canjeen el token.
 	GroupID *string `json:"group_id"`
+	// MaxUses (opcional, B16): ausente o 1 es el alta normal de siempre (un solo host, con Hostname
+	// fijo). De 2 a 500 es alta masiva: el token no lleva hostname fijo (Hostname se ignora) y cada
+	// canje toma el que reporte el propio agente.
+	MaxUses *int `json:"max_uses"`
 }
 
 func (a *API) createEnrollToken(w http.ResponseWriter, r *http.Request) error {
@@ -66,11 +71,24 @@ func (a *API) createEnrollToken(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	req.Hostname = strings.TrimSpace(req.Hostname)
-	if err := checkText("hostname", req.Hostname, maxHostnameLen); err != nil {
-		return err
-	}
 	if req.GroupID != nil && !isUUID(*req.GroupID) {
 		return badRequest("group_id invalido")
+	}
+
+	maxUses := 1
+	bulk := req.MaxUses != nil && *req.MaxUses != 1
+	if bulk {
+		maxUses = *req.MaxUses
+		if maxUses < 2 || maxUses > 500 {
+			return badRequest("max_uses debe estar entre 2 y 500")
+		}
+		if req.GroupID == nil {
+			return badRequest("group_id requerido para alta masiva")
+		}
+		// Alta masiva: no hay hostname fijo, lo pone el agente al enrolar (punto 3 de la spec).
+		req.Hostname = ""
+	} else if err := checkText("hostname", req.Hostname, maxHostnameLen); err != nil {
+		return err
 	}
 
 	token, err := randomToken(16)
@@ -79,29 +97,36 @@ func (a *API) createEnrollToken(w http.ResponseWriter, r *http.Request) error {
 	}
 	expiresAt := a.now().Add(enrollTokenTTL)
 	// En la BD solo va el hash: el token en claro se entrega una unica vez, en esta respuesta.
-	if err := a.store.CreateEnrollToken(r.Context(), hashToken(token), req.Hostname, admin.ID, req.GroupID, expiresAt, nil); err != nil {
+	params := store.CreateEnrollTokenParams{
+		TokenHash: hashToken(token), Hostname: req.Hostname, CreatedBy: admin.ID,
+		GroupID: req.GroupID, ExpiresAt: expiresAt, MaxUses: maxUses,
+	}
+	if err := a.store.CreateEnrollToken(r.Context(), params); err != nil {
 		return err
 	}
 
 	e := actor(admin)
 	e.Event, e.Outcome, e.TargetType = evEnrollTokenCreated, store.OutcomeOK, "enroll_token"
-	a.audit(r, e, map[string]any{"hostname": req.Hostname, "group_id": req.GroupID})
+	a.audit(r, e, map[string]any{"hostname": req.Hostname, "group_id": req.GroupID, "max_uses": maxUses})
 
 	resp := map[string]any{
 		"enroll_token": token,
 		"expires_at":   expiresAt,
+		"max_uses":     maxUses,
 	}
 	if a.cmdOrigin != "" {
 		resp["commands"] = installCommands(a.cmdOrigin, token)
 	}
-	// Aviso (no bloqueante, no es error): ya existe un host con este hostname. Crear un segundo host
-	// con el mismo nombre puede ser intencional; la web solo muestra el aviso.
-	conflictID, conflictStatus, hasConflict, err := a.store.HostConflictByHostname(r.Context(), req.Hostname)
-	if err != nil {
-		return err
-	}
-	if hasConflict {
-		resp["hostname_conflict"] = map[string]any{"host_id": conflictID, "status": conflictStatus}
+	// Aviso (no bloqueante, no es error): ya existe un host con este hostname. No aplica en alta
+	// masiva: no hay un hostname fijo que comparar todavia.
+	if req.Hostname != "" {
+		conflictID, conflictStatus, hasConflict, err := a.store.HostConflictByHostname(r.Context(), req.Hostname)
+		if err != nil {
+			return err
+		}
+		if hasConflict {
+			resp["hostname_conflict"] = map[string]any{"host_id": conflictID, "status": conflictStatus}
+		}
 	}
 	writeJSON(w, http.StatusCreated, resp)
 	return nil
@@ -122,7 +147,8 @@ func (a *API) reEnrollHost(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("generando enroll token: %w", err)
 	}
 	expiresAt := a.now().Add(enrollTokenTTL)
-	if err := a.store.CreateEnrollToken(r.Context(), hashToken(token), "", admin.ID, nil, expiresAt, &id); err != nil {
+	params := store.CreateEnrollTokenParams{TokenHash: hashToken(token), CreatedBy: admin.ID, ExpiresAt: expiresAt, TargetHostID: &id}
+	if err := a.store.CreateEnrollToken(r.Context(), params); err != nil {
 		return err
 	}
 
@@ -141,18 +167,21 @@ func (a *API) reEnrollHost(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// pendingEnrollTokenDTO es un enroll token vigente sin usar. Nunca lleva el token ni su hash (id es un identificador
-// aparte, solo pa revocarlo).
+// pendingEnrollTokenDTO es un enroll token vigente sin usar (o sin agotar, B16). Nunca lleva el
+// token ni su hash (id es un identificador aparte, solo pa revocarlo). Hostname es null en un token
+// de grupo (sin uno fijo); MaxUses/UsesCount dejan ver, p. ej., "3 de 50 usados".
 type pendingEnrollTokenDTO struct {
 	ID        string       `json:"id"`
-	Hostname  string       `json:"hostname"`
+	Hostname  *string      `json:"hostname"`
 	Group     *groupRefDTO `json:"group"`
 	CreatedBy *string      `json:"created_by"`
 	CreatedAt time.Time    `json:"created_at"`
 	ExpiresAt time.Time    `json:"expires_at"`
+	MaxUses   int          `json:"max_uses"`
+	UsesCount int          `json:"uses_count"`
 }
 
-// listEnrollTokens lista los enroll tokens vigentes sin usar (solo admin).
+// listEnrollTokens lista los enroll tokens vigentes sin usar o sin agotar (solo admin).
 func (a *API) listEnrollTokens(w http.ResponseWriter, r *http.Request) error {
 	tokens, err := a.store.ListPendingEnrollTokens(r.Context())
 	if err != nil {
@@ -161,13 +190,14 @@ func (a *API) listEnrollTokens(w http.ResponseWriter, r *http.Request) error {
 	items := make([]pendingEnrollTokenDTO, 0, len(tokens))
 	for _, t := range tokens {
 		items = append(items, pendingEnrollTokenDTO{ID: t.ID, Hostname: t.Hostname, Group: toGroupRefDTO(t.Group),
-			CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt.UTC(), ExpiresAt: t.ExpiresAt.UTC()})
+			CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt.UTC(), ExpiresAt: t.ExpiresAt.UTC(),
+			MaxUses: t.MaxUses, UsesCount: t.UsesCount})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 	return nil
 }
 
-// revokeEnrollToken revoca un enroll token pendiente (solo admin). 404 si no existe, ya se uso o expiro.
+// revokeEnrollToken revoca un enroll token pendiente (solo admin). 404 si no existe, ya se agoto o expiro.
 func (a *API) revokeEnrollToken(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
 	if !isUUID(id) {
@@ -190,6 +220,9 @@ type enrollReq struct {
 	EnrollToken string `json:"enroll_token"`
 	OS          string `json:"os"`
 	Arch        string `json:"arch"`
+	// Hostname (opcional, B16): el hostname real del agente. Un token de alta normal lo ignora (usa
+	// el fijo elegido al crearlo); un token de grupo lo exige (400 si viene vacio).
+	Hostname string `json:"hostname"`
 }
 
 func (a *API) agentEnroll(w http.ResponseWriter, r *http.Request) error {
@@ -217,18 +250,26 @@ func (a *API) agentEnroll(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	if req.Hostname != "" {
+		if err := checkText("hostname", req.Hostname, maxHostnameLen); err != nil {
+			return err
+		}
+	}
 
 	agentToken, err := randomToken(32)
 	if err != nil {
 		return fmt.Errorf("generando agent token: %w", err)
 	}
-	hostID, reenroll, err := a.store.EnrollHost(r.Context(), hashToken(req.EnrollToken), req.OS, req.Arch, hashToken(agentToken))
+	hostID, reenroll, err := a.store.EnrollHost(r.Context(), hashToken(req.EnrollToken), req.OS, req.Arch, hashToken(agentToken), req.Hostname)
 	if err != nil {
 		if reason, ok := enrollRejection(err); ok {
 			// Una sola respuesta externa pa token inexistente/usado/expirado: el motivo real solo va al log.
 			a.logger.WarnContext(r.Context(), "enroll rechazado", "reason", reason, "ip", ip.String())
 			a.agentFails.add(evEnrollFail)
 			return errInvalidAgentToken
+		}
+		if errors.Is(err, store.ErrEnrollHostnameRequired) {
+			return badRequest("hostname requerido para este enroll token")
 		}
 		return err
 	}

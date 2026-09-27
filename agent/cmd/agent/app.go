@@ -220,7 +220,11 @@ func (a *app) enroll(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("cliente http: %w", err)
 	}
-	res, err := enroll.Do(ctx, client, serverURL, enrollToken, runtime.GOOS, runtime.GOARCH)
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("obteniendo hostname: %w", err)
+	}
+	res, err := enroll.Do(ctx, client, serverURL, enrollToken, runtime.GOOS, runtime.GOARCH, hostname)
 	if err != nil {
 		return fmt.Errorf("enroll: %w", err)
 	}

@@ -255,6 +255,23 @@ func TestPurgeGroupAPI(t *testing.T) {
 	chkA := x.newCheck(fmt.Sprintf(`{"name":"tcp-a","type":"tcp","target_host":"localhost","target_port":22,"scope":{"type":"group","group_id":%q}}`, x.groupA))
 	chkB := x.newCheck(fmt.Sprintf(`{"name":"tcp-b","type":"tcp","target_host":"localhost","target_port":22,"scope":{"type":"group","group_id":%q}}`, x.groupB))
 	x.wantStatus(x.do("POST", "/api/v1/hosts/enroll-token", fmt.Sprintf(`{"hostname":"nuevo-a","group_id":%q}`, x.groupA), withCookie(x.admin)), http.StatusCreated, "")
+	// Canal propio de A (se borra), uno de B (intacto) y uno global sin grupo (nunca se toca).
+	chanA := "22222222-2222-4222-8222-222222222221"
+	chanB := "22222222-2222-4222-8222-222222222222"
+	chanGlobal := "22222222-2222-4222-8222-222222222223"
+	mustExec(t, `INSERT INTO notification_channels (id, name, kind, group_id) VALUES ($1, 'hook-a', 'webhook', $2)`, chanA, x.groupA)
+	mustExec(t, `INSERT INTO notification_channels (id, name, kind, group_id) VALUES ($1, 'hook-b', 'webhook', $2)`, chanB, x.groupB)
+	mustExec(t, `INSERT INTO notification_channels (id, name, kind) VALUES ($1, 'hook-global', 'webhook')`, chanGlobal)
+	// Perfil SNMP exclusivo de devA (se borra) y uno compartido con devB, de B (sobrevive: sigue en uso ajeno).
+	devA2 := x.newDevice(fmt.Sprintf(`{"name":"sw-a2","address":"10.1.0.2","collector_id":%q,"group_id":%q}`, colA, x.groupA))
+	aIDs = append(aIDs, devA2)
+	profExclusive := "33333333-3333-4333-8333-333333333331"
+	profShared := "33333333-3333-4333-8333-333333333332"
+	mustExec(t, `INSERT INTO snmp_profiles (id, name, version, secret_enc, secret_key_id) VALUES ($1, 'p-exclusive', 2, '\x01', 'k')`, profExclusive)
+	mustExec(t, `INSERT INTO snmp_profiles (id, name, version, secret_enc, secret_key_id) VALUES ($1, 'p-shared', 2, '\x01', 'k')`, profShared)
+	mustExec(t, `UPDATE hosts SET snmp_profile_id = $1 WHERE id = $2`, profExclusive, devA2)
+	mustExec(t, `UPDATE hosts SET snmp_profile_id = $1 WHERE id = $2`, profShared, devA)
+	mustExec(t, `UPDATE hosts SET snmp_profile_id = $1 WHERE id = $2`, profShared, devB)
 	vabID := x.newUser("viewab", pwViewer, store.RoleViewer, false).ID
 	x.patchUser(vabID, fmt.Sprintf(`{"all_groups":false,"group_ids":[%q,%q]}`, x.groupA, x.groupB), http.StatusOK, "")
 	vab := x.login("viewab", pwViewer)
@@ -285,15 +302,24 @@ func TestPurgeGroupAPI(t *testing.T) {
 		Failed                 []string `json:"failed_host_ids"`
 		Rules, Windows, Checks int
 		EnrollTokens           int                     `json:"enroll_tokens"`
+		Channels               int                     `json:"channels"`
+		SnmpProfiles           int                     `json:"snmp_profiles"`
 		UsersDisabled          int                     `json:"users_disabled"`
 		UsersScopeReduced      int                     `json:"users_scope_reduced"`
 		GroupDeleted           bool                    `json:"group_deleted"`
 		DeletedRows            struct{ Metrics int64 } `json:"deleted_rows"`
 	}
 	x.dataAs(rec, &res)
-	if res.Agents != 2 || res.Devices != 1 || len(res.Failed) != 0 || res.Rules != 1 || res.Windows != 1 || res.Checks != 1 ||
-		res.EnrollTokens != 1 || res.UsersDisabled != 1 || res.UsersScopeReduced != 2 || !res.GroupDeleted || res.DeletedRows.Metrics < 3 {
+	if res.Agents != 2 || res.Devices != 2 || len(res.Failed) != 0 || res.Rules != 1 || res.Windows != 1 || res.Checks != 1 ||
+		res.EnrollTokens != 1 || res.UsersDisabled != 1 || res.UsersScopeReduced != 2 || !res.GroupDeleted || res.DeletedRows.Metrics < 3 ||
+		res.Channels != 1 || res.SnmpProfiles != 1 {
 		t.Errorf("conteos de la purga: %+v", res)
+	}
+	if got := x.count(`SELECT count(*) FROM notification_channels WHERE id = ANY($1)`, []string{chanA, chanB, chanGlobal}); got != 2 {
+		t.Errorf("canales tras la purga de A: %d, want 2 (B y global)", got)
+	}
+	if got := x.count(`SELECT count(*) FROM snmp_profiles WHERE id = ANY($1)`, []string{profExclusive, profShared}); got != 1 {
+		t.Errorf("perfiles snmp tras la purga de A: %d, want 1 (el compartido con B)", got)
 	}
 
 	// Nada de A; B intacto (filas, reglas, ventana, chequeo, grupo).

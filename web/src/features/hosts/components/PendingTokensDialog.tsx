@@ -71,6 +71,7 @@ function PendingTokensBody() {
               <RowNumberHeadCell />
               <HeadCell>Hostname</HeadCell>
               <HeadCell>Grupo</HeadCell>
+              <HeadCell>Usos</HeadCell>
               <HeadCell>Creado por</HeadCell>
               <HeadCell>Creado</HeadCell>
               <HeadCell>Expira</HeadCell>
@@ -81,8 +82,11 @@ function PendingTokensBody() {
             {data.map((t, i) => (
               <Row key={t.id}>
                 <RowNumberCell n={i + 1} />
-                <Cell className="max-w-48 truncate font-semibold">{t.hostname}</Cell>
+                <Cell className="max-w-48 truncate font-semibold">
+                  {t.hostname ?? <span className="font-normal text-text-muted">Alta masiva</span>}
+                </Cell>
                 <Cell className="max-w-40 truncate">{t.group?.name ?? 'Sin grupo'}</Cell>
+                <Cell className="tabular-nums">{t.max_uses > 1 ? `${t.uses_count} / ${t.max_uses}` : '—'}</Cell>
                 <Cell className="max-w-32 truncate">{t.created_by}</Cell>
                 <Cell className="tabular-nums">{formatFullDate(t.created_at)}</Cell>
                 <Cell className="tabular-nums">{formatFullDate(t.expires_at)}</Cell>
@@ -90,7 +94,7 @@ function PendingTokensBody() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Revocar token de ${t.hostname}`}
+                    aria-label={`Revocar token de ${t.hostname ?? 'alta masiva'}`}
                     title="Revocar"
                     onClick={() => setRevoking(t)}
                   >
@@ -109,7 +113,7 @@ function PendingTokensBody() {
       </DialogFooter>
       <ConfirmDialog
         open={revoking !== null}
-        title={`Revocar token de "${revoking?.hostname ?? ''}"`}
+        title={`Revocar token de "${revoking?.hostname ?? 'alta masiva'}"`}
         description="El token deja de servir para enrolar: si ya se pegó el comando en el host, fallará. Puedes generar otro después."
         confirmLabel="Revocar"
         busy={busy}
