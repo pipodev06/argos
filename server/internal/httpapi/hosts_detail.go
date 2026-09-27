@@ -80,6 +80,22 @@ type physicalDiskDTO struct {
 	Mounts []string `json:"mounts"`
 }
 
+// toPhysicalDiskDTOs: nil si el agente no lo reporta (desconocido), nunca [] por defecto.
+func toPhysicalDiskDTOs(disks []store.PhysicalDisk) []physicalDiskDTO {
+	if disks == nil {
+		return nil
+	}
+	out := make([]physicalDiskDTO, 0, len(disks))
+	for _, d := range disks {
+		mounts := d.Mounts
+		if mounts == nil {
+			mounts = []string{}
+		}
+		out = append(out, physicalDiskDTO{ID: d.ID, Model: d.Model, Bus: d.Bus, SizeMB: d.SizeMB, Mounts: mounts})
+	}
+	return out
+}
+
 func toHostInfoDTO(i store.HostInfo) hostInfoDTO {
 	dto := hostInfoDTO{
 		CPUModel: i.CPUModel, CPUCores: i.CPUCores, CPUThreads: i.CPUThreads, OSName: i.OSName, OSVersion: i.OSVersion,
@@ -92,16 +108,7 @@ func toHostInfoDTO(i store.HostInfo) hostInfoDTO {
 	for _, ip := range i.IPs {
 		dto.IPs = append(dto.IPs, ip.String())
 	}
-	if i.PhysicalDisks != nil {
-		dto.PhysicalDisks = make([]physicalDiskDTO, 0, len(i.PhysicalDisks))
-		for _, d := range i.PhysicalDisks {
-			mounts := d.Mounts
-			if mounts == nil {
-				mounts = []string{}
-			}
-			dto.PhysicalDisks = append(dto.PhysicalDisks, physicalDiskDTO{ID: d.ID, Model: d.Model, Bus: d.Bus, SizeMB: d.SizeMB, Mounts: mounts})
-		}
-	}
+	dto.PhysicalDisks = toPhysicalDiskDTOs(i.PhysicalDisks)
 	return dto
 }
 

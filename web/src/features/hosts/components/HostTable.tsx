@@ -10,6 +10,7 @@ import { usageLevel } from '@/lib/usage'
 import type { Host } from '../types/host.types'
 import { formatAgentVersion } from '../utils/agentVersion'
 import type { OptionalColumn } from '../utils/columns'
+import { physicalDisksSummary } from '../utils/detail'
 import { DeviceKindBadge } from '@/features/devices/components/DeviceBadges'
 import { formatElapsed, formatLastSeen, formatNumber } from '../utils/format'
 import type { SortKey } from '../utils/hostQuery'
@@ -75,6 +76,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
             {show('ip') && <HeadCell className="hidden md:table-cell">IP</HeadCell>}
             {show('uptime') && <HeadCell className="hidden md:table-cell">Uptime</HeadCell>}
             {show('battery') && <HeadCell className="hidden md:table-cell">Batería</HeadCell>}
+            {show('physical_disk') && <HeadCell className="hidden md:table-cell">Disco físico</HeadCell>}
             <SortableHead id="last_seen" label="Visto" {...sortProps} />
           </HeadRow>
         </thead>
@@ -160,6 +162,11 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                         ) : (
                           '—'
                         )}
+                      </Cell>
+                    )}
+                    {show('physical_disk') && (
+                      <Cell className="hidden text-center tabular-nums md:table-cell">
+                        {physicalDisksSummary(h.physical_disks)}
                       </Cell>
                     )}
                     <Cell className="text-center text-xs text-text-muted tabular-nums">

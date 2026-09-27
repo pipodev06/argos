@@ -3,6 +3,8 @@ package updater
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -17,6 +19,16 @@ import (
 	"testing"
 	"time"
 )
+
+// testKey genera un par de claves ed25519 de prueba (NUNCA una clave real ni hardcodeada).
+func testKey(t *testing.T) (priv ed25519.PrivateKey, pubHex string) {
+	t.Helper()
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return priv, hex.EncodeToString(pub)
+}
 
 // fakeSwapper registra el binario descargado en vez de reemplazar nada.
 type fakeSwapper struct {
@@ -43,8 +55,9 @@ func sum(b []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-// newDist sirve un manifiesto con version ver y un binario body; hashOverride/sizeOverride permiten falsearlos.
-func newDist(t *testing.T, ver string, body []byte, hashOverride string, sizeOverride int64) *httptest.Server {
+// newDist sirve un manifiesto con version ver y un binario body, firmado con priv (nil = sin firma:
+// simula un manifest.json.sig ausente/vacio); hashOverride/sizeOverride permiten falsear el manifiesto.
+func newDist(t *testing.T, ver string, body []byte, hashOverride string, sizeOverride int64, priv ed25519.PrivateKey) *httptest.Server {
 	t.Helper()
 	hash, size := sum(body), int64(len(body))
 	if hashOverride != "" {
@@ -54,9 +67,13 @@ func newDist(t *testing.T, ver string, body []byte, hashOverride string, sizeOve
 		size = sizeOverride
 	}
 	name := "argos-agent_linux_amd64"
+	manifest := fmt.Appendf(nil, `{"version":%q,"files":[{"name":%q,"os":"linux","arch":"amd64","sha256":%q,"size":%d}]}`, ver, name, hash, size)
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /dl/latest/manifest.json", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprintf(w, `{"version":%q,"files":[{"name":%q,"os":"linux","arch":"amd64","sha256":%q,"size":%d}]}`, ver, name, hash, size)
+	mux.HandleFunc("GET /dl/latest/manifest.json", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(manifest) })
+	mux.HandleFunc("GET /dl/latest/manifest.json.sig", func(w http.ResponseWriter, _ *http.Request) {
+		if priv != nil {
+			_, _ = fmt.Fprintln(w, hex.EncodeToString(ed25519.Sign(priv, manifest)))
+		}
 	})
 	mux.HandleFunc("GET /dl/"+ver+"/"+name, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(body) })
 	srv := httptest.NewServer(mux)
@@ -64,11 +81,11 @@ func newDist(t *testing.T, ver string, body []byte, hashOverride string, sizeOve
 	return srv
 }
 
-func run(t *testing.T, srv *httptest.Server, version string, sw *fakeSwapper) (string, error) {
+func run(t *testing.T, srv *httptest.Server, version, pubKeyHex string, sw *fakeSwapper) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
 	err := Run(context.Background(), Options{
-		Server: srv.URL, Version: version, HTTP: srv.Client(), GOOS: "linux", GOARCH: "amd64", Swapper: sw, Out: &out,
+		Server: srv.URL, Version: version, PubKeyHex: pubKeyHex, HTTP: srv.Client(), GOOS: "linux", GOARCH: "amd64", Swapper: sw, Out: &out,
 	})
 	return out.String(), err
 }
@@ -76,6 +93,7 @@ func run(t *testing.T, srv *httptest.Server, version string, sw *fakeSwapper) (s
 func TestRun(t *testing.T) {
 	t.Parallel()
 	binary := []byte("binario-nuevo")
+	priv, pubHex := testKey(t)
 	tests := []struct {
 		name      string
 		serverVer string
@@ -97,9 +115,9 @@ func TestRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			srv := newDist(t, tt.serverVer, binary, tt.hash, tt.size)
+			srv := newDist(t, tt.serverVer, binary, tt.hash, tt.size, priv)
 			sw := &fakeSwapper{dir: t.TempDir()}
-			out, err := run(t, srv, tt.current, sw)
+			out, err := run(t, srv, tt.current, pubHex, sw)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("err got %v, want que contenga %q", err, tt.wantErr)
@@ -125,6 +143,7 @@ func TestRun(t *testing.T) {
 
 func TestRunServerErrors(t *testing.T) {
 	t.Parallel()
+	_, pubHex := testKey(t)
 	for name, h := range map[string]http.HandlerFunc{
 		"404":             func(w http.ResponseWriter, _ *http.Request) { http.NotFound(w, nil) },
 		"manifiesto roto": func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("{no json")) },
@@ -136,10 +155,85 @@ func TestRunServerErrors(t *testing.T) {
 			srv := httptest.NewServer(h)
 			defer srv.Close()
 			sw := &fakeSwapper{dir: t.TempDir()}
-			if _, err := run(t, srv, "1.0.0", sw); err == nil || sw.swapCall != 0 {
+			if _, err := run(t, srv, "1.0.0", pubHex, sw); err == nil || sw.swapCall != 0 {
 				t.Errorf("err got %v swaps %d, want error y ningun Swap", err, sw.swapCall)
 			}
 		})
+	}
+}
+
+// TestRunSignatureVerification cubre H7: firma valida pasa, manifiesto alterado sin resignar falla,
+// firma con clave incorrecta falla, y sin clave publica embebida el update falla cerrado.
+func TestRunSignatureVerification(t *testing.T) {
+	t.Parallel()
+	binary := []byte("binario-nuevo")
+	priv, pubHex := testKey(t)
+	_, otherPubHex := testKey(t)
+
+	tests := []struct {
+		name      string
+		pubKeyHex string
+		signer    ed25519.PrivateKey // nil = manifest.json.sig vacio (sin firma)
+		wantErr   string
+	}{
+		{name: "firma valida", pubKeyHex: pubHex, signer: priv, wantErr: ""},
+		{name: "sin clave publica embebida", pubKeyHex: "", signer: priv, wantErr: ErrNoPublicKey.Error()},
+		{name: "sin firma en el servidor", pubKeyHex: pubHex, signer: nil, wantErr: "firma"},
+		{name: "firma con otra clave", pubKeyHex: otherPubHex, signer: priv, wantErr: "firma"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := newDist(t, "1.1.0", binary, "", 0, tt.signer)
+			sw := &fakeSwapper{dir: t.TempDir()}
+			_, err := run(t, srv, "1.0.0", tt.pubKeyHex, sw)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Run: %v", err)
+				}
+				if sw.swapCall != 1 {
+					t.Errorf("Swap llamado %d veces, want 1", sw.swapCall)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err got %v, want que contenga %q", err, tt.wantErr)
+			}
+			if sw.swapCall != 0 {
+				t.Errorf("Swap llamado %d veces, want 0 (la firma no valido)", sw.swapCall)
+			}
+		})
+	}
+}
+
+// TestRunRejectsManifestAlteredAfterSigning: firma sobre un manifiesto y luego lo altera en transito
+// (simula un server comprometido que sirve otro contenido bajo la misma firma) -> debe fallar.
+func TestRunRejectsManifestAlteredAfterSigning(t *testing.T) {
+	t.Parallel()
+	priv, pubHex := testKey(t)
+	binary := []byte("binario-nuevo")
+	name := "argos-agent_linux_amd64"
+	realManifest := fmt.Appendf(nil, `{"version":"1.1.0","files":[{"name":%q,"os":"linux","arch":"amd64","sha256":%q,"size":%d}]}`,
+		name, sum(binary), len(binary))
+	sig := hex.EncodeToString(ed25519.Sign(priv, realManifest))
+	// El servidor sirve un manifiesto DISTINTO al firmado (version distinta, mismo binario/hash).
+	served := fmt.Appendf(nil, `{"version":"9.9.9","files":[{"name":%q,"os":"linux","arch":"amd64","sha256":%q,"size":%d}]}`,
+		name, sum(binary), len(binary))
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /dl/latest/manifest.json", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(served) })
+	mux.HandleFunc("GET /dl/latest/manifest.json.sig", func(w http.ResponseWriter, _ *http.Request) { _, _ = fmt.Fprintln(w, sig) })
+	mux.HandleFunc("GET /dl/9.9.9/"+name, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(binary) })
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	sw := &fakeSwapper{dir: t.TempDir()}
+	_, err := run(t, srv, "1.0.0", pubHex, sw)
+	if err == nil || !strings.Contains(err.Error(), "firma") {
+		t.Fatalf("err got %v, want error de firma", err)
+	}
+	if sw.swapCall != 0 {
+		t.Error("Swap no debio llamarse: el manifiesto servido no coincide con el firmado")
 	}
 }
 

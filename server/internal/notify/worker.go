@@ -71,7 +71,7 @@ type Stats struct {
 // mensaje por canal.
 type Worker struct {
 	q       Queue
-	box     *Box // nil si no hay clave: los canales con secreto fallan con un error claro
+	box     *KeyRing // nil si no hay clave: los canales con secreto fallan con un error claro
 	sender  Sender
 	logger  *slog.Logger
 	baseURL string
@@ -79,8 +79,10 @@ type Worker struct {
 	jitter  func() float64
 }
 
-// NewWorker crea el worker. baseURL es ARGOS_PUBLIC_URL sin barra final ("" = sin enlaces).
-func NewWorker(q Queue, box *Box, sender Sender, logger *slog.Logger, baseURL string) *Worker {
+// NewWorker crea el worker. baseURL es ARGOS_PUBLIC_URL sin barra final ("" = sin enlaces). box (el anillo de
+// claves) descifra con la clave actual o cualquier previa (ARGOS_SECRET_KEY_PREVIOUS): un canal cifrado con una
+// clave vieja sigue notificando hasta que se recifre con `rotate-secret-key`.
+func NewWorker(q Queue, box *KeyRing, sender Sender, logger *slog.Logger, baseURL string) *Worker {
 	return &Worker{
 		q: q, box: box, sender: sender, logger: logger, baseURL: baseURL, now: time.Now,
 		jitter: func() float64 { return (rand.Float64()*2 - 1) * jitterSpread }, //nolint:gosec // jitter de reintentos, no es un secreto

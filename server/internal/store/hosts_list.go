@@ -106,6 +106,8 @@ type HostRow struct {
 	BatteryCharging *bool
 	// AgentVersion es la version del agente (host_info); nil = desconocida (dispositivo o agente que no la informa).
 	AgentVersion *string
+	// PhysicalDisks: nil = el agente aun no lo reporta.
+	PhysicalDisks []PhysicalDisk
 }
 
 // HostPage es una pagina de la lista: Total cuenta todos los hosts que cumplen los filtros (no solo la pagina).
@@ -215,7 +217,7 @@ func (s *Store) ListHosts(ctx context.Context, scope Scope, f HostFilter) (HostP
 	query := fmt.Sprintf(`
 WITH base AS (
   SELECT h.id, h.hostname, h.kind, h.status, h.status_changed_at, h.last_seen_at, g.id AS group_id, g.name AS group_name,
-         COALESCE(h.os, '') AS os, hi.os_name, hi.os_version, hi.ips, hi.boot_time, NULLIF(hi.agent_version, '') AS agent_version,
+         COALESCE(h.os, '') AS os, hi.os_name, hi.os_version, hi.ips, hi.boot_time, NULLIF(hi.agent_version, '') AS agent_version, hi.physical_disks,
          l.cpu_pct, l.mem_used_mb, l.mem_total_mb, l.disk_max_pct, l.disk_max_mount, l.battery_pct, l.battery_charging,
          CASE WHEN (%[1]s) IS NULL THEN 1 ELSE 0 END AS nf,
          COALESCE((%[1]s)::%[2]s, %[3]s::%[2]s) AS sk,
@@ -227,7 +229,7 @@ WITH base AS (
     LEFT JOIN host_info hi ON hi.host_id = h.id
    WHERE %[4]s
 )
-SELECT id, hostname, kind, status, status_changed_at, last_seen_at, group_id, group_name, os, os_name, os_version, ips, boot_time, agent_version,
+SELECT id, hostname, kind, status, status_changed_at, last_seen_at, group_id, group_name, os, os_name, os_version, ips, boot_time, agent_version, physical_disks,
        cpu_pct, mem_used_mb, mem_total_mb, disk_max_pct, disk_max_mount, battery_pct, battery_charging,
        nf, sk::text AS sk_text, ln, total
   FROM base
@@ -250,7 +252,7 @@ SELECT id, hostname, kind, status, status_changed_at, last_seen_at, group_id, gr
 		var groupID, groupName *string
 		var total int
 		if err := rows.Scan(&h.ID, &h.Hostname, &h.Kind, &h.Status, &h.StatusChangedAt, &h.LastSeenAt, &groupID, &groupName, &h.OS,
-			&h.OSName, &h.OSVersion, &h.IPs, &h.BootTime, &h.AgentVersion, &h.CPUPct, &h.MemUsedMB, &h.MemTotalMB, &h.DiskPct, &h.DiskMount, &h.BatteryPct, &h.BatteryCharging,
+			&h.OSName, &h.OSVersion, &h.IPs, &h.BootTime, &h.AgentVersion, &h.PhysicalDisks, &h.CPUPct, &h.MemUsedMB, &h.MemTotalMB, &h.DiskPct, &h.DiskMount, &h.BatteryPct, &h.BatteryCharging,
 			&c.NullFlag, &c.SortKey, &c.LName, &total); err != nil {
 			return HostPage{}, fmt.Errorf("leyendo host: %w", err)
 		}

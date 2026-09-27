@@ -22,7 +22,7 @@ type channelsEnv struct {
 
 func newChannelsEnv(t *testing.T) *channelsEnv {
 	t.Helper()
-	box, err := notify.NewBox(channelKey)
+	box, err := notify.NewKeyRing(channelKey, "")
 	if err != nil {
 		t.Fatal(err)
 	}

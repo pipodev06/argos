@@ -14,20 +14,17 @@ import (
 
 // notifyDeps son las piezas de notificaciones que se cablean al arrancar.
 type notifyDeps struct {
-	box    *notify.Box // nil si no hay ARGOS_SECRET_KEY
+	box    *notify.KeyRing // nil si no hay ARGOS_SECRET_KEY
 	client *notify.Client
 }
 
-// setupNotify valida la clave de secretos (formato, y coincidencia con los canales ya cifrados: si no cuadra, el
-// server no arranca), la allowlist de webhooks y las CAs extra, y crea el cliente webhook.
+// setupNotify valida el anillo de claves de secretos (formato de ARGOS_SECRET_KEY y ARGOS_SECRET_KEY_PREVIOUS, y
+// que cubra los secretos ya cifrados: si no cuadra, el server no arranca), la allowlist de webhooks y las CAs
+// extra, y crea el cliente webhook.
 func setupNotify(ctx context.Context, cfg config.Config, st *store.Store) (notifyDeps, error) {
-	var box *notify.Box
-	if cfg.SecretKey != "" {
-		b, err := notify.NewBox(cfg.SecretKey)
-		if err != nil {
-			return notifyDeps{}, fmt.Errorf("ARGOS_SECRET_KEY invalida: %w", err)
-		}
-		box = b
+	box, err := notify.NewKeyRing(cfg.SecretKey, cfg.SecretKeyPrevious)
+	if err != nil {
+		return notifyDeps{}, err
 	}
 	if err := notify.CheckSecretKey(ctx, st, box); err != nil {
 		return notifyDeps{}, err

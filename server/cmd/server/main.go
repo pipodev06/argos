@@ -8,6 +8,15 @@
 //	argos-server reset-password <user> fija una contraseña nueva, desbloquea la cuenta y cierra sus sesiones
 //	argos-server migrate               aplica las migraciones con ARGOS_MIGRATE_DATABASE_URL (o DATABASE_URL) y, si
 //	                                   ARGOS_APP_ROLE esta definida, deja los permisos del rol de runtime
+//	argos-server rotate-secret-key     recifra con ARGOS_SECRET_KEY los secretos que estan en una clave de
+//	                                   ARGOS_SECRET_KEY_PREVIOUS (rotacion de la clave; repetirlo es un no-op)
+//	argos-server keygen <keyfile>       genera el par de claves ed25519 que firma el manifiesto del agente
+//	                                   (H7); escribe la privada en keyfile e imprime la publica en stdout.
+//	                                   Correr SOLO en la maquina del admin/CI de build, nunca en el server
+//	                                   desplegado: la clave privada nunca debe copiarse ahi.
+//	argos-server pubkey <keyfile>       imprime la clave publica de un keyfile de `keygen`
+//	argos-server sign-manifest <manifest.json> <keyfile>
+//	                                   firma el manifiesto canonico y escribe <manifest.json>.sig
 package main
 
 import (
@@ -60,6 +69,9 @@ func run(logger *slog.Logger, level *slog.LevelVar, args []string) error {
 	if len(args) > 0 && args[0] == "migrate" {
 		return runMigrate(logger)
 	}
+	if len(args) > 0 && (args[0] == "keygen" || args[0] == "pubkey" || args[0] == "sign-manifest") {
+		return runAgentSign(args)
+	}
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("configuracion: %w", err)
@@ -98,7 +110,7 @@ func run(logger *slog.Logger, level *slog.LevelVar, args []string) error {
 	}
 
 	if len(args) > 0 {
-		return runCommand(ctx, st, hasher, args)
+		return runCommand(ctx, st, hasher, cfg, args)
 	}
 	logger.Info("postgres listo, migraciones aplicadas")
 	// Un fallo del diagnostico no impide arrancar: es solo un aviso para el admin.

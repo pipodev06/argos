@@ -13,13 +13,21 @@ import (
 	"golang.org/x/term"
 
 	"argos/server/internal/auth"
+	"argos/server/internal/config"
 	"argos/server/internal/store"
 )
 
 const cliTimeout = 30 * time.Second
 
-// runCommand ejecuta un subcomando administrativo (bootstrap y recuperacion).
-func runCommand(ctx context.Context, st *store.Store, hasher *auth.Hasher, args []string) error {
+// runCommand ejecuta un subcomando administrativo (bootstrap y recuperacion). rotate-secret-key necesita mas
+// tiempo que el resto (recifra fila por fila): usa su propio timeout, mas largo que cliTimeout.
+func runCommand(ctx context.Context, st *store.Store, hasher *auth.Hasher, cfg config.Config, args []string) error {
+	if args[0] == "rotate-secret-key" {
+		ctx, cancel := context.WithTimeout(ctx, rotateSecretKeyTimeout)
+		defer cancel()
+		return runRotateSecretKey(ctx, st, cfg)
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, cliTimeout)
 	defer cancel()
 
@@ -29,7 +37,7 @@ func runCommand(ctx context.Context, st *store.Store, hasher *auth.Hasher, args 
 	case "reset-password":
 		return resetPassword(ctx, st, hasher, args[1:])
 	default:
-		return fmt.Errorf("subcomando %q desconocido (usa create-admin o reset-password)", args[0])
+		return fmt.Errorf("subcomando %q desconocido (usa create-admin, reset-password o rotate-secret-key)", args[0])
 	}
 }
 

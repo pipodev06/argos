@@ -249,7 +249,7 @@ func TestPublicAndAgentRoutesAreExactlyTheExpectedOnes(t *testing.T) {
 	slices.Sort(public)
 	// Instaladores y descargas del agente: publicas a proposito (spec fase 3), con limite de tasa por IP.
 	want := []string{
-		"GET /dl/latest/manifest.json", "GET /dl/{version}/{file}", "GET /health", "GET /install.ps1", "GET /install.sh",
+		"GET /dl/latest/manifest.json", "GET /dl/latest/manifest.json.sig", "GET /dl/{version}/{file}", "GET /health", "GET /install.ps1", "GET /install.sh",
 		"POST /api/v1/agent/enroll", "POST /api/v1/auth/login",
 	}
 	if !slices.Equal(public, want) {

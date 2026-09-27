@@ -1,14 +1,18 @@
 // Package updater implementa `argos-agent update`: baja del servidor el binario de la ultima version
 // publicada, verifica su SHA-256 contra el manifiesto y lo deja como binario del servicio.
 //
-// LIMITACION CONOCIDA (deuda aceptada por el usuario): no hay firmas independientes del servidor. El
-// SHA-256 del manifiesto solo detecta descargas corruptas; quien controle el servidor (o el canal, si
-// se uso --insecure) puede publicar un binario arbitrario que los agentes ejecutaran como servicio.
-// Por eso el servidor y su directorio de binarios (ARGOS_AGENT_DIST_DIR) son parte de la base de confianza.
+// H7 (firma del manifiesto, docs/decisiones/2026-09-26-seguridad-multicliente.md #11): el SHA-256 del
+// manifiesto solo detecta descargas corruptas, no protege de un servidor (o tunel) comprometido que sirva
+// un manifiesto y un binario falsos a la vez. Por eso, antes de aceptar el manifiesto, se verifica su
+// firma ed25519 (manifest.json.sig) con la clave publica compilada dentro de este binario
+// (-ldflags "-X main.publicKey=..."): esa clave nunca se descarga del server, asi que un server
+// comprometido no puede forjarla. Sin clave publica embebida (build de desarrollo) el update falla
+// cerrado: ver ErrNoPublicKey.
 package updater
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,6 +25,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"argos/agent/internal/agentsig"
 )
 
 const (
@@ -28,11 +34,19 @@ const (
 	maxManifestBytes = 64 << 10
 	// maxBinaryBytes acota la descarga (los binarios del agente rondan 15 MiB).
 	maxBinaryBytes = 200 << 20
+	// maxSigBytes acota la firma (128 hex + salto de linea; sobra margen).
+	maxSigBytes = 1 << 10
 )
 
 var (
 	// ErrDevBuild: una build sin version inyectada no se actualiza (no se sabe que reemplaza).
 	ErrDevBuild = errors.New("este binario es una build de desarrollo (version dev): no se actualiza")
+	// ErrNoPublicKey: build sin clave publica embebida (-ldflags -X main.publicKey=...). Se falla
+	// cerrado a proposito (H7): sin clave no hay como distinguir un manifiesto legitimo de uno forjado
+	// por un server comprometido.
+	ErrNoPublicKey = errors.New("este binario no tiene la clave publica de firma embebida: no se actualiza")
+	// ErrBadSignature: el manifiesto no trae una firma valida pa la clave publica embebida.
+	ErrBadSignature = errors.New("la firma del manifiesto no es valida: no se aplica el binario")
 
 	versionRe = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$`)
 	sha256Re  = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -52,13 +66,14 @@ type Swapper interface {
 
 // Options son las entradas de Run.
 type Options struct {
-	Server  string       // URL base del servidor (https, o http si el operador lo permitio)
-	Version string       // version del binario en ejecucion (main.version)
-	HTTP    *http.Client // con timeout suficiente pa la descarga
-	GOOS    string
-	GOARCH  string
-	Swapper Swapper
-	Out     io.Writer
+	Server    string       // URL base del servidor (https, o http si el operador lo permitio)
+	Version   string       // version del binario en ejecucion (main.version)
+	PubKeyHex string       // clave publica ed25519 embebida (main.publicKey), hex; "" en builds de dev
+	HTTP      *http.Client // con timeout suficiente pa la descarga
+	GOOS      string
+	GOARCH    string
+	Swapper   Swapper
+	Out       io.Writer
 }
 
 type manifest struct {
@@ -77,7 +92,14 @@ func Run(ctx context.Context, o Options) error {
 	if o.Version == "" || o.Version == "dev" {
 		return ErrDevBuild
 	}
-	mf, err := fetchManifest(ctx, o)
+	if o.PubKeyHex == "" {
+		return ErrNoPublicKey
+	}
+	pub, err := agentsig.DecodePublic(o.PubKeyHex)
+	if err != nil {
+		return fmt.Errorf("clave publica embebida invalida: %w", err)
+	}
+	mf, err := fetchManifest(ctx, o, pub)
 	if err != nil {
 		return err
 	}
@@ -120,24 +142,46 @@ func say(w io.Writer, format string, args ...any) {
 	}
 }
 
-func fetchManifest(ctx context.Context, o Options) (manifest, error) {
-	u, err := url.JoinPath(o.Server, "/dl/latest/manifest.json")
-	if err != nil {
-		return manifest{}, fmt.Errorf("url del manifiesto: %w", err)
-	}
-	body, err := get(ctx, o.HTTP, u)
+// fetchManifest baja el manifiesto y su firma (H7) y verifica la firma con la clave publica embebida
+// ANTES de confiar en el contenido: si no valida, no se decodifica ni se usa nada del manifiesto.
+func fetchManifest(ctx context.Context, o Options, pub ed25519.PublicKey) (manifest, error) {
+	raw, err := fetchRaw(ctx, o, "/dl/latest/manifest.json", maxManifestBytes)
 	if err != nil {
 		return manifest{}, fmt.Errorf("descargando el manifiesto: %w", err)
 	}
-	defer func() { _ = body.Close() }() // solo lectura
+	sigRaw, err := fetchRaw(ctx, o, "/dl/latest/manifest.json.sig", maxSigBytes)
+	if err != nil {
+		return manifest{}, fmt.Errorf("descargando la firma del manifiesto: %w", err)
+	}
+	sig, err := agentsig.DecodeSignature(strings.TrimSpace(string(sigRaw)))
+	if err != nil {
+		return manifest{}, fmt.Errorf("%w (%w)", ErrBadSignature, err)
+	}
+	if !agentsig.Verify(pub, raw, sig) {
+		return manifest{}, ErrBadSignature
+	}
+
 	var mf manifest
-	if err := json.NewDecoder(io.LimitReader(body, maxManifestBytes)).Decode(&mf); err != nil {
+	if err := json.Unmarshal(raw, &mf); err != nil {
 		return manifest{}, fmt.Errorf("manifiesto ilegible: %w", err)
 	}
 	if !versionRe.MatchString(mf.Version) {
 		return manifest{}, errors.New("manifiesto con version invalida")
 	}
 	return mf, nil
+}
+
+func fetchRaw(ctx context.Context, o Options, path string, max int64) ([]byte, error) {
+	u, err := url.JoinPath(o.Server, path)
+	if err != nil {
+		return nil, fmt.Errorf("url: %w", err)
+	}
+	body, err := get(ctx, o.HTTP, u)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = body.Close() }() // solo lectura
+	return io.ReadAll(io.LimitReader(body, max))
 }
 
 // pick busca el binario de este os/arch y valida su hash y tamano.

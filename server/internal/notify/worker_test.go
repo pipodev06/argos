@@ -122,7 +122,11 @@ func (s *fakeSender) Send(_ context.Context, t Target, body []byte) (int, error)
 }
 
 func newTestWorker(q Queue, box *Box, s Sender) *Worker {
-	w := NewWorker(q, box, s, slog.New(slog.NewTextHandler(io.Discard, nil)), "https://argos.example.com")
+	var ring *KeyRing
+	if box != nil {
+		ring = &KeyRing{current: box}
+	}
+	w := NewWorker(q, ring, s, slog.New(slog.NewTextHandler(io.Discard, nil)), "https://argos.example.com")
 	w.jitter = func() float64 { return 0 }
 	w.now = func() time.Time { return t0 }
 	return w
