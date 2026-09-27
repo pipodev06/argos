@@ -23,7 +23,7 @@ func hostID(t *testing.T, name string) string {
 
 func mkGroup(t *testing.T, s *Store, name string, alwaysOn bool, downAfter *int) Group {
 	t.Helper()
-	g, err := s.CreateGroup(context.Background(), name, downAfter, alwaysOn)
+	g, err := s.CreateGroup(context.Background(), name, downAfter, alwaysOn, nil)
 	if err != nil {
 		t.Fatalf("creando grupo %q: %v", name, err)
 	}
@@ -177,7 +177,7 @@ func TestGroupsCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	g := mkGroup(t, s, "Laptops", false, iptr(300))
-	if _, err := s.CreateGroup(ctx, "laptops", nil, true); !errors.Is(err, ErrGroupExists) {
+	if _, err := s.CreateGroup(ctx, "laptops", nil, true, nil); !errors.Is(err, ErrGroupExists) {
 		t.Errorf("nombre duplicado (sin distinguir mayusculas) got %v, want ErrGroupExists", err)
 	}
 	other := mkGroup(t, s, "Servidores", true, nil)
@@ -232,7 +232,7 @@ func TestGroupLimit200(t *testing.T) {
 	for i := range MaxGroups {
 		mkGroup(t, s, fmt.Sprintf("g%03d", i), false, nil)
 	}
-	if _, err := s.CreateGroup(ctx, "uno-mas", nil, false); !errors.Is(err, ErrTooManyGroups) {
+	if _, err := s.CreateGroup(ctx, "uno-mas", nil, false, nil); !errors.Is(err, ErrTooManyGroups) {
 		t.Fatalf("grupo 201 got %v, want ErrTooManyGroups", err)
 	}
 	// Tras borrar uno cabe exactamente uno mas, aun con creaciones concurrentes.
@@ -249,7 +249,7 @@ func TestGroupLimit200(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := s.CreateGroup(ctx, fmt.Sprintf("conc-%d", i), nil, false)
+			_, err := s.CreateGroup(ctx, fmt.Sprintf("conc-%d", i), nil, false, nil)
 			switch {
 			case err == nil:
 				ok.Add(1)
@@ -266,5 +266,25 @@ func TestGroupLimit200(t *testing.T) {
 	}
 	if n := count(t, `SELECT count(*) FROM host_groups`); n != MaxGroups {
 		t.Errorf("grupos totales got %d, want %d", n, MaxGroups)
+	}
+}
+
+func TestCreateGroupWithRetention(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	g, err := s.CreateGroup(ctx, "Cliente 90", nil, false, iptr(90))
+	if err != nil {
+		t.Fatalf("creando grupo con retencion: %v", err)
+	}
+	if g.DetailRetentionDays == nil || *g.DetailRetentionDays != 90 || g.EffectiveDetailDays != 90 || g.RetentionSource != SourceGroup {
+		t.Errorf("retencion al crear = %v / %d / %q, quiero 90 / 90 / group", g.DetailRetentionDays, g.EffectiveDetailDays, g.RetentionSource)
+	}
+	if _, err := s.CreateGroup(ctx, "Cliente 7", nil, false, iptr(7)); err == nil {
+		t.Error("una retencion fuera de 8..730 debe fallar por el CHECK de la tabla")
+	}
+	plain := mkGroup(t, s, "Sin retencion", false, nil)
+	if plain.DetailRetentionDays != nil || plain.RetentionSource == SourceGroup {
+		t.Errorf("sin retencion propia debe heredar la global: %v / %q", plain.DetailRetentionDays, plain.RetentionSource)
 	}
 }

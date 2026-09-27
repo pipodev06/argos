@@ -27,12 +27,12 @@ type SystemStats struct {
 	// QueueOldestDue es el next_attempt_at mas antiguo entre las pendientes (nil = cola vacia): si ya paso hace
 	// rato, nadie esta enviando.
 	QueueOldestDue *time.Time
-	// Dead son las entregas `dead` creadas desde `since`, por canal (solo canales con al menos una).
+	// Dead son las entregas `dead` muertas desde `since`, por canal (solo canales con al menos una).
 	Dead []DeadChannel
 }
 
-// SystemStats lee las cifras de auto-monitoreo. dead se cuenta por created_at (la tabla no guarda cuando murio
-// la entrega; una entrega muere a lo sumo MaxDeliveryAge despues de crearse).
+// SystemStats lee las cifras de auto-monitoreo. dead se cuenta por dead_at (las entregas muertas antes de la migracion
+// 00035 llevan created_at como fecha).
 func (s *Store) SystemStats(ctx context.Context, deadSince time.Time) (SystemStats, error) {
 	var st SystemStats
 	if err := s.pool.QueryRow(ctx,
@@ -47,7 +47,7 @@ func (s *Store) SystemStats(ctx context.Context, deadSince time.Time) (SystemSta
 		   FROM notification_deliveries d
 		   JOIN notification_channels c ON c.id = d.channel_id
 		   LEFT JOIN host_groups g ON g.id = c.group_id
-		  WHERE d.status = 'dead' AND d.created_at >= $1
+		  WHERE d.status = 'dead' AND d.dead_at >= $1
 		  GROUP BY c.id, c.name, c.group_id, g.name
 		  ORDER BY count(*) DESC, c.name
 		  LIMIT 50`, deadSince)

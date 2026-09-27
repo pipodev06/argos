@@ -36,7 +36,7 @@ func TestSystemStats(t *testing.T) {
 	}
 
 	// Una entrega dead reciente cuenta; una de hace 3 dias no. El dueño del canal sale con su nombre.
-	mustExec(t, `UPDATE notification_deliveries SET status = 'dead'`)
+	mustExec(t, `UPDATE notification_deliveries SET status = 'dead', dead_at = now()`)
 	st, err = s.SystemStats(ctx, time.Now().Add(-24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,16 @@ func TestSystemStats(t *testing.T) {
 	if len(st.Dead) != 1 || st.Dead[0].GroupName == nil || *st.Dead[0].GroupName != "Cliente A" {
 		t.Fatalf("dueño got %+v", st.Dead)
 	}
+	// Creada hace 3 dias pero muerta ahora: cuenta (la ventana mira cuando murio, no cuando se creo).
 	mustExec(t, `UPDATE notification_deliveries SET created_at = now() - interval '3 days'`)
+	st, err = s.SystemStats(ctx, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Dead) != 1 {
+		t.Fatalf("dead reciente de una entrega vieja got %+v", st.Dead)
+	}
+	mustExec(t, `UPDATE notification_deliveries SET dead_at = now() - interval '3 days'`)
 	st, err = s.SystemStats(ctx, time.Now().Add(-24*time.Hour))
 	if err != nil {
 		t.Fatal(err)

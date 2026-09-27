@@ -8,6 +8,7 @@ import { useGroups } from '@/features/groups/hooks/useGroups'
 import { RetentionExceptions } from '@/features/retention/components/RetentionExceptions'
 import { RetentionSection } from '@/features/retention/components/RetentionSection'
 import { useRetention } from '@/features/retention/hooks/useRetention'
+import { ServiceStatusSection } from '@/features/system-status/components/ServiceStatusSection'
 import { useSummary } from '@/features/summary/hooks/useSummary'
 
 /** Solo administradores: un viewer ve el aviso y no se monta nada que llame a la API. */
@@ -35,6 +36,7 @@ function ConfigurationAdmin() {
     <>
       <PageHeader title="Configuración" />
       <div className="flex flex-col gap-6" aria-busy={retention.loading}>
+        <ServiceStatusSection />
         {retention.error && <InlineError>{retention.error}</InlineError>}
         {retention.loading && !retention.data && <Skeleton className="h-48 w-full" />}
         {retention.data && (

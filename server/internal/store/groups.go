@@ -84,8 +84,8 @@ func (s *Store) ListGroups(ctx context.Context, scope Scope) (groups []Group, un
 
 // CreateGroup crea un grupo. ErrTooManyGroups si ya hay MaxGroups (el lock advisory hace exacto el tope
 // con creaciones concurrentes) y ErrGroupExists si el nombre ya existe (sin distinguir mayusculas).
-func (s *Store) CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool) (Group, error) {
-	g := Group{Name: name, DownAfterSeconds: downAfterSeconds, AlwaysOn: alwaysOn}
+func (s *Store) CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool, detailDays *int) (Group, error) {
+	g := Group{Name: name, DownAfterSeconds: downAfterSeconds, AlwaysOn: alwaysOn, DetailRetentionDays: detailDays}
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('argos.host_groups.cap'))`); err != nil {
 			return fmt.Errorf("lock de grupos: %w", err)
@@ -98,8 +98,8 @@ func (s *Store) CreateGroup(ctx context.Context, name string, downAfterSeconds *
 			return ErrTooManyGroups
 		}
 		err := tx.QueryRow(ctx,
-			`INSERT INTO host_groups (name, down_after_seconds, always_on) VALUES ($1, $2, $3) RETURNING id`,
-			name, downAfterSeconds, alwaysOn).Scan(&g.ID)
+			`INSERT INTO host_groups (name, down_after_seconds, always_on, detail_retention_days) VALUES ($1, $2, $3, $4) RETURNING id`,
+			name, downAfterSeconds, alwaysOn, detailDays).Scan(&g.ID)
 		if isUniqueViolation(err, groupNameKey) {
 			return ErrGroupExists
 		}

@@ -119,6 +119,7 @@ func (s *Store) MarkDeliveriesFailed(ctx context.Context, f DeliveryFailure) err
 	if _, err := s.pool.Exec(ctx,
 		`UPDATE notification_deliveries d
 		    SET status = CASE WHEN d.attempts >= $4 OR d.created_at <= now() - make_interval(secs => $5) THEN 'dead' ELSE 'pending' END,
+		        dead_at = CASE WHEN d.attempts >= $4 OR d.created_at <= now() - make_interval(secs => $5) THEN now() END,
 		        next_attempt_at = now() + make_interval(secs => v.delay), lease_until = NULL,
 		        last_error = left($3, 300), http_status = $6
 		   FROM unnest($1::bigint[], $2::float8[]) AS v(id, delay)
@@ -135,6 +136,7 @@ func (s *Store) ReleaseDeliveries(ctx context.Context, ids []int64, wait time.Du
 	if _, err := s.pool.Exec(ctx,
 		`UPDATE notification_deliveries
 		    SET status = CASE WHEN created_at <= now() - make_interval(secs => $4) THEN 'dead' ELSE 'pending' END,
+		        dead_at = CASE WHEN created_at <= now() - make_interval(secs => $4) THEN now() END,
 		        attempts = attempts - 1, lease_until = NULL, next_attempt_at = now() + make_interval(secs => $2),
 		        last_error = left($3, 300)
 		  WHERE id = ANY($1) AND status = 'sending'`,

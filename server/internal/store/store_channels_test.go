@@ -303,6 +303,9 @@ func TestFailedDeliveryBacksOffAndDiesAfterMaxAttempts(t *testing.T) {
 		if status != "dead" || lastErr == nil || *lastErr != "respuesta http 503" {
 			t.Errorf("tras %d intentos got %s (%v), want dead", attempt, status, lastErr)
 		}
+		if n := count(t, `SELECT count(*) FROM notification_deliveries WHERE id = $1 AND dead_at > now() - interval '1 minute'`, id); n != 1 {
+			t.Errorf("dead_at de la entrega muerta por intentos no se fijo a ahora")
+		}
 	}
 	mustExec(t, `UPDATE notification_deliveries SET next_attempt_at = now() WHERE id = $1`, id)
 	if jobs, _ := s.ClaimDeliveries(ctx, 50, 30*time.Second, time.Minute); len(jobs) != 0 {
@@ -323,6 +326,9 @@ func TestDeliveryOlderThan24HoursDiesOnFirstFailure(t *testing.T) {
 	}
 	if status, _, _, _ := deliveryRow(t, id); status != "dead" {
 		t.Errorf("got %s, want dead (mas de 24 h)", status)
+	}
+	if n := count(t, `SELECT count(*) FROM notification_deliveries WHERE id = $1 AND dead_at > now() - interval '1 minute'`, id); n != 1 {
+		t.Error("dead_at de la entrega muerta por edad no se fijo a ahora")
 	}
 }
 

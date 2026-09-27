@@ -72,14 +72,15 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
       downAfter = parsed.seconds
     }
     const input: GroupInput = { name: trimmed, down_after_seconds: downAfter, always_on: alwaysOn }
-    if (group) {
-      const days = retInherit ? null : parseDetailDays(retRaw)
-      if (days && 'error' in days) return setRetError(days.error)
-      const next = days ? days.days : null
-      if (next !== group.detail_retention_days) {
-        input.detail_retention_days = next
-        input.confirm_shrink = confirmShrink
-      }
+    const days = retInherit ? null : parseDetailDays(retRaw)
+    if (days && 'error' in days) return setRetError(days.error)
+    const next = days ? days.days : null
+    if (!group) {
+      // Un grupo nuevo no tiene detalle que perder: no hay confirmación de reducción.
+      if (next !== null) input.detail_retention_days = next
+    } else if (next !== group.detail_retention_days) {
+      input.detail_retention_days = next
+      input.confirm_shrink = confirmShrink
     }
     setSubmitting(true)
     try {
@@ -174,17 +175,15 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
           </label>
         </RadioGroup>
       </fieldset>
-      {group && (
-        <RetentionField
-          id="group-retention"
-          value={retRaw}
-          inherit={retInherit}
-          error={retError}
-          inheritsFrom="la retención global"
-          onValue={setRetRaw}
-          onInherit={setRetInherit}
-        />
-      )}
+      <RetentionField
+        id="group-retention"
+        value={retRaw}
+        inherit={retInherit}
+        error={retError}
+        inheritsFrom="la retención global"
+        onValue={setRetRaw}
+        onInherit={setRetInherit}
+      />
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>

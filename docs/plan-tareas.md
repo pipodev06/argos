@@ -43,7 +43,7 @@ SMTP · dominio/VPS público (D1 cubre LAN) · firma de binarios y auto-actualiz
 - [x] **L4 `pg_prewarm`/`shared_buffers` y caché fría**: reproducir el primer acceso frío de una gráfica de 24 h (reiniciando Postgres) y decidir si hace falta `pg_prewarm`.
 
 ## P6 — Derivado de la carga (2026-09-26, `decisiones/2026-09-26-carga-inventario-parches.md`)
-- [ ] **O1 Optimizar la vista `alert_candidates`** (420 ms por pasada con 1000 hosts; LATERAL de os_eol/parches por fila aunque la regla no exista). *Hecho cuando:* <100 ms con 1000 hosts y 8 reglas, sin cambiar resultados (test de equivalencia).
+- [x] **O1 Optimizar la vista `alert_candidates`** (420 ms por pasada con 1000 hosts; LATERAL de os_eol/parches por fila aunque la regla no exista). *Hecho cuando:* <100 ms con 1000 hosts y 8 reglas, sin cambiar resultados (test de equivalencia).
 - [x] **O2 Jitter del envío completo al arrancar el agente** (ráfaga de 3000 completos atrasa las métricas hasta 2,3 s).
 - [x] **O3 Log de solicitudes: muestrear los 429** (un flood deja una línea WARN por solicitud) y **variable de nivel de log** (`ARGOS_LOG_LEVEL`; hoy Info fijo).
 - [ ] **O4 Repetir la soak** (30–60 min) en un equipo sin uso concurrente (degradación no reproducida).

@@ -11,7 +11,6 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Pantallas nuevas sin revisar en navegador (Resumen sí lo revisó el usuario): parches (gráfica y filtros), modal "Agregar host", historial por fecha, configuración/retención, purga, dispositivos (deshabilitar) -> [Frontend](#frontend)
 - Estado en memoria mono-instancia (rate limits, clave HMAC de cursores, dedup de auditoría) -> [Seguridad](#seguridad)
 - Auditoría best-effort (no transaccional) -> [Seguridad](#seguridad)
-- Evaluador de alertas: la vista `alert_candidates` cuesta ~0,4 s con 1000 hosts (LATERAL por fila) -> `plan-tareas.md` O1
 - Monitorear el propio servicio: un `DETACH`/empaquetado que falla solo deja un ERROR en el log (sin alerta) -> [Operación](#operación)
 ### Baja
 - Webhook: Discord solo funciona con el sufijo `/slack` (payload con `text`, no `content`) -> [Operación](#operación)
@@ -43,6 +42,7 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Apagado por señal solo probado por cancelación de contexto (no Ctrl+C/SIGTERM real en Windows).
 
 ## Datos y API
+- Sin benchmark de tiempo automatizado para `alert_candidates` (solo medición manual con `EXPLAIN`); un gate de rendimiento en CI necesitaría decidir margen y máquina de referencia. Entregas `dead` de antes de la migración 00035 llevan `dead_at = created_at` (backfill sin fecha real).
 - **`metrics_chunks`** (`decisiones/2026-09-26-detalle-comprimido-retencion.md`): ningún test empaqueta una partición grande (la mayor: 60 filas); un chunk que falle siempre deja la partición sin borrar y loguea ERROR cada ciclo; `disk_samples` sigue en particiones diarias con retención global; validaciones aceptan 730 d aunque `HOT_DAYS` sea mayor que 8; la lista de hosts no muestra la retención propia.
 - Si el server/mantenimiento estuvo parado varios días no se crean particiones pasadas: una muestra con `ts` en ese hueco da 503 hasta caer fuera de la ventana de 7 días del ingest (sin backfill).
 - Datos tardíos de más de 3 h no se reprocesan en `metrics_hourly`; el promedio de buckets de 3 h/12 h pondera tasas ya promediadas (error <2 % en test). `MetricSeries*` no lee la muestra previa al rango (el primer tramo no tiene tasa). El CSV crudo del historial usa hueco fijo de 10 min y el JSON la mediana. `disks` del detalle mira 7 días. `summary.by_group` rotula "Sin grupo" en español.
@@ -50,6 +50,7 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - `host_events`: el pasado no se reconstruye; una caída se subcuenta hasta `down_after_seconds`; editar una ventana de mantenimiento cambia el % de disponibilidad pasado.
 
 ## Frontend
+- Un chequeo deshabilitado no aparece en el detalle del host/dispositivo (la sección "Chequeos" solo lista los habilitados): parece "sin chequeos" en vez de "1 pausado". Falta listarlo igual con un badge "Pausado" (hallazgo 2026-09-27).
 - Bundle dividido (entrada 48 kB; Recharts en su chunk). Vitest (361 tests) con tests de componentes y axe (contraste no medible en jsdom); sin probar en navegador ni los rangos 30d/90d/1y contra la API real. En la tabla de dispositivos el aviso de desfase puede desbordar los 36 px de fila en pantallas angostas. El origen para `--insecure` del modal es `window.location.origin`.
 
 ## Operación

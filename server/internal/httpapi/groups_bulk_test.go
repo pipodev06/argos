@@ -60,6 +60,9 @@ func TestGroupCreateUpdateDelete(t *testing.T) {
 	}{
 		{"crear ok", "POST", "/api/v1/groups", `{"name":"Laptops","always_on":false}`, nil, 201, ""},
 		{"crear con umbral", "POST", "/api/v1/groups", `{"name":"Srv","down_after_seconds":60,"always_on":true}`, nil, 201, ""},
+		{"crear con retencion", "POST", "/api/v1/groups", `{"name":"Cli","detail_retention_days":90}`, nil, 201, ""},
+		{"retencion baja", "POST", "/api/v1/groups", `{"name":"x","detail_retention_days":7}`, nil, 400, "invalid_body"},
+		{"retencion alta", "POST", "/api/v1/groups", `{"name":"x","detail_retention_days":731}`, nil, 400, "invalid_body"},
 		{"nombre vacio", "POST", "/api/v1/groups", `{"name":"  "}`, nil, 400, "invalid_body"},
 		{"nombre largo", "POST", "/api/v1/groups", `{"name":"` + long + `"}`, nil, 400, "invalid_body"},
 		{"nombre con control", "POST", "/api/v1/groups", `{"name":"a\nb"}`, nil, 400, "invalid_body"},

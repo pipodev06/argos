@@ -51,7 +51,7 @@ type Store interface {
 
 	// Grupos.
 	ListGroups(ctx context.Context, scope store.Scope) (groups []store.Group, ungrouped int, err error)
-	CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool) (store.Group, error)
+	CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool, detailDays *int) (store.Group, error)
 	UpdateGroup(ctx context.Context, id string, ch store.GroupChange) (store.Group, error)
 	DeleteGroup(ctx context.Context, id string) error
 	SetHostGroup(ctx context.Context, hostID string, groupID *string) (store.HostGroupResult, error)

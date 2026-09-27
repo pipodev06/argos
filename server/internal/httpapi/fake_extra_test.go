@@ -61,7 +61,7 @@ func (f *fakeStore) ListGroups(context.Context, store.Scope) ([]store.Group, int
 	return f.x.groups, f.x.ungrouped, f.x.err
 }
 
-func (f *fakeStore) CreateGroup(_ context.Context, name string, down *int, always bool) (store.Group, error) {
+func (f *fakeStore) CreateGroup(_ context.Context, name string, down *int, always bool, _ *int) (store.Group, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.x.gotName, f.x.gotDown, f.x.gotAlways = name, down, always
