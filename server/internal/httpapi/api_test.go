@@ -63,7 +63,7 @@ type fakeStore struct {
 	gotSource string // "raw", "hourly" o "mixed": que consulta de serie uso el handler
 }
 
-func (f *fakeStore) CreateEnrollToken(_ context.Context, _, _, _ string, groupID *string, _ time.Time) error {
+func (f *fakeStore) CreateEnrollToken(_ context.Context, _, _, _ string, groupID *string, _ time.Time, _ *string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.createErr != nil {
@@ -71,6 +71,10 @@ func (f *fakeStore) CreateEnrollToken(_ context.Context, _, _, _ string, groupID
 	}
 	f.enrollGroup = groupID
 	return nil
+}
+
+func (f *fakeStore) HostConflictByHostname(_ context.Context, _ string) (string, string, bool, error) {
+	return "", "", false, nil
 }
 
 func (f *fakeStore) SessionByHash(_ context.Context, idHash []byte) (store.SessionInfo, error) {
@@ -94,14 +98,14 @@ func (f *fakeStore) InsertAudit(_ context.Context, e store.AuditEntry) error {
 	return nil
 }
 
-func (f *fakeStore) EnrollHost(_ context.Context, _, _, _, agentTokenHash string) (string, error) {
+func (f *fakeStore) EnrollHost(_ context.Context, _, _, _, agentTokenHash string) (string, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.enrollErr != nil {
-		return "", f.enrollErr
+		return "", false, f.enrollErr
 	}
 	f.enrollHashes = append(f.enrollHashes, agentTokenHash)
-	return "host-1", nil
+	return "host-1", false, nil
 }
 
 func (f *fakeStore) HostIDByTokenHash(_ context.Context, tokenHash string) (string, error) {

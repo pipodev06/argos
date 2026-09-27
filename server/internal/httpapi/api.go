@@ -26,10 +26,11 @@ type Store interface {
 	Ping(ctx context.Context) error
 	SystemStats(ctx context.Context, deadSince time.Time) (store.SystemStats, error)
 	// Hosts y agentes.
-	CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time) error
+	CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time, targetHostID *string) error
+	HostConflictByHostname(ctx context.Context, hostname string) (id, status string, found bool, err error)
 	ListPendingEnrollTokens(ctx context.Context) ([]store.PendingEnrollToken, error)
 	RevokeEnrollToken(ctx context.Context, id string) (hostname string, err error)
-	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, err error)
+	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, reenroll bool, err error)
 	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
 	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
 	ListHosts(ctx context.Context, scope store.Scope, f store.HostFilter) (store.HostPage, error)
@@ -341,6 +342,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "DELETE /api/v1/hosts/enroll-tokens/{id}", accessAdmin, a.revokeEnrollToken)
 	a.route(mux, "POST /api/v1/hosts/bulk", accessAdmin, a.bulkHosts)
 	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
+	a.route(mux, "POST /api/v1/hosts/{id}/re-enroll", accessAdmin, a.reEnrollHost)
 	a.route(mux, "POST /api/v1/hosts/{id}/purge", accessAdmin, a.purgeHost)
 	a.route(mux, "PUT /api/v1/hosts/{id}/group", accessAdmin, a.setHostGroup)
 	a.route(mux, "PUT /api/v1/hosts/{id}/name", accessAdmin, a.renameHost)

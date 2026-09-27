@@ -29,6 +29,16 @@ export function createEnrollToken(hostname: string, groupId: string | null): Pro
   })
 }
 
+/** Re-enrola (o reactiva si estaba `disabled`) un host `agent` existente: token nuevo, conserva su historial. */
+export function reEnrollHost(id: string): Promise<EnrollToken> {
+  return apiRequest<EnrollToken>(`/hosts/${encodeURIComponent(id)}/re-enroll`, { method: 'POST' })
+}
+
+/** Revoca el token de un host: pasa a `disabled`, deja de sondearse y sus alertas se resuelven. */
+export function revokeHost(id: string): Promise<unknown> {
+  return apiRequest<unknown>(`/hosts/${encodeURIComponent(id)}/revoke`, { method: 'POST', noData: true })
+}
+
 export async function listEnrollTokens(signal?: AbortSignal): Promise<PendingEnrollToken[]> {
   const data = await apiRequest<{ items: PendingEnrollToken[] }>('/hosts/enroll-tokens', { signal })
   return data.items

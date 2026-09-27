@@ -137,7 +137,7 @@ func count(t *testing.T, sql string, args ...any) int {
 }
 
 // latestMigration es la version de la ultima migracion embebida.
-const latestMigration = 36
+const latestMigration = 37
 
 func TestMigrateIsIdempotent(t *testing.T) {
 	if testPool == nil {
@@ -287,21 +287,21 @@ func TestEnrollHost(t *testing.T) {
 		wantErr error
 	}{
 		{name: "feliz", setup: func(t *testing.T, s *Store) {
-			if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, future); err != nil {
+			if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, future, nil); err != nil {
 				t.Fatal(err)
 			}
 		}, token: th("tok")},
 		{name: "inexistente", setup: func(*testing.T, *Store) {}, token: th("nope"), wantErr: ErrNotFound},
 		{name: "expirado", setup: func(t *testing.T, s *Store) {
-			if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, past); err != nil {
+			if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, past, nil); err != nil {
 				t.Fatal(err)
 			}
 		}, token: th("tok"), wantErr: ErrTokenExpired},
 		{name: "usado", setup: func(t *testing.T, s *Store) {
-			if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, future); err != nil {
+			if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, future, nil); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := s.EnrollHost(ctx, th("tok"), "linux", "amd64", "hash-previo"); err != nil {
+			if _, _, err := s.EnrollHost(ctx, th("tok"), "linux", "amd64", "hash-previo"); err != nil {
 				t.Fatal(err)
 			}
 		}, token: th("tok"), wantErr: ErrTokenUsed},
@@ -312,7 +312,7 @@ func TestEnrollHost(t *testing.T) {
 			tt.setup(t, s)
 			before := count(t, `SELECT count(*) FROM hosts`)
 
-			hostID, err := s.EnrollHost(ctx, tt.token, "linux", "amd64", "hash-nuevo")
+			hostID, _, err := s.EnrollHost(ctx, tt.token, "linux", "amd64", "hash-nuevo")
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err got %v, want %v", err, tt.wantErr)
 			}
@@ -340,7 +340,7 @@ func TestEnrollHost(t *testing.T) {
 func TestEnrollHostConcurrentSingleWinner(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, time.Now().Add(time.Hour)); err != nil {
+	if err := s.CreateEnrollToken(ctx, th("tok"), "srv-01", mkUser(t, s, "alice", RoleAdmin), nil, time.Now().Add(time.Hour), nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -351,7 +351,7 @@ func TestEnrollHostConcurrentSingleWinner(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, errs[i] = s.EnrollHost(ctx, th("tok"), "linux", "amd64", fmt.Sprintf("hash-%d", i))
+			_, _, errs[i] = s.EnrollHost(ctx, th("tok"), "linux", "amd64", fmt.Sprintf("hash-%d", i))
 		}()
 	}
 	wg.Wait()
@@ -375,6 +375,137 @@ func TestEnrollHostConcurrentSingleWinner(t *testing.T) {
 	}
 }
 
+// TestEnrollHostWithTargetHostID cubre B14/B15: canjear un enroll token con target_host_id actualiza
+// el host existente (conserva id, os/arch/status/last_seen_at nuevos, agent_token_revoked_at limpio,
+// group_id sin cambios) en vez de crear uno nuevo, y las metricas viejas del host siguen ligadas a el.
+func TestEnrollHostWithTargetHostID(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	admin := mkUser(t, s, "alice", RoleAdmin)
+
+	gid, err := s.CreateGroup(ctx, "g1", nil, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostID := enrolled(t, s, "hash-original")
+	if _, err := s.SetHostGroup(ctx, hostID, &gid.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testPool.Exec(ctx, `INSERT INTO metrics (host_id, ts, cpu_pct) VALUES ($1, now(), 5)`, hostID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.CreateEnrollToken(ctx, th("re"), "ignorado", admin, nil, time.Now().Add(time.Hour), &hostID); err != nil {
+		t.Fatal(err)
+	}
+	before := count(t, `SELECT count(*) FROM hosts`)
+	gotID, reenroll, err := s.EnrollHost(ctx, th("re"), "windows", "arm64", "hash-nuevo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reenroll {
+		t.Error("reenroll got false, want true")
+	}
+	if gotID != hostID {
+		t.Errorf("hostID got %q, want %q (conserva el id)", gotID, hostID)
+	}
+	if after := count(t, `SELECT count(*) FROM hosts`); after != before {
+		t.Errorf("un re-enroll no debe crear un host nuevo: hosts %d->%d", before, after)
+	}
+
+	var osName, arch, status string
+	var revokedAt *time.Time
+	var groupID *string
+	if err := testPool.QueryRow(ctx,
+		`SELECT os, arch, status, agent_token_revoked_at, group_id FROM hosts WHERE id = $1`, hostID,
+	).Scan(&osName, &arch, &status, &revokedAt, &groupID); err != nil {
+		t.Fatal(err)
+	}
+	if osName != "windows" || arch != "arm64" || status != "pending" {
+		t.Errorf("host actualizado: os=%q arch=%q status=%q, want windows/arm64/pending", osName, arch, status)
+	}
+	if revokedAt != nil {
+		t.Errorf("agent_token_revoked_at got %v, want nil", revokedAt)
+	}
+	if groupID == nil || *groupID != gid.ID {
+		t.Errorf("group_id got %v, want %q (el re-enroll no debe mover de grupo)", groupID, gid.ID)
+	}
+	if got, err := s.HostIDByTokenHash(ctx, "hash-nuevo"); err != nil || got != hostID {
+		t.Errorf("HostIDByTokenHash con el token nuevo got (%q, %v), want (%q, nil)", got, err, hostID)
+	}
+	if _, err := s.HostIDByTokenHash(ctx, "hash-original"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("el token de agente viejo debe quedar invalido, err got %v", err)
+	}
+	if got := count(t, `SELECT count(*) FROM metrics WHERE host_id = $1`, hostID); got != 1 {
+		t.Errorf("las metricas viejas del host deben seguir ligadas a el, got %d filas", got)
+	}
+}
+
+// TestEnrollHostReactivatesDisabled cubre B15: reactivar un host disabled via target_host_id lo vuelve
+// a dejar autenticable (status pending, token revocado limpio).
+func TestEnrollHostReactivatesDisabled(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	admin := mkUser(t, s, "alice", RoleAdmin)
+	hostID := enrolled(t, s, "hash-disabled")
+	if err := s.RevokeHost(ctx, hostID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.HostIDByTokenHash(ctx, "hash-disabled"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("host revocado no deberia autenticar, err got %v", err)
+	}
+
+	if err := s.CreateEnrollToken(ctx, th("react"), "ignorado", admin, nil, time.Now().Add(time.Hour), &hostID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.EnrollHost(ctx, th("react"), "linux", "amd64", "hash-reactivado"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.HostIDByTokenHash(ctx, "hash-reactivado"); err != nil || got != hostID {
+		t.Errorf("host reactivado deberia autenticar con el token nuevo, got (%q, %v)", got, err)
+	}
+}
+
+// TestCreateEnrollTokenTargetHostRejectsDevice cubre B14/B15: un dispositivo no se re-enrola asi.
+func TestCreateEnrollTokenTargetHostRejectsDevice(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	admin := mkUser(t, s, "alice", RoleAdmin)
+	collectorID := enrolled(t, s, "hash-collector")
+	var devID string
+	if err := testPool.QueryRow(ctx,
+		`INSERT INTO hosts (hostname, kind, address, collector_host_id) VALUES ('dev-1', 'device', '10.0.0.1', $1) RETURNING id`,
+		collectorID,
+	).Scan(&devID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateEnrollToken(ctx, th("dev"), "ignorado", admin, nil, time.Now().Add(time.Hour), &devID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("err got %v, want ErrNotFound", err)
+	}
+
+	missing := "00000000-0000-0000-0000-000000000000"
+	if err := s.CreateEnrollToken(ctx, th("missing"), "ignorado", admin, nil, time.Now().Add(time.Hour), &missing); !errors.Is(err, ErrNotFound) {
+		t.Errorf("host inexistente: err got %v, want ErrNotFound", err)
+	}
+}
+
+// TestHostConflictByHostname cubre el aviso de B14 (no bloqueante) en el alta normal.
+func TestHostConflictByHostname(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if _, _, found, err := s.HostConflictByHostname(ctx, "srv-01"); err != nil || found {
+		t.Fatalf("sin hosts: got found=%v err=%v, want false/nil", found, err)
+	}
+	hostID := enrolled(t, s, "hash-conflict")
+	if _, err := testPool.Exec(ctx, `UPDATE hosts SET hostname = 'SRV-01' WHERE id = $1`, hostID); err != nil {
+		t.Fatal(err)
+	}
+	id, status, found, err := s.HostConflictByHostname(ctx, "srv-01")
+	if err != nil || !found || id != hostID || status != "up" {
+		t.Errorf("got id=%q status=%q found=%v err=%v, want %q/up/true/nil", id, status, found, err, hostID)
+	}
+}
+
 func TestHostIDByTokenHashNotFound(t *testing.T) {
 	s := newTestStore(t)
 	if _, err := s.HostIDByTokenHash(context.Background(), "no-existe"); !errors.Is(err, ErrNotFound) {
@@ -391,10 +522,10 @@ func enrolled(t *testing.T, s *Store, hash string) string {
 	} else if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateEnrollToken(ctx, th("tok-"+hash), "srv", admin.ID, nil, time.Now().Add(time.Hour)); err != nil {
+	if err := s.CreateEnrollToken(ctx, th("tok-"+hash), "srv", admin.ID, nil, time.Now().Add(time.Hour), nil); err != nil {
 		t.Fatal(err)
 	}
-	id, err := s.EnrollHost(ctx, th("tok-"+hash), "linux", "amd64", hash)
+	id, _, err := s.EnrollHost(ctx, th("tok-"+hash), "linux", "amd64", hash)
 	if err != nil {
 		t.Fatal(err)
 	}

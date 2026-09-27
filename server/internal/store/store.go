@@ -95,7 +95,11 @@ func (s *Store) Ping(ctx context.Context) error {
 // ligado al usuario que lo creo y, opcionalmente, al grupo con el que quedara el host enrolado
 // (ErrGroupNotFound si no existe). Devuelve ErrTooManyTokens si ya hay MaxActiveEnrollTokens
 // vigentes; el lock advisory serializa creaciones concurrentes pa que el tope sea exacto.
-func (s *Store) CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time) error {
+//
+// Si targetHostID no es nil (B14/B15: re-enrolar o reactivar), el hostname se ignora y se toma el
+// del host targeteado; ErrNotFound si ese host no existe o no es kind = 'agent' (un dispositivo no
+// se re-enrola asi). El grupo (groupID) no se usa en ese caso: EnrollHost no mueve de grupo al host.
+func (s *Store) CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time, targetHostID *string) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('argos.enroll_tokens.cap'))`); err != nil {
 			return fmt.Errorf("lock de enroll tokens: %w", err)
@@ -109,9 +113,23 @@ func (s *Store) CreateEnrollToken(ctx context.Context, tokenHash, hostname, crea
 		if active >= MaxActiveEnrollTokens {
 			return ErrTooManyTokens
 		}
+		if targetHostID != nil {
+			var kind string
+			err := tx.QueryRow(ctx, `SELECT kind, hostname FROM hosts WHERE id = $1`, *targetHostID).Scan(&kind, &hostname)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			if err != nil {
+				return fmt.Errorf("leyendo host a re-enrolar: %w", err)
+			}
+			if kind != "agent" {
+				return ErrNotFound
+			}
+		}
 		if _, err := tx.Exec(ctx,
-			`INSERT INTO enroll_tokens (token_hash, hostname, created_by, group_id, expires_at) VALUES ($1, $2, $3, $4, $5)`,
-			tokenHash, hostname, createdBy, groupID, expiresAt); err != nil {
+			`INSERT INTO enroll_tokens (token_hash, hostname, created_by, group_id, expires_at, target_host_id)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			tokenHash, hostname, createdBy, groupID, expiresAt, targetHostID); err != nil {
 			if isFKViolation(err, "enroll_tokens_group_id_fkey") {
 				return ErrGroupNotFound
 			}
@@ -121,20 +139,51 @@ func (s *Store) CreateEnrollToken(ctx context.Context, tokenHash, hostname, crea
 	})
 }
 
-// EnrollHost consume el enroll token y crea el host en una sola transaccion.
-// Devuelve ErrNotFound, ErrTokenUsed o ErrTokenExpired segun el estado del token.
-// El FOR UPDATE serializa consumos concurrentes del mismo token.
-func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (string, error) {
-	var hostID string
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+// HostConflictByHostname busca un host kind = 'agent' con ese hostname (case-insensitive, cualquier
+// status). Lo usa el alta normal de enroll token pa avisar de un posible duplicado (B14); no es un
+// error, found = false simplemente significa que no hay conflicto.
+func (s *Store) HostConflictByHostname(ctx context.Context, hostname string) (id, status string, found bool, err error) {
+	err = s.pool.QueryRow(ctx,
+		`SELECT id, status FROM hosts WHERE kind = 'agent' AND lower(hostname) = lower($1) LIMIT 1`, hostname,
+	).Scan(&id, &status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, fmt.Errorf("buscando host por hostname: %w", err)
+	}
+	return id, status, true, nil
+}
+
+// reEnrollHostSQL actualiza el host targeteado por un enroll token (conserva su id, y por tanto su
+// historial) en vez de crear uno nuevo: nuevo agent_token, status vuelve a 'pending' (sirve tanto pa
+// reactivar un host disabled como pa re-enrolar uno activo), revoca la marca de revocacion previa y
+// no toca group_id. Devuelve el status que tenia antes pa decidir si hace falta un host_events.
+const reEnrollHostSQL = `
+WITH prev AS (
+  SELECT id, status FROM hosts WHERE id = $1 FOR UPDATE
+), upd AS (
+  UPDATE hosts h SET os = $2, arch = $3, agent_token_hash = $4, agent_token_revoked_at = NULL,
+         status = 'pending', last_seen_at = now()
+    FROM prev WHERE h.id = prev.id
+  RETURNING prev.status AS prev_status
+)
+SELECT prev_status FROM upd`
+
+// EnrollHost consume el enroll token en una sola transaccion. Devuelve ErrNotFound, ErrTokenUsed o
+// ErrTokenExpired segun el estado del token. El FOR UPDATE serializa consumos concurrentes del mismo
+// token. Si el token tiene target_host_id (B14/B15), actualiza ese host en vez de crear uno nuevo:
+// el segundo valor de retorno indica si fue ese caso (re-enroll), pa que el llamador audite distinto.
+func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash string) (hostID string, reenroll bool, err error) {
+	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var hostname string
-		var groupID *string
+		var groupID, targetHostID *string
 		var used, expired bool
 		err := tx.QueryRow(ctx,
-			`SELECT hostname, group_id, used_at IS NOT NULL, expires_at <= now()
+			`SELECT hostname, group_id, target_host_id, used_at IS NOT NULL, expires_at <= now()
 			   FROM enroll_tokens WHERE token_hash = $1 FOR UPDATE`,
 			enrollTokenHash,
-		).Scan(&hostname, &groupID, &used, &expired)
+		).Scan(&hostname, &groupID, &targetHostID, &used, &expired)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -148,16 +197,32 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 			return ErrTokenExpired
 		}
 
-		if err := tx.QueryRow(ctx,
-			`INSERT INTO hosts (hostname, os, arch, agent_token_hash, status, last_seen_at, group_id)
-			 VALUES ($1, $2, $3, $4, 'up', now(), $5) RETURNING id`,
-			hostname, osName, arch, agentTokenHash, groupID,
-		).Scan(&hostID); err != nil {
-			return fmt.Errorf("creando host: %w", err)
-		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO host_events (host_id, from_status, to_status, source) VALUES ($1, NULL, 'up', 'enroll')`, hostID); err != nil {
-			return fmt.Errorf("registrando evento inicial del host: %w", err)
+		if targetHostID != nil {
+			reenroll = true
+			hostID = *targetHostID
+			var prevStatus string
+			if err := tx.QueryRow(ctx, reEnrollHostSQL, hostID, osName, arch, agentTokenHash).Scan(&prevStatus); err != nil {
+				return fmt.Errorf("re-enrolando host: %w", err)
+			}
+			if prevStatus != "pending" {
+				if _, err := tx.Exec(ctx,
+					`INSERT INTO host_events (host_id, from_status, to_status, source) VALUES ($1, $2, 'pending', 'enroll')`,
+					hostID, prevStatus); err != nil {
+					return fmt.Errorf("registrando evento de re-enroll: %w", err)
+				}
+			}
+		} else {
+			if err := tx.QueryRow(ctx,
+				`INSERT INTO hosts (hostname, os, arch, agent_token_hash, status, last_seen_at, group_id)
+				 VALUES ($1, $2, $3, $4, 'up', now(), $5) RETURNING id`,
+				hostname, osName, arch, agentTokenHash, groupID,
+			).Scan(&hostID); err != nil {
+				return fmt.Errorf("creando host: %w", err)
+			}
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO host_events (host_id, from_status, to_status, source) VALUES ($1, NULL, 'up', 'enroll')`, hostID); err != nil {
+				return fmt.Errorf("registrando evento inicial del host: %w", err)
+			}
 		}
 		if _, err := tx.Exec(ctx, `UPDATE enroll_tokens SET used_at = now() WHERE token_hash = $1`, enrollTokenHash); err != nil {
 			return fmt.Errorf("marcando enroll token usado: %w", err)
@@ -165,9 +230,9 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return hostID, nil
+	return hostID, reenroll, nil
 }
 
 // HostIDByTokenHash busca el host dueno de un agent token (por su hash SHA-256).
