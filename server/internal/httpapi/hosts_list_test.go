@@ -194,7 +194,7 @@ func TestListHostsResponseShape(t *testing.T) {
 	if data.Total != 2 || len(data.Items) != 2 || data.NextCursor == nil || *data.NextCursor == "" {
 		t.Fatalf("data got %+v", data)
 	}
-	keys := []string{"id", "hostname", "kind", "status", "status_changed_at", "last_seen_at", "group", "os", "os_name", "os_version", "ip", "cpu_pct", "mem_pct", "disk", "boot_time", "battery", "agent_version"}
+	keys := []string{"id", "hostname", "kind", "status", "status_changed_at", "last_seen_at", "group", "os", "os_name", "os_version", "ip", "cpu_pct", "mem_pct", "disk", "boot_time", "battery", "agent_version", "agent_outdated"}
 	wantKeys(t, "item", data.Items[0], keys...)
 	wantKeys(t, "item vacio", data.Items[1], keys...)
 	full := data.Items[0]

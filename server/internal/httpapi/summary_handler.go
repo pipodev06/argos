@@ -72,8 +72,12 @@ func (a *API) summary(w http.ResponseWriter, r *http.Request) error {
 		recent = append(recent, recentDownDTO{ID: d.ID, Hostname: d.Hostname, StatusChangedAt: d.StatusChangedAt.UTC(), Group: toGroupRefDTO(d.Group)})
 	}
 	versions := make([]agentVersionDTO, 0, len(sum.AgentVersions))
+	outdated := 0 // hosts con agente desactualizado (misma regla que agent_outdated); sin catalogo, 0
 	for _, v := range sum.AgentVersions {
 		versions = append(versions, agentVersionDTO{Version: v.Version, Hosts: v.Hosts})
+		if a.isAgentOutdated(&v.Version) {
+			outdated += v.Hosts
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"generated_at": a.now().UTC(),
@@ -85,7 +89,7 @@ func (a *API) summary(w http.ResponseWriter, r *http.Request) error {
 			"up": sum.Devices.Up, "down": sum.Devices.Down, "offline": sum.Devices.Offline,
 			"pending": sum.Devices.Pending, "disabled": sum.Devices.Disabled,
 		},
-		"agent_versions": map[string]any{"latest": a.latestAgentVersion(), "counts": versions},
+		"agent_versions": map[string]any{"latest": a.latestAgentVersion(), "counts": versions, "outdated": outdated},
 		"by_group":       byGroup,
 		"top_cpu":        toTopDTOs(sum.TopCPU),
 		"top_mem":        toTopDTOs(sum.TopMem),

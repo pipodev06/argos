@@ -38,6 +38,8 @@ export interface AgentVersions {
   /** Versión del catálogo de binarios; null sin catálogo. */
   latest: string | null
   counts: { version: string; hosts: number }[]
+  /** Hosts activos con agente desactualizado (lo calcula el servidor). */
+  outdated: number
 }
 
 export interface Summary {

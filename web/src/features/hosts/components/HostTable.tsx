@@ -121,7 +121,17 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                       {h.group?.name ?? <span className="text-text-muted">Sin grupo</span>}
                     </Cell>
                     <Cell className="hidden md:table-cell">{formatOs(h.os, h.os_name, h.os_version)}</Cell>
-                    <Cell className="hidden tabular-nums md:table-cell">{formatAgentVersion(h.agent_version)}</Cell>
+                    <Cell className="hidden tabular-nums md:table-cell">
+                      <span className="inline-flex items-center justify-center gap-1">
+                        {formatAgentVersion(h.agent_version)}
+                        {h.agent_outdated && (
+                          <span className="inline-flex items-center gap-1 text-xs text-text-muted">
+                            <IconAlertTriangle className="size-3.5 shrink-0 text-warn" stroke={1.5} aria-hidden />
+                            Desactualizado
+                          </span>
+                        )}
+                      </span>
+                    </Cell>
                     <Cell className="hidden text-center md:table-cell"><Pct value={h.cpu_pct} /></Cell>
                     <Cell className="hidden text-center md:table-cell"><Pct value={h.mem_pct} /></Cell>
                     <Cell className="hidden text-center md:table-cell">

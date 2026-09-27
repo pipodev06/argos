@@ -7,7 +7,6 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertsBlock } from '@/features/alerts/components/AlertsBlock'
 import { useAuth } from '@/features/auth/hooks/useAuth'
-import { outdatedAgentCount } from '@/features/hosts/utils/agentVersion'
 import { useNow } from '@/hooks/useNow'
 import { useSummary } from '../hooks/useSummary'
 import type { Summary } from '../types/summary.types'
@@ -61,7 +60,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
     )
   }
 
-  const outdated = data ? outdatedAgentCount(data.agent_versions) : 0
+  const outdated = data ? data.agent_versions.outdated : 0
   const showDevices = data ? total(data.devices) > 0 : false
 
   return (

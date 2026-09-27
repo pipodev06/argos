@@ -241,10 +241,11 @@ func TestRunOnlyRunsEnabledModulesAndStops(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		// services no esta disponible en estas fuentes (Services nil): se omite con aviso.
-		Run(ctx, Options{Endpoint: f.srv.URL, Token: "t", HTTPClient: f.srv.Client(), Modules: []string{ModulePorts, ModuleServices}, Sources: &src})
+		Run(ctx, Options{Endpoint: f.srv.URL, Token: "t", HTTPClient: f.srv.Client(), Modules: []string{ModulePorts, ModuleServices}, Sources: &src,
+			Jitter: func(time.Duration) time.Duration { return 0 }})
 		close(done)
 	}()
-	deadline := time.After(startJitter + 5*time.Second)
+	deadline := time.After(5 * time.Second)
 	for f.count() < 1 {
 		select {
 		case <-deadline:
@@ -262,5 +263,39 @@ func TestRunOnlyRunsEnabledModulesAndStops(t *testing.T) {
 	defer mu.Unlock()
 	if calls["processes"] != 0 || calls["ports"] == 0 {
 		t.Errorf("colectores ejecutados: %v", calls)
+	}
+}
+
+func TestStartJitterSpreadsFirstFullSend(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{ModulePorts, ModuleProcesses} {
+		m, ok := buildModule(name, fakeSources(nil, nil), UpdatesConfig{})
+		if !ok {
+			t.Fatalf("modulo %s no disponible", name)
+		}
+		if m.start != 60*time.Second {
+			t.Errorf("%s: start = %s, want 1m0s", name, m.start)
+		}
+		var asked time.Duration
+		w := &worker{mod: m, rnd: func(d time.Duration) time.Duration { asked = d; return d / 2 }}
+		if got := w.jitter(w.mod.start); got != 30*time.Second || asked != 60*time.Second {
+			t.Errorf("%s: jitter(start) = %s (pidio %s), want 30s (pidio 1m0s)", name, got, asked)
+		}
+	}
+}
+
+func TestPeriodicJitterIsTenPercent(t *testing.T) {
+	t.Parallel()
+	m, ok := buildModule(ModuleProcesses, fakeSources(nil, nil), UpdatesConfig{})
+	if !ok {
+		t.Fatal("modulo processes no disponible")
+	}
+	lo := &worker{mod: m, rnd: func(time.Duration) time.Duration { return 0 }}
+	hi := &worker{mod: m, rnd: func(d time.Duration) time.Duration { return d }}
+	if got, want := lo.every(), m.interval*9/10; got != want {
+		t.Errorf("minimo = %s, want %s", got, want)
+	}
+	if got, want := hi.every(), m.interval*11/10; got != want {
+		t.Errorf("maximo = %s, want %s", got, want)
 	}
 }

@@ -33,6 +33,8 @@ export interface Host {
   os_version?: string | null
   /** Versión del agente; null en dispositivos o si aún no la informó. */
   agent_version: string | null
+  /** El servidor decide si la versión del agente quedó por debajo de la última disponible. */
+  agent_outdated: boolean
   ip: string | null
   cpu_pct: number | null
   mem_pct: number | null

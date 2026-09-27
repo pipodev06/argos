@@ -24,6 +24,7 @@ import (
 // se define aca (donde se consume) pa poder probar los handlers con un falso.
 type Store interface {
 	Ping(ctx context.Context) error
+	SystemStats(ctx context.Context, deadSince time.Time) (store.SystemStats, error)
 	// Hosts y agentes.
 	CreateEnrollToken(ctx context.Context, tokenHash, hostname, createdBy string, groupID *string, expiresAt time.Time) error
 	ListPendingEnrollTokens(ctx context.Context) ([]store.PendingEnrollToken, error)
@@ -183,6 +184,8 @@ type Options struct {
 	Webhook WebhookClient
 	// Web es el build del frontend (ARGOS_WEB_DIR, ya acotado por os.Root); nil = el server no sirve la SPA.
 	Web fs.FS
+	// Status alimenta GET /system/status (version, arranque y latidos de las tareas periodicas).
+	Status StatusSources
 }
 
 // Politica de sesion y bloqueo (decisiones aprobadas).
@@ -227,6 +230,10 @@ type API struct {
 	exports            *exportGate   // cupo propio de exportaciones CSV (1 por usuario, tope global)
 	purgeSem           chan struct{} // un solo purge de grupo a la vez
 	agentFails         failCounter
+
+	status  statusTracker
+	ingest  ingestGate
+	limited limitedSampler
 
 	routes []route
 	health healthState
@@ -310,6 +317,7 @@ func (a *API) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	a.route(mux, "GET /health", accessPublic, a.healthHandler)
+	a.route(mux, "GET /api/v1/system/status", accessAdmin, a.systemStatus)
 
 	// Agentes.
 	a.route(mux, "POST /api/v1/agent/enroll", accessPublic, a.agentEnroll)

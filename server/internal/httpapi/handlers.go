@@ -304,10 +304,21 @@ func (a *API) agentMetrics(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if a.ingest.tooSoon(hostID, sample.Timestamp) {
+		// Se acepta y se descarta en silencio (200): un 4xx/5xx haria que el agente reintente o acumule en su buffer.
+		if n := a.ingest.noteDrop(a.now()); n > 0 {
+			a.logger.InfoContext(r.Context(), "muestras descartadas por frecuencia excesiva (>1 cada 4 s por host)", "count", n, "window", dropLogEvery.String())
+		}
+		resp := map[string]any{"received": true, "dropped": true}
+		a.attachChecks(r.Context(), hostID, req.ChecksRev, resp)
+		writeJSON(w, http.StatusOK, resp)
+		return nil
+	}
 	res, err := a.store.IngestMetrics(r.Context(), hostID, sample)
 	if err != nil {
 		return err
 	}
+	a.ingest.accepted(hostID, sample.Timestamp)
 	if res.Recovered {
 		// Un host down que vuelve es noticia; un offline que vuelve (laptop que despierta) es rutina.
 		level := slog.LevelDebug

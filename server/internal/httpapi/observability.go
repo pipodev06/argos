@@ -118,6 +118,15 @@ func (a *API) requestLog(next http.Handler) http.Handler {
 		if !a.logger.Enabled(r.Context(), level) {
 			return
 		}
+		if status == http.StatusTooManyRequests {
+			log, summary := a.limited.observe(a.clientIP(r).String(), time.Now())
+			if summary > 0 {
+				a.logger.Log(r.Context(), level, "solicitudes 429 suprimidas del log", "count", summary, "window", limitedLogWindow.String())
+			}
+			if !log {
+				return
+			}
+		}
 		path := r.URL.Path
 		if len(path) > maxLoggedPath {
 			path = path[:maxLoggedPath] + "..."
@@ -126,4 +135,44 @@ func (a *API) requestLog(next http.Handler) http.Handler {
 			"method", r.Method, "path", path, "status", status,
 			"ms", elapsed.Milliseconds(), "bytes", sw.bytes, "ip", a.clientIP(r).String())
 	})
+}
+
+const (
+	// limitedLogWindow es la ventana del muestreo de los 429: una linea por IP y ventana, y un resumen del resto.
+	limitedLogWindow = 60 * time.Second
+	// maxLimitedKeys acota la memoria del muestreo ante un flood desde muchas IP (al llenarse se vacia).
+	maxLimitedKeys = 10_000
+)
+
+// limitedSampler evita que un flood de 429 deje una linea WARN por solicitud: deja pasar la primera de cada clave
+// (IP) por ventana y cuenta las demas pa un resumen agregado.
+type limitedSampler struct {
+	mu         sync.Mutex
+	logged     map[string]time.Time // clave -> cuando se logueo su ultima linea
+	suppressed int
+	since      time.Time // inicio de la ventana del resumen
+}
+
+// observe registra un 429 de key en now. log dice si hay que escribir la linea de esa solicitud; summary es
+// cuantas se suprimieron en la ventana que acaba de cerrarse (0 = nada que resumir aun).
+func (s *limitedSampler) observe(key string, now time.Time) (log bool, summary int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.logged == nil || len(s.logged) >= maxLimitedKeys {
+		s.logged = make(map[string]time.Time)
+	}
+	if s.since.IsZero() {
+		s.since = now
+	}
+	if last, ok := s.logged[key]; !ok || now.Sub(last) >= limitedLogWindow {
+		s.logged[key] = now
+		log = true
+	} else {
+		s.suppressed++
+	}
+	if now.Sub(s.since) >= limitedLogWindow {
+		summary = s.suppressed
+		s.suppressed, s.since = 0, now
+	}
+	return log, summary
 }

@@ -2,12 +2,15 @@ package retention
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"argos/server/internal/beat"
 )
 
 // holdLock toma el lock advisory del mantenimiento desde otra sesion, como si otra instancia estuviera trabajando.
@@ -273,4 +276,38 @@ func TestRunOnceReturnsFalseWhenContextIsCancelled(t *testing.T) {
 	}
 	// Un apagado en curso no es un error: no se loguea.
 	logs.noErrors(t)
+}
+
+func TestRunOnceRecordsBeat(t *testing.T) {
+	fresh(t)
+	ctx := context.Background()
+	now := farNow()
+	m, _ := newMaint(t, testCfg, now)
+	var hb beat.Beat
+	m.WithBeat(&hb)
+
+	if !m.RunOnce(ctx) {
+		t.Fatal("RunOnce got ran=false, want true")
+	}
+	if st := hb.Snapshot(); !st.LastOK.Equal(now) || !st.LastFail.IsZero() {
+		t.Errorf("ciclo sano: beat got %+v, want LastOK=%v sin fallo", st, now)
+	}
+
+	// Un ciclo que no puede ni tomar la conexion anota el fallo y no un OK.
+	later := now.Add(time.Hour)
+	closed, err := pgxpool.New(ctx, os.Getenv("ARGOS_TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed.Close() // un pool cerrado no da conexiones: RunOnce falla al adquirirla
+	m2, _ := newMaint(t, testCfg, later)
+	m2.pool = closed
+	var hb2 beat.Beat
+	m2.WithBeat(&hb2)
+	if m2.RunOnce(ctx) {
+		t.Fatal("RunOnce con el pool cerrado got ran=true")
+	}
+	if st := hb2.Snapshot(); !st.LastOK.IsZero() || st.LastFail.IsZero() || st.LastErr == "" {
+		t.Errorf("ciclo fallido: beat got %+v, want solo fallo", st)
+	}
 }

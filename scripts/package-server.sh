@@ -46,7 +46,7 @@ for arch in amd64 arm64; do
 	pkg="$stage/$name"
 	mkdir -p "$pkg/agent"
 	echo "compilando $name"
-	(cd "$root/server" && CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$pkg/argos-server" ./cmd/server)
+	(cd "$root/server" && CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$pkg/argos-server" ./cmd/server)
 	cp -a "$root/web/dist" "$pkg/web"
 	cp -a "$agent_dist/latest" "$pkg/agent/latest"
 	cp -a "$agent_dist/$agent_ver" "$pkg/agent/$agent_ver"

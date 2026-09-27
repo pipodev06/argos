@@ -124,41 +124,12 @@ func (f *flakyNet) client() *http.Client {
 	})}
 }
 
-func TestDrainIsPacedBelowServerLimit(t *testing.T) {
-	t.Parallel()
-
-	net := &flakyNet{}
-	net.down.Store(true)
-	c, sleeps := newClient(t, "http://argos.invalid", func(o *Options) { o.HTTPClient = net.client() })
-	for ts := int64(1); ts <= 4; ts++ {
-		_ = c.Send(context.Background(), report(ts)) // red caida a proposito
-	}
-
-	net.down.Store(false)
-	*sleeps = nil
-	if err := c.Send(context.Background(), report(5)); err != nil {
-		t.Fatal(err)
-	}
-	if net.delivered.Load() != 5 {
-		t.Fatalf("delivered got %d, want 5", net.delivered.Load())
-	}
-	if len(*sleeps) != 4 {
-		t.Fatalf("pausas got %v, want 4 (entre 5 envios)", *sleeps)
-	}
-	for _, d := range *sleeps {
-		// El server permite 1 req cada 2 s: la pausa no puede ser menor.
-		if d < 2*time.Second {
-			t.Errorf("pausa %v menor que el limite del server (2s)", d)
-		}
-	}
-}
-
 func TestSendCapsSendsPerCallToTheInterval(t *testing.T) {
 	t.Parallel()
 
 	net := &flakyNet{}
 	net.down.Store(true)
-	// 10s / 2,5s = 4 envios por Send.
+	// 10s / 2,1s = 4 envios por Send.
 	c, _ := newClient(t, "http://argos.invalid", func(o *Options) {
 		o.HTTPClient = net.client()
 		o.Interval = 10 * time.Second
@@ -172,5 +143,102 @@ func TestSendCapsSendsPerCallToTheInterval(t *testing.T) {
 	}
 	if net.delivered.Load() != 4 || c.Buffered() != 6 {
 		t.Errorf("delivered=%d buffered=%d, want 4 y 6 (el resto sale en los ciclos siguientes)", net.delivered.Load(), c.Buffered())
+	}
+}
+
+// fakeClock avanza solo cuando el cliente espera (Sleep), asi los tests de ritmo son deterministas.
+type fakeClock struct{ t time.Time }
+
+func (f *fakeClock) now() time.Time { return f.t }
+func (f *fakeClock) sleep(_ context.Context, d time.Duration) error {
+	f.t = f.t.Add(d)
+	return nil
+}
+
+// arrivals arma un cliente contra una red que anota el instante (reloj falso) de cada request.
+func arrivals(t *testing.T, clk *fakeClock, buffered int) (*Client, *flakyNet, *[]time.Time) {
+	t.Helper()
+	net := &flakyNet{}
+	net.down.Store(true)
+	var at []time.Time
+	hc := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if net.down.Load() {
+			return nil, errors.New("sin red")
+		}
+		at = append(at, clk.now())
+		return &http.Response{StatusCode: 200, Body: http.NoBody, Header: http.Header{}}, nil
+	})}
+	c, _ := newClient(t, "http://argos.invalid", func(o *Options) {
+		o.HTTPClient, o.Now, o.Sleep, o.MaxAttempts = hc, clk.now, clk.sleep, 1
+	})
+	for ts := int64(1); ts <= int64(buffered); ts++ {
+		_ = c.Send(context.Background(), report(ts)) // red caida a proposito
+	}
+	clk.t = clk.t.Add(time.Minute) // el corte dura lo bastante pa que el ritmo se recupere
+	net.down.Store(false)
+	return c, net, &at
+}
+
+func TestDrainBurstsThenPacesBelowServerLimit(t *testing.T) {
+	t.Parallel()
+
+	clk := &fakeClock{t: time.Unix(1_000_000, 0)}
+	c, _, at := arrivals(t, clk, 19)
+	if err := c.Send(context.Background(), report(20)); err != nil {
+		t.Fatal(err)
+	}
+	if len(*at) != 20 || c.Buffered() != 0 {
+		t.Fatalf("entregados=%d pendientes=%d, want 20 y 0", len(*at), c.Buffered())
+	}
+	start := (*at)[0]
+	for i, a := range *at {
+		want := time.Duration(max(0, i-(drainBurst-1))) * DefaultDrainPace
+		if got := a.Sub(start); got != want {
+			t.Errorf("envio %d en +%v, want +%v", i, got, want)
+		}
+	}
+	// Ningun tramo de 10 s puede pasar del limite del server (5 de rafaga + 1 cada 2 s = 10 en 10 s).
+	for i := range *at {
+		n := 0
+		for _, a := range (*at)[i:] {
+			if a.Sub((*at)[i]) <= 10*time.Second {
+				n++
+			}
+		}
+		if n > 5+5 {
+			t.Errorf("%d envios en 10 s desde el %d, el limite del server permite 10", n, i)
+		}
+	}
+	// 20 reportes: 3 sin pausa + 17 a 2,1 s; a 2,5 s eran 19 x 2,5 = 47,5 s.
+	if got, want := (*at)[19].Sub(start), 17*DefaultDrainPace; got != want {
+		t.Errorf("drenado total %v, want %v", got, want)
+	}
+}
+
+func TestPacingSurvivesAcrossSends(t *testing.T) {
+	t.Parallel()
+
+	// Tras vaciar, un Send inmediato no puede sumar otra rafaga completa: el estado del ritmo persiste.
+	clk := &fakeClock{t: time.Unix(1_000_000, 0)}
+	c, _, at := arrivals(t, clk, 0)
+	for ts := int64(1); ts <= 6; ts++ {
+		if err := c.Send(context.Background(), report(ts)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, want := (*at)[5].Sub((*at)[0]), 3*DefaultDrainPace; got != want {
+		t.Errorf("6 envios seguidos tardaron %v, want %v", got, want)
+	}
+
+	// Tras un rato ocioso vuelve la rafaga.
+	clk.t = clk.t.Add(time.Minute)
+	before := len(*at)
+	for ts := int64(7); ts <= 9; ts++ {
+		if err := c.Send(context.Background(), report(ts)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := (*at)[before+2].Sub((*at)[before]); got != 0 {
+		t.Errorf("rafaga tras ocio: 3 envios tardaron %v, want 0", got)
 	}
 }

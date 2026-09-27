@@ -23,9 +23,12 @@ import (
 const (
 	metricsPath = "/api/v1/agent/metrics"
 
-	// DefaultDrainPace separa los envios al vaciar el buffer. El server limita
-	// las metricas a 1 req/2 s por host (rafaga 5): 2,5 s deja margen pa el jitter de red.
-	DefaultDrainPace = 2500 * time.Millisecond
+	// DefaultDrainPace es el ritmo sostenido de envios (buffer y reporte en vivo). El server limita
+	// las metricas a 1 req/2 s por host (rafaga 5): 2,1 s deja 5 % de margen pa el jitter de red.
+	DefaultDrainPace = 2100 * time.Millisecond
+	// drainBurst son los envios seguidos sin pausa tras un rato ocioso (de los 5 que aguanta el server;
+	// quedan 2 de reserva pa el reporte en vivo y los reintentos).
+	drainBurst = 3
 	// maxRetryAfter acota cuanto se le obedece a un Retry-After (un server roto no debe dormirnos horas).
 	maxRetryAfter = 5 * time.Minute
 	// maxResponseBytes acota la respuesta que se lee (la lista de chequeos ronda 15 KiB).
@@ -210,6 +213,7 @@ type Client struct {
 	sleep       func(context.Context, time.Duration) error
 
 	q      *queue
+	tat    time.Time // instante teorico del proximo envio (ver waitTurn)
 	maxAge time.Duration
 	now    func() time.Time
 }
@@ -319,14 +323,12 @@ func (c *Client) flush(ctx context.Context) error {
 		if c.q.len() == 0 {
 			break
 		}
-		if processed > 0 {
-			if c.maxPerSend > 0 && processed >= c.maxPerSend {
-				c.logger.Info("buffer pendiente, sigue en el proximo ciclo", "pending", c.q.len())
-				break
-			}
-			if err := c.sleep(ctx, c.drainPace); err != nil {
-				return err
-			}
+		if processed > 0 && c.maxPerSend > 0 && processed >= c.maxPerSend {
+			c.logger.Info("buffer pendiente, sigue en el proximo ciclo", "pending", c.q.len())
+			break
+		}
+		if err := c.waitTurn(ctx); err != nil {
+			return err
 		}
 		err := c.sendWithRetry(ctx, *c.q.head())
 		switch {
@@ -342,6 +344,29 @@ func (c *Client) flush(ctx context.Context) error {
 		c.q.pop()
 	}
 	return dropped
+}
+
+// waitTurn reparte los envios al ritmo del limite del server (GCRA: un envio cada drainPace en promedio,
+// con una rafaga de hasta drainBurst tras un rato ocioso). El estado (tat) persiste entre Sends, asi
+// dos ciclos seguidos no suman rafagas. El tiempo es virtual (tat + espera), no depende de que Sleep avance el reloj.
+func (c *Client) waitTurn(ctx context.Context) error {
+	now := c.now()
+	at := now
+	if wait := c.tat.Add(-(drainBurst - 1) * c.drainPace).Sub(now); wait > 0 {
+		if err := c.sleep(ctx, wait); err != nil {
+			return err
+		}
+		at = now.Add(wait)
+	}
+	c.tat = later(c.tat, at).Add(c.drainPace)
+	return nil
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 func (c *Client) sendWithRetry(ctx context.Context, r Report) error {
