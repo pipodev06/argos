@@ -23,3 +23,6 @@ Thumbs.db
 
 # binarios del agente generados por scripts/build-agent.sh
 dist/
+
+# binarios y logs del server local de desarrollo
+.dev-bin/

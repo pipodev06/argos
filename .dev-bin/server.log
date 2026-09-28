@@ -1,9 +1,0 @@
-{"time":"2026-09-27T23:43:32.1010915-05:00","level":"INFO","msg":"postgres listo, migraciones aplicadas"}
-{"time":"2026-09-27T23:43:32.1367843-05:00","level":"WARN","msg":"ARGOS_TRUSTED_PROXIES esta vacia con ARGOS_PUBLIC_URL https o escucha fuera de loopback: si hay un proxy inverso delante, todos los clientes compartiran la IP del proxy y el limite de intentos de login y enroll (por IP) bloqueara a todos a la vez; define ARGOS_TRUSTED_PROXIES con la IP del proxy"}
-{"time":"2026-09-27T23:43:32.2853253-05:00","level":"INFO","msg":"binarios del agente publicados","version":"0.6.2"}
-{"time":"2026-09-27T23:43:32.2863693-05:00","level":"INFO","msg":"frontend servido desde ARGOS_WEB_DIR","dir":"D:/projects/argos/web/dist"}
-{"time":"2026-09-27T23:43:32.2873379-05:00","level":"INFO","msg":"argos server escuchando","addr":"0.0.0.0:8080","tls":false}
-{"time":"2026-09-27T23:43:32.2873379-05:00","level":"INFO","msg":"detector de hosts caidos activo","down_after":"2m0s","interval":"15s"}
-{"time":"2026-09-27T23:43:32.2873379-05:00","level":"INFO","msg":"evaluador de alertas activo","interval":"15s","grace":"2m0s"}
-{"time":"2026-09-27T23:43:32.2873379-05:00","level":"INFO","msg":"mantenimiento de metricas activo","hot_days":8,"detail_days":30,"hourly_days":400,"service_checks_days":14,"disk_days":30,"interval":"5m0s"}
-{"time":"2026-09-27T23:43:32.2873379-05:00","level":"INFO","msg":"worker de notificaciones activo","interval":"5s"}
