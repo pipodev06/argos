@@ -11,4 +11,6 @@ Mientras se ataca el core de negocio (B7, B12, …) no se escriben tests nuevos 
 - **B7:** casos límite sin test — re-enroll no debe sumar a `max_hosts`; mover un dispositivo/usuario al MISMO grupo no debe sumar de nuevo; mover un host entre grupos (`SetHostGroup`/`BulkHosts`) no aplica ninguna cuota todavía (ver deuda-tecnica.md).
 - **B7 web:** sin test de `GroupFormDialog` para los campos de cuota (validación, payload armado) ni de `useGroupUsage`.
 
+- **B12, informes por rango libre:** sin test web de los campos "Desde"/"Hasta" personalizados ni de que el informe/CSV no se dispare con el rango incompleto.
+
 (Vacío a partir de aquí: se va llenando según avance el core sin tests.)

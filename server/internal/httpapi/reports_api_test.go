@@ -39,6 +39,42 @@ func (x *scopeEnv) availability(c *http.Cookie, query string) (*httptest.Respons
 	return rec, out
 }
 
+// TestReportFreeRange fija el contrato de B12 (rango libre y mes calendario) en parseReportParams,
+// compartido por los 5 informes: from+to, month, y las combinaciones invalidas.
+func TestReportFreeRange(t *testing.T) {
+	x := newScopeEnv(t)
+
+	rec, resp := x.availability(x.admin, "?from=2026-08-01T00:00:00Z&to=2026-08-08T00:00:00Z")
+	if rec.Code != http.StatusOK || resp.Data.Range != "custom" {
+		t.Fatalf("from/to got %d %+v (%s)", rec.Code, resp, rec.Body.String())
+	}
+
+	rec, resp = x.availability(x.admin, "?month=2026-08")
+	if rec.Code != http.StatusOK || resp.Data.Range != "2026-08" {
+		t.Fatalf("month got %d %+v (%s)", rec.Code, resp, rec.Body.String())
+	}
+
+	for name, query := range map[string]string{
+		"from sin to":              "?from=2026-08-01T00:00:00Z",
+		"to sin from":              "?to=2026-08-08T00:00:00Z",
+		"from despues de to":       "?from=2026-08-08T00:00:00Z&to=2026-08-01T00:00:00Z",
+		"to futuro":                "?from=2026-08-01T00:00:00Z&to=2099-01-01T00:00:00Z",
+		"rango mayor a 91 dias":    "?from=2026-01-01T00:00:00Z&to=2026-08-01T00:00:00Z",
+		"month mas range":          "?month=2026-08&range=7d",
+		"month mas from":           "?month=2026-08&from=2026-08-01T00:00:00Z&to=2026-08-08T00:00:00Z",
+		"from/to mas range":        "?from=2026-08-01T00:00:00Z&to=2026-08-08T00:00:00Z&range=7d",
+		"mes con formato invalido": "?month=agosto-2026",
+		"mes futuro":               "?month=2099-01",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec, _ := x.availability(x.admin, query)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("%s: got %d, want 400 (%s)", name, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestAvailabilityReportScope(t *testing.T) {
 	x := newScopeEnv(t)
 

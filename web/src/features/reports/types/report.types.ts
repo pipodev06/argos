@@ -1,4 +1,4 @@
-export type ReportRange = '7d' | '30d' | '90d'
+export type ReportRange = '7d' | '30d' | '90d' | 'custom'
 export type ReportView = 'host' | 'group'
 
 export interface ReportFleet {

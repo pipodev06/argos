@@ -83,7 +83,7 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [x] **B9 Vista de versiones del agente** (columna, chip "desactualizado", línea en el Resumen) (columna/filtro, `latest` expuesto, "desactualizado"). (Media, S)
 - [x] **B10 Listar/revocar enroll tokens pendientes** (falta el estado "nunca reportó") y estado "nunca reportó". (Media, S)
 - [x] **B11 `DELETE /users`** (falta borrar viewers al purgar el grupo) auditado (y borrar viewers al purgar el grupo). (Media, S)
-- [ ] **B12 Informes por mes calendario / rango libre** (hoy 7/30/90 d, tope 91 d; `host_events` guarda 400 d). (Media, S/M)
+- [x] **B12 Informes por mes calendario / rango libre** (hoy 7/30/90 d, tope 91 d; `host_events` guarda 400 d). (Media, S/M) *2026-09-27*
 - [x] **B13 Clonar reglas** (botón Duplicar; plantillas por cliente no) (Media, S)
 - [x] **B14 Re-enrolar conservando `host_id`** y aviso de hostnames duplicados. (Media, M) *2026-09-27*
 - [x] **B15 Reactivar un host deshabilitado y rotar token.** (Media, M) *2026-09-27: mismo mecanismo que B14.*

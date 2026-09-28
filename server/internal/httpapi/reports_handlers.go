@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"time"
@@ -19,6 +20,13 @@ var reportRanges = map[string]time.Duration{
 	"90d": 90 * 24 * time.Hour,
 }
 
+// maxReportRangeDays acota un rango libre (from/to o month): son consultas pesadas (disponibilidad,
+// service-checks) y host_events solo garantiza 400 dias de historial; 91 cubre cualquier mes calendario
+// (hasta 31 dias) con margen, igual que el mayor rango nombrado (90d) mas un dia.
+const maxReportRangeDays = 91
+
+var errInvalidReportRange = badRequest("usa range (7d, 30d o 90d), o from y to, o month (AAAA-MM); no varios a la vez")
+
 var errReportTooLarge = &clientError{status: http.StatusUnprocessableEntity, code: "narrow_with_group_id",
 	msg: "el informe abarca demasiados hosts: acota con group_id"}
 
@@ -32,18 +40,54 @@ type reportParams struct {
 	groupID   *string
 }
 
+// parseReportParams admite 3 formas de pedir el periodo, sin combinarlas: `range` (ventana movil nombrada,
+// como siempre), `from`+`to` (rango libre, RFC3339) o `month` (mes calendario, AAAA-MM). Las 3 caen en
+// rangeName/from/to; el resto de los informes no distingue como se pidio.
 func (a *API) parseReportParams(r *http.Request) (reportParams, error) {
 	v := r.URL.Query()
-	p := reportParams{rangeName: v.Get("range")}
-	if p.rangeName == "" {
-		p.rangeName = "30d"
+	var p reportParams
+	rangeSet, fromSet, toSet, monthSet := v.Has("range"), v.Has("from"), v.Has("to"), v.Has("month")
+	switch {
+	case monthSet && (rangeSet || fromSet || toSet), fromSet != toSet, (fromSet || toSet) && rangeSet:
+		return p, errInvalidReportRange
+	case monthSet:
+		from, to, err := parseReportMonth(v.Get("month"), a.now())
+		if err != nil {
+			return p, err
+		}
+		p.rangeName, p.from, p.to = v.Get("month"), from, to
+	case fromSet: // toSet tambien, por el switch de arriba
+		from, err := parseHistoryInstant("from", v.Get("from"))
+		if err != nil {
+			return p, err
+		}
+		to, err := parseHistoryInstant("to", v.Get("to"))
+		if err != nil {
+			return p, err
+		}
+		now := a.now().UTC()
+		if !from.Before(to) {
+			return p, invalidRange("from debe ser anterior a to")
+		}
+		if to.After(now.Add(time.Minute)) { // margen chico de reloj
+			return p, invalidRange("to no puede ser futuro")
+		}
+		if to.Sub(from) > maxReportRangeDays*24*time.Hour {
+			return p, invalidRange(fmt.Sprintf("el rango no puede pasar de %d dias", maxReportRangeDays))
+		}
+		p.rangeName, p.from, p.to = "custom", from, to
+	default:
+		p.rangeName = v.Get("range")
+		if p.rangeName == "" {
+			p.rangeName = "30d"
+		}
+		span, ok := reportRanges[p.rangeName]
+		if !ok {
+			return p, badRequest("range debe ser 7d, 30d o 90d")
+		}
+		p.to = a.now().UTC().Truncate(time.Second)
+		p.from = p.to.Add(-span)
 	}
-	span, ok := reportRanges[p.rangeName]
-	if !ok {
-		return p, badRequest("range debe ser 7d, 30d o 90d")
-	}
-	p.to = a.now().UTC().Truncate(time.Second)
-	p.from = p.to.Add(-span)
 	if raw := v.Get("group_id"); raw != "" {
 		if !isUUID(raw) {
 			return p, store.ErrNotFound // mismo 404 que un grupo ajeno o inexistente
@@ -51,6 +95,21 @@ func (a *API) parseReportParams(r *http.Request) (reportParams, error) {
 		p.groupID = &raw
 	}
 	return p, nil
+}
+
+// parseReportMonth valida "AAAA-MM" y devuelve el rango [inicio del mes, inicio del mes siguiente) en UTC.
+// No admite un mes que ni siquiera haya empezado.
+func parseReportMonth(raw string, now time.Time) (from, to time.Time, err error) {
+	t, perr := time.Parse("2006-01", raw)
+	if perr != nil {
+		return time.Time{}, time.Time{}, invalidRange("month debe ser AAAA-MM")
+	}
+	from = time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+	to = from.AddDate(0, 1, 0)
+	if from.After(now.UTC()) {
+		return time.Time{}, time.Time{}, invalidRange("month no puede ser un mes futuro")
+	}
+	return from, to, nil
 }
 
 // acquireReport reserva uno de los cupos de informes concurrentes; devuelve como liberarlo.
