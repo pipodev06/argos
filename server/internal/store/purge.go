@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -74,30 +75,87 @@ func purgeHostTx(ctx context.Context, tx pgx.Tx, hostID string) (PurgeCounts, er
 	return c, nil
 }
 
-// PurgeHost borra un host con agente y todos sus datos. confirmHostname debe ser su nombre (ErrPurgeConfirm si no).
-// ErrNotFound si no existe o es un dispositivo (esos se borran con DeleteDevice); ErrCollectorHasDevices mientras
-// existan dispositivos que lo usen de colector.
-func (s *Store) PurgeHost(ctx context.Context, hostID, confirmHostname string) (PurgeCounts, error) {
-	var out PurgeCounts
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var name string
-		err := tx.QueryRow(ctx, `SELECT hostname FROM hosts WHERE id = $1 AND kind = 'agent'`, hostID).Scan(&name)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
+// purgeBatchWindow es el tamano de cada tanda de borrado de las tablas grandes: un dia (una particion). Cada tanda va
+// en su propia transaccion, asi un host con millones de filas nunca produce una transaccion (ni un WAL) gigante.
+const purgeBatchWindow = 24 * time.Hour
+
+// purgeHostBatched borra un host y todos sus datos sin una transaccion enorme: primero las tablas particionadas
+// grandes por ventanas de un dia (cada una confirmada aparte) y al final, en una transaccion corta, lo que quede y el
+// host. Si se interrumpe a mitad, el host sigue existiendo con menos historial y repetir la llamada continua donde
+// quedo. Lo que puede rechazarse (colector con dispositivos vivos) se comprueba ANTES de borrar nada.
+func (s *Store) purgeHostBatched(ctx context.Context, hostID string) (PurgeCounts, error) {
+	var devices int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*)::int FROM hosts WHERE collector_host_id = $1`, hostID).Scan(&devices); err != nil {
+		return PurgeCounts{}, fmt.Errorf("contando dispositivos del colector: %w", err)
+	}
+	if devices > 0 {
+		return PurgeCounts{}, &GroupRuleError{Kind: ErrCollectorHasDevices, Devices: devices}
+	}
+	var c PurgeCounts
+	for _, t := range []struct {
+		table string
+		n     *int64
+	}{{"metrics", &c.Metrics}, {"service_checks", &c.Checks}, {"disk_samples", &c.Disks}} {
+		n, err := s.deleteHostRowsByDay(ctx, t.table, hostID)
 		if err != nil {
-			return fmt.Errorf("leyendo host: %w", err)
+			return PurgeCounts{}, err
 		}
-		if name != confirmHostname {
-			return ErrPurgeConfirm
-		}
-		out, err = purgeHostTx(ctx, tx, hostID)
+		*t.n = n
+	}
+	var rest PurgeCounts
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var err error
+		rest, err = purgeHostTx(ctx, tx, hostID)
 		return err
 	})
 	if err != nil {
 		return PurgeCounts{}, err
 	}
-	return out, nil
+	c.add(rest)
+	return c, nil
+}
+
+// deleteHostRowsByDay borra las filas de un host de una tabla particionada por ts, un dia por sentencia.
+func (s *Store) deleteHostRowsByDay(ctx context.Context, table, hostID string) (int64, error) {
+	var lo, hi *time.Time
+	// El nombre de tabla es una constante de purgeHostBatched (no entrada de usuario).
+	if err := s.pool.QueryRow(ctx, `SELECT min(ts), max(ts) FROM `+table+` WHERE host_id = $1`, hostID).Scan(&lo, &hi); err != nil {
+		return 0, fmt.Errorf("rango de %s del host: %w", table, err)
+	}
+	if lo == nil || hi == nil {
+		return 0, nil
+	}
+	var total int64
+	for start := lo.UTC().Truncate(purgeBatchWindow); !start.After(*hi); start = start.Add(purgeBatchWindow) {
+		if err := ctx.Err(); err != nil {
+			return total, fmt.Errorf("purga interrumpida: %w", err)
+		}
+		tag, err := s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE host_id = $1 AND ts >= $2 AND ts < $3`,
+			hostID, start, start.Add(purgeBatchWindow))
+		if err != nil {
+			return total, fmt.Errorf("borrando %s del host: %w", table, err)
+		}
+		total += tag.RowsAffected()
+	}
+	return total, nil
+}
+
+// PurgeHost borra un host con agente y todos sus datos. confirmHostname debe ser su nombre (ErrPurgeConfirm si no).
+// ErrNotFound si no existe o es un dispositivo (esos se borran con DeleteDevice); ErrCollectorHasDevices mientras
+// existan dispositivos que lo usen de colector.
+func (s *Store) PurgeHost(ctx context.Context, hostID, confirmHostname string) (PurgeCounts, error) {
+	var name string
+	err := s.pool.QueryRow(ctx, `SELECT hostname FROM hosts WHERE id = $1 AND kind = 'agent'`, hostID).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PurgeCounts{}, ErrNotFound
+	}
+	if err != nil {
+		return PurgeCounts{}, fmt.Errorf("leyendo host: %w", err)
+	}
+	if name != confirmHostname {
+		return PurgeCounts{}, ErrPurgeConfirm
+	}
+	return s.purgeHostBatched(ctx, hostID)
 }
 
 // PurgeGroupOpts son las opciones de PurgeGroup.
@@ -178,12 +236,7 @@ func (s *Store) PurgeGroup(ctx context.Context, groupID string, o PurgeGroupOpts
 		if err := ctx.Err(); err != nil {
 			return res, fmt.Errorf("purga interrumpida: %w", err)
 		}
-		var c PurgeCounts
-		err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-			var err error
-			c, err = purgeHostTx(ctx, tx, t.id)
-			return err
-		})
+		c, err := s.purgeHostBatched(ctx, t.id)
 		switch {
 		case errors.Is(err, ErrNotFound): // ya lo borro otro (idempotente)
 		case err != nil:

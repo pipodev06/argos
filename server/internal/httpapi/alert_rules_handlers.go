@@ -24,6 +24,9 @@ const (
 	maxPendingUpdates = 10000
 	maxUpdatesDays    = 365
 	maxEOLLeadDays    = 730
+	// Plazo de escalamiento (migracion 00042): 1 minuto a 7 dias.
+	minEscalateSeconds = 60
+	maxEscalateSeconds = 7 * 24 * 3600
 )
 
 var (
@@ -147,6 +150,9 @@ type alertRuleDTO struct {
 	UpdatedAt       time.Time         `json:"updated_at"`
 	// MutedUntil: null = sin silenciar; en el futuro = sin notificaciones nuevas (evaluacion sin cambios).
 	MutedUntil *time.Time `json:"muted_until"`
+	// EscalateAfterSeconds: null = sin escalamiento. EscalationChannelIDs siempre es un arreglo.
+	EscalateAfterSeconds *int     `json:"escalate_after_seconds"`
+	EscalationChannelIDs []string `json:"escalation_channel_ids"`
 }
 
 func toAlertRuleDTO(r store.AlertRule) alertRuleDTO {
@@ -156,6 +162,7 @@ func toAlertRuleDTO(r store.AlertRule) alertRuleDTO {
 		CheckID: r.CheckID, CheckName: r.CheckName, WarnOrDown: r.WarnOrDown, ExpectedPorts: toExpectedPortDTOs(r.ExpectedPorts),
 		Scope: toScopeDTO(r.Scope, r.GroupName, r.HostName), Severity: r.Severity, Enabled: r.Enabled, ActiveAlerts: r.ActiveAlerts, ChannelIDs: r.ChannelIDs,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(), MutedUntil: utcPtr(r.MutedUntil),
+		EscalateAfterSeconds: r.EscalateAfterSeconds, EscalationChannelIDs: r.EscalationChannelIDs,
 	}
 }
 
@@ -178,6 +185,9 @@ func validateRule(r *store.AlertRule) error {
 	}
 	if r.ResolveSeconds < 0 || r.ResolveSeconds > maxRuleSeconds {
 		return badRequest("resolve_seconds debe estar entre 0 y %d", maxRuleSeconds)
+	}
+	if e := r.EscalateAfterSeconds; e != nil && (*e < minEscalateSeconds || *e > maxEscalateSeconds) {
+		return badRequest("escalate_after_seconds debe estar entre %d y %d (o null)", minEscalateSeconds, maxEscalateSeconds)
 	}
 	if err := validateRuleScope(r); err != nil {
 		return err
@@ -319,22 +329,23 @@ func (a *API) getAlertRule(w http.ResponseWriter, r *http.Request) error {
 }
 
 type createAlertRuleReq struct {
-	Name            string            `json:"name"`
-	Kind            string            `json:"kind"`
-	Metric          *string           `json:"metric"`
-	Op              *string           `json:"op"`
-	Threshold       *float64          `json:"threshold"`
-	ClearThreshold  *float64          `json:"clear_threshold"`
-	DurationSeconds *int              `json:"duration_seconds"`
-	DurationDays    *int              `json:"duration_days"`
-	ResolveSeconds  *int              `json:"resolve_seconds"`
-	IncludeOffline  bool              `json:"include_offline"`
-	CheckID         *string           `json:"check_id"`
-	WarnOrDown      bool              `json:"warn_or_down"`
-	ExpectedPorts   []expectedPortDTO `json:"expected_ports"`
-	Scope           *scopeReq         `json:"scope"`
-	Severity        string            `json:"severity"`
-	Enabled         *bool             `json:"enabled"`
+	Name                 string            `json:"name"`
+	Kind                 string            `json:"kind"`
+	Metric               *string           `json:"metric"`
+	Op                   *string           `json:"op"`
+	Threshold            *float64          `json:"threshold"`
+	ClearThreshold       *float64          `json:"clear_threshold"`
+	DurationSeconds      *int              `json:"duration_seconds"`
+	DurationDays         *int              `json:"duration_days"`
+	ResolveSeconds       *int              `json:"resolve_seconds"`
+	IncludeOffline       bool              `json:"include_offline"`
+	CheckID              *string           `json:"check_id"`
+	WarnOrDown           bool              `json:"warn_or_down"`
+	ExpectedPorts        []expectedPortDTO `json:"expected_ports"`
+	Scope                *scopeReq         `json:"scope"`
+	Severity             string            `json:"severity"`
+	Enabled              *bool             `json:"enabled"`
+	EscalateAfterSeconds *int              `json:"escalate_after_seconds"`
 }
 
 func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
@@ -350,6 +361,7 @@ func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 		DurationSeconds: *req.DurationSeconds, DurationDays: intOrZero(req.DurationDays), ResolveSeconds: defaultResolveSecs, IncludeOffline: req.IncludeOffline,
 		CheckID: req.CheckID, WarnOrDown: req.WarnOrDown, ExpectedPorts: fromExpectedPortDTOs(req.ExpectedPorts),
 		Scope: store.AlertScope{Type: store.ScopeAll}, Severity: req.Severity, Enabled: true,
+		EscalateAfterSeconds: req.EscalateAfterSeconds,
 	}
 	if rule.CheckID != nil {
 		id := strings.ToLower(*rule.CheckID)
@@ -388,19 +400,20 @@ func (a *API) createAlertRule(w http.ResponseWriter, r *http.Request) error {
 // updateAlertRuleReq: PATCH parcial. kind, metric y check_id no se pueden cambiar (campo desconocido = 400): una regla con
 // alertas abiertas no cambia de naturaleza; se crea otra.
 type updateAlertRuleReq struct {
-	Name            *string            `json:"name"`
-	Op              *string            `json:"op"`
-	Threshold       *float64           `json:"threshold"`
-	ClearThreshold  optional[float64]  `json:"clear_threshold"`
-	DurationSeconds *int               `json:"duration_seconds"`
-	DurationDays    *int               `json:"duration_days"`
-	ResolveSeconds  *int               `json:"resolve_seconds"`
-	IncludeOffline  *bool              `json:"include_offline"`
-	WarnOrDown      *bool              `json:"warn_or_down"`
-	ExpectedPorts   *[]expectedPortDTO `json:"expected_ports"`
-	Scope           *scopeReq          `json:"scope"`
-	Severity        *string            `json:"severity"`
-	Enabled         *bool              `json:"enabled"`
+	Name                 *string            `json:"name"`
+	Op                   *string            `json:"op"`
+	Threshold            *float64           `json:"threshold"`
+	ClearThreshold       optional[float64]  `json:"clear_threshold"`
+	DurationSeconds      *int               `json:"duration_seconds"`
+	DurationDays         *int               `json:"duration_days"`
+	ResolveSeconds       *int               `json:"resolve_seconds"`
+	IncludeOffline       *bool              `json:"include_offline"`
+	WarnOrDown           *bool              `json:"warn_or_down"`
+	ExpectedPorts        *[]expectedPortDTO `json:"expected_ports"`
+	Scope                *scopeReq          `json:"scope"`
+	Severity             *string            `json:"severity"`
+	Enabled              *bool              `json:"enabled"`
+	EscalateAfterSeconds optional[int]      `json:"escalate_after_seconds"`
 }
 
 func (a *API) updateAlertRule(w http.ResponseWriter, r *http.Request) error {
@@ -480,6 +493,9 @@ func applyRulePatch(rule *store.AlertRule, req updateAlertRuleReq, scope *store.
 	if req.Enabled != nil {
 		rule.Enabled = *req.Enabled
 	}
+	if req.EscalateAfterSeconds.Set {
+		rule.EscalateAfterSeconds = req.EscalateAfterSeconds.Value
+	}
 }
 
 // changedRuleFields lista los nombres de los campos que el PATCH toca (pa la auditoria: nunca los valores).
@@ -503,6 +519,7 @@ func changedRuleFields(req updateAlertRuleReq) []string {
 	add(req.Scope != nil, "scope")
 	add(req.Severity != nil, "severity")
 	add(req.Enabled != nil, "enabled")
+	add(req.EscalateAfterSeconds.Set, "escalate_after_seconds")
 	return out
 }
 

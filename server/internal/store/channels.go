@@ -26,9 +26,10 @@ const (
 	MaxChannels        = 50
 	MaxChannelsPerRule = 20
 
-	channelNameKey  = "notification_channels_name_lower_key"
-	ruleChannelFKey = "rule_channels_channel_id_fkey"
-	channelGroupKey = "notification_channels_group_id_fkey"
+	channelNameKey            = "notification_channels_name_lower_key"
+	ruleChannelFKey           = "rule_channels_channel_id_fkey"
+	ruleEscalationChannelFKey = "rule_escalation_channels_channel_id_fkey"
+	channelGroupKey           = "notification_channels_group_id_fkey"
 )
 
 // Channel es un canal de notificacion. SecretEnc es el blob cifrado (la API nunca lo devuelve).
@@ -215,6 +216,17 @@ func (s *Store) HasEnabledChannels(ctx context.Context) (bool, error) {
 // algun canal no existe, ErrTooManyRuleChannels si hay mas de MaxChannelsPerRule, *ChannelScopeError si un canal con
 // dueño no cubre el alcance de la regla. ids ya viene sin duplicados.
 func (s *Store) SetRuleChannels(ctx context.Context, ruleID string, ids []string) error {
+	return s.setRuleChannelLinks(ctx, "rule_channels", ruleChannelFKey, ruleID, ids)
+}
+
+// SetRuleEscalationChannels reemplaza los canales de escalamiento de una regla, con los mismos errores que SetRuleChannels.
+func (s *Store) SetRuleEscalationChannels(ctx context.Context, ruleID string, ids []string) error {
+	return s.setRuleChannelLinks(ctx, "rule_escalation_channels", ruleEscalationChannelFKey, ruleID, ids)
+}
+
+// setRuleChannelLinks reemplaza las filas de table (rule_channels o rule_escalation_channels: constantes, nunca
+// entrada del usuario) de una regla.
+func (s *Store) setRuleChannelLinks(ctx context.Context, table, channelFKey, ruleID string, ids []string) error {
 	if len(ids) > MaxChannelsPerRule {
 		return ErrTooManyRuleChannels
 	}
@@ -222,15 +234,15 @@ func (s *Store) SetRuleChannels(ctx context.Context, ruleID string, ids []string
 		if _, err := alertRuleByID(ctx, tx, ruleID, "FOR UPDATE OF r"); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM rule_channels WHERE rule_id = $1`, ruleID); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM `+table+` WHERE rule_id = $1`, ruleID); err != nil {
 			return fmt.Errorf("limpiando canales de la regla: %w", err)
 		}
 		if len(ids) == 0 {
 			return nil
 		}
 		if _, err := tx.Exec(ctx,
-			`INSERT INTO rule_channels (rule_id, channel_id) SELECT $1, unnest($2::uuid[])`, ruleID, ids); err != nil {
-			if isFKViolation(err, ruleChannelFKey) {
+			`INSERT INTO `+table+` (rule_id, channel_id) SELECT $1, unnest($2::uuid[])`, ruleID, ids); err != nil {
+			if isFKViolation(err, channelFKey) {
 				return ErrChannelNotFound
 			}
 			return fmt.Errorf("asignando canales a la regla: %w", err)
@@ -266,7 +278,7 @@ func (e *ChannelScopeError) Unwrap() error { return ErrChannelScopeMismatch }
 // alcance `all` nunca queda dentro. Se le agrega un filtro (AND ...) opcional, ORDER BY y LIMIT.
 const channelScopeViolationsSQL = `
 SELECT DISTINCT r.id::text AS id, r.name AS name
-  FROM rule_channels rc
+  FROM (SELECT rule_id, channel_id FROM rule_channels UNION SELECT rule_id, channel_id FROM rule_escalation_channels) rc
   JOIN notification_channels ch ON ch.id = rc.channel_id AND ch.group_id IS NOT NULL
   JOIN alert_rules r ON r.id = rc.rule_id
   LEFT JOIN hosts rh ON rh.id = r.scope_host_id

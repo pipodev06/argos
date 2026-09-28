@@ -554,7 +554,8 @@ func TestChannelRoutesAreRegisteredWithTheExpectedAccess(t *testing.T) {
 		"GET /api/v1/channels": accessSession, "GET /api/v1/channels/{id}": accessSession,
 		"POST /api/v1/channels": accessAdmin, "PATCH /api/v1/channels/{id}": accessAdmin,
 		"DELETE /api/v1/channels/{id}": accessAdmin, "POST /api/v1/channels/{id}/test": accessAdmin,
-		"PUT /api/v1/alert-rules/{id}/channels": accessAdmin,
+		"PUT /api/v1/alert-rules/{id}/channels":            accessAdmin,
+		"PUT /api/v1/alert-rules/{id}/escalation-channels": accessAdmin,
 	}
 	got := map[string]access{}
 	for _, rt := range e.api.routes {

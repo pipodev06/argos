@@ -44,12 +44,12 @@ var pendingCapSQL = `(SELECT count(*) FROM (SELECT 1 FROM notification_deliverie
 const severityRankSQL = `array_position(ARRAY['info', 'warn', 'critical'], %s)`
 
 // enqueueResolvedCTE encola el aviso `resolved` de cada alerta del CTE `res` (columnas id y host_id) a los canales que
-// recibieron (o recibiran) su `opened`: no se anuncia la resolucion de algo que nunca se anuncio.
+// recibieron (o recibiran) su `opened` o su `escalation`: no se anuncia la resolucion de algo que nunca se anuncio.
 var enqueueResolvedCTE = `, enq AS (
   INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
   SELECT res.id, d.channel_id, 'resolved', CASE WHEN ` + pendingCapSQL + ` THEN 'suppressed' ELSE 'pending' END
     FROM res
-    JOIN notification_deliveries d ON d.alert_id = res.id AND d.event = 'opened' AND d.status IN ('pending', 'sending', 'sent')
+    JOIN notification_deliveries d ON d.alert_id = res.id AND d.event IN ('opened', 'escalation') AND d.status IN ('pending', 'sending', 'sent')
     JOIN notification_channels ch ON ch.id = d.channel_id AND ch.enabled
      AND ` + channelOwnsHostSQL("res.host_id") + `
   ON CONFLICT DO NOTHING
@@ -188,6 +188,34 @@ ON CONFLICT DO NOTHING
 RETURNING 1
 )
 SELECT count(*) FROM ins`
+
+	// 9. Escalamiento: una alerta `open` (sin reconocer) que lleva escalate_after_seconds de la regla sube un nivel de
+	// severidad (critical se queda) y avisa una sola vez (escalated_at) a los canales de escalamiento de la regla. No
+	// escala una alerta en mantenimiento ni intermitente. La severidad ya subida es la que filtra min_severity.
+	escalateSQL = `
+WITH esc AS (
+  UPDATE alerts a
+     SET escalated_at = now(),
+         severity = CASE a.severity WHEN 'info' THEN 'warn' WHEN 'warn' THEN 'critical' ELSE a.severity END
+    FROM alert_rules r
+   WHERE r.id = a.rule_id AND r.escalate_after_seconds IS NOT NULL AND a.state = 'open' AND a.escalated_at IS NULL
+     AND NOT a.suppressed AND NOT a.flapping
+     AND a.opened_at <= now() - make_interval(secs => r.escalate_after_seconds)
+  RETURNING a.id, a.rule_id, a.host_id, a.severity
+), enq AS (
+  INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
+  SELECT esc.id, ch.id, 'escalation',
+         CASE WHEN (r.muted_until IS NOT NULL AND r.muted_until > now()) OR ` + pendingCapSQL + `
+              THEN 'suppressed' ELSE 'pending' END
+    FROM esc
+    JOIN alert_rules r ON r.id = esc.rule_id
+    JOIN rule_escalation_channels rc ON rc.rule_id = esc.rule_id
+    JOIN notification_channels ch ON ch.id = rc.channel_id AND ch.enabled
+     AND ` + channelOwnsHostSQL("esc.host_id") + `
+     AND ` + fmt.Sprintf(severityRankSQL, "esc.severity") + ` >= ` + fmt.Sprintf(severityRankSQL, "ch.min_severity") + `
+  ON CONFLICT DO NOTHING
+)
+SELECT count(*) FROM esc`
 )
 
 // EvalResult resume un ciclo del evaluador.
@@ -195,8 +223,8 @@ type EvalResult struct {
 	// Ran es false si otra instancia tenia el lock (ciclo saltado).
 	Ran bool
 	// Opened, Resolved (por recuperacion o por regla/host), Released (liberadas de mantenimiento) y Reminders
-	// (entregas de recordatorio encoladas) cuentan lo que cambio en el ciclo.
-	Opened, Resolved, Released, Reminders int
+	// (entregas de recordatorio encoladas) cuentan lo que cambio en el ciclo; Escalated son las alertas que subieron de severidad.
+	Opened, Resolved, Released, Reminders, Escalated int
 }
 
 // EvaluateAlerts corre un ciclo del motor de alertas en UNA transaccion bajo un lock advisory (con varias
@@ -230,6 +258,7 @@ func (s *Store) EvaluateAlerts(ctx context.Context) (EvalResult, error) {
 			{"resolviendo alertas recuperadas", resolveRecoveredSQL, &res.Resolved},
 			{"liberando alertas de mantenimiento", releaseSuppressedSQL, &res.Released},
 			{"encolando recordatorios", remindersSQL, &res.Reminders},
+			{"escalando alertas sin reconocer", escalateSQL, &res.Escalated},
 		}
 		for _, st := range steps {
 			if st.add == nil {

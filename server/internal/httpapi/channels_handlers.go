@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -491,6 +492,17 @@ type setRuleChannelsReq struct {
 }
 
 func (a *API) setRuleChannels(w http.ResponseWriter, r *http.Request) error {
+	return a.putRuleChannels(w, r, a.store.SetRuleChannels, "channels")
+}
+
+// setRuleEscalationChannels: misma semantica y validaciones que setRuleChannels, sobre los canales de escalamiento.
+func (a *API) setRuleEscalationChannels(w http.ResponseWriter, r *http.Request) error {
+	return a.putRuleChannels(w, r, a.store.SetRuleEscalationChannels, "escalation_channels")
+}
+
+// putRuleChannels valida el body {"channel_ids": [...]}, aplica set y audita (el evento es el mismo; detail.list dice
+// cual de las dos listas cambio).
+func (a *API) putRuleChannels(w http.ResponseWriter, r *http.Request, set func(context.Context, string, []string) error, list string) error {
 	id := r.PathValue("id")
 	if !isUUID(id) {
 		return badRequest("id invalido")
@@ -514,7 +526,7 @@ func (a *API) setRuleChannels(w http.ResponseWriter, r *http.Request) error {
 			ids = append(ids, cid)
 		}
 	}
-	if err := a.store.SetRuleChannels(r.Context(), id, ids); err != nil {
+	if err := set(r.Context(), id, ids); err != nil {
 		return err
 	}
 	rule, err := a.store.AlertRuleByID(r.Context(), store.AllScope(), id)
@@ -523,8 +535,8 @@ func (a *API) setRuleChannels(w http.ResponseWriter, r *http.Request) error {
 	}
 	e := actor(currentUser(r))
 	e.Event, e.Outcome, e.TargetType, e.TargetID = evRuleChannelsSet, store.OutcomeOK, "alert_rule", id
-	a.audit(r, e, map[string]any{"name": rule.Name, "count": len(ids)})
-	writeJSON(w, http.StatusOK, map[string]any{"channel_ids": rule.ChannelIDs})
+	a.audit(r, e, map[string]any{"name": rule.Name, "list": list, "count": len(ids)})
+	writeJSON(w, http.StatusOK, map[string]any{"channel_ids": ids})
 	return nil
 }
 

@@ -36,6 +36,15 @@ func toDeletedRowsDTO(c store.PurgeCounts) deletedRowsDTO {
 	}
 }
 
+// extendPurgeDeadline amplia el plazo de escritura de una baja: borrar un historial grande tarda mas que el global.
+// Sin soporte de deadline (p. ej. httptest) no pasa nada: rige el del servidor.
+func (a *API) extendPurgeDeadline(w http.ResponseWriter, r *http.Request) {
+	rc := http.NewResponseController(w)
+	if err := rc.SetWriteDeadline(time.Now().Add(purgeWriteWindow)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		a.logger.WarnContext(r.Context(), "no se pudo ampliar el plazo de escritura de la baja", "err", err)
+	}
+}
+
 // purgeHost borra un host con agente y todos sus datos (baja de un cliente). Irreversible: exige el nombre del host.
 // No limpia los respaldos (se rotan a los 14 dias).
 func (a *API) purgeHost(w http.ResponseWriter, r *http.Request) error {
@@ -51,6 +60,7 @@ func (a *API) purgeHost(w http.ResponseWriter, r *http.Request) error {
 		return badRequest("confirm_hostname requerido: el nombre del host")
 	}
 	id = strings.ToLower(id)
+	a.extendPurgeDeadline(w, r)
 	c, err := a.store.PurgeHost(r.Context(), id, req.ConfirmHostname)
 	if err != nil {
 		return err
@@ -91,11 +101,7 @@ func (a *API) purgeGroup(w http.ResponseWriter, r *http.Request) error {
 	default:
 		return errPurgeBusy
 	}
-	rc := http.NewResponseController(w)
-	// Sin soporte de deadline (p. ej. httptest) no pasa nada: rige el del servidor.
-	if err := rc.SetWriteDeadline(time.Now().Add(purgeWriteWindow)); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		a.logger.WarnContext(r.Context(), "no se pudo ampliar el plazo de escritura de la purga", "err", err)
-	}
+	a.extendPurgeDeadline(w, r)
 
 	res, err := a.store.PurgeGroup(r.Context(), id, store.PurgeGroupOpts{
 		ConfirmName: req.ConfirmName, DeleteGroup: req.DeleteGroup, DisableUsers: req.DisableUsers,

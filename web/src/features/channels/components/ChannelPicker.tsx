@@ -6,10 +6,14 @@ import { useChannels } from '../hooks/useChannels'
 interface ChannelPickerProps {
   selected: string[]
   onChange: (ids: string[]) => void
+  /** Título del grupo (por defecto, canales normales). */
+  legend?: string
+  /** Prefijo de los ids de los checkboxes; distinto si hay dos pickers en el mismo formulario. */
+  idPrefix?: string
 }
 
 /** Multiselección de canales existentes (checkboxes) para una regla. */
-export function ChannelPicker({ selected, onChange }: ChannelPickerProps) {
+export function ChannelPicker({ selected, onChange, legend = 'Canales de notificación', idPrefix = 'rule-channel' }: ChannelPickerProps) {
   const { data: channels, error, loading } = useChannels()
 
   function toggle(id: string, on: boolean) {
@@ -18,7 +22,7 @@ export function ChannelPicker({ selected, onChange }: ChannelPickerProps) {
 
   return (
     <fieldset className="grid gap-2">
-      <legend className="text-sm font-medium text-text">Canales de notificación</legend>
+      <legend className="text-sm font-medium text-text">{legend}</legend>
       {error && <InlineError>{error}</InlineError>}
       {loading && !channels && <p className="text-xs text-text-muted">Cargando canales...</p>}
       {channels && channels.length === 0 && (
@@ -30,8 +34,8 @@ export function ChannelPicker({ selected, onChange }: ChannelPickerProps) {
         </p>
       )}
       {channels?.map((c) => (
-        <label key={c.id} htmlFor={`rule-channel-${c.id}`} className="flex items-center gap-2 text-sm">
-          <Checkbox id={`rule-channel-${c.id}`} checked={selected.includes(c.id)} onCheckedChange={(v) => toggle(c.id, v === true)} />
+        <label key={c.id} htmlFor={`${idPrefix}-${c.id}`} className="flex items-center gap-2 text-sm">
+          <Checkbox id={`${idPrefix}-${c.id}`} checked={selected.includes(c.id)} onCheckedChange={(v) => toggle(c.id, v === true)} />
           <span>
             {c.name}
             {!c.enabled && <span className="text-xs text-text-muted"> (desactivado)</span>}

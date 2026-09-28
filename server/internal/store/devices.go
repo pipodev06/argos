@@ -383,16 +383,19 @@ func (s *Store) UpdateDevice(ctx context.Context, id string, ch DeviceChange) (D
 	return s.DeviceByID(ctx, AllScope(), id)
 }
 
-// DeleteDevice borra el dispositivo (su estado, eventos y alertas caen en cascada) y devuelve su nombre.
-// ErrNotFound si no existe o no es un dispositivo.
+// DeleteDevice borra el dispositivo con sus datos (mismas tablas que la purga de un host: metrics, service_checks, etc.
+// no tienen CASCADE) y devuelve su nombre. ErrNotFound si no existe o no es un dispositivo.
 func (s *Store) DeleteDevice(ctx context.Context, id string) (string, error) {
 	var name string
-	err := s.pool.QueryRow(ctx, `DELETE FROM hosts WHERE id = $1 AND kind = 'device' RETURNING hostname`, id).Scan(&name)
+	err := s.pool.QueryRow(ctx, `SELECT hostname FROM hosts WHERE id = $1 AND kind = 'device'`, id).Scan(&name)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
 	if err != nil {
-		return "", fmt.Errorf("borrando dispositivo: %w", err)
+		return "", fmt.Errorf("leyendo dispositivo: %w", err)
+	}
+	if _, err := s.purgeHostBatched(ctx, id); err != nil {
+		return "", err
 	}
 	return name, nil
 }

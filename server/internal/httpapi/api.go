@@ -102,6 +102,7 @@ type Store interface {
 	UpdateChannel(ctx context.Context, id string, mutate func(*store.Channel) error) (store.Channel, error)
 	DeleteChannel(ctx context.Context, id string) (name, kind string, err error)
 	SetRuleChannels(ctx context.Context, ruleID string, channelIDs []string) error
+	SetRuleEscalationChannels(ctx context.Context, ruleID string, channelIDs []string) error
 
 	// Chequeos de servicio (definiciones, estado por host y eventos).
 	ListServiceChecks(ctx context.Context, scope store.Scope) ([]store.ServiceCheckDef, error)
@@ -411,6 +412,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/alert-rules/{id}/mute", accessAdmin, a.muteAlertRule)
 	a.route(mux, "POST /api/v1/alert-rules/{id}/unmute", accessAdmin, a.unmuteAlertRule)
 	a.route(mux, "PUT /api/v1/alert-rules/{id}/channels", accessAdmin, a.setRuleChannels)
+	a.route(mux, "PUT /api/v1/alert-rules/{id}/escalation-channels", accessAdmin, a.setRuleEscalationChannels)
 	a.route(mux, "GET /api/v1/channels", accessSession, a.requireFullScope(a.listChannels))
 	a.route(mux, "GET /api/v1/channels/{id}", accessSession, a.requireFullScope(a.getChannel))
 	a.route(mux, "POST /api/v1/channels", accessAdmin, a.createChannel)

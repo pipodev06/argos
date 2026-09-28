@@ -25,6 +25,8 @@ function makeRule(over: Partial<AlertRule> = {}): AlertRule {
     enabled: true,
     active_alerts: 0,
     channel_ids: [],
+    escalate_after_seconds: null,
+    escalation_channel_ids: [],
     muted_until: null,
     ...over,
   }

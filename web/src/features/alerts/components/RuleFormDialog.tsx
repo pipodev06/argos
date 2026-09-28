@@ -9,7 +9,7 @@ import { CheckSelectField } from '@/features/checks/components/CheckSelectField'
 import { mapScopeError } from '@/features/channels/utils/errors'
 import { ChannelPicker } from '@/features/channels/components/ChannelPicker'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
-import { createRule, setRuleChannels, updateRule } from '../services/alerts.service'
+import { createRule, setRuleChannels, setRuleEscalationChannels, updateRule } from '../services/alerts.service'
 import type { AlertRule, AlertSeverity, RuleKind, RuleMetric, RuleOp } from '../types/alert.types'
 import { isLoadMetric, isUpdatesKind, METRIC_LABELS, SEVERITY_LABELS } from '../utils/format'
 import {
@@ -65,6 +65,7 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
   const [templateId, setTemplateId] = useState(BLANK_TEMPLATE)
   const [errors, setErrors] = useState<RuleErrors>({})
   const [channelIds, setChannelIds] = useState<string[]>(() => source?.channel_ids ?? [])
+  const [escChannelIds, setEscChannelIds] = useState<string[]>(() => source?.escalation_channel_ids ?? [])
   const [createdId, setCreatedId] = useState<string | null>(null)
   const { error, busy, run } = useUserMutation()
   const set = <K extends keyof RuleDraft>(key: K, value: RuleDraft[K]) => setDraft((d) => ({ ...d, [key]: value }))
@@ -90,14 +91,27 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
         ).id
         setCreatedId(id)
       }
-      const before = rule?.channel_ids ?? []
-      const changed = channelIds.length !== before.length || channelIds.some((c) => !before.includes(c))
+      const differs = (now: string[], before: string[]) => now.length !== before.length || now.some((c) => !before.includes(c))
+      const changed = differs(channelIds, rule?.channel_ids ?? [])
       if (id && (changed || !rule)) {
         try {
           await setRuleChannels(id, channelIds)
         } catch (err) {
           if (!rule) {
             throw new Error(`La regla se creó, pero no se pudieron asignar los canales: ${err instanceof Error ? err.message : 'error desconocido'}. Reintenta para asignarlos.`)
+          }
+          throw err
+        }
+      }
+      // Sin plazo no hay escalamiento: los canales de escalamiento solo se guardan si hay plazo o ya existían.
+      const escBefore = rule?.escalation_channel_ids ?? []
+      const escNow = draft.escalateMin.trim() === '' ? [] : escChannelIds
+      if (id && (differs(escNow, escBefore) || (!rule && escNow.length > 0))) {
+        try {
+          await setRuleEscalationChannels(id, escNow)
+        } catch (err) {
+          if (!rule) {
+            throw new Error(`La regla se creó, pero no se pudieron asignar los canales de escalamiento: ${err instanceof Error ? err.message : 'error desconocido'}. Reintenta para asignarlos.`)
           }
           throw err
         }
@@ -300,6 +314,22 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
       <div className="sm:col-span-2">
         <ChannelPicker selected={channelIds} onChange={setChannelIds} />
       </div>
+      <div className="sm:col-span-2">
+        <FormField
+          id="rule-escalate"
+          label="Escalar si nadie reconoce en (minutos)"
+          inputMode="numeric"
+          value={draft.escalateMin}
+          onChange={(e) => set('escalateMin', e.target.value)}
+          hint="Sube la severidad un nivel y avisa a los canales de escalamiento."
+          error={errors.escalate}
+        />
+      </div>
+      {draft.escalateMin.trim() !== '' && (
+        <div className="sm:col-span-2">
+          <ChannelPicker selected={escChannelIds} onChange={setEscChannelIds} legend="Canales de escalamiento" idPrefix="rule-esc-channel" />
+        </div>
+      )}
       {error && (
         <div className="sm:col-span-2">
           <InlineError>{error}</InlineError>

@@ -606,3 +606,56 @@ func TestCollectorIgnoresDevicesOfAnotherGroup(t *testing.T) {
 		t.Errorf("otro grupo: got %d asignaciones (%v), want 0", len(got), err)
 	}
 }
+
+// Regresion: borrar un dispositivo con historial (chequeos, etc.) fallaba con 500 por FK sin CASCADE; ahora limpia
+// lo mismo que la purga de un host.
+func TestDeleteDeviceWithHistory(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "col", "up", ago(time.Second))
+	d := mkDevice(t, s, "router", "10.0.0.9", "col", nil)
+	mustExec(t, `INSERT INTO service_checks (host_id, name, status, ts) VALUES ($1, 'ping', 'up', now())`, d.ID)
+
+	if n, err := s.DeleteDevice(ctx, d.ID); err != nil || n != "router" {
+		t.Fatalf("borrar dispositivo con historial: got (%q, %v)", n, err)
+	}
+	if c := count(t, `SELECT count(*) FROM hosts WHERE id = $1`, d.ID); c != 0 {
+		t.Errorf("el dispositivo sigue en hosts: %d", c)
+	}
+	if c := count(t, `SELECT count(*) FROM service_checks WHERE host_id = $1`, d.ID); c != 0 {
+		t.Errorf("quedaron %d filas de service_checks", c)
+	}
+}
+
+// Un host con historial repartido en varios dias se borra por tandas de un dia: no queda ni una fila y los conteos
+// suman todo. Un colector con dispositivos se rechaza SIN haber borrado nada de su historial.
+func TestPurgeHostBatchedByDay(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "col", "up", ago(time.Second))
+	colID := hostID(t, "col")
+	mustExec(t, `INSERT INTO metrics (host_id, ts, cpu_pct) SELECT $1, now() - g * interval '9 hours', 1 FROM generate_series(0, 8) g`, colID)
+	mustExec(t, `INSERT INTO service_checks (host_id, name, status, ts) SELECT $1, 'p', 'up', now() - g * interval '9 hours' FROM generate_series(0, 8) g`, colID)
+
+	d := mkDevice(t, s, "dev", "10.0.0.7", "col", nil)
+	if _, err := s.PurgeHost(ctx, colID, "col"); !errors.Is(err, ErrCollectorHasDevices) {
+		t.Fatalf("purgar colector con dispositivos: got %v, want ErrCollectorHasDevices", err)
+	}
+	if n := count(t, `SELECT count(*) FROM metrics WHERE host_id = $1`, colID); n != 9 {
+		t.Fatalf("el rechazo ya borro historial: quedan %d de 9 filas de metrics", n)
+	}
+
+	if _, err := s.DeleteDevice(ctx, d.ID); err != nil {
+		t.Fatalf("borrar dispositivo: %v", err)
+	}
+	c, err := s.PurgeHost(ctx, colID, "col")
+	if err != nil {
+		t.Fatalf("purgar host: %v", err)
+	}
+	if c.Metrics != 9 || c.Checks != 9 {
+		t.Errorf("conteos got metrics=%d checks=%d, want 9 y 9", c.Metrics, c.Checks)
+	}
+	if n := count(t, `SELECT count(*) FROM hosts WHERE id = $1`, colID); n != 0 {
+		t.Errorf("el host sigue existiendo")
+	}
+}
