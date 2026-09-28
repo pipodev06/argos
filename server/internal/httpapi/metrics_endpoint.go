@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"argos/server/internal/store"
 )
 
 const metricsContentType = "text/plain; version=0.0.4; charset=utf-8"
@@ -75,13 +77,17 @@ func (a *API) metrics(w http.ResponseWriter, r *http.Request) error {
 	metric("argos_db_size_bytes", "gauge", "Tamano de la base de datos.")
 	fmt.Fprintf(&b, "argos_db_size_bytes %d\n", in.stats.DBSizeBytes)
 
-	metric("argos_hosts", "gauge", "Hosts (agentes y dispositivos) por estado.")
-	h := fleet.Hosts
-	for _, s := range []struct {
-		status string
-		n      int
-	}{{"up", h.Up}, {"down", h.Down}, {"offline", h.Offline}, {"pending", h.Pending}, {"disabled", h.Disabled}} {
-		fmt.Fprintf(&b, "argos_hosts{status=%q} %d\n", s.status, s.n)
+	metric("argos_hosts", "gauge", "Hosts por tipo (agent, device) y estado.")
+	for _, k := range []struct {
+		kind string
+		c    store.StatusCounts
+	}{{"agent", fleet.Agents}, {"device", fleet.Devices}} {
+		for _, s := range []struct {
+			status string
+			n      int
+		}{{"up", k.c.Up}, {"down", k.c.Down}, {"offline", k.c.Offline}, {"pending", k.c.Pending}, {"disabled", k.c.Disabled}} {
+			fmt.Fprintf(&b, "argos_hosts{kind=%q,status=%q} %d\n", k.kind, s.status, s.n)
+		}
 	}
 	metric("argos_alerts_open", "gauge", "Alertas no resueltas por severidad.")
 	for _, sev := range []string{"critical", "warn", "info"} {

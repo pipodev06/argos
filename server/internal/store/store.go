@@ -26,6 +26,8 @@ var (
 	// (el mantenimiento no las creo o no alcanzo a crearlas). Es un problema del servidor y
 	// reintentable, no de la muestra.
 	ErrPartitionMissing = errors.New("no hay particion para el timestamp")
+	// ErrHostGone: el host se purgo entre autenticar al agente e ingerir su reporte (FK de las muestras).
+	ErrHostGone = errors.New("el host ya no existe")
 
 	// Grupos y etiquetas.
 

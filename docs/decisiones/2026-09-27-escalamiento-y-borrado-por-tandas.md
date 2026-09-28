@@ -31,6 +31,23 @@ Lo que puede rechazarse (colector con dispositivos) se comprueba antes de borrar
 ya no hay una transacción gigante. Los handlers de baja amplían el plazo de escritura (`extendPurgeDeadline`).
 Tests: `TestPurgeHostBatchedByDay`.
 
+## Ronda de correcciones tras la revisión de riesgos (2026-09-28)
+- **Purgar un host que sigue reportando:** `purgeHostBatched` lo deshabilita (tras comprobar que no es colector con
+  dispositivos) antes de borrar: el agente recibe 401 y deja de escribir. Si un reporte ya autenticado llega cuando
+  el host desapareció, `IngestMetrics` devuelve `ErrHostGone` (FK 23503 + host inexistente) y el handler responde 401
+  `invalid_token` en vez de 500 (el agente lo trata como token rechazado). Tests: `TestIngestHostGoneAndPurgeDisables`.
+- **Silencio de regla que nunca avisaba (migración 00043):** una alerta que abría durante el silencio quedaba con su
+  `opened` suppressed para siempre (sin aviso, sin recordatorios ni `resolved`). Ahora `alerts.mute_held` marca las que
+  abrieron retenidas SOLO por el silencio (no flapping ni mantenimiento) y `releaseMutedSQL` libera su `opened`
+  (`pending`) al terminar el silencio si siguen `open`; las reconocidas solo limpian la marca; con mantenimiento vigente
+  no se libera hasta que terminen ambos. `EvalResult.MuteReleased`. Tests: `alert_mute_release_test.go`.
+- **`argos_hosts`** ahora lleva `kind` (`agent`/`device`) además de `status`.
+- **Tests que faltaban:** export CSV (`inventory_csv_test.go`, `inventory_export_test.go`: ámbito, fórmulas, filtro, tope
+  5000) y escalamiento de punta a punta por el worker real (`escalation_worker_test.go`).
+- **Flake corregido:** el PUT de canales devolvía los ids en orden de llegada tras el cambio del escalamiento y
+  `TestRuleChannelAssignmentContract` fallaba la mitad de las veces; ahora se devuelven ordenados.
+- Verificado con `check-go.sh server --race` (gcc de WinLibs en el PATH del shell) en verde.
+
 ## Deuda
 - Sin prueba con decenas de millones de filas reales; la purga sigue siendo síncrona en la petición HTTP (plazo
   30 min). Si un día hace falta, pasarla a tarea en segundo plano con progreso.

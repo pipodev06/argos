@@ -91,6 +91,10 @@ func (s *Store) purgeHostBatched(ctx context.Context, hostID string) (PurgeCount
 	if devices > 0 {
 		return PurgeCounts{}, &GroupRuleError{Kind: ErrCollectorHasDevices, Devices: devices}
 	}
+	// Deshabilitar primero: el agente pasa a recibir 401 y deja de escribir mientras se borra el historial.
+	if _, err := s.pool.Exec(ctx, `UPDATE hosts SET status = 'disabled', status_changed_at = now() WHERE id = $1 AND status <> 'disabled'`, hostID); err != nil {
+		return PurgeCounts{}, fmt.Errorf("deshabilitando host antes de borrarlo: %w", err)
+	}
 	var c PurgeCounts
 	for _, t := range []struct {
 		table string

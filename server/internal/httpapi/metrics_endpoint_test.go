@@ -52,7 +52,7 @@ func TestMetricsEndpoint(t *testing.T) {
 		body := rec.Body.String()
 		for _, want := range []string{
 			`argos_build_info{version="v-test"} 1`, "argos_uptime_seconds ", "argos_db_size_bytes ",
-			`argos_hosts{status="up"} 1`, `argos_alerts_open{severity="critical"} 0`,
+			`argos_hosts{kind="agent",status="up"} 1`, `argos_alerts_open{severity="critical"} 0`,
 			"argos_notification_queue_pending 0", "argos_notification_dead_24h 0",
 		} {
 			if !strings.Contains(body, want) {
