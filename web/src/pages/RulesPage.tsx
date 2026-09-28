@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { RuleFormDialog } from '@/features/alerts/components/RuleFormDialog'
 import { RulesTable, type RuleAction } from '@/features/alerts/components/RulesTable'
 import { useAlertRules } from '@/features/alerts/hooks/useAlerts'
-import { deleteRule, updateRule } from '@/features/alerts/services/alerts.service'
+import { deleteRule, muteRule, unmuteRule, updateRule } from '@/features/alerts/services/alerts.service'
 import type { AlertRule } from '@/features/alerts/types/alert.types'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
@@ -23,6 +23,7 @@ export function RulesPage() {
   const [deleting, setDeleting] = useState<AlertRule | null>(null)
   const del = useUserMutation()
   const toggle = useUserMutation()
+  const mute = useUserMutation()
 
   const disabledCount = rules?.filter((r) => !r.enabled).length ?? 0
 
@@ -31,6 +32,14 @@ export function RulesPage() {
     else if (action === 'clone') setForm({ rule, clone: true })
     else if (action === 'delete') setDeleting(rule)
     else void toggle.run(() => updateRule(rule.id, { enabled: !rule.enabled })).then((ok) => ok && void refresh())
+  }
+
+  function handleMute(rule: AlertRule, minutes: number) {
+    void mute.run(() => muteRule(rule.id, minutes)).then((ok) => ok && void refresh())
+  }
+
+  function handleUnmute(rule: AlertRule) {
+    void mute.run(() => unmuteRule(rule.id)).then((ok) => ok && void refresh())
   }
 
   async function confirmDelete() {
@@ -50,6 +59,7 @@ export function RulesPage() {
       <div className="flex flex-col gap-3" aria-busy={loading}>
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {toggle.error && <InlineError>{toggle.error}</InlineError>}
+        {mute.error && <InlineError>{mute.error}</InlineError>}
         {disabledCount > 0 && (
           <p className="text-sm text-text-muted">
             {disabledCount === 1 ? '1 regla está desactivada' : `${disabledCount} reglas están desactivadas`}: no generan
@@ -60,7 +70,16 @@ export function RulesPage() {
         {rules && rules.length === 0 && (
           <EmptyState Icon={IconListCheck} title="Sin reglas" description={isAdmin ? 'Crea la primera con "Nueva regla".' : undefined} />
         )}
-        {rules && rules.length > 0 && <RulesTable rules={rules} canAct={isAdmin} busy={toggle.busy} onAction={handleAction} />}
+        {rules && rules.length > 0 && (
+          <RulesTable
+            rules={rules}
+            canAct={isAdmin}
+            busy={toggle.busy || mute.busy}
+            onAction={handleAction}
+            onMute={handleMute}
+            onUnmute={handleUnmute}
+          />
+        )}
       </div>
       {isAdmin && (
         <>

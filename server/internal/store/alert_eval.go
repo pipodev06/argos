@@ -22,6 +22,11 @@ const (
 
 	// ReminderInterval es cada cuanto se recuerda una alerta critica sin reconocer.
 	ReminderInterval = 4 * 3600 // segundos
+
+	// FlapWindow y FlapThreshold definen una alerta intermitente: la apertura n.° FlapThreshold (contando la actual)
+	// de la misma regla+host dentro de FlapWindow se marca flapping y no notifica.
+	FlapWindow    = 30 * 60 // segundos
+	FlapThreshold = 3
 )
 
 // channelOwnsHostSQL es verdadero si el canal `ch` puede recibir avisos del host indicado: un canal global (sin
@@ -85,25 +90,31 @@ SELECT c.rule_id, c.host_id, LEAST(now(), COALESCE(c.breach_since, now()))
 ON CONFLICT DO NOTHING`
 
 	// 4. Abrir alertas cuyo incumplimiento ya duro duration_seconds. El indice unico parcial es el dedupe duro.
-	// Dentro de una ventana de mantenimiento la alerta se abre igual (visible) con sus entregas `suppressed`.
+	// Dentro de una ventana de mantenimiento, o si es intermitente (flapping), la alerta se abre igual (visible) con
+	// sus entregas `suppressed`.
 	openAlertsSQL = `
 WITH new AS (
-  INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed, detail)
+  INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed, detail, flapping)
   SELECT r.id, c.host_id, r.name, r.kind, r.metric, r.threshold,
          CASE WHEN r.kind = 'os_eol' AND c.value <= 0 THEN 'critical' ELSE r.severity END,
-         c.value, c.value, c.in_maintenance, c.detail
+         c.value, c.value, c.in_maintenance, c.detail,
+         (SELECT count(*) FROM alerts pa WHERE pa.rule_id = r.id AND pa.host_id = c.host_id
+             AND pa.opened_at > now() - make_interval(secs => ` + strconv.Itoa(FlapWindow) + `)) >= ` + strconv.Itoa(FlapThreshold-1) + `
     FROM alert_pending p
     JOIN alert_candidates c ON c.rule_id = p.rule_id AND c.host_id = p.host_id AND c.breach
     JOIN alert_rules r ON r.id = p.rule_id
    WHERE p.since <= now() - make_interval(secs => r.duration_seconds)
   ON CONFLICT (rule_id, host_id) WHERE state <> 'resolved' DO NOTHING
-  RETURNING id, rule_id, host_id, severity, suppressed
+  RETURNING id, rule_id, host_id, severity, suppressed, flapping
 ), del AS (
   DELETE FROM alert_pending p USING new WHERE p.rule_id = new.rule_id AND p.host_id = new.host_id
 ), enq AS (
   INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
-  SELECT new.id, ch.id, 'opened', CASE WHEN new.suppressed OR ` + pendingCapSQL + ` THEN 'suppressed' ELSE 'pending' END
+  SELECT new.id, ch.id, 'opened',
+         CASE WHEN new.suppressed OR new.flapping OR (r.muted_until IS NOT NULL AND r.muted_until > now()) OR ` + pendingCapSQL + `
+              THEN 'suppressed' ELSE 'pending' END
     FROM new
+    JOIN alert_rules r ON r.id = new.rule_id
     JOIN rule_channels rc ON rc.rule_id = new.rule_id
     JOIN notification_channels ch ON ch.id = rc.channel_id AND ch.enabled
      AND ` + channelOwnsHostSQL("new.host_id") + `
@@ -163,8 +174,11 @@ SELECT count(*) FROM rel`
 	remindersSQL = `
 WITH ins AS (
 INSERT INTO notification_deliveries (alert_id, channel_id, event, seq, status)
-SELECT a.id, d.channel_id, 'reminder', k.n, CASE WHEN c.in_maintenance OR ` + pendingCapSQL + ` THEN 'suppressed' ELSE 'pending' END
+SELECT a.id, d.channel_id, 'reminder', k.n,
+       CASE WHEN c.in_maintenance OR (r.muted_until IS NOT NULL AND r.muted_until > now()) OR ` + pendingCapSQL + `
+            THEN 'suppressed' ELSE 'pending' END
   FROM alerts a
+  JOIN alert_rules r ON r.id = a.rule_id
   JOIN alert_candidates c ON c.rule_id = a.rule_id AND c.host_id = a.host_id AND NOT c.clear
  CROSS JOIN LATERAL (SELECT floor(extract(epoch FROM now() - a.opened_at) / ` + strconv.Itoa(ReminderInterval) + `)::int AS n) k
   JOIN notification_deliveries d ON d.alert_id = a.id AND d.event = 'opened' AND d.status IN ('pending', 'sending', 'sent')

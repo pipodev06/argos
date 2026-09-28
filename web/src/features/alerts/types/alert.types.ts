@@ -26,6 +26,8 @@ export interface Alert {
   severity: AlertSeverity
   state: AlertState
   suppressed: boolean
+  /** Se abrió 3 o más veces en 30 min (misma regla y host): no se envió aviso. */
+  flapping: boolean
   opened_at: string
   trigger_value: number | null
   /** exposed_port: "tcp/22, udp/53" (máx 5); null sin permiso de inventario. Parches: null sin permiso `can_updates`. */
@@ -121,6 +123,8 @@ export interface AlertRule {
   channel_ids: string[]
   /** Solo exposed_port; otros tipos devuelven []. */
   expected_ports?: ExpectedPort[]
+  /** RFC3339 o null: silencia notificaciones nuevas (no `resolved`) sin desactivar la regla. */
+  muted_until: string | null
 }
 
 export interface RuleInput {

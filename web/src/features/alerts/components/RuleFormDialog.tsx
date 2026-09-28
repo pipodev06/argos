@@ -17,6 +17,7 @@ import {
   KIND_OPTIONS,
   MAX_NAME,
   OP_OPTIONS,
+  RULE_TEMPLATES,
   cloneToDraft,
   ruleToDraft,
   type RuleDraft,
@@ -36,6 +37,9 @@ interface RuleFormDialogProps {
 
 const METRIC_OPTIONS = (Object.keys(METRIC_LABELS) as RuleMetric[]).map((m) => ({ value: m, label: METRIC_LABELS[m] }))
 const SEVERITY_OPTIONS = (Object.keys(SEVERITY_LABELS) as AlertSeverity[]).map((s) => ({ value: s, label: SEVERITY_LABELS[s] }))
+
+const BLANK_TEMPLATE = 'blank'
+const TEMPLATE_OPTIONS = [{ value: BLANK_TEMPLATE, label: 'En blanco' }, ...RULE_TEMPLATES.map((t) => ({ value: t.id, label: t.label }))]
 
 export function RuleFormDialog(props: RuleFormDialogProps) {
   // El formulario se monta solo con el diálogo abierto: cada apertura empieza con el estado de la regla.
@@ -58,6 +62,7 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
   const rule = clone ? null : source
   const editing = rule !== null
   const [draft, setDraft] = useState<RuleDraft>(() => (clone && source ? cloneToDraft(source) : ruleToDraft(rule)))
+  const [templateId, setTemplateId] = useState(BLANK_TEMPLATE)
   const [errors, setErrors] = useState<RuleErrors>({})
   const [channelIds, setChannelIds] = useState<string[]>(() => source?.channel_ids ?? [])
   const [createdId, setCreatedId] = useState<string | null>(null)
@@ -122,6 +127,21 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
           {clone ? 'Se crea una regla nueva con los mismos valores y canales. Cambia el nombre si quieres.' : editing ?'El tipo y la métrica no se pueden cambiar; crea otra regla si los necesitas distintos.' : 'Se evalúa cada 15 segundos sobre los hosts del alcance.'}
         </DialogDescription>
       </DialogHeader>
+      {!editing && !clone && (
+        <div className="sm:col-span-2">
+          <SelectField
+            id="rule-template"
+            label="Plantilla"
+            value={templateId}
+            onChange={(v) => {
+              setTemplateId(v)
+              const template = RULE_TEMPLATES.find((t) => t.id === v)
+              setDraft(template ? template.apply() : ruleToDraft(null))
+            }}
+            options={TEMPLATE_OPTIONS}
+          />
+        </div>
+      )}
       <FormField
         id="rule-name"
         label="Nombre"

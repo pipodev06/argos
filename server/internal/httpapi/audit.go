@@ -89,7 +89,7 @@ var auditDetailKeys = map[string]bool{
 	"action": true, "group_id": true, "name": true, "always_on": true, "down_after_seconds": true,
 	// Alertas, reglas y mantenimiento: nombres y ajustes, nunca secretos.
 	"severity": true, "kind": true, "metric": true, "enabled": true, "scope_type": true,
-	"starts_at": true, "ends_at": true, "fields": true,
+	"starts_at": true, "ends_at": true, "fields": true, "minutes": true,
 	// Chequeos de servicio: tipo y ajustes, nunca el secreto, la cabecera ni la URL.
 	"type": true, "check_id": true, "device_id": true, "host_id": true,
 	// Dispositivos: el colector que los sondea (nunca la direccion IP).

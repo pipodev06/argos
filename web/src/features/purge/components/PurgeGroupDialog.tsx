@@ -19,7 +19,8 @@ import { downloadGroupExport } from '@/features/groups/services/groups.service'
 import type { Group } from '@/features/groups/types/group.types'
 import { purgeGroup } from '../services/purge.service'
 import type { GroupPurgeResult } from '../types/purge.types'
-import { mapPurgeGroupError, purgeNameMatches, summarizeGroupPurge } from '../utils/purge'
+import { downloadBlob } from '@/lib/download'
+import { buildConstancia, constanciaFilename, mapPurgeGroupError, purgeNameMatches, summarizeGroupPurge } from '../utils/purge'
 
 interface PurgeGroupDialogProps {
   group: Group | null
@@ -117,7 +118,17 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
         {error && <InlineError>{error}</InlineError>}
         <AlertDialogFooter>
           {result ? (
-            <AlertDialogAction onClick={onDone}>Cerrar</AlertDialogAction>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => downloadBlob(buildConstancia(result), constanciaFilename(result.group_name, result.purged_at))}
+              >
+                <IconDownload stroke={1.5} aria-hidden />
+                Descargar constancia
+              </Button>
+              <AlertDialogAction onClick={onDone}>Cerrar</AlertDialogAction>
+            </>
           ) : (
             <>
               <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>

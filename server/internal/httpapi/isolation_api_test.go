@@ -308,8 +308,14 @@ func TestPurgeGroupAPI(t *testing.T) {
 		UsersScopeReduced      int                     `json:"users_scope_reduced"`
 		GroupDeleted           bool                    `json:"group_deleted"`
 		DeletedRows            struct{ Metrics int64 } `json:"deleted_rows"`
+		GroupName              string                  `json:"group_name"`
+		PurgedAt               time.Time               `json:"purged_at"`
+		PerformedBy            string                  `json:"performed_by"`
 	}
 	x.dataAs(rec, &res)
+	if res.GroupName != "A" || res.PurgedAt.IsZero() || res.PerformedBy == "" {
+		t.Errorf("constancia de la purga: group_name=%q purged_at=%v performed_by=%q", res.GroupName, res.PurgedAt, res.PerformedBy)
+	}
 	if res.Agents != 2 || res.Devices != 2 || len(res.Failed) != 0 || res.Rules != 1 || res.Windows != 1 || res.Checks != 1 ||
 		res.EnrollTokens != 1 || res.UsersDisabled != 1 || res.UsersScopeReduced != 2 || !res.GroupDeleted || res.DeletedRows.Metrics < 3 ||
 		res.Channels != 1 || res.SnmpProfiles != 1 {

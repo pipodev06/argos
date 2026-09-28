@@ -135,13 +135,11 @@ type DevicePage struct {
 	Total      int
 }
 
-// ListDevices devuelve los dispositivos del ambito por nombre e id, con cursor keyset (LName e ID de HostCursor).
-// limit se acota a 1..maxDeviceListLimit.
-func (s *Store) ListDevices(ctx context.Context, scope Scope, f HostFilter, after *HostCursor, limit int) (DevicePage, error) {
-	limit = min(max(limit, 1), maxDeviceListLimit)
+// deviceFilterWhere arma el WHERE de un HostFilter aplicado a dispositivos (nombre, estado y grupo o sin
+// grupo: mismos campos que GET /hosts). Lo comparten ListDevices y ExportDevices.
+func deviceFilterWhere(scope Scope, f HostFilter) (string, argList) {
 	var args argList
 	where := "h.kind = 'device' AND " + scope.groupCond("h.group_id", &args)
-	// Filtros de la lista (mismos que GET /hosts): nombre, estado y grupo (o sin grupo).
 	if f.Q != "" {
 		where += fmt.Sprintf(` AND strpos(lower(h.hostname), lower(%s)) > 0`, args.add(f.Q))
 	}
@@ -158,6 +156,14 @@ func (s *Store) ListDevices(ctx context.Context, scope Scope, f HostFilter, afte
 	if len(groupConds) > 0 {
 		where += " AND (" + strings.Join(groupConds, " OR ") + ")"
 	}
+	return where, args
+}
+
+// ListDevices devuelve los dispositivos del ambito por nombre e id, con cursor keyset (LName e ID de HostCursor).
+// limit se acota a 1..maxDeviceListLimit.
+func (s *Store) ListDevices(ctx context.Context, scope Scope, f HostFilter, after *HostCursor, limit int) (DevicePage, error) {
+	limit = min(max(limit, 1), maxDeviceListLimit)
+	where, args := deviceFilterWhere(scope, f)
 	totalArgs := append(argList(nil), args...)
 	var total int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*)::int FROM hosts h WHERE `+where, []any(totalArgs)...).Scan(&total); err != nil {

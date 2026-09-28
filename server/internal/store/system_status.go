@@ -64,3 +64,51 @@ func (s *Store) SystemStats(ctx context.Context, deadSince time.Time) (SystemSta
 	}
 	return st, nil
 }
+
+// FleetCounts son agregados globales de toda la flota (sin ambito de grupo) para GET /metrics.
+type FleetCounts struct {
+	// Hosts cuenta todos los hosts (agentes y dispositivos) por estado.
+	Hosts StatusCounts
+	// AlertsOpen cuenta las alertas no resueltas por severidad (info, warn, critical siempre presentes).
+	AlertsOpen map[string]int
+}
+
+// FleetCounts lee los conteos globales de hosts por estado y de alertas abiertas por severidad.
+func (s *Store) FleetCounts(ctx context.Context) (FleetCounts, error) {
+	fc := FleetCounts{AlertsOpen: map[string]int{"info": 0, "warn": 0, "critical": 0}}
+	rows, err := s.pool.Query(ctx, `SELECT status, count(*)::int FROM hosts GROUP BY status`)
+	if err != nil {
+		return FleetCounts{}, fmt.Errorf("contando hosts por estado: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var status string
+		var n int
+		if err := rows.Scan(&status, &n); err != nil {
+			return FleetCounts{}, fmt.Errorf("leyendo conteo de hosts: %w", err)
+		}
+		fc.Hosts.add(status, n)
+	}
+	if err := rows.Err(); err != nil {
+		return FleetCounts{}, fmt.Errorf("iterando conteo de hosts: %w", err)
+	}
+	rows.Close()
+
+	arows, err := s.pool.Query(ctx, `SELECT severity, count(*)::int FROM alerts WHERE state <> 'resolved' GROUP BY severity`)
+	if err != nil {
+		return FleetCounts{}, fmt.Errorf("contando alertas abiertas: %w", err)
+	}
+	defer arows.Close()
+	for arows.Next() {
+		var sev string
+		var n int
+		if err := arows.Scan(&sev, &n); err != nil {
+			return FleetCounts{}, fmt.Errorf("leyendo conteo de alertas: %w", err)
+		}
+		fc.AlertsOpen[sev] = n
+	}
+	if err := arows.Err(); err != nil {
+		return FleetCounts{}, fmt.Errorf("iterando conteo de alertas: %w", err)
+	}
+	return fc, nil
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconRouter } from '@tabler/icons-react'
+import { IconDownload, IconRouter } from '@tabler/icons-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
@@ -13,8 +13,9 @@ import { DeviceFormDialog } from '@/features/devices/components/DeviceFormDialog
 import { DeviceTable, type DeviceAction } from '@/features/devices/components/DeviceTable'
 import { useDeviceEnabled } from '@/features/devices/hooks/useDeviceEnabled'
 import { useDeviceList } from '@/features/devices/hooks/useDevices'
+import { devicesCsvUrl } from '@/features/devices/services/devices.service'
 import type { Device } from '@/features/devices/types/device.types'
-import { buildDeviceQuery, DEVICE_FIELDS } from '@/features/devices/utils/deviceQuery'
+import { buildDeviceCsvQuery, buildDeviceQuery, DEVICE_FIELDS } from '@/features/devices/utils/deviceQuery'
 import { useCursorPagination } from '@/hooks/useCursorPagination'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 import type { PageSize } from '@/lib/pagination'
@@ -50,7 +51,17 @@ export function DevicesPage() {
     <>
       <PageHeader
         title="Dispositivos"
-        actions={isAdmin && <Button size="sm" onClick={() => setForm({ device: null })}>Nuevo dispositivo</Button>}
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm">
+              <a href={devicesCsvUrl(buildDeviceCsvQuery(filters))} download>
+                <IconDownload stroke={1.5} aria-hidden />
+                Exportar CSV
+              </a>
+            </Button>
+            {isAdmin && <Button size="sm" onClick={() => setForm({ device: null })}>Nuevo dispositivo</Button>}
+          </>
+        }
       />
       <div className="flex flex-col gap-3" aria-busy={loading}>
         <FilterBar

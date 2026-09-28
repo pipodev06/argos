@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconRefresh, IconServer2 } from '@tabler/icons-react'
+import { IconDownload, IconRefresh, IconServer2 } from '@tabler/icons-react'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,8 @@ import { PendingTokensDialog } from '@/features/hosts/components/PendingTokensDi
 import { HostTable } from '@/features/hosts/components/HostTable'
 import { useColumnVisibility } from '@/features/hosts/hooks/useColumnVisibility'
 import { useHostList } from '@/features/hosts/hooks/useHostList'
-import { defaultDir, HOST_FIELDS, isVolatileSort, type SortKey } from '@/features/hosts/utils/hostQuery'
+import { hostsCsvUrl } from '@/features/hosts/services/hosts.service'
+import { buildCsvQuery, defaultDir, HOST_FIELDS, isVolatileSort, type SortKey } from '@/features/hosts/utils/hostQuery'
 import { useSummary } from '@/features/summary/hooks/useSummary'
 import { useCursorPagination } from '@/hooks/useCursorPagination'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
@@ -97,6 +98,12 @@ export function HostsPage() {
                 Actualizar
               </Button>
             )}
+            <Button asChild variant="outline" size="sm">
+              <a href={hostsCsvUrl(buildCsvQuery(filters))} download>
+                <IconDownload stroke={1.5} aria-hidden />
+                Exportar CSV
+              </a>
+            </Button>
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => setTokensOpen(true)}>
                 Tokens pendientes

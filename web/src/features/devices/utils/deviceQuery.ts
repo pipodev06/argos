@@ -31,3 +31,8 @@ export function buildDeviceQuery(f: DeviceFilters, cursor: string | null): strin
   if (cursor) p.set('cursor', cursor)
   return p.toString()
 }
+
+/** Query de GET /devices.csv: mismos filtros que la lista, sin paginacion. */
+export function buildDeviceCsvQuery(f: DeviceFilters): string {
+  return serializeFilters(DEVICE_FIELDS, f).toString()
+}

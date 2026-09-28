@@ -92,6 +92,46 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
   }
 }
 
+export interface RuleTemplate {
+  id: string
+  label: string
+  apply: () => RuleDraft
+}
+
+/** Plantillas de reglas (solo al crear): parten de un borrador en blanco y sobrescriben los campos de arriba. */
+export const RULE_TEMPLATES: readonly RuleTemplate[] = [
+  {
+    id: 'cpu_alto',
+    label: 'CPU alto sostenido',
+    apply: () => ({ ...ruleToDraft(null), kind: 'metric', metric: 'cpu_pct', op: 'gt', threshold: '90', durationMin: '5', severity: 'warn' }),
+  },
+  {
+    id: 'mem_alta',
+    label: 'Memoria alta',
+    apply: () => ({ ...ruleToDraft(null), kind: 'metric', metric: 'mem_pct', op: 'gt', threshold: '90', durationMin: '5', severity: 'warn' }),
+  },
+  {
+    id: 'disco_lleno',
+    label: 'Disco casi lleno',
+    apply: () => ({ ...ruleToDraft(null), kind: 'metric', metric: 'disk_max_pct', op: 'gt', threshold: '90', durationMin: '5', severity: 'critical' }),
+  },
+  {
+    id: 'host_caido',
+    label: 'Host caído',
+    apply: () => ({ ...ruleToDraft(null), kind: 'host_status', severity: 'critical', durationMin: '5' }),
+  },
+  {
+    id: 'sin_reportar',
+    label: 'Sin reportar',
+    apply: () => ({ ...ruleToDraft(null), kind: 'no_data', threshold: '300', severity: 'warn' }),
+  },
+  {
+    id: 'updates_seguridad',
+    label: 'Actualizaciones de seguridad pendientes',
+    apply: () => ({ ...ruleToDraft(null), kind: 'pending_updates', threshold: '1', severity: 'warn' }),
+  },
+]
+
 const COPY_SUFFIX = ' (copia)'
 
 /** Borrador para crear una regla nueva a partir de otra: mismos campos, nombre "<nombre> (copia)" recortado a MAX_NAME. */

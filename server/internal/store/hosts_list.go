@@ -146,13 +146,9 @@ func lowerAll(in []string) []string {
 // ascendentes, asi el cursor (nombre no es unico) identifica una posicion exacta. Las etiquetas de la
 // pagina se cargan en una segunda consulta (sin N+1). scope limita los hosts visibles: aplica a la lista,
 // al total y al cursor por igual (se une con AND a los filtros).
-func (s *Store) ListHosts(ctx context.Context, scope Scope, f HostFilter) (HostPage, error) {
-	sortSpec, ok := hostSorts[f.Sort]
-	if !ok {
-		return HostPage{}, fmt.Errorf("orden de hosts desconocido %q", f.Sort)
-	}
-	limit := min(max(f.Limit, 1), MaxHostListLimit)
-
+// hostFilterWhere arma el WHERE de HostFilter (sin orden ni paginacion): lo comparten ListHosts y ExportHosts
+// para no duplicar la traduccion de cada filtro a SQL.
+func hostFilterWhere(scope Scope, f HostFilter) (string, argList) {
 	var args argList
 	where := []string{scope.groupCond("h.group_id", &args)}
 	if f.Q != "" {
@@ -195,7 +191,17 @@ func (s *Store) ListHosts(ctx context.Context, scope Scope, f HostFilter) (HostP
 	if f.AgentOutdated {
 		where = append(where, fmt.Sprintf(`(h.kind = 'agent' AND hi.agent_version = ANY(%s::text[]))`, args.add(nonNil(f.AgentVersions))))
 	}
-	whereSQL := strings.Join(where, " AND ")
+	return strings.Join(where, " AND "), args
+}
+
+func (s *Store) ListHosts(ctx context.Context, scope Scope, f HostFilter) (HostPage, error) {
+	sortSpec, ok := hostSorts[f.Sort]
+	if !ok {
+		return HostPage{}, fmt.Errorf("orden de hosts desconocido %q", f.Sort)
+	}
+	limit := min(max(f.Limit, 1), MaxHostListLimit)
+
+	whereSQL, args := hostFilterWhere(scope, f)
 
 	dir, op := "ASC", ">"
 	if f.Desc {

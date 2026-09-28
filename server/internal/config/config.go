@@ -18,6 +18,8 @@ const (
 	defaultAuditRetention = 180
 	minAuditRetention     = 30 // el trigger de audit_log solo deja purgar filas de mas de 30 dias
 
+	minMetricsTokenLen = 32 // ARGOS_METRICS_TOKEN: un bearer estatico expuesto a la red exige entropia
+
 	defaultHostDownAfter     = 2 * time.Minute
 	minHostDownAfter         = 30 * time.Second // el intervalo por defecto del agente es 30 s
 	defaultHostCheckInterval = 15 * time.Second
@@ -131,6 +133,9 @@ type Config struct {
 	InsecureCookies bool
 	// LogLevel es ARGOS_LOG_LEVEL (debug, info, warn o error; por defecto info).
 	LogLevel slog.Level
+	// MetricsToken es ARGOS_METRICS_TOKEN (>= 32 caracteres): bearer de GET /metrics. Vacio = /metrics responde 404.
+	// Es un secreto: no se loguea.
+	MetricsToken string
 	// AutoMigrate (ARGOS_AUTO_MIGRATE, por defecto true) hace que el server aplique las migraciones al arrancar.
 	// Con false no migra y se niega a arrancar si hay migraciones pendientes: las corre `argos-server migrate` con
 	// otro rol (el dueño del esquema), y el server opera con un rol sin DDL (ver deploy/README.md).
@@ -166,6 +171,7 @@ func Load(getenv func(string) string) (Config, error) {
 		SecretKeyPrevious:          getenv("ARGOS_SECRET_KEY_PREVIOUS"),
 		WebhookAllowHosts:          getenv("ARGOS_WEBHOOK_ALLOW_HOSTS"),
 		WebhookCAFile:              getenv("ARGOS_WEBHOOK_CA_FILE"),
+		MetricsToken:               getenv("ARGOS_METRICS_TOKEN"),
 		HostEventsRetentionDays:    defaultHostEventsRetentionDays,
 		AlertsRetentionDays:        defaultAlertsRetentionDays,
 		NotificationsRetentionDays: defaultNotificationsRetentionDays,
@@ -226,6 +232,10 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	if cfg.HostCheckInterval > cfg.HostDownAfter {
 		return Config{}, fmt.Errorf("ARGOS_HOST_CHECK_INTERVAL (%s) no puede superar ARGOS_HOST_DOWN_AFTER (%s)", cfg.HostCheckInterval, cfg.HostDownAfter)
+	}
+
+	if cfg.MetricsToken != "" && len(cfg.MetricsToken) < minMetricsTokenLen {
+		return Config{}, fmt.Errorf("ARGOS_METRICS_TOKEN debe tener al menos %d caracteres (p. ej. `openssl rand -hex 32`)", minMetricsTokenLen)
 	}
 
 	if err := loadRetention(getenv, &cfg); err != nil {

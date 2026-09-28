@@ -84,6 +84,9 @@ type AlertRule struct {
 	ActiveAlerts int
 	// ChannelIDs son los canales de notificacion asignados (se cambian con SetRuleChannels).
 	ChannelIDs []string
+	// MutedUntil: nil = sin silenciar; en el futuro = las notificaciones nuevas (no `resolved`) quedan suppressed.
+	// Se cambia con MuteRule, no con UpdateAlertRule.
+	MutedUntil *time.Time
 }
 
 const alertRuleSelect = `
@@ -91,7 +94,8 @@ SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.d
        r.include_offline, r.scope_type, r.scope_group_id, g.name, r.scope_host_id, sh.hostname, r.check_id, cd.name, r.warn_is_breach, r.expected_ports,
        r.severity, r.enabled, r.created_at, r.updated_at,
        (SELECT count(*)::int FROM alerts a WHERE a.rule_id = r.id AND a.state <> 'resolved'),
-       COALESCE((SELECT array_agg(rc.channel_id::text ORDER BY rc.channel_id) FROM rule_channels rc WHERE rc.rule_id = r.id), '{}')
+       COALESCE((SELECT array_agg(rc.channel_id::text ORDER BY rc.channel_id) FROM rule_channels rc WHERE rc.rule_id = r.id), '{}'),
+       r.muted_until
   FROM alert_rules r LEFT JOIN host_groups g ON g.id = r.scope_group_id
   LEFT JOIN hosts sh ON sh.id = r.scope_host_id
   LEFT JOIN service_check_defs cd ON cd.id = r.check_id`
@@ -101,7 +105,8 @@ func scanAlertRule(row pgx.Row) (AlertRule, error) {
 	var expected []byte
 	err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Metric, &r.Op, &r.Threshold, &r.ClearThreshold, &r.DurationSeconds, &r.DurationDays,
 		&r.ResolveSeconds, &r.IncludeOffline, &r.Scope.Type, &r.Scope.GroupID,
-		&r.GroupName, &r.Scope.HostID, &r.HostName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &expected, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs)
+		&r.GroupName, &r.Scope.HostID, &r.HostName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &expected, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs,
+		&r.MutedUntil)
 	if err != nil {
 		return r, err
 	}
@@ -348,4 +353,17 @@ func (s *Store) DeleteAlertRule(ctx context.Context, id string) (string, error) 
 		return "", fmt.Errorf("borrando regla de alerta: %w", err)
 	}
 	return name, nil
+}
+
+// MuteRule fija (o quita, con until nil) el silencio de notificaciones nuevas de la regla; la evaluacion sigue
+// igual (ver alert_eval.go). ErrNotFound si la regla no existe.
+func (s *Store) MuteRule(ctx context.Context, id string, until *time.Time) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE alert_rules SET muted_until = $2 WHERE id = $1`, id, until)
+	if err != nil {
+		return fmt.Errorf("silenciando regla de alerta: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

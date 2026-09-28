@@ -16,9 +16,16 @@ export interface GroupPurgeResult {
   windows: number
   checks: number
   enroll_tokens: number
+  channels: number
+  snmp_profiles: number
   users_disabled: number
   users_scope_reduced: number
   group_deleted: boolean
+  /** Datos de la constancia. */
+  group_name: string
+  /** RFC3339 UTC. */
+  purged_at: string
+  performed_by: string
 }
 
 export interface GroupPurgeOptions {
