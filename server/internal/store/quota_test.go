@@ -170,6 +170,37 @@ func TestGroupQuotaChecksRulesChannels(t *testing.T) {
 	}
 }
 
+// TestGroupQuotaOnMove: mover un host YA existente a otro grupo (SetHostGroup/BulkHosts) tambien respeta
+// max_hosts — deuda real corregida (no solo de test): antes solo el alta nueva y los dispositivos la tenian.
+func TestGroupQuotaOnMove(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	dest := mkGroup(t, s, "destino", false, nil)
+	setQuota(t, s, dest.ID, QuotaHosts, iptr(1))
+	seedHost(t, "already-in", "up", ago(time.Second))
+	mustExec(t, `UPDATE hosts SET group_id = $1 WHERE hostname = 'already-in'`, dest.ID)
+	seedHost(t, "elsewhere", "up", ago(time.Second))
+
+	// Re-fijar el MISMO grupo con la cuota ya llena no debe sumar.
+	if _, err := s.SetHostGroup(ctx, hostID(t, "already-in"), &dest.ID); err != nil {
+		t.Errorf("re-fijar el mismo grupo con la cuota llena: %v", err)
+	}
+
+	// Mover un host de OTRO grupo (o sin grupo) al destino lleno si debe chocar.
+	if _, err := s.SetHostGroup(ctx, hostID(t, "elsewhere"), &dest.ID); err == nil {
+		t.Error("mover un host nuevo al grupo lleno debio chocar con la cuota")
+	} else {
+		wantQuotaExceeded(t, err, QuotaHosts)
+	}
+
+	// BulkHosts (alta masiva de acciones) respeta la misma cuota.
+	if _, err := s.BulkHosts(ctx, Bulk{IDs: []string{hostID(t, "elsewhere")}, Action: BulkSetGroup, GroupID: &dest.ID}); err == nil {
+		t.Error("BulkHosts set_group al grupo lleno debio chocar con la cuota")
+	} else {
+		wantQuotaExceeded(t, err, QuotaHosts)
+	}
+}
+
 func mustAddr(t *testing.T, s string) netip.Addr {
 	t.Helper()
 	a, err := netip.ParseAddr(s)

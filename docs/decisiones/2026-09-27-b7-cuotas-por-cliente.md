@@ -19,7 +19,7 @@ Todos los chequeos corren dentro de la misma transacción del alta, y el error (
 El DTO de `GET /groups/{id}/usage` no tenía `json` tags: serializaba con mayúsculas (`Hosts`, `Devices`...) en vez de minúsculas. Corregido con test de contrato (`TestGroupUsageShape`) que fija las claves esperadas.
 
 ## Deuda
-- Mover un HOST entre grupos (`SetHostGroup`, `BulkHosts` con `action=set_group`) no aplica ninguna cuota todavía — solo dispositivos la tienen al moverse. Si se quiere cerrar del todo, falta agregarla ahí.
-- Sin tests end-to-end de bloqueo real por cuota en ninguno de los 6 recursos (ver `docs/tests-pendientes.md`).
+- ~~Mover un HOST entre grupos no aplicaba `max_hosts`~~ — **corregido 2026-09-27**: `checkGroupMove` (compartida por `SetHostGroup` y `BulkHosts set_group`) ahora cuenta cuántos de los hosts movidos de verdad CAMBIAN de grupo (agentes contra `max_hosts`, dispositivos contra `max_devices`; re-fijar el mismo grupo o quitarlo nunca suma), con test (`TestGroupQuotaOnMove`).
+- Sin tests end-to-end de bloqueo real por cuota en ninguno de los 6 recursos: **cerrado 2026-09-27** (`quota_test.go`, ver `tests-pendientes.md`).
 - La cuota de chequeos/reglas con alcance `host`/`device` no cuenta contra el grupo del host — simplificación deliberada, podría revisarse si se vuelve un problema real.
 - El error de cuota al editar un usuario/dispositivo/etc. no tiene un mensaje especial en cada diálogo del web (solo el `GroupFormDialog` lo tiene, y ahí en realidad nunca puede ocurrir); en el resto se muestra el mensaje genérico del servidor, que ya es descriptivo.

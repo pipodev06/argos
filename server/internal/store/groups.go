@@ -469,6 +469,29 @@ func checkGroupMove(ctx context.Context, tx pgx.Tx, ids []string, newGroup *stri
 	case orphaned > 0:
 		return &GroupRuleError{Kind: ErrCollectorHasDevices, Devices: orphaned}
 	}
+	// Cuotas del cliente (B7): solo cuentan los que de verdad ENTRAN al grupo nuevo (no tenian ya ese group_id);
+	// re-fijar el mismo grupo, o quitarlo (newGroup nil), nunca suma. Un movimiento puede mezclar agentes y
+	// dispositivos (alta masiva de acciones), cada uno contra su propia cuota.
+	if newGroup != nil {
+		var movingHosts, movingDevices int
+		if err := tx.QueryRow(ctx,
+			`SELECT
+			   (SELECT count(*)::int FROM hosts WHERE id = ANY($1) AND kind = 'agent' AND group_id IS DISTINCT FROM $2::uuid),
+			   (SELECT count(*)::int FROM hosts WHERE id = ANY($1) AND kind = 'device' AND group_id IS DISTINCT FROM $2::uuid)`,
+			ids, newGroup).Scan(&movingHosts, &movingDevices); err != nil {
+			return fmt.Errorf("contando hosts que cambian de grupo: %w", err)
+		}
+		if movingHosts > 0 {
+			if err := checkGroupQuota(ctx, tx, *newGroup, QuotaHosts, movingHosts); err != nil {
+				return err
+			}
+		}
+		if movingDevices > 0 {
+			if err := checkGroupQuota(ctx, tx, *newGroup, QuotaDevices, movingDevices); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
