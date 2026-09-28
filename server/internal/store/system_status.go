@@ -67,8 +67,8 @@ func (s *Store) SystemStats(ctx context.Context, deadSince time.Time) (SystemSta
 
 // FleetCounts son agregados globales de toda la flota (sin ambito de grupo) para GET /metrics.
 type FleetCounts struct {
-	// Hosts cuenta todos los hosts (agentes y dispositivos) por estado.
-	Hosts StatusCounts
+	// Agents y Devices cuentan los hosts con agente y los dispositivos sin agente por estado.
+	Agents, Devices StatusCounts
 	// AlertsOpen cuenta las alertas no resueltas por severidad (info, warn, critical siempre presentes).
 	AlertsOpen map[string]int
 }
@@ -76,18 +76,22 @@ type FleetCounts struct {
 // FleetCounts lee los conteos globales de hosts por estado y de alertas abiertas por severidad.
 func (s *Store) FleetCounts(ctx context.Context) (FleetCounts, error) {
 	fc := FleetCounts{AlertsOpen: map[string]int{"info": 0, "warn": 0, "critical": 0}}
-	rows, err := s.pool.Query(ctx, `SELECT status, count(*)::int FROM hosts GROUP BY status`)
+	rows, err := s.pool.Query(ctx, `SELECT kind, status, count(*)::int FROM hosts GROUP BY kind, status`)
 	if err != nil {
 		return FleetCounts{}, fmt.Errorf("contando hosts por estado: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var status string
+		var kind, status string
 		var n int
-		if err := rows.Scan(&status, &n); err != nil {
+		if err := rows.Scan(&kind, &status, &n); err != nil {
 			return FleetCounts{}, fmt.Errorf("leyendo conteo de hosts: %w", err)
 		}
-		fc.Hosts.add(status, n)
+		if kind == "device" {
+			fc.Devices.add(status, n)
+		} else {
+			fc.Agents.add(status, n)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return FleetCounts{}, fmt.Errorf("iterando conteo de hosts: %w", err)

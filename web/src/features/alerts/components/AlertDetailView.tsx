@@ -99,7 +99,7 @@ export function AlertDetailView({ id }: { id: string }) {
                 )}
               </div>
               {a.escalated_at && <p className="text-sm text-text-muted">Escaló el {formatFullDate(a.escalated_at)}: sin reconocer, subió de severidad.</p>}
-              {a.flapping && <p className="text-sm text-text-muted">Se abrió 3 o más veces en 30 minutos; no se envió aviso.</p>}
+              {a.flapping && <p className="text-sm text-text-muted">Se abrió 3 o más veces en 30 minutos. El aviso se retiene mientras oscila y se envía si sigue abierta pasados 30 minutos.</p>}
               {a.suppressed && a.state !== 'resolved' && (
                 <p className="text-sm text-text-muted">
                   El host está en una ventana de mantenimiento: la alerta es visible pero no se notifica.

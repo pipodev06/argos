@@ -152,7 +152,7 @@ func count(t *testing.T, sql string, args ...any) int {
 }
 
 // latestMigration es la version de la ultima migracion embebida.
-const latestMigration = 42
+const latestMigration = 45
 
 func TestMigrateIsIdempotent(t *testing.T) {
 	if testPool == nil {

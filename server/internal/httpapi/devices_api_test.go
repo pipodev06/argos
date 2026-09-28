@@ -121,7 +121,7 @@ func TestDevicesAdminCRUD(t *testing.T) {
 		t.Errorf("/devices lista un agente: %.300s", rec.Body.String())
 	}
 
-	x.wantStatus(x.do("DELETE", "/api/v1/devices/"+id, "", withCookie(x.admin)), http.StatusOK, "")
+	x.finishPurge(x.do("DELETE", "/api/v1/devices/"+id, "", withCookie(x.admin)), x.admin)
 	x.wantStatus(x.do("GET", "/api/v1/devices/"+id, "", withCookie(x.admin)), http.StatusNotFound, "not_found")
 	x.wantStatus(x.do("DELETE", "/api/v1/devices/"+id, "", withCookie(x.admin)), http.StatusNotFound, "not_found")
 	x.wantStatus(x.do("DELETE", "/api/v1/devices/"+x.hostA, "", withCookie(x.admin)), http.StatusNotFound, "not_found")

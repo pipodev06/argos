@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -526,6 +527,7 @@ func (a *API) putRuleChannels(w http.ResponseWriter, r *http.Request, set func(c
 			ids = append(ids, cid)
 		}
 	}
+	slices.Sort(ids) // respuesta determinista, igual que las listas que devuelve la regla
 	if err := set(r.Context(), id, ids); err != nil {
 		return err
 	}

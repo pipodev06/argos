@@ -644,6 +644,9 @@ func TestPurgeHostBatchedByDay(t *testing.T) {
 	if n := count(t, `SELECT count(*) FROM metrics WHERE host_id = $1`, colID); n != 9 {
 		t.Fatalf("el rechazo ya borro historial: quedan %d de 9 filas de metrics", n)
 	}
+	if n := count(t, `SELECT count(*) FROM hosts WHERE id = $1 AND status = 'up'`, colID); n != 1 {
+		t.Fatalf("el rechazo dejo el host deshabilitado: solo debe deshabilitarse si la purga procede")
+	}
 
 	if _, err := s.DeleteDevice(ctx, d.ID); err != nil {
 		t.Fatalf("borrar dispositivo: %v", err)
@@ -657,5 +660,44 @@ func TestPurgeHostBatchedByDay(t *testing.T) {
 	}
 	if n := count(t, `SELECT count(*) FROM hosts WHERE id = $1`, colID); n != 0 {
 		t.Errorf("el host sigue existiendo")
+	}
+}
+
+// Un reporte que llega cuando el host ya no existe (purgado entre autenticar e ingerir) es ErrHostGone, no un fallo
+// interno; y la purga deshabilita el host antes de borrar, para que el agente deje de escribir.
+func TestIngestHostGoneAndPurgeDisables(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "vivo", "up", ago(time.Second))
+	id := hostID(t, "vivo")
+	if _, err := s.PurgeHost(ctx, id, "vivo"); err != nil {
+		t.Fatalf("purgar: %v", err)
+	}
+	_, err := s.IngestMetrics(ctx, id, Sample{Timestamp: time.Now(), Services: []ServiceCheck{{Name: "ssh", Status: "up"}}})
+	if !errors.Is(err, ErrHostGone) {
+		t.Fatalf("ingest de un host purgado: got %v, want ErrHostGone", err)
+	}
+}
+
+// Con todos los turnos de purga ocupados, una baja espera (y se rinde con el contexto) sin tocar el host: asi 10 bajas
+// simultaneas no agotan el pool de conexiones.
+func TestPurgeWaitsForASlotWithoutTouchingTheHost(t *testing.T) {
+	s := newTestStore(t)
+	seedHost(t, "en-cola", "up", ago(time.Second))
+	id := hostID(t, "en-cola")
+	for range cap(s.purgeSlots) {
+		s.purgeSlots <- struct{}{}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := s.PurgeHost(ctx, id, "en-cola"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("baja sin turno libre: got %v, want DeadlineExceeded", err)
+	}
+	if n := count(t, `SELECT count(*) FROM hosts WHERE id = $1 AND status = 'up'`, id); n != 1 {
+		t.Errorf("la baja en espera no debe tocar el host")
+	}
+	<-s.purgeSlots // libera un turno: ahora procede
+	if _, err := s.PurgeHost(context.Background(), id, "en-cola"); err != nil {
+		t.Fatalf("baja con turno libre: %v", err)
 	}
 }

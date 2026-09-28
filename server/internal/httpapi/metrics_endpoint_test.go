@@ -52,7 +52,7 @@ func TestMetricsEndpoint(t *testing.T) {
 		body := rec.Body.String()
 		for _, want := range []string{
 			`argos_build_info{version="v-test"} 1`, "argos_uptime_seconds ", "argos_db_size_bytes ",
-			`argos_hosts{status="up"} 1`, `argos_alerts_open{severity="critical"} 0`,
+			`argos_hosts{kind="agent",status="up"} 1`, `argos_alerts_open{severity="critical"} 0`,
 			"argos_notification_queue_pending 0", "argos_notification_dead_24h 0",
 		} {
 			if !strings.Contains(body, want) {
@@ -65,4 +65,21 @@ func TestMetricsEndpoint(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestMetricsRateLimitPerIP(t *testing.T) {
+	e := newEnv(t, Options{MetricsToken: testMetricsToken, Status: StatusSources{Version: "v-test", StartedAt: time.Now()}})
+	auth := withHeader("Authorization", "Bearer "+testMetricsToken)
+	for i := 0; i < metricsScrapesPerMinute; i++ {
+		e.wantStatus(e.do("GET", "/metrics", "", auth), http.StatusOK, "")
+	}
+	rec := e.do("GET", "/metrics", "", auth)
+	e.wantStatus(rec, http.StatusTooManyRequests, "")
+	if rec.Header().Get("Retry-After") == "" {
+		t.Error("el 429 debe llevar Retry-After")
+	}
+	// Con un token incorrecto tambien cuenta: el limite frena los intentos de adivinarlo.
+	e.wantStatus(e.do("GET", "/metrics", "", withHeader("Authorization", "Bearer mal")), http.StatusTooManyRequests, "")
+	e.clock.Advance(time.Minute)
+	e.wantStatus(e.do("GET", "/metrics", "", auth), http.StatusOK, "")
 }

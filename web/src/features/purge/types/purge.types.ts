@@ -32,3 +32,21 @@ export interface GroupPurgeOptions {
   delete_group: boolean
   disable_users: boolean
 }
+
+export type PurgeJobState = 'queued' | 'running' | 'done' | 'failed'
+
+/** Trabajo de baja en segundo plano (JobDTO). `result` solo llega con `state === 'done'`: host `{deleted_rows}`, grupo `GroupPurgeResult`, dispositivo `{}`. */
+export interface PurgeJob {
+  id: string
+  kind: 'host' | 'device' | 'group'
+  target_name: string
+  state: PurgeJobState
+  total_hosts: number
+  done_hosts: number
+  /** Mensaje corto (nunca SQL ni rutas). */
+  error: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  result: unknown
+}

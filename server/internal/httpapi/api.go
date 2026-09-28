@@ -70,6 +70,18 @@ type Store interface {
 	// Baja de un cliente: purga de un host o de un grupo entero.
 	PurgeHost(ctx context.Context, hostID, confirmHostname string) (store.PurgeCounts, error)
 	PurgeGroup(ctx context.Context, groupID string, o store.PurgeGroupOpts) (store.PurgeGroupResult, error)
+	PreparePurgeHost(ctx context.Context, hostID, confirmHostname string) (name string, err error)
+	PreparePurgeGroup(ctx context.Context, groupID, confirmName string) (total int, err error)
+	PrepareDeleteDevice(ctx context.Context, id string) (name string, err error)
+	// Trabajos de baja en segundo plano.
+	CreatePurgeJob(ctx context.Context, p store.NewPurgeJob) (store.PurgeJob, error)
+	ClaimPurgeJob(ctx context.Context) (job store.PurgeJob, ok bool, err error)
+	UpdatePurgeProgress(ctx context.Context, id string, done, total int) error
+	FinishPurgeJob(ctx context.Context, id string, result []byte, jobErr string) error
+	RequeueStalePurgeJobs(ctx context.Context, olderThan time.Duration) (int64, error)
+	PurgeJobByID(ctx context.Context, id string) (store.PurgeJob, error)
+	ListPurgeJobs(ctx context.Context, activeOnly bool, limit int) ([]store.PurgeJob, error)
+	DeleteOldPurgeJobs(ctx context.Context, olderThan time.Duration) (int64, error)
 
 	// Alertas, reglas, mantenimiento y eventos de host.
 	ListAlerts(ctx context.Context, scope store.Scope, f store.AlertFilter) (store.AlertPage, error)
@@ -233,6 +245,7 @@ type API struct {
 	distLimiter        *limiter      // por IP: 30 / min (instaladores y descargas)
 	enrollLimiter      *limiter      // por IP: 10 / min
 	metricsLimiter     *limiter      // por host: 1 cada 2 s, rafaga 5
+	scrapeLimiter      *limiter      // GET /metrics por IP: 30 / min (un scraper usa ~4)
 	inventoryLimiter   *limiter      // por host: 20 / min (3 modulos con minimo de 30 s entre envios completos)
 	inventoryReadDedup *limiter      // por (usuario, host, modulo): 1 evento inventory_read cada 5 min
 	inventoryDenyDedup *limiter      // por (usuario, ruta): 1 authz_denied cada 5 min por falta de can_inventory o can_updates
@@ -241,7 +254,6 @@ type API struct {
 	reportSem          chan struct{} // cupos de informes de disponibilidad concurrentes
 	exportLimiter      *limiter      // por usuario: 6 / min (CSV del historial)
 	exports            *exportGate   // cupo propio de exportaciones CSV (1 por usuario, tope global)
-	purgeSem           chan struct{} // un solo purge de grupo a la vez
 	agentFails         failCounter
 
 	status  statusTracker
@@ -271,6 +283,7 @@ func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time
 		loginLimiter:       newLimiter(20, 10*time.Minute),
 		enrollLimiter:      newLimiter(10, time.Minute),
 		metricsLimiter:     newLimiter(5, 10*time.Second),
+		scrapeLimiter:      newLimiter(metricsScrapesPerMinute, time.Minute),
 		inventoryLimiter:   newLimiter(20, time.Minute),
 		inventoryReadDedup: newLimiter(1, invAuditWindow),
 		inventoryDenyDedup: newLimiter(1, invAuditWindow),
@@ -280,7 +293,6 @@ func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time
 		reportSem:          make(chan struct{}, maxConcurrentReports),
 		exportLimiter:      newLimiter(exportsPerMinute, time.Minute),
 		exports:            newExportGate(maxConcurrentExports),
-		purgeSem:           make(chan struct{}, 1),
 		cmdOrigin:          commandOrigin(opts.PublicURL, opts.Dist != nil),
 	}
 	if opts.InsecureCookies {
@@ -390,6 +402,8 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "PATCH /api/v1/groups/{id}", accessAdmin, a.updateGroup)
 	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
 	a.route(mux, "POST /api/v1/groups/{id}/purge", accessAdmin, a.purgeGroup)
+	a.route(mux, "GET /api/v1/purge-jobs", accessAdmin, a.listPurgeJobs)
+	a.route(mux, "GET /api/v1/purge-jobs/{id}", accessAdmin, a.getPurgeJob)
 	a.route(mux, "GET /api/v1/groups/{id}/export.zip", accessAdmin, a.exportGroupZip)
 	a.route(mux, "GET /api/v1/groups/{id}/usage", accessAdmin, a.getGroupUsage)
 
@@ -535,6 +549,8 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, store.ErrCollectorHasDevices):
 		writeErrorDetails(w, http.StatusConflict, "collector_has_devices",
 			"el host es colector de dispositivos: muevelos a la vez, cambiales el colector o borralos antes", groupRuleDetails(err))
+	case errors.Is(err, store.ErrPurgeBusy):
+		writeError(w, http.StatusConflict, "purge_in_progress", "hay otra purga de grupo en curso: espera a que termine")
 	case errors.Is(err, store.ErrPurgeConfirm):
 		writeError(w, http.StatusBadRequest, "confirm_mismatch", "el nombre de confirmacion no coincide")
 	case errors.Is(err, store.ErrCollectorInvalid):

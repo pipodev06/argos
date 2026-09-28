@@ -31,6 +31,60 @@ Lo que puede rechazarse (colector con dispositivos) se comprueba antes de borrar
 ya no hay una transacción gigante. Los handlers de baja amplían el plazo de escritura (`extendPurgeDeadline`).
 Tests: `TestPurgeHostBatchedByDay`.
 
+## Ronda de correcciones tras la revisión de riesgos (2026-09-28)
+- **Purgar un host que sigue reportando:** `purgeHostBatched` lo deshabilita (tras comprobar que no es colector con
+  dispositivos) antes de borrar: el agente recibe 401 y deja de escribir. Si un reporte ya autenticado llega cuando
+  el host desapareció, `IngestMetrics` devuelve `ErrHostGone` (FK 23503 + host inexistente) y el handler responde 401
+  `invalid_token` en vez de 500 (el agente lo trata como token rechazado). Tests: `TestIngestHostGoneAndPurgeDisables`.
+- **Silencio de regla que nunca avisaba (migración 00043):** una alerta que abría durante el silencio quedaba con su
+  `opened` suppressed para siempre (sin aviso, sin recordatorios ni `resolved`). Ahora `alerts.mute_held` marca las que
+  abrieron retenidas SOLO por el silencio (no flapping ni mantenimiento) y `releaseMutedSQL` libera su `opened`
+  (`pending`) al terminar el silencio si siguen `open`; las reconocidas solo limpian la marca; con mantenimiento vigente
+  no se libera hasta que terminen ambos. `EvalResult.MuteReleased`. Tests: `alert_mute_release_test.go`.
+- **`argos_hosts`** ahora lleva `kind` (`agent`/`device`) además de `status`.
+- **Tests que faltaban:** export CSV (`inventory_csv_test.go`, `inventory_export_test.go`: ámbito, fórmulas, filtro, tope
+  5000) y escalamiento de punta a punta por el worker real (`escalation_worker_test.go`).
+- **Flake corregido:** el PUT de canales devolvía los ids en orden de llegada tras el cambio del escalamiento y
+  `TestRuleChannelAssignmentContract` fallaba la mitad de las veces; ahora se devuelven ordenados.
+- Verificado con `check-go.sh server --race` (gcc de WinLibs en el PATH del shell) en verde.
+
+## Medición con 10 M de filas y bajas simultáneas (2026-09-28, `scripts/perf/purge-volume.sh`)
+Generador por SQL en una BD desechable (`argos_volume_test`), sin tocar la real. Host con 10 M filas (70 % chequeos,
+20 % métricas, 10 % discos):
+- Una sola transacción: 28,5 s, 1.211 MB de WAL, transacción más larga 28,5 s.
+- Por tandas (primera versión): 69,5 s, 2.264 MB, transacción más larga **27 s** (el "arreglo" no cumplía): la
+  transacción final repetía el `DELETE` por host en `metrics`/`service_checks`/`disk_samples` y recorría 10 M de
+  entradas de índice ya muertas. Ahora esa pasada se limita a los últimos dos días (`tails` en `purgeHostTx`):
+  **36,4 s, 1.868 MB, transacción más larga 9,9 s** (acotada por el tamaño de un día, no del host).
+- El pool tiene 10 conexiones: 10 bajas simultáneas sin tope lo agotaban (una consulta trivial esperó hasta 2,19 s;
+  164 sondeos en la corrida) aunque el total fuese 14,2 s. Con `maxConcurrentPurges = 2` (semáforo en el `Store`,
+  cubre host, dispositivo y grupo; las demás esperan turno) el total sube a 26,7 s pero la peor consulta trivial es de
+  7 ms. Tests: `TestPurgeWaitsForASlotWithoutTouchingTheHost`.
+- `GET /metrics` tiene límite por IP (30/min, antes de validar el token). Test: `TestMetricsRateLimitPerIP`.
+- Volumen real de chequeos: el historial de `service_checks` se muestrea (una muestra por chequeo cada 15 min sin
+  cambio de estado, más una por transición; 14 días): unas 13 mil filas por host con 10 chequeos, no millones.
+
+## Baja en segundo plano (migración 00044) y flapping que se estabiliza (migración 00045), 2026-09-28
+- **Bajas como trabajos:** `POST /hosts/{id}/purge`, `POST /groups/{id}/purge` y `DELETE /devices/{id}` validan en el
+  acto (mismos errores de siempre) y responden **202** `{job}`; un worker del server (`RunPurgeWorker`, hasta 2 trabajos
+  a la vez, uno de grupo a la vez → 409 `purge_in_progress`) los ejecuta con contexto propio, no el de la petición: un
+  proxy o navegador que corta ya no deja bajas a medias. `GET /purge-jobs` y `/purge-jobs/{id}` (solo admin) dan estado
+  y progreso; `result` es la respuesta síncrona de antes. Un solo trabajo activo por destino (índice único parcial,
+  `pg_advisory_xact_lock` al crear). Al arrancar, los `running` se reencolan (la purga es idempotente). Trabajos
+  terminados se limpian a los 30 días. UI: fase "Eliminando…" con progreso en host, grupo y dispositivo; se puede cerrar
+  la ventana; la constancia solo con el trabajo `done`. Deuda: sin latido periódico ni reclamo entre varias instancias;
+  `onDone` navega a la lista aunque el usuario ya se haya ido a otra página; falta un test del diálogo de grupo.
+- **Flapping (decisión: umbrales fijos, 3 aperturas en 30 min; si un despliegue lo necesita, pasar a variables de
+  entorno, no a configuración por regla).** `alerts.flap_held` marca las que abrieron retenidas por flapping;
+  `releaseFlapSQL` libera su `opened` si siguen abiertas pasada la ventana (ya no oscilan): una intermitente que termina
+  caída no queda muda. Si al liberar la regla está silenciada, la retención pasa a `mute_held`; el fin de mantenimiento
+  no la libera antes. Resueltas o reconocidas solo limpian la marca. La escalación espera mientras `flap_held`.
+- **Dimensionado (estimación, no medición nueva):** 50 bajas (10 usuarios × 5 hosts) con lo que el código retiene
+  (≤730 d de detalle, 400 d horario, 8 d crudo) ≈ 1,1 GB y 2,6 M filas, 30–60 s en 2 vCPU; con 4–8 años comprimidos
+  (exigiría subir los topes) 2–3,9 GB y 1–2 min; con 4–8 años de crudo 37–75 GB y 45–95 min (imposible por retención
+  salvo importación). El límite real de un server de 2 vCPU/4 GB con 10.000 hosts no es la baja sino el ingest
+  (~333 req/s; medido 309 req/s en una laptop de 4 núcleos) y la caché (~1 GB por 1000 hosts): recomendado 4 vCPU/16 GB.
+
 ## Deuda
 - Sin prueba con decenas de millones de filas reales; la purga sigue siendo síncrona en la petición HTTP (plazo
   30 min). Si un día hace falta, pasarla a tarea en segundo plano con progreso.

@@ -35,7 +35,6 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Sin tests del prompt sin eco de `create-admin`/`reset-password` (solo stdin; los flujos de store/handlers sí). Ingest: el tope H5 (4 s por `ts`) vive en memoria y se pierde al reiniciar. Firma de binarios (H7): sin rotación de la clave de firma; si se pierde/filtra, todo agente existente queda sin poder `update` hasta reinstalarse.
 
 ## Agente y servicio
-- `IngestMetrics` no distingue 404/409 si el host se purga entre autenticar e ingerir (FK → 500); ahora posible con la purga (H2), improbable en la práctica.
 - Buffer offline persistente: los extras (discos/`host_info`) de un reporte descartado por tope no se persisten; tras reiniciar con buffer viejo reenvía a 1 reporte cada 2,5 s.
 - Windows: el servicio solo LEE el estado (ACL de solo lectura; con rotación de token habrá que darle escritura); `install` deja binario y usuario si falla un paso posterior (solo en Windows se revierte el servicio). macOS: sin rotación de `/var/log/argos-agent.log`. Linux exige systemd.
 - Batería: `Unknown` de sysfs omite el bloque; solo `BAT*`; baterías múltiples sin ponderar. Discos: excluidos red y `fuse.*`, Windows solo unidades fijas, sin protección contra `statfs` colgado. `host_info`: IPv6 temporales rotan; interfaces virtuales filtradas por prefijo; `os_name` en Linux = id de distro; los contadores de red suman interfaces virtuales.

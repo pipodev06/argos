@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ServiceCheck es el resultado de un chequeo de servicio reportado por un agente.
@@ -242,6 +243,14 @@ func (s *Store) IngestMetrics(ctx context.Context, hostID string, smp Sample) (I
 	if err != nil {
 		if isPartitionMissing(err) {
 			err = fmt.Errorf("%w: %w", ErrPartitionMissing, err)
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			// FK: distinguir un host purgado en medio del reporte de cualquier otra violacion.
+			var exists bool
+			if qerr := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1)`, hostID).Scan(&exists); qerr == nil && !exists {
+				err = fmt.Errorf("%w: %w", ErrHostGone, err)
+			}
 		}
 		return IngestResult{}, fmt.Errorf("ingest de metricas: %w", err)
 	}

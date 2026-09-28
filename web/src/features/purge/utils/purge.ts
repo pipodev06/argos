@@ -1,6 +1,6 @@
 import { formatFullDate } from '@/features/hosts/utils/format'
 import { ApiError } from '@/lib/api'
-import type { GroupPurgeResult } from '../types/purge.types'
+import type { GroupPurgeResult, PurgeJob } from '../types/purge.types'
 
 /** La confirmacion exige el nombre exacto (el servidor tambien lo compara). */
 export function purgeNameMatches(typed: string, expected: string): boolean {
@@ -83,4 +83,32 @@ export function summarizeGroupPurge(r: GroupPurgeResult): string[] {
     `Usuarios deshabilitados: ${n(r.users_disabled)}; con alcance reducido: ${n(r.users_scope_reduced)}`,
     r.group_deleted ? 'El grupo se eliminó.' : 'El grupo se conservó (vacío).',
   ]
+}
+
+/** Resultado de la baja de un grupo; solo existe con el trabajo terminado (`done`), nunca con `failed` ni en curso. */
+export function groupResultOf(job: PurgeJob): GroupPurgeResult | null {
+  if (job.state !== 'done' || job.kind !== 'group' || typeof job.result !== 'object' || job.result === null) return null
+  return job.result as GroupPurgeResult
+}
+
+/** Filas borradas de un host purgado (`{deleted_rows}`), o null si el trabajo no termino. */
+export function hostDeletedRowsOf(job: PurgeJob): number | null {
+  if (job.state !== 'done' || job.kind !== 'host') return null
+  const rows = (job.result as { deleted_rows?: { metrics?: unknown } } | null)?.deleted_rows?.metrics
+  return typeof rows === 'number' ? rows : null
+}
+
+/** Texto de progreso: "En cola…", "Borrando 3 de 10 equipos" (grupo) o "Borrando…" (host/dispositivo). */
+export function purgeProgressLabel(job: PurgeJob): string {
+  if (job.state === 'queued') return 'En cola…'
+  if (job.kind === 'group' && job.total_hosts > 0) {
+    return `Borrando ${job.done_hosts.toLocaleString('es-PE')} de ${job.total_hosts.toLocaleString('es-PE')} equipos`
+  }
+  return 'Borrando…'
+}
+
+/** Avance 0-100 del trabajo (0 si no hay total). */
+export function purgeProgressPct(job: PurgeJob): number {
+  if (job.total_hosts <= 0) return 0
+  return Math.min(100, Math.max(0, Math.round((job.done_hosts / job.total_hosts) * 100)))
 }

@@ -125,7 +125,7 @@ func TestEscalationSkipsIneligibleAlerts(t *testing.T) {
 	}{
 		{"reconocida", secs(300), "", `UPDATE alerts SET state = 'acknowledged', acknowledged_at = now(), acknowledged_by_name = 'u'`},
 		{"en mantenimiento", secs(300), `INSERT INTO maintenance_windows (name, starts_at, ends_at, scope_type) VALUES ('m', now() - interval '1 hour', now() + interval '1 hour', 'all')`, `SELECT 1`},
-		{"intermitente", secs(300), "", `UPDATE alerts SET flapping = true`},
+		{"intermitente", secs(300), "", `UPDATE alerts SET flapping = true, flap_held = true`},
 		{"regla sin plazo", nil, "", `SELECT 1`},
 	}
 	for _, tc := range tests {

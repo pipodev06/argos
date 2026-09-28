@@ -26,6 +26,8 @@ var (
 	// (el mantenimiento no las creo o no alcanzo a crearlas). Es un problema del servidor y
 	// reintentable, no de la muestra.
 	ErrPartitionMissing = errors.New("no hay particion para el timestamp")
+	// ErrHostGone: el host se purgo entre autenticar al agente e ingerir su reporte (FK de las muestras).
+	ErrHostGone = errors.New("el host ya no existe")
 
 	// Grupos y etiquetas.
 
@@ -88,11 +90,18 @@ type Store struct {
 	// retention son los valores de arranque de la retencion de metricas (WithRetention); el detalle global
 	// puede sobrescribirse desde la API (tabla settings).
 	retention RetentionDefaults
+	// purgeSlots limita los borrados de hosts simultaneos (ver maxConcurrentPurges).
+	purgeSlots chan struct{}
 }
+
+// maxConcurrentPurges acota cuantos hosts se purgan a la vez. El pool tiene 10 conexiones y cada borrado ocupa una
+// mientras ejecuta su DELETE: sin tope, 10 bajas simultaneas dejarian sin conexion al ingest de agentes, al dashboard
+// y al evaluador de alertas. Las demas esperan su turno.
+const maxConcurrentPurges = 2
 
 // New envuelve un pool ya abierto (y migrado).
 func New(pool *pgxpool.Pool) *Store {
-	return &Store{pool: pool, retention: DefaultRetention()}
+	return &Store{pool: pool, retention: DefaultRetention(), purgeSlots: make(chan struct{}, maxConcurrentPurges)}
 }
 
 // Ping comprueba que Postgres responde (lo usa GET /health; el llamador acota el tiempo con el contexto).

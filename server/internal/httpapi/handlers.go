@@ -403,6 +403,10 @@ func (a *API) agentMetrics(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 	res, err := a.store.IngestMetrics(r.Context(), hostID, sample)
+	if errors.Is(err, store.ErrHostGone) {
+		// Purgado entre autenticar e ingerir: para el agente es un token que ya no vale, no un fallo del server.
+		return errInvalidAgentToken
+	}
 	if err != nil {
 		return err
 	}
