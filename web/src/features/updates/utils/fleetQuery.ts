@@ -38,3 +38,8 @@ export function buildFleetQuery(f: FleetFilters, cursor: string | null): URLSear
   if (cursor) p.set('cursor', cursor)
   return p
 }
+
+/** Query de GET /updates.csv: mismos filtros que la lista, sin paginacion/orden. */
+export function buildFleetCsvQuery(f: FleetFilters): URLSearchParams {
+  return serializeFilters(FLEET_FIELDS, f)
+}

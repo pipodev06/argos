@@ -206,6 +206,7 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 			Maintenance: &maintBeat, Evaluator: &evalBeat,
 			MaintenanceInterval: cfg.MetricsMaintenanceInterval, EvalInterval: cfg.AlertEvalInterval, EvalGrace: cfg.HostDownAfter,
 		},
+		MetricsToken:    cfg.MetricsToken,
 		PublicURL:       cfg.PublicURL,
 		TrustedProxies:  cfg.TrustedProxies,
 		InsecureCookies: cfg.InsecureCookies,

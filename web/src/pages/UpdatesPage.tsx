@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
-import { IconShieldCheck } from '@tabler/icons-react'
+import { IconDownload, IconShieldCheck } from '@tabler/icons-react'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
 import { PageHeader } from '@/components/ui/page-header'
@@ -9,7 +10,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { FleetTable } from '@/features/updates/components/FleetTable'
 import { useFleetUpdates } from '@/features/updates/hooks/useUpdates'
-import { defaultDir, FLEET_FIELDS, type SortKey } from '@/features/updates/utils/fleetQuery'
+import { updatesCsvUrl } from '@/features/updates/services/updates.service'
+import { buildFleetCsvQuery, defaultDir, FLEET_FIELDS, type SortKey } from '@/features/updates/utils/fleetQuery'
 import { canViewUpdates } from '@/features/updates/utils/updates'
 import { useCursorPagination } from '@/hooks/useCursorPagination'
 import { useNow } from '@/hooks/useNow'
@@ -55,7 +57,19 @@ function FleetUpdates() {
 
   return (
     <>
-      <PageHeader title="Parches" />
+      <PageHeader
+        title="Parches"
+        actions={
+          !denied && (
+            <Button asChild variant="outline" size="sm">
+              <a href={updatesCsvUrl(buildFleetCsvQuery(filters))} download>
+                <IconDownload stroke={1.5} aria-hidden />
+                Exportar CSV
+              </a>
+            </Button>
+          )
+        }
+      />
       {denied ? (
         <InlineError>Sin acceso a los parches.</InlineError>
       ) : (

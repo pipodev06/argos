@@ -12,4 +12,6 @@ Mientras se ataca el core de negocio (B7, B12, …) no se escriben tests nuevos 
 
 - ~~**B12, informes por rango libre:** sin test web de los campos "Desde"/"Hasta".~~ **Cerrado 2026-09-27** (`ReportsPage.test.tsx`: sin fechas no consulta ni exporta, con fechas en la URL consulta con `from`/`to` (no `range`), escribir las fechas hace aparecer el informe).
 
+- **B19-B30 (export CSV de inventario), sin test:** `exportHostsCSV`/`exportDevicesCSV`/`exportUpdatesCSV` (`inventory_csv.go`) y `ExportHosts`/`ExportDevices`/`ExportUpdatesFleet` (`inventory_export.go`) no tienen test propio contra Postgres real (feature de exportación, no toca el motor de alertas: se aplazó igual que B17 en su momento). Falta: filtros equivalentes a la lista (`q`, `status`, `group`, `os`, etc.), el tope `maxInventoryExportRows=5000` (mismo patrón que `TestExportGroupHostsCap`) y el nombre/columnas del CSV. Solo se verificó que compila y pasa `check-go.sh server`.
+
 (Vacío a partir de aquí: se va llenando según avance el core sin tests.)

@@ -81,10 +81,7 @@ func toHostItemDTO(h store.HostRow) hostItemDTO {
 		Group: toGroupRefDTO(h.Group), OS: h.OS, AgentVersion: h.AgentVersion, OSName: h.OSName, OSVersion: h.OSVersion, IP: firstUsableIP(h.IPs),
 		CPUPct: round1(h.CPUPct), PhysicalDisks: toPhysicalDiskDTOs(h.PhysicalDisks),
 	}
-	if h.MemUsedMB != nil && h.MemTotalMB != nil && *h.MemTotalMB > 0 {
-		pct := float64(*h.MemUsedMB) * 100 / float64(*h.MemTotalMB)
-		dto.MemPct = round1(&pct)
-	}
+	dto.MemPct = hostMemPct(h)
 	if h.DiskPct != nil && h.DiskMount != nil {
 		dto.Disk = &diskPctDTO{Pct: *round1(h.DiskPct), Mount: *h.DiskMount}
 	}
@@ -96,6 +93,16 @@ func toHostItemDTO(h store.HostRow) hostItemDTO {
 		dto.Battery = &batteryDTO{Pct: *h.BatteryPct, Charging: h.BatteryCharging}
 	}
 	return dto
+}
+
+// hostMemPct calcula el % de memoria usada (nil si falta el dato o el total es 0). La comparten el DTO de la
+// lista y el CSV de inventario.
+func hostMemPct(h store.HostRow) *float64 {
+	if h.MemUsedMB == nil || h.MemTotalMB == nil || *h.MemTotalMB <= 0 {
+		return nil
+	}
+	pct := float64(*h.MemUsedMB) * 100 / float64(*h.MemTotalMB)
+	return round1(&pct)
 }
 
 // utcPtr devuelve la hora en UTC (ISO 8601 con Z), o nil.

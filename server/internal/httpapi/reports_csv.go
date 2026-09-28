@@ -105,7 +105,12 @@ func (e *csvExport) finish() error {
 	return e.flush()
 }
 
+// csvFilename arma "argos-<kind>[-<rangeName>]-AAAAMMDD.csv"; rangeName vacio (exports de inventario, sin rango
+// de fechas) no deja un guion colgando.
 func csvFilename(kind, rangeName string, now time.Time) string {
+	if rangeName == "" {
+		return "argos-" + kind + "-" + now.UTC().Format("20060102") + ".csv"
+	}
 	return "argos-" + kind + "-" + rangeName + "-" + now.UTC().Format("20060102") + ".csv"
 }
 

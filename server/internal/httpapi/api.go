@@ -25,6 +25,7 @@ import (
 type Store interface {
 	Ping(ctx context.Context) error
 	SystemStats(ctx context.Context, deadSince time.Time) (store.SystemStats, error)
+	FleetCounts(ctx context.Context) (store.FleetCounts, error)
 	// Hosts y agentes.
 	CreateEnrollToken(ctx context.Context, p store.CreateEnrollTokenParams) error
 	HostConflictByHostname(ctx context.Context, hostname string) (id, status string, found bool, err error)
@@ -34,6 +35,7 @@ type Store interface {
 	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
 	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
 	ListHosts(ctx context.Context, scope store.Scope, f store.HostFilter) (store.HostPage, error)
+	ExportHosts(ctx context.Context, scope store.Scope, f store.HostFilter) ([]store.HostRow, error)
 	HostByID(ctx context.Context, scope store.Scope, hostID string) (store.HostDetail, error)
 	HostDisks(ctx context.Context, hostID string, now time.Time) ([]store.DiskUsage, error)
 	LatestMetrics(ctx context.Context, hostID string) (*store.MetricPoint, error)
@@ -81,6 +83,7 @@ type Store interface {
 	CreateAlertRule(ctx context.Context, r store.AlertRule, createdBy string) (store.AlertRule, error)
 	UpdateAlertRule(ctx context.Context, id string, mutate func(*store.AlertRule) error) (store.AlertRule, error)
 	DeleteAlertRule(ctx context.Context, id string) (name string, err error)
+	MuteRule(ctx context.Context, id string, until *time.Time) error
 	AvailabilityReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.HostAvailability, error)
 	GroupName(ctx context.Context, groupID string) (string, error)
 	ExportGroupHosts(ctx context.Context, groupID string) ([]store.GroupExportHost, error)
@@ -112,6 +115,7 @@ type Store interface {
 
 	// Dispositivos sin agente (kind device).
 	ListDevices(ctx context.Context, scope store.Scope, f store.HostFilter, after *store.HostCursor, limit int) (store.DevicePage, error)
+	ExportDevices(ctx context.Context, scope store.Scope, f store.HostFilter) ([]store.Device, error)
 	DeviceByID(ctx context.Context, scope store.Scope, id string) (store.Device, error)
 	CreateDevice(ctx context.Context, name string, addr netip.Addr, collectorID string, groupID *string) (store.Device, error)
 	UpdateDevice(ctx context.Context, id string, ch store.DeviceChange) (store.Device, error)
@@ -156,6 +160,7 @@ type Store interface {
 	HostUpdatesHistory(ctx context.Context, scope store.Scope, hostID string, limit int) ([]store.UpdatesPoint, error)
 	HostOSEOL(ctx context.Context, scope store.Scope, hostID string) (store.OSEOL, bool, error)
 	ListUpdatesFleet(ctx context.Context, scope store.Scope, f store.UpdatesFleetFilter) (store.UpdatesFleetPage, error)
+	ExportUpdatesFleet(ctx context.Context, scope store.Scope, f store.UpdatesFleetFilter) ([]store.UpdatesFleetRow, error)
 	// Inventario del host (lectura, con ambito).
 	InventoryOverview(ctx context.Context, scope store.Scope, hostID string) ([]store.InventoryMeta, error)
 	InventoryItems(ctx context.Context, scope store.Scope, hostID, module string) ([]json.RawMessage, error)
@@ -191,6 +196,8 @@ type Options struct {
 	Web fs.FS
 	// Status alimenta GET /system/status (version, arranque y latidos de las tareas periodicas).
 	Status StatusSources
+	// MetricsToken es ARGOS_METRICS_TOKEN: bearer estatico de GET /metrics; vacio = la ruta responde 404.
+	MetricsToken string
 }
 
 // Politica de sesion y bloqueo (decisiones aprobadas).
@@ -323,6 +330,7 @@ func (a *API) Routes() http.Handler {
 
 	a.route(mux, "GET /health", accessPublic, a.healthHandler)
 	a.route(mux, "GET /api/v1/system/status", accessAdmin, a.systemStatus)
+	a.route(mux, "GET /metrics", accessPublic, a.metrics)
 
 	// Agentes.
 	a.route(mux, "POST /api/v1/agent/enroll", accessPublic, a.agentEnroll)
@@ -337,6 +345,7 @@ func (a *API) Routes() http.Handler {
 
 	// Dashboard.
 	a.route(mux, "GET /api/v1/hosts", accessSession, a.listHosts)
+	a.route(mux, "GET /api/v1/hosts.csv", accessSession, a.exportHostsCSV)
 	a.route(mux, "GET /api/v1/hosts/{id}", accessSession, a.getHost)
 	a.route(mux, "GET /api/v1/hosts/{id}/metrics", accessSession, a.hostMetrics)
 	a.route(mux, "GET /api/v1/hosts/{id}/history", accessSession, a.hostHistory)
@@ -360,9 +369,11 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/changes", accessSession, a.requireInventory(a.inventoryChanges))
 	a.route(mux, "GET /api/v1/hosts/{id}/updates", accessSession, a.requireUpdates(a.hostUpdates))
 	a.route(mux, "GET /api/v1/updates", accessSession, a.requireUpdates(a.updatesFleet))
+	a.route(mux, "GET /api/v1/updates.csv", accessSession, a.requireUpdates(a.exportUpdatesCSV))
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks", accessSession, a.hostServiceChecks)
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks/{check_id}/events", accessSession, a.hostCheckEvents)
 	a.route(mux, "GET /api/v1/devices", accessSession, a.listDevices)
+	a.route(mux, "GET /api/v1/devices.csv", accessSession, a.exportDevicesCSV)
 	a.route(mux, "GET /api/v1/devices/{id}", accessSession, a.getDevice)
 	a.route(mux, "POST /api/v1/devices", accessAdmin, a.createDevice)
 	a.route(mux, "PATCH /api/v1/devices/{id}", accessAdmin, a.updateDevice)
@@ -397,6 +408,8 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/alert-rules", accessAdmin, a.createAlertRule)
 	a.route(mux, "PATCH /api/v1/alert-rules/{id}", accessAdmin, a.updateAlertRule)
 	a.route(mux, "DELETE /api/v1/alert-rules/{id}", accessAdmin, a.deleteAlertRule)
+	a.route(mux, "POST /api/v1/alert-rules/{id}/mute", accessAdmin, a.muteAlertRule)
+	a.route(mux, "POST /api/v1/alert-rules/{id}/unmute", accessAdmin, a.unmuteAlertRule)
 	a.route(mux, "PUT /api/v1/alert-rules/{id}/channels", accessAdmin, a.setRuleChannels)
 	a.route(mux, "GET /api/v1/channels", accessSession, a.requireFullScope(a.listChannels))
 	a.route(mux, "GET /api/v1/channels/{id}", accessSession, a.requireFullScope(a.getChannel))

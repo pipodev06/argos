@@ -2,12 +2,15 @@ import type { ComponentType } from 'react'
 import {
   IconAlertOctagon,
   IconAlertTriangle,
+  IconBellPause,
   IconBellRinging,
   IconCircleCheck,
   IconEye,
   IconInfoCircle,
+  IconRepeat,
   IconTool,
 } from '@tabler/icons-react'
+import { formatClock } from '@/features/hosts/utils/format'
 import type { Alert, AlertSeverity } from '../types/alert.types'
 import { alertStateLabel, SEVERITY_LABELS } from '../utils/format'
 
@@ -46,6 +49,27 @@ export function AlertStateBadge({ alert }: { alert: Pick<Alert, 'state' | 'suppr
     <span className={`${BADGE} ${style.badge}`}>
       <style.Icon className={`size-3.5 shrink-0 ${style.icon}`} stroke={1.5} aria-hidden />
       {alertStateLabel(alert)}
+    </span>
+  )
+}
+
+/** Alerta intermitente (flapping): icono + texto, solo si `flapping`. */
+export function FlappingBadge({ flapping }: { flapping: boolean }) {
+  if (!flapping) return null
+  return (
+    <span className={`${BADGE} bg-text-muted/10`}>
+      <IconRepeat className="size-3.5 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
+      Intermitente
+    </span>
+  )
+}
+
+/** Junto al estado de una regla silenciada: icono + "Silenciada hasta HH:mm" (nunca solo color). */
+export function MutedBadge({ mutedUntil }: { mutedUntil: string }) {
+  return (
+    <span className={`${BADGE} bg-text-muted/10`}>
+      <IconBellPause className="size-3.5 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
+      Silenciada hasta {formatClock(new Date(mutedUntil).getTime())}
     </span>
   )
 }

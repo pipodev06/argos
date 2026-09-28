@@ -106,6 +106,7 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 	// Toda ruta GET nueva DEBE clasificarse aqui; si no, el test falla.
 	table := map[string]enumRoute{
 		"GET /health":                            {"public", fixed("/health")},
+		"GET /metrics":                           {"public", fixed("/metrics")},
 		"GET /install.sh":                        {"public", fixed("/install.sh")},
 		"GET /install.ps1":                       {"public", fixed("/install.ps1")},
 		"GET /dl/latest/manifest.json":           {"public", fixed("/dl/latest/manifest.json")},
@@ -121,11 +122,13 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/channels":                   {"admin", fixed(api + "/channels")},
 		"GET /api/v1/channels/{id}":              {"admin", fixed(api + "/channels/" + missingID)},
 		"GET /api/v1/hosts":                      {"scope", fixed(api+"/hosts", api+"/hosts?q=host-b", api+"/hosts?group=none")},
+		"GET /api/v1/hosts.csv":                  {"scope", fixed(api + "/hosts.csv")},
 		"GET /api/v1/snmp-profiles":              {"admin", fixed(api + "/snmp-profiles")},
 		"GET /api/v1/settings/retention":         {"admin", fixed(api + "/settings/retention")},
 		"GET /api/v1/system/status":              {"admin", fixed(api + "/system/status")},
 		"GET /api/v1/snmp-profiles/{id}":         {"admin", fixed(api + "/snmp-profiles/" + missingID)},
 		"GET /api/v1/devices":                    {"scope", fixed(api + "/devices")},
+		"GET /api/v1/devices.csv":                {"scope", fixed(api + "/devices.csv")},
 		"GET /api/v1/devices/{id}":               {"scope", fixed(api+"/devices/"+devB, api+"/devices/"+x.hostB)},
 		"GET /api/v1/summary":                    {"scope", fixed(api + "/summary")},
 		"GET /api/v1/reports/availability":       {"scope", fixed(api+"/reports/availability", api+"/reports/availability?by=group&range=7d")},
@@ -166,6 +169,7 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/hosts/{id}/inventory/changes":   invPaths("/inventory/changes"),
 		"GET /api/v1/hosts/{id}/updates":             updPaths("/updates"),
 		"GET /api/v1/updates":                        {"updates_fleet", fixed(api + "/updates")},
+		"GET /api/v1/updates.csv":                    {"updates_fleet", fixed(api + "/updates.csv")},
 		"GET /api/v1/hosts/{id}/service-checks": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/service-checks", api + "/hosts/" + x.hostNo + "/service-checks"}
 		}},

@@ -22,6 +22,11 @@ export function listHosts(query: URLSearchParams, signal?: AbortSignal): Promise
   return apiRequest<HostListResponse>(`/hosts?${query.toString()}`, { signal })
 }
 
+/** URL de descarga del inventario de hosts (el navegador la baja con `<a download>`; requiere la sesion). */
+export function hostsCsvUrl(query: URLSearchParams): string {
+  return `/api/v1/hosts.csv?${query.toString()}`
+}
+
 export interface CreateEnrollTokenInput {
   /** Vacío en alta masiva: el hostname lo pone cada agente al enrolar. */
   hostname: string

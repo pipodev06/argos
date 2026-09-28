@@ -97,3 +97,12 @@ export function buildApiQuery(f: HostFilters, cursor: string | null): URLSearchP
   if (cursor) p.set('cursor', cursor)
   return p
 }
+
+/** Query de GET /hosts.csv: mismos filtros que la lista, sin paginacion/orden. */
+export function buildCsvQuery(f: HostFilters): URLSearchParams {
+  const p = serializeFilters(HOST_FIELDS, f)
+  p.delete('agent_outdated')
+  if (f.agent_outdated) p.set('agent', 'outdated')
+  p.set('kind', 'agent')
+  return p
+}

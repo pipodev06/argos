@@ -1,9 +1,10 @@
-import { IconCircleCheck, IconCircleOff, IconCopy, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
+import { IconBellPause, IconBellRinging2, IconCircleCheck, IconCircleOff, IconCopy, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { AlertRule } from '../types/alert.types'
-import { describeCondition, KIND_LABELS, METRIC_LABELS, scopeLabel } from '../utils/format'
-import { SeverityBadge } from './AlertBadges'
+import { describeCondition, isMuted, KIND_LABELS, METRIC_LABELS, MUTE_OPTIONS, scopeLabel } from '../utils/format'
+import { MutedBadge, SeverityBadge } from './AlertBadges'
 
 export type RuleAction = 'edit' | 'clone' | 'toggle' | 'delete'
 
@@ -13,6 +14,8 @@ interface RulesTableProps {
   canAct: boolean
   busy: boolean
   onAction: (action: RuleAction, rule: AlertRule) => void
+  onMute: (rule: AlertRule, minutes: number) => void
+  onUnmute: (rule: AlertRule) => void
 }
 
 export function RuleEnabledBadge({ enabled }: { enabled: boolean }) {
@@ -27,7 +30,7 @@ export function RuleEnabledBadge({ enabled }: { enabled: boolean }) {
   )
 }
 
-export function RulesTable({ rules, canAct, busy, onAction }: RulesTableProps) {
+export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: RulesTableProps) {
   return (
     <DataTable caption="Reglas de alerta" className="min-w-[60rem]">
       <thead>
@@ -56,7 +59,10 @@ export function RulesTable({ rules, canAct, busy, onAction }: RulesTableProps) {
               <SeverityBadge severity={r.severity} />
             </Cell>
             <Cell>
-              <RuleEnabledBadge enabled={r.enabled} />
+              <div className="flex flex-col items-center gap-1">
+                <RuleEnabledBadge enabled={r.enabled} />
+                {isMuted(r) && r.muted_until && <MutedBadge mutedUntil={r.muted_until} />}
+              </div>
             </Cell>
             <Cell className="tabular-nums">{r.channel_ids.length}</Cell>
             <Cell className="tabular-nums">{r.active_alerts}</Cell>
@@ -99,6 +105,33 @@ export function RulesTable({ rules, canAct, busy, onAction }: RulesTableProps) {
                 >
                   <IconTrash stroke={1.5} aria-hidden />
                 </Button>
+                {isMuted(r) ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Quitar silencio a la regla ${r.name}`}
+                    title="Quitar silencio"
+                    disabled={busy}
+                    onClick={() => onUnmute(r)}
+                  >
+                    <IconBellRinging2 stroke={1.5} aria-hidden />
+                  </Button>
+                ) : (
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" aria-label={`Silenciar regla ${r.name}`} title="Silenciar" disabled={busy}>
+                        <IconBellPause stroke={1.5} aria-hidden />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {MUTE_OPTIONS.map((opt) => (
+                        <DropdownMenuItem key={opt.minutes} onSelect={() => onMute(r, opt.minutes)}>
+                          {opt.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </Cell>
             )}
           </Row>

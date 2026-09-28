@@ -8,7 +8,7 @@ import { formatLastSeen } from '@/features/hosts/utils/format'
 import type { Alert } from '../types/alert.types'
 import { exposedPortsText, formatAlertValue } from '../utils/format'
 import type { AlertActionKind } from './AlertActionDialog'
-import { AlertStateBadge, SeverityBadge } from './AlertBadges'
+import { AlertStateBadge, FlappingBadge, SeverityBadge } from './AlertBadges'
 
 interface AlertsTableProps {
   /** null = cargando. */
@@ -66,7 +66,10 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
               </Link>
             </Cell>
             <Cell>
-              <AlertStateBadge alert={a} />
+              <span className="inline-flex flex-wrap items-center justify-center gap-1">
+                <AlertStateBadge alert={a} />
+                <FlappingBadge flapping={a.flapping} />
+              </span>
             </Cell>
             <Cell className="tabular-nums">{a.kind === 'exposed_port' ? exposedPortsText(a) : formatAlertValue(a)}</Cell>
             <Cell className="tabular-nums">{formatLastSeen(a.opened_at, now)}</Cell>

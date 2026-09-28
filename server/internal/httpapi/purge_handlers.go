@@ -125,6 +125,7 @@ func (a *API) purgeGroup(w http.ResponseWriter, r *http.Request) error {
 		"enroll_tokens": res.EnrollTokens, "channels": res.Channels, "snmp_profiles": res.SnmpProfiles,
 		"users_disabled": res.UsersDisabled, "users_scope_reduced": res.UsersScopeReduced,
 		"group_deleted": res.GroupDeleted,
+		"group_name":    req.ConfirmName, "purged_at": a.now().UTC(), "performed_by": currentUser(r).Username,
 	})
 	return nil
 }

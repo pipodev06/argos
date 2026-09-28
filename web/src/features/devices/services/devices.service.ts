@@ -8,6 +8,11 @@ export function listDevices(query: URLSearchParams, signal?: AbortSignal): Promi
   return apiRequest<DeviceListResponse>(`/devices?${query.toString()}`, { signal })
 }
 
+/** URL de descarga del inventario de dispositivos (el navegador la baja con `<a download>`; requiere la sesion). */
+export function devicesCsvUrl(query: string): string {
+  return `/api/v1/devices.csv?${query}`
+}
+
 export async function getDevice(id: string, signal?: AbortSignal): Promise<Device> {
   const data = await apiRequest<{ device: Device }>(`/devices/${enc(id)}`, { signal })
   return data.device

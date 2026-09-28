@@ -73,13 +73,9 @@ type UpdatesFleetPage struct {
 // ListUpdatesFleet devuelve una pagina de hosts con foto de parches (los que nunca reportaron el modulo y los
 // deshabilitados no salen), con el ambito, filtros, orden y paginacion keyset, igual que ListHosts: el orden
 // total es (sin valor al final, valor, nombre, id) y una sola consulta trae la foto y el fin de vida (sin N+1).
-func (s *Store) ListUpdatesFleet(ctx context.Context, scope Scope, f UpdatesFleetFilter) (UpdatesFleetPage, error) {
-	sortSpec, ok := updatesFleetSorts[f.Sort]
-	if !ok {
-		return UpdatesFleetPage{}, fmt.Errorf("orden de parches desconocido %q", f.Sort)
-	}
-	limit := min(max(f.Limit, 1), MaxUpdatesFleetLimit)
-
+// updatesFleetFilterWhere arma el WHERE de UpdatesFleetFilter (sin orden ni paginacion): lo comparten
+// ListUpdatesFleet y ExportUpdatesFleet.
+func updatesFleetFilterWhere(scope Scope, f UpdatesFleetFilter) (string, argList) {
 	var args argList
 	where := []string{`h.status <> 'disabled'`, scope.groupCond("h.group_id", &args)}
 	if f.Q != "" {
@@ -107,6 +103,17 @@ func (s *Store) ListUpdatesFleet(ctx context.Context, scope Scope, f UpdatesFlee
 	if f.EOLWithinDays != nil {
 		where = append(where, fmt.Sprintf(`eo.eol_date - (now() AT TIME ZONE 'UTC')::date <= %s::int`, args.add(*f.EOLWithinDays)))
 	}
+	return strings.Join(where, " AND "), args
+}
+
+func (s *Store) ListUpdatesFleet(ctx context.Context, scope Scope, f UpdatesFleetFilter) (UpdatesFleetPage, error) {
+	sortSpec, ok := updatesFleetSorts[f.Sort]
+	if !ok {
+		return UpdatesFleetPage{}, fmt.Errorf("orden de parches desconocido %q", f.Sort)
+	}
+	limit := min(max(f.Limit, 1), MaxUpdatesFleetLimit)
+
+	whereSQL, args := updatesFleetFilterWhere(scope, f)
 
 	dir, op := "ASC", ">"
 	if f.Desc {
@@ -154,7 +161,7 @@ SELECT id, hostname, status, group_id, group_name, os, os_name, os_version,
  WHERE %[5]s
  ORDER BY nf, sk %[6]s, ln, id
  LIMIT %[7]d`,
-		sortSpec.expr, sortSpec.cast, sortSpec.neutral, strings.Join(where, " AND "), cursorSQL, dir, limit+1)
+		sortSpec.expr, sortSpec.cast, sortSpec.neutral, whereSQL, cursorSQL, dir, limit+1)
 
 	rows, err := s.pool.Query(ctx, query, []any(args)...)
 	if err != nil {

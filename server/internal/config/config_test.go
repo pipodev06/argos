@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -321,6 +322,31 @@ func TestLoadMetricsHotAndDetailDays(t *testing.T) {
 			if cfg.MetricsHotDays != tt.wantHot || cfg.MetricsRetentionDays != tt.wantDetail || cfg.MetricsRetentionFromEnv != tt.wantDetailFromEV {
 				t.Errorf("got hot=%d detail=%d fromEnv=%v, want %d/%d/%v", cfg.MetricsHotDays, cfg.MetricsRetentionDays, cfg.MetricsRetentionFromEnv,
 					tt.wantHot, tt.wantDetail, tt.wantDetailFromEV)
+			}
+		})
+	}
+}
+
+func TestLoadMetricsToken(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, raw string
+		wantErr   bool
+	}{
+		{"sin definir", "", false},
+		{"32 caracteres", strings.Repeat("a", 32), false},
+		{"31 caracteres", strings.Repeat("a", 31), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, err := Load(func(k string) string {
+				return map[string]string{"DATABASE_URL": "postgres://x", "ARGOS_METRICS_TOKEN": tc.raw}[k]
+			})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if err == nil && cfg.MetricsToken != tc.raw {
+				t.Errorf("MetricsToken got %q, want %q", cfg.MetricsToken, tc.raw)
 			}
 		})
 	}

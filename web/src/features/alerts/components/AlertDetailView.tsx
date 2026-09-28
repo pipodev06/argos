@@ -11,7 +11,7 @@ import type { Alert, Delivery } from '../types/alert.types'
 import { canAckAlerts, canResolveAlerts } from '../utils/permissions'
 import { exposedPortsText, formatAlertValue, formatMetricValue, isUpdatesKind, KIND_LABELS, METRIC_LABELS, RESOLVE_REASON_LABELS } from '../utils/format'
 import { AlertActionDialog, type AlertActionKind } from './AlertActionDialog'
-import { AlertStateBadge, SeverityBadge } from './AlertBadges'
+import { AlertStateBadge, FlappingBadge, SeverityBadge } from './AlertBadges'
 import { HostEventsList } from './HostEventsList'
 
 const EVENT_LABELS: Record<Delivery['event'], string> = { opened: 'Apertura', resolved: 'Resolución', reminder: 'Recordatorio' }
@@ -81,6 +81,7 @@ export function AlertDetailView({ id }: { id: string }) {
                 <h1 className="min-w-0 truncate text-lg font-semibold">{a.rule_name}</h1>
                 <SeverityBadge severity={a.severity} />
                 <AlertStateBadge alert={a} />
+                <FlappingBadge flapping={a.flapping} />
                 {(canAck || canResolve) && a.state !== 'resolved' && (
                   <span className="ml-auto flex gap-2">
                     {canAck && a.state === 'open' && (
@@ -96,6 +97,7 @@ export function AlertDetailView({ id }: { id: string }) {
                   </span>
                 )}
               </div>
+              {a.flapping && <p className="text-sm text-text-muted">Se abrió 3 o más veces en 30 minutos; no se envió aviso.</p>}
               {a.suppressed && a.state !== 'resolved' && (
                 <p className="text-sm text-text-muted">
                   El host está en una ventana de mantenimiento: la alerta es visible pero no se notifica.
