@@ -265,6 +265,13 @@ func (s *Store) EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, a
 				}
 			}
 		} else {
+			// Host nuevo (fila nueva): si el token trae grupo, cuenta contra la cuota de ese grupo. Un re-enroll
+			// (rama de arriba) no toca group_id, asi que nunca suma aqui.
+			if groupID != nil {
+				if err := checkGroupQuota(ctx, tx, *groupID, QuotaHosts, 1); err != nil {
+					return err
+				}
+			}
 			if err := tx.QueryRow(ctx,
 				`INSERT INTO hosts (hostname, os, arch, agent_token_hash, status, last_seen_at, group_id)
 				 VALUES ($1, $2, $3, $4, 'up', now(), $5) RETURNING id`,

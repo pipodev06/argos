@@ -112,6 +112,8 @@ var auditDetailKeys = map[string]bool{
 	"channels": true, "snmp_profiles": true,
 	// Exportacion del cliente (zip): filas por cada csv, nunca contenido.
 	"hosts_rows": true, "availability_rows": true,
+	// Cuotas del cliente (B7): limites fijados (null = sin limite propio).
+	"max_hosts": true, "max_devices": true, "max_checks": true, "max_users": true, "max_rules": true, "max_channels": true,
 }
 
 // audit registra un evento sin fallar la solicitud si la escritura falla: se loguea

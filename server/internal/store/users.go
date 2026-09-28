@@ -162,6 +162,12 @@ func (s *Store) CreateUser(ctx context.Context, n NewUser) (User, error) {
 		if err != nil {
 			return fmt.Errorf("creando usuario: %w", err)
 		}
+		// Un usuario nuevo entra a todos sus grupos por primera vez: cuenta contra la cuota de cada uno.
+		for _, gid := range n.GroupIDs {
+			if err := checkGroupQuota(ctx, tx, gid, QuotaUsers, 1); err != nil {
+				return err
+			}
+		}
 		if err := replaceUserGroups(ctx, tx, id, n.GroupIDs); err != nil {
 			return err
 		}
@@ -249,6 +255,18 @@ func (s *Store) UpdateUser(ctx context.Context, id string, ch UserChange, now ti
 				return fmt.Errorf("limpiando grupos del usuario: %w", err)
 			}
 		} else if ch.GroupIDs != nil {
+			// Solo los grupos NUEVOS de la lista cuentan contra la cuota (los que ya tenia no suman de nuevo).
+			had := make(map[string]bool, len(cur.GroupIDs))
+			for _, gid := range cur.GroupIDs {
+				had[gid] = true
+			}
+			for _, gid := range *ch.GroupIDs {
+				if !had[gid] {
+					if err := checkGroupQuota(ctx, tx, gid, QuotaUsers, 1); err != nil {
+						return err
+					}
+				}
+			}
 			if err := replaceUserGroups(ctx, tx, id, *ch.GroupIDs); err != nil {
 				return err
 			}

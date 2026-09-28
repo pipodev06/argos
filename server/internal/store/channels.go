@@ -114,6 +114,12 @@ func (s *Store) CreateChannel(ctx context.Context, c Channel, createdBy string) 
 		if n >= MaxChannels {
 			return ErrTooManyChannels
 		}
+		// Cuota por cliente (B7): un canal global (group_id NULL) nunca cuenta contra ninguna cuota.
+		if c.GroupID != nil {
+			if err := checkGroupQuota(ctx, tx, *c.GroupID, QuotaChannels, 1); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO notification_channels (id, name, kind, config, secret_enc, secret_key_id, min_severity, enabled, created_by, group_id)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, '')::uuid, $10)`,

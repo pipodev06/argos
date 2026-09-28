@@ -54,6 +54,7 @@ type Store interface {
 	ListGroups(ctx context.Context, scope store.Scope) (groups []store.Group, ungrouped int, err error)
 	CreateGroup(ctx context.Context, name string, downAfterSeconds *int, alwaysOn bool, detailDays *int) (store.Group, error)
 	UpdateGroup(ctx context.Context, id string, ch store.GroupChange) (store.Group, error)
+	GroupUsageByID(ctx context.Context, groupID string) (store.GroupUsage, error)
 	DeleteGroup(ctx context.Context, id string) error
 	SetHostGroup(ctx context.Context, hostID string, groupID *string) (store.HostGroupResult, error)
 	RenameHost(ctx context.Context, hostID, name string) error
@@ -378,6 +379,7 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
 	a.route(mux, "POST /api/v1/groups/{id}/purge", accessAdmin, a.purgeGroup)
 	a.route(mux, "GET /api/v1/groups/{id}/export.zip", accessAdmin, a.exportGroupZip)
+	a.route(mux, "GET /api/v1/groups/{id}/usage", accessAdmin, a.getGroupUsage)
 
 	// Alertas (lectura: cualquier sesion; ack: admin o viewer con can_ack; escritura y resolve: solo admin).
 	a.route(mux, "GET /api/v1/reports/availability", accessSession, a.availabilityReport)
@@ -483,6 +485,8 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusConflict, "group_not_empty", "el grupo tiene hosts: muevelos a otro grupo antes de borrarlo")
 	case errors.Is(err, store.ErrTooManyGroups):
 		writeError(w, http.StatusConflict, "too_many_groups", fmt.Sprintf("se alcanzo el maximo de %d grupos", store.MaxGroups))
+	case errors.Is(err, store.ErrGroupQuota):
+		writeErrorDetails(w, http.StatusConflict, "group_quota_exceeded", "el cliente alcanzó su cuota para este recurso", groupQuotaDetails(err))
 	case errors.Is(err, store.ErrAlertResolved):
 		writeError(w, http.StatusConflict, "alert_resolved", "la alerta ya esta resuelta")
 	case errors.Is(err, store.ErrRuleExists):

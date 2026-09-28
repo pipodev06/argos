@@ -3,12 +3,82 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { checkA11y, mockApi } from '@/test/utils'
 import { GroupFormDialog } from './GroupFormDialog'
+import type { Group } from '../types/group.types'
 
 afterEach(() => vi.unstubAllGlobals())
 
 function renderCreate(onSaved = () => {}) {
   render(<GroupFormDialog group={null} open defaultDownAfter={300} onClose={() => {}} onSaved={onSaved} />)
 }
+
+const GROUP: Group = {
+  id: 'g1',
+  name: 'Cliente A',
+  down_after_seconds: null,
+  always_on: false,
+  host_count: 3,
+  detail_retention_days: null,
+  effective_detail_days: 30,
+  retention_source: 'global',
+  quotas: { max_hosts: 10, max_devices: null, max_checks: null, max_users: null, max_rules: null, max_channels: null },
+}
+
+function renderEdit(onSaved = () => {}) {
+  render(<GroupFormDialog group={GROUP} open defaultDownAfter={300} onClose={() => {}} onSaved={onSaved} />)
+}
+
+describe('GroupFormDialog: cuotas del cliente (B7)', () => {
+  it('muestra los 6 campos precargados con el limite actual y el uso, solo al editar', async () => {
+    mockApi({ 'GET /groups/g1/usage': { data: { hosts: { current: 3, limit: 10 }, devices: { current: 0, limit: null }, checks: { current: 0, limit: null }, users: { current: 0, limit: null }, rules: { current: 0, limit: null }, channels: { current: 0, limit: null } } } })
+    renderEdit()
+    const hosts = (await screen.findByLabelText('Hosts')) as HTMLInputElement
+    expect(hosts.value).toBe('10')
+    expect(await screen.findByText('3 de 10 en uso')).toBeTruthy()
+    expect((await screen.findAllByText('0 en uso, sin límite')).length).toBe(5)
+    expect(await checkA11y()).toHaveNoViolations()
+  })
+
+  it('no aparecen al crear (sin group)', () => {
+    renderCreate()
+    expect(screen.queryByText('Cuotas del cliente')).toBeNull()
+  })
+
+  it('guardar sin tocar nada manda los mismos limites (no los borra por accidente)', async () => {
+    mockApi({ 'GET /groups/g1/usage': { data: { hosts: { current: 3, limit: 10 }, devices: { current: 0, limit: null }, checks: { current: 0, limit: null }, users: { current: 0, limit: null }, rules: { current: 0, limit: null }, channels: { current: 0, limit: null } } } })
+    const calls = mockApi({ 'PATCH /groups/g1': { data: { group: GROUP } } })
+    const onSaved = vi.fn()
+    renderEdit(onSaved)
+    await screen.findByLabelText('Hosts')
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    const body = calls.find((c) => c.method === 'PATCH')?.body as Record<string, unknown>
+    expect(body).toMatchObject({ max_hosts: 10, max_devices: null, max_checks: null, max_users: null, max_rules: null, max_channels: null })
+  })
+
+  it('un valor invalido (negativo) no llama al servidor', async () => {
+    mockApi({ 'GET /groups/g1/usage': { data: { hosts: { current: 3, limit: 10 }, devices: { current: 0, limit: null }, checks: { current: 0, limit: null }, users: { current: 0, limit: null }, rules: { current: 0, limit: null }, channels: { current: 0, limit: null } } } })
+    const calls = mockApi({})
+    renderEdit()
+    const hosts = await screen.findByLabelText('Hosts')
+    fireEvent.change(hosts, { target: { value: '-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(await screen.findByText(/entero >= 0/)).toBeTruthy()
+    expect(calls.filter((c) => c.method === 'PATCH')).toHaveLength(0)
+  })
+
+  it('vaciar un campo lo manda como null (sin limite)', async () => {
+    mockApi({ 'GET /groups/g1/usage': { data: { hosts: { current: 3, limit: 10 }, devices: { current: 0, limit: null }, checks: { current: 0, limit: null }, users: { current: 0, limit: null }, rules: { current: 0, limit: null }, channels: { current: 0, limit: null } } } })
+    const calls = mockApi({ 'PATCH /groups/g1': { data: { group: GROUP } } })
+    const onSaved = vi.fn()
+    renderEdit(onSaved)
+    const hosts = await screen.findByLabelText('Hosts')
+    fireEvent.change(hosts, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    const body = calls.find((c) => c.method === 'PATCH')?.body as Record<string, unknown>
+    expect(body?.max_hosts).toBeNull()
+  })
+})
 
 describe('GroupFormDialog al crear', () => {
   it('muestra la retención de detalle desde el alta, heredando por defecto', async () => {

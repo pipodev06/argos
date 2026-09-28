@@ -6,22 +6,37 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { PILL } from './FilterPill'
 import { ITEM } from './styles'
-import type { NumericField } from './types'
+import type { BooleanField, NumericField } from './types'
+
+type MoreField = NumericField | BooleanField
 
 interface MoreFiltersProps {
-  fields: readonly NumericField[]
-  /** `value` ya viene en la unidad base de la API. */
-  onApply: (key: string, value: number) => void
+  fields: readonly MoreField[]
+  /** `value` ya viene en la unidad base de la API (numero), o true para un campo booleano. */
+  onApply: (key: string, value: number | boolean) => void
 }
 
-/** Pastilla "Más filtros": pasos Campo -> Valor para los filtros numéricos. Un campo activo se reemplaza. */
+/**
+ * Pastilla "Más filtros": lista de campos, y para los numéricos un segundo paso Valor (los booleanos se
+ * activan al elegirlos, sin paso de valor). Un campo activo se reemplaza (ver el chip en la fila de abajo).
+ */
 export function MoreFilters({ fields, onApply }: MoreFiltersProps) {
   const [open, setOpen] = useState(false)
   const [fieldKey, setFieldKey] = useState<string | null>(null)
   const [num, setNum] = useState('')
   const [unit, setUnit] = useState<string | null>(null)
   const body = useRef<HTMLDivElement>(null)
-  const def = fields.find((f) => f.key === fieldKey)
+  const selected = fields.find((f) => f.key === fieldKey)
+  const def = selected?.kind === 'numeric' ? selected : undefined
+
+  function pick(f: MoreField) {
+    if (f.kind === 'boolean') {
+      onApply(f.key, true)
+      handleOpenChange(false)
+      return
+    }
+    setFieldKey(f.key)
+  }
 
   // Al cambiar de paso el botón pulsado se desmonta: el foco pasa al primer control del nuevo paso.
   useEffect(() => {
@@ -62,7 +77,7 @@ export function MoreFilters({ fields, onApply }: MoreFiltersProps) {
             <>
               <p className="flex h-6 items-center px-2 text-xs text-text-muted">Campo</p>
               {fields.map((f) => (
-                <button key={f.key} type="button" className={ITEM} onClick={() => setFieldKey(f.key)}>
+                <button key={f.key} type="button" className={ITEM} onClick={() => pick(f)}>
                   {f.label}
                 </button>
               ))}
