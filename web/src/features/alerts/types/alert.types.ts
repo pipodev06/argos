@@ -26,7 +26,7 @@ export interface Alert {
   severity: AlertSeverity
   state: AlertState
   suppressed: boolean
-  /** Se abrió 3 o más veces en 30 min (misma regla y host): no se envió aviso. */
+  /** Se abrió 3 o más veces en 30 min (misma regla y host): el aviso se retiene y se envía si sigue abierta pasados 30 min. */
   flapping: boolean
   /** RFC3339 o null: cuándo escaló por no ser reconocida a tiempo. */
   escalated_at: string | null

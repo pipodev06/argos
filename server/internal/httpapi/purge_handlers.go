@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -10,11 +10,8 @@ import (
 	"argos/server/internal/store"
 )
 
-// purgeWriteWindow es el plazo de escritura de POST /groups/{id}/purge: borrar todo el historial de un cliente puede
-// tardar mucho mas que el WriteTimeout del servidor.
-const purgeWriteWindow = 30 * time.Minute
-
-var errPurgeBusy = &clientError{status: http.StatusConflict, code: "purge_in_progress", msg: "hay otra purga de grupo en curso: espera a que termine"}
+// purgeJobsListLimit es cuantos trabajos devuelve GET /purge-jobs.
+const purgeJobsListLimit = 20
 
 type purgeHostReq struct {
 	ConfirmHostname string `json:"confirm_hostname"`
@@ -36,17 +33,43 @@ func toDeletedRowsDTO(c store.PurgeCounts) deletedRowsDTO {
 	}
 }
 
-// extendPurgeDeadline amplia el plazo de escritura de una baja: borrar un historial grande tarda mas que el global.
-// Sin soporte de deadline (p. ej. httptest) no pasa nada: rige el del servidor.
-func (a *API) extendPurgeDeadline(w http.ResponseWriter, r *http.Request) {
-	rc := http.NewResponseController(w)
-	if err := rc.SetWriteDeadline(time.Now().Add(purgeWriteWindow)); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		a.logger.WarnContext(r.Context(), "no se pudo ampliar el plazo de escritura de la baja", "err", err)
+// purgeJobDTO es un trabajo de baja. Result es, al terminar bien, la respuesta que antes daba la baja sincrona.
+type purgeJobDTO struct {
+	ID         string          `json:"id"`
+	Kind       string          `json:"kind"`
+	TargetName string          `json:"target_name"`
+	State      string          `json:"state"`
+	TotalHosts int             `json:"total_hosts"`
+	DoneHosts  int             `json:"done_hosts"`
+	Error      *string         `json:"error"`
+	CreatedAt  time.Time       `json:"created_at"`
+	StartedAt  *time.Time      `json:"started_at"`
+	FinishedAt *time.Time      `json:"finished_at"`
+	Result     json.RawMessage `json:"result"`
+}
+
+func toPurgeJobDTO(j store.PurgeJob) purgeJobDTO {
+	return purgeJobDTO{
+		ID: j.ID, Kind: j.Kind, TargetName: j.TargetName, State: j.State, TotalHosts: j.TotalHosts, DoneHosts: j.DoneHosts,
+		Error: j.Error, CreatedAt: j.CreatedAt, StartedAt: j.StartedAt, FinishedAt: j.FinishedAt, Result: j.Result,
 	}
 }
 
-// purgeHost borra un host con agente y todos sus datos (baja de un cliente). Irreversible: exige el nombre del host.
-// No limpia los respaldos (se rotan a los 14 dias).
+// enqueuePurge encola la baja ya validada a nombre del usuario de la sesion y responde 202 con el trabajo (el que
+// ya estaba activo pa ese destino, si lo hay).
+func (a *API) enqueuePurge(w http.ResponseWriter, r *http.Request, p store.NewPurgeJob) error {
+	u := currentUser(r)
+	p.RequestedBy, p.RequestedByName = u.ID, u.Username
+	job, err := a.store.CreatePurgeJob(r.Context(), p)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": toPurgeJobDTO(job)})
+	return nil
+}
+
+// purgeHost encola la baja de un host con agente y todos sus datos (baja de un cliente). Irreversible: exige el nombre
+// del host. No limpia los respaldos (se rotan a los 14 dias). El borrado lo hace el worker (purge_worker.go).
 func (a *API) purgeHost(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
 	if !isUUID(id) {
@@ -60,16 +83,11 @@ func (a *API) purgeHost(w http.ResponseWriter, r *http.Request) error {
 		return badRequest("confirm_hostname requerido: el nombre del host")
 	}
 	id = strings.ToLower(id)
-	a.extendPurgeDeadline(w, r)
-	c, err := a.store.PurgeHost(r.Context(), id, req.ConfirmHostname)
+	name, err := a.store.PreparePurgeHost(r.Context(), id, req.ConfirmHostname)
 	if err != nil {
 		return err
 	}
-	e := actor(currentUser(r))
-	e.Event, e.Outcome, e.TargetType, e.TargetID = evHostPurged, store.OutcomeOK, "host", id
-	a.audit(r, e, map[string]any{"metrics_rows": c.Metrics})
-	writeJSON(w, http.StatusOK, map[string]any{"deleted_rows": toDeletedRowsDTO(c)})
-	return nil
+	return a.enqueuePurge(w, r, store.NewPurgeJob{Kind: store.PurgeKindHost, TargetID: id, TargetName: name, TotalHosts: 1})
 }
 
 type purgeGroupReq struct {
@@ -78,9 +96,9 @@ type purgeGroupReq struct {
 	DisableUsers bool   `json:"disable_users"`
 }
 
-// purgeGroup purga todos los hosts y dispositivos de un grupo, su configuracion propia y los permisos de sus viewers
-// (baja de un cliente). Un host que falla no detiene a los demas: se lista en failed_host_ids y se puede repetir la
-// llamada (idempotente). Una sola purga de grupo a la vez.
+// purgeGroup encola la baja de todos los hosts y dispositivos de un grupo, su configuracion propia y los permisos de
+// sus viewers (baja de un cliente). Un host que falla no detiene a los demas: se lista en failed_host_ids del
+// resultado y se puede repetir la peticion (idempotente). Una sola baja de grupo a la vez (409 purge_in_progress).
 func (a *API) purgeGroup(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
 	if !isUUID(id) {
@@ -94,45 +112,48 @@ func (a *API) purgeGroup(w http.ResponseWriter, r *http.Request) error {
 		return badRequest("confirm_name requerido: el nombre del grupo")
 	}
 	id = strings.ToLower(id)
-
-	select {
-	case a.purgeSem <- struct{}{}:
-		defer func() { <-a.purgeSem }()
-	default:
-		return errPurgeBusy
-	}
-	a.extendPurgeDeadline(w, r)
-
-	res, err := a.store.PurgeGroup(r.Context(), id, store.PurgeGroupOpts{
-		ConfirmName: req.ConfirmName, DeleteGroup: req.DeleteGroup, DisableUsers: req.DisableUsers,
-	})
-	e := actor(currentUser(r))
-	e.Event, e.TargetType, e.TargetID = evGroupPurged, "group", id
-	detail := purgeGroupAudit(res)
+	total, err := a.store.PreparePurgeGroup(r.Context(), id, req.ConfirmName)
 	if err != nil {
-		// Una purga interrumpida ya borro parte: queda constancia aunque la respuesta sea un error.
-		if res.Agents+res.Devices > 0 || res.Rows.Metrics > 0 {
-			e.Outcome = store.OutcomeFail
-			detail["reason"] = "interrupted"
-			a.writeAudit(context.WithoutCancel(r.Context()), e, detail)
-		}
 		return err
 	}
-	e.Outcome = store.OutcomeOK
-	a.audit(r, e, detail)
-
-	failed := res.Failed
-	if failed == nil {
-		failed = []string{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"agents": res.Agents, "devices": res.Devices, "deleted_rows": toDeletedRowsDTO(res.Rows),
-		"failed_host_ids": failed, "rules": res.Rules, "windows": res.Windows, "checks": res.Checks,
-		"enroll_tokens": res.EnrollTokens, "channels": res.Channels, "snmp_profiles": res.SnmpProfiles,
-		"users_disabled": res.UsersDisabled, "users_scope_reduced": res.UsersScopeReduced,
-		"group_deleted": res.GroupDeleted,
-		"group_name":    req.ConfirmName, "purged_at": a.now().UTC(), "performed_by": currentUser(r).Username,
+	return a.enqueuePurge(w, r, store.NewPurgeJob{
+		Kind: store.PurgeKindGroup, TargetID: id, TargetName: req.ConfirmName, TotalHosts: total,
+		Options: store.PurgeJobOptions{DeleteGroup: req.DeleteGroup, DisableUsers: req.DisableUsers},
 	})
+}
+
+func (a *API) getPurgeJob(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if !isUUID(id) {
+		return store.ErrNotFound
+	}
+	job, err := a.store.PurgeJobByID(r.Context(), strings.ToLower(id))
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"job": toPurgeJobDTO(job)})
+	return nil
+}
+
+// listPurgeJobs devuelve las bajas mas recientes; ?state=active deja solo las que estan en cola o en curso.
+func (a *API) listPurgeJobs(w http.ResponseWriter, r *http.Request) error {
+	var activeOnly bool
+	switch r.URL.Query().Get("state") {
+	case "":
+	case "active":
+		activeOnly = true
+	default:
+		return badRequest("state invalido: usa active o nada")
+	}
+	jobs, err := a.store.ListPurgeJobs(r.Context(), activeOnly, purgeJobsListLimit)
+	if err != nil {
+		return err
+	}
+	items := make([]purgeJobDTO, len(jobs))
+	for i, j := range jobs {
+		items[i] = toPurgeJobDTO(j)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 	return nil
 }
 

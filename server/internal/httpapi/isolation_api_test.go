@@ -203,11 +203,10 @@ func TestPurgeHostAPI(t *testing.T) {
 	}
 
 	// Purga del host A: sin rastro suyo, con B intacto.
-	rec = purge(x.hostA, `{"confirm_hostname":"host-a"}`)
-	x.wantStatus(rec, http.StatusOK, "")
+	job := x.finishPurge(purge(x.hostA, `{"confirm_hostname":"host-a"}`), x.admin)
 	for _, k := range []string{`"metrics":2`, `"metrics_hourly":1`, `"metrics_chunks":1`, `"disk_samples":1`, `"disk_chunks":1`, `"service_checks":1`} {
-		if !strings.Contains(rec.Body.String(), k) {
-			t.Errorf("la respuesta debe informar %s: %s", k, rec.Body.String())
+		if !strings.Contains(string(job.Result), k) {
+			t.Errorf("el resultado debe informar %s: %s", k, job.Result)
 		}
 	}
 	if n := rowsOf(t, x.hostA); n != 0 {
@@ -229,8 +228,8 @@ func TestPurgeHostAPI(t *testing.T) {
 	}
 
 	// Sin dispositivos, el colector si se puede purgar (y su token deja de valer).
-	x.wantStatus(x.do("DELETE", "/api/v1/devices/"+dev, "", withCookie(x.admin)), http.StatusOK, "")
-	x.wantStatus(purge(colA, `{"confirm_hostname":"col-a"}`), http.StatusOK, "")
+	x.finishPurge(x.do("DELETE", "/api/v1/devices/"+dev, "", withCookie(x.admin)), x.admin)
+	x.finishPurge(purge(colA, `{"confirm_hostname":"col-a"}`), x.admin)
 	x.wantStatus(x.metrics(tokA), http.StatusUnauthorized, "invalid_token")
 	if n := rowsOf(t, colA); n != 0 {
 		t.Errorf("quedan %d filas del colector purgado", n)
@@ -288,15 +287,17 @@ func TestPurgeGroupAPI(t *testing.T) {
 	x.wantStatus(purge(x.va, x.groupA, `{"confirm_name":"A"}`), http.StatusForbidden, "")
 
 	// Otra purga en curso: 409 y sin efecto.
-	x.api.purgeSem <- struct{}{}
+	mustExec(t, `INSERT INTO purge_jobs (kind, target_id, target_name, requested_by_name, state) VALUES ('group', gen_random_uuid(), 'otro', 'x', 'running')`)
 	x.wantStatus(purge(x.admin, x.groupA, `{"confirm_name":"A"}`), http.StatusConflict, "purge_in_progress")
-	<-x.api.purgeSem
+	mustExec(t, `DELETE FROM purge_jobs`)
 	if rowsOf(t, x.hostA) == 0 {
 		t.Fatal("una purga rechazada borro datos")
 	}
 
-	rec := purge(x.admin, x.groupA, `{"confirm_name":"A","delete_group":true,"disable_users":true}`)
-	x.wantStatus(rec, http.StatusOK, "")
+	job := x.finishPurge(purge(x.admin, x.groupA, `{"confirm_name":"A","delete_group":true,"disable_users":true}`), x.admin)
+	if job.TotalHosts != 4 || job.DoneHosts != 4 {
+		t.Errorf("avance de la baja de grupo: %d de %d, want 4 de 4", job.DoneHosts, job.TotalHosts)
+	}
 	var res struct {
 		Agents, Devices        int
 		Failed                 []string `json:"failed_host_ids"`
@@ -312,7 +313,7 @@ func TestPurgeGroupAPI(t *testing.T) {
 		PurgedAt               time.Time               `json:"purged_at"`
 		PerformedBy            string                  `json:"performed_by"`
 	}
-	x.dataAs(rec, &res)
+	unmarshalResult(t, job, &res)
 	if res.GroupName != "A" || res.PurgedAt.IsZero() || res.PerformedBy == "" {
 		t.Errorf("constancia de la purga: group_name=%q purged_at=%v performed_by=%q", res.GroupName, res.PurgedAt, res.PerformedBy)
 	}
@@ -394,14 +395,13 @@ func TestPurgeGroupKeepsGroupAndReportsFailures(t *testing.T) {
 	mustExec(t, `UPDATE hosts SET group_id = $2 WHERE id = $1`, devY, x.groupB)
 	seedHostData(t, x.hostA)
 
-	rec := x.do("POST", "/api/v1/groups/"+x.groupA+"/purge", `{"confirm_name":"A","delete_group":true}`, withCookie(x.admin))
-	x.wantStatus(rec, http.StatusOK, "")
+	job := x.finishPurge(x.do("POST", "/api/v1/groups/"+x.groupA+"/purge", `{"confirm_name":"A","delete_group":true}`, withCookie(x.admin)), x.admin)
 	var res struct {
 		Agents       int      `json:"agents"`
 		Failed       []string `json:"failed_host_ids"`
 		GroupDeleted bool     `json:"group_deleted"`
 	}
-	x.dataAs(rec, &res)
+	unmarshalResult(t, job, &res)
 	if res.Agents != 1 || len(res.Failed) != 1 || res.Failed[0] != colX || res.GroupDeleted {
 		t.Errorf("purga con un fallo: %+v, want 1 agente borrado, fallo=%s y el grupo sin borrar", res, colX)
 	}
@@ -418,10 +418,9 @@ func TestPurgeGroupKeepsGroupAndReportsFailures(t *testing.T) {
 	x.wantStatus(x.do("GET", "/api/v1/groups", "", withCookie(x.va)), http.StatusOK, "")
 
 	// Al quitar el dispositivo de B, repetir la purga termina el trabajo (idempotente).
-	x.wantStatus(x.do("DELETE", "/api/v1/devices/"+devY, "", withCookie(x.admin)), http.StatusOK, "")
-	rec = x.do("POST", "/api/v1/groups/"+x.groupA+"/purge", `{"confirm_name":"A","delete_group":true}`, withCookie(x.admin))
-	x.wantStatus(rec, http.StatusOK, "")
-	x.dataAs(rec, &res)
+	x.finishPurge(x.do("DELETE", "/api/v1/devices/"+devY, "", withCookie(x.admin)), x.admin)
+	job = x.finishPurge(x.do("POST", "/api/v1/groups/"+x.groupA+"/purge", `{"confirm_name":"A","delete_group":true}`, withCookie(x.admin)), x.admin)
+	unmarshalResult(t, job, &res)
 	if res.Agents != 1 || len(res.Failed) != 0 || !res.GroupDeleted {
 		t.Errorf("segunda purga: %+v, want 1 agente, sin fallos y grupo borrado", res)
 	}
@@ -429,7 +428,7 @@ func TestPurgeGroupKeepsGroupAndReportsFailures(t *testing.T) {
 
 func TestPurgeRoutesAreAdminOnly(t *testing.T) {
 	e := newEnv(t, Options{})
-	for _, p := range []string{"POST /api/v1/hosts/{id}/purge", "POST /api/v1/groups/{id}/purge"} {
+	for _, p := range []string{"POST /api/v1/hosts/{id}/purge", "POST /api/v1/groups/{id}/purge", "DELETE /api/v1/devices/{id}", "GET /api/v1/purge-jobs", "GET /api/v1/purge-jobs/{id}"} {
 		found := false
 		for _, rt := range e.api.routes {
 			if rt.pattern == p {

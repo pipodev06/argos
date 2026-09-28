@@ -15,7 +15,7 @@ Monitoreo tipo Zabbix/PRTG que el usuario **hospeda como servicio** para varios 
 2. Brechas de producto por flujo (análisis K) y la limpieza de código (J): resultados en curso.
 3. Seguridad H3/H5/H7 y probar el empaquetado con volumen antes de actualizar una BD con historial (E3).
 4. Validación real en Linux/Windows del instalador (T3, a cargo del usuario; macOS sin equipo) y primer despliegue (D1).
-Hecho 2026-09-27 (B19-B30 bajo y medio + escalamiento; goose hasta 00043, aplicadas a la BD `argos` local con respaldos `argos-pre00040/00042/00043.dump`): plantillas de reglas, export CSV de hosts/dispositivos/parches, silenciar regla, `GET /metrics` (`ARGOS_METRICS_TOKEN`), flapping, constancia de baja, escalamiento de alertas, fix del borrado de dispositivos y borrado por tandas. Server local corriendo desde `.dev-bin/argos-server.exe`.
+Hecho 2026-09-27 (B19-B30 bajo y medio + escalamiento; goose hasta 00045, aplicadas a la BD `argos` local con respaldos `argos-pre00040/00042/00043/00044.dump`): plantillas de reglas, export CSV de hosts/dispositivos/parches, silenciar regla, `GET /metrics` (`ARGOS_METRICS_TOKEN`), flapping, constancia de baja, escalamiento de alertas, fix del borrado de dispositivos, borrado por tandas, bajas en segundo plano (`purge_jobs`) y flapping que se libera al estabilizarse. Server local corriendo desde `.dev-bin/argos-server.exe`.
 Aplazado por el usuario: SMTP, firma de binarios (reprioriza por el servicio hospedado), dominio/VPS público.
 
 ## Cómo trabajar y verificar

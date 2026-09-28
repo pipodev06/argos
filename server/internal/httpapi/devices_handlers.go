@@ -317,20 +317,16 @@ func (a *API) updateDevice(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// deleteDevice encola el borrado de un dispositivo con sus datos; lo hace el worker (purge_worker.go).
 func (a *API) deleteDevice(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
 	if !isUUID(id) {
 		return store.ErrNotFound
 	}
 	id = strings.ToLower(id)
-	a.extendPurgeDeadline(w, r)
-	name, err := a.store.DeleteDevice(r.Context(), id)
+	name, err := a.store.PrepareDeleteDevice(r.Context(), id)
 	if err != nil {
 		return err
 	}
-	e := actor(currentUser(r))
-	e.Event, e.Outcome, e.TargetType, e.TargetID = evDeviceDeleted, store.OutcomeOK, "device", id
-	a.audit(r, e, map[string]any{"name": name})
-	writeJSON(w, http.StatusOK, map[string]any{})
-	return nil
+	return a.enqueuePurge(w, r, store.NewPurgeJob{Kind: store.PurgeKindDevice, TargetID: id, TargetName: name, TotalHosts: 1})
 }

@@ -1,4 +1,5 @@
 import { listHosts } from '@/features/hosts/services/hosts.service'
+import type { PurgeJob } from '@/features/purge/types/purge.types'
 import { apiRequest } from '@/lib/api'
 import type { CollectorRef, Device, DeviceInput, DeviceListResponse } from '../types/device.types'
 
@@ -28,8 +29,10 @@ export async function updateDevice(id: string, input: DeviceInput): Promise<Devi
   return data.device
 }
 
-export function deleteDevice(id: string): Promise<unknown> {
-  return apiRequest<unknown>(`/devices/${enc(id)}`, { method: 'DELETE', noData: true })
+/** Baja en segundo plano: responde 202 con el trabajo (se consulta con `getPurgeJob`). */
+export async function deleteDevice(id: string): Promise<PurgeJob> {
+  const data = await apiRequest<{ job: PurgeJob }>(`/devices/${enc(id)}`, { method: 'DELETE' })
+  return data.job
 }
 
 const MAX_OPTION_PAGES = 5

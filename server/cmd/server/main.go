@@ -264,6 +264,7 @@ func serve(ctx context.Context, logger *slog.Logger, cfg config.Config, pool *pg
 	metricsMaint.WithBeat(&maintBeat)
 	maint.Go(func() { metricsMaint.Run(maintCtx) })
 	maint.Go(func() { api.RunStatusMonitor(maintCtx) })
+	maint.Go(func() { api.RunPurgeWorker(maintCtx) })
 	maint.Go(func() {
 		runHostDownDetector(maintCtx, logger, st, cfg.HostDownAfter, cfg.HostCheckInterval)
 	})

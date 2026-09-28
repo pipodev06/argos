@@ -70,6 +70,18 @@ type Store interface {
 	// Baja de un cliente: purga de un host o de un grupo entero.
 	PurgeHost(ctx context.Context, hostID, confirmHostname string) (store.PurgeCounts, error)
 	PurgeGroup(ctx context.Context, groupID string, o store.PurgeGroupOpts) (store.PurgeGroupResult, error)
+	PreparePurgeHost(ctx context.Context, hostID, confirmHostname string) (name string, err error)
+	PreparePurgeGroup(ctx context.Context, groupID, confirmName string) (total int, err error)
+	PrepareDeleteDevice(ctx context.Context, id string) (name string, err error)
+	// Trabajos de baja en segundo plano.
+	CreatePurgeJob(ctx context.Context, p store.NewPurgeJob) (store.PurgeJob, error)
+	ClaimPurgeJob(ctx context.Context) (job store.PurgeJob, ok bool, err error)
+	UpdatePurgeProgress(ctx context.Context, id string, done, total int) error
+	FinishPurgeJob(ctx context.Context, id string, result []byte, jobErr string) error
+	RequeueStalePurgeJobs(ctx context.Context, olderThan time.Duration) (int64, error)
+	PurgeJobByID(ctx context.Context, id string) (store.PurgeJob, error)
+	ListPurgeJobs(ctx context.Context, activeOnly bool, limit int) ([]store.PurgeJob, error)
+	DeleteOldPurgeJobs(ctx context.Context, olderThan time.Duration) (int64, error)
 
 	// Alertas, reglas, mantenimiento y eventos de host.
 	ListAlerts(ctx context.Context, scope store.Scope, f store.AlertFilter) (store.AlertPage, error)
@@ -242,7 +254,6 @@ type API struct {
 	reportSem          chan struct{} // cupos de informes de disponibilidad concurrentes
 	exportLimiter      *limiter      // por usuario: 6 / min (CSV del historial)
 	exports            *exportGate   // cupo propio de exportaciones CSV (1 por usuario, tope global)
-	purgeSem           chan struct{} // un solo purge de grupo a la vez
 	agentFails         failCounter
 
 	status  statusTracker
@@ -282,7 +293,6 @@ func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time
 		reportSem:          make(chan struct{}, maxConcurrentReports),
 		exportLimiter:      newLimiter(exportsPerMinute, time.Minute),
 		exports:            newExportGate(maxConcurrentExports),
-		purgeSem:           make(chan struct{}, 1),
 		cmdOrigin:          commandOrigin(opts.PublicURL, opts.Dist != nil),
 	}
 	if opts.InsecureCookies {
@@ -392,6 +402,8 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "PATCH /api/v1/groups/{id}", accessAdmin, a.updateGroup)
 	a.route(mux, "DELETE /api/v1/groups/{id}", accessAdmin, a.deleteGroup)
 	a.route(mux, "POST /api/v1/groups/{id}/purge", accessAdmin, a.purgeGroup)
+	a.route(mux, "GET /api/v1/purge-jobs", accessAdmin, a.listPurgeJobs)
+	a.route(mux, "GET /api/v1/purge-jobs/{id}", accessAdmin, a.getPurgeJob)
 	a.route(mux, "GET /api/v1/groups/{id}/export.zip", accessAdmin, a.exportGroupZip)
 	a.route(mux, "GET /api/v1/groups/{id}/usage", accessAdmin, a.getGroupUsage)
 
@@ -537,6 +549,8 @@ func (a *API) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, store.ErrCollectorHasDevices):
 		writeErrorDetails(w, http.StatusConflict, "collector_has_devices",
 			"el host es colector de dispositivos: muevelos a la vez, cambiales el colector o borralos antes", groupRuleDetails(err))
+	case errors.Is(err, store.ErrPurgeBusy):
+		writeError(w, http.StatusConflict, "purge_in_progress", "hay otra purga de grupo en curso: espera a que termine")
 	case errors.Is(err, store.ErrPurgeConfirm):
 		writeError(w, http.StatusBadRequest, "confirm_mismatch", "el nombre de confirmacion no coincide")
 	case errors.Is(err, store.ErrCollectorInvalid):

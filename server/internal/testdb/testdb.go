@@ -25,6 +25,7 @@ const truncateAll = `TRUNCATE service_check_defs, service_check_events, service_
 // no son ON DELETE CASCADE (lo que apunta a hosts y a grupos va antes; los dispositivos antes que sus colectores) y
 // borra a mano las tablas que solo tienen ON DELETE SET NULL (un TRUNCATE ... CASCADE las vaciaba igual).
 var fastDeletes = []string{
+	`DELETE FROM purge_jobs`,
 	`DELETE FROM alerts`,
 	`DELETE FROM service_check_events`,
 	`DELETE FROM service_checks`,

@@ -64,6 +64,27 @@ Generador por SQL en una BD desechable (`argos_volume_test`), sin tocar la real.
 - Volumen real de chequeos: el historial de `service_checks` se muestrea (una muestra por chequeo cada 15 min sin
   cambio de estado, más una por transición; 14 días): unas 13 mil filas por host con 10 chequeos, no millones.
 
+## Baja en segundo plano (migración 00044) y flapping que se estabiliza (migración 00045), 2026-09-28
+- **Bajas como trabajos:** `POST /hosts/{id}/purge`, `POST /groups/{id}/purge` y `DELETE /devices/{id}` validan en el
+  acto (mismos errores de siempre) y responden **202** `{job}`; un worker del server (`RunPurgeWorker`, hasta 2 trabajos
+  a la vez, uno de grupo a la vez → 409 `purge_in_progress`) los ejecuta con contexto propio, no el de la petición: un
+  proxy o navegador que corta ya no deja bajas a medias. `GET /purge-jobs` y `/purge-jobs/{id}` (solo admin) dan estado
+  y progreso; `result` es la respuesta síncrona de antes. Un solo trabajo activo por destino (índice único parcial,
+  `pg_advisory_xact_lock` al crear). Al arrancar, los `running` se reencolan (la purga es idempotente). Trabajos
+  terminados se limpian a los 30 días. UI: fase "Eliminando…" con progreso en host, grupo y dispositivo; se puede cerrar
+  la ventana; la constancia solo con el trabajo `done`. Deuda: sin latido periódico ni reclamo entre varias instancias;
+  `onDone` navega a la lista aunque el usuario ya se haya ido a otra página; falta un test del diálogo de grupo.
+- **Flapping (decisión: umbrales fijos, 3 aperturas en 30 min; si un despliegue lo necesita, pasar a variables de
+  entorno, no a configuración por regla).** `alerts.flap_held` marca las que abrieron retenidas por flapping;
+  `releaseFlapSQL` libera su `opened` si siguen abiertas pasada la ventana (ya no oscilan): una intermitente que termina
+  caída no queda muda. Si al liberar la regla está silenciada, la retención pasa a `mute_held`; el fin de mantenimiento
+  no la libera antes. Resueltas o reconocidas solo limpian la marca. La escalación espera mientras `flap_held`.
+- **Dimensionado (estimación, no medición nueva):** 50 bajas (10 usuarios × 5 hosts) con lo que el código retiene
+  (≤730 d de detalle, 400 d horario, 8 d crudo) ≈ 1,1 GB y 2,6 M filas, 30–60 s en 2 vCPU; con 4–8 años comprimidos
+  (exigiría subir los topes) 2–3,9 GB y 1–2 min; con 4–8 años de crudo 37–75 GB y 45–95 min (imposible por retención
+  salvo importación). El límite real de un server de 2 vCPU/4 GB con 10.000 hosts no es la baja sino el ingest
+  (~333 req/s; medido 309 req/s en una laptop de 4 núcleos) y la caché (~1 GB por 1000 hosts): recomendado 4 vCPU/16 GB.
+
 ## Deuda
 - Sin prueba con decenas de millones de filas reales; la purga sigue siendo síncrona en la petición HTTP (plazo
   30 min). Si un día hace falta, pasarla a tarea en segundo plano con progreso.
