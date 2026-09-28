@@ -8,8 +8,8 @@ Mientras se ataca el core de negocio (B7, B12, …) no se escriben tests nuevos 
 - ~~**B14/B15, re-enroll:** sin test del efecto sobre alertas abiertas.~~ **Cerrado 2026-09-27** (`quota_test.go`, `TestReenrollAlertLifecycle`) — **hallazgo real, no un bug**: re-enrolar un host caído NO resuelve su alerta de inmediato. El host queda `pending` (no `up`) hasta el primer reporte real del agente; `host_status` solo mira hosts `up`/`down` (o `offline` si `include_offline`), así que un host `pending` no entra como candidato y la alerta sigue `open` hasta ese primer reporte. Es el comportamiento correcto (no debería "recuperarse" solo porque se generó un token), pero antes no estaba confirmado con un test.
 
 - ~~**B7, cuotas por cliente:** sin test end-to-end de bloqueo.~~ **Cerrado 2026-09-27** (`quota_test.go`: `TestGroupQuotaHosts`, `TestGroupQuotaDevices`, `TestGroupQuotaUsers`, `TestGroupQuotaChecksRulesChannels`, `TestGroupQuotaOnMove`).
-- **B7 web:** sin test de `GroupFormDialog` para los campos de cuota (validación, payload armado) ni de `useGroupUsage`.
+- ~~**B7 web:** sin test de `GroupFormDialog` para los campos de cuota ni de `useGroupUsage`.~~ **Cerrado 2026-09-27** (`GroupFormDialog.test.tsx`: precarga, no aparecen al crear, guardar sin tocar conserva los límites, valor negativo rechazado, vaciar manda `null`).
 
-- **B12, informes por rango libre:** sin test web de los campos "Desde"/"Hasta" personalizados ni de que el informe/CSV no se dispare con el rango incompleto.
+- ~~**B12, informes por rango libre:** sin test web de los campos "Desde"/"Hasta".~~ **Cerrado 2026-09-27** (`ReportsPage.test.tsx`: sin fechas no consulta ni exporta, con fechas en la URL consulta con `from`/`to` (no `range`), escribir las fechas hace aparecer el informe).
 
 (Vacío a partir de aquí: se va llenando según avance el core sin tests.)
