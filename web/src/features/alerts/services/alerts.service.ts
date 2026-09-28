@@ -56,6 +56,15 @@ export async function setRuleChannels(id: string, channelIds: string[]): Promise
   return data.channel_ids
 }
 
+/** Reemplaza los canales de escalamiento de la regla (lista vacía = ninguno). */
+export async function setRuleEscalationChannels(id: string, channelIds: string[]): Promise<string[]> {
+  const data = await apiRequest<{ channel_ids: string[] }>(`/alert-rules/${enc(id)}/escalation-channels`, {
+    method: 'PUT',
+    body: { channel_ids: channelIds },
+  })
+  return data.channel_ids
+}
+
 export function deleteRule(id: string): Promise<unknown> {
   return apiRequest<unknown>(`/alert-rules/${enc(id)}`, { method: 'DELETE', noData: true })
 }

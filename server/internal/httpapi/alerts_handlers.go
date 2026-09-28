@@ -31,18 +31,20 @@ type hostRefDTO struct {
 }
 
 type alertDTO struct {
-	ID           string    `json:"id"`
-	RuleID       *string   `json:"rule_id"`
-	RuleName     string    `json:"rule_name"`
-	Kind         string    `json:"kind"`
-	Metric       *string   `json:"metric"`
-	Threshold    *float64  `json:"threshold"`
-	Severity     string    `json:"severity"`
-	State        string    `json:"state"`
-	Suppressed   bool      `json:"suppressed"`
-	Flapping     bool      `json:"flapping"`
-	OpenedAt     time.Time `json:"opened_at"`
-	TriggerValue *float64  `json:"trigger_value"`
+	ID         string   `json:"id"`
+	RuleID     *string  `json:"rule_id"`
+	RuleName   string   `json:"rule_name"`
+	Kind       string   `json:"kind"`
+	Metric     *string  `json:"metric"`
+	Threshold  *float64 `json:"threshold"`
+	Severity   string   `json:"severity"`
+	State      string   `json:"state"`
+	Suppressed bool     `json:"suppressed"`
+	Flapping   bool     `json:"flapping"`
+	// EscalatedAt: cuando escalo por no reconocerse a tiempo; null = no escalo.
+	EscalatedAt  *time.Time `json:"escalated_at"`
+	OpenedAt     time.Time  `json:"opened_at"`
+	TriggerValue *float64   `json:"trigger_value"`
 	// Detail (exposed_port: hasta 5 proto/puerto; parches: conteos, fecha o SO) solo va con el permiso del dato (can_inventory / can_updates); sin el, null y queda el conteo en trigger_value.
 	Detail        *string    `json:"detail"`
 	PeakValue     *float64   `json:"peak_value"`
@@ -73,7 +75,7 @@ func toAlertDTO(a store.Alert, u *sessionUser) alertDTO {
 	}
 	return alertDTO{
 		ID: a.ID, RuleID: a.RuleID, RuleName: a.RuleName, Kind: a.RuleKind, Metric: a.Metric, Threshold: a.Threshold,
-		Severity: a.Severity, State: a.State, Suppressed: a.Suppressed, Flapping: a.Flapping, OpenedAt: a.OpenedAt.UTC(),
+		Severity: a.Severity, State: a.State, Suppressed: a.Suppressed, Flapping: a.Flapping, EscalatedAt: utcPtr(a.EscalatedAt), OpenedAt: a.OpenedAt.UTC(),
 		TriggerValue: round2(a.TriggerValue), Detail: detail, PeakValue: round2(a.PeakValue),
 		Host:    hostRefDTO{ID: a.HostID, Hostname: a.Hostname},
 		AckedBy: a.AcknowledgedByName, AckedAt: utcPtr(a.AcknowledgedAt),

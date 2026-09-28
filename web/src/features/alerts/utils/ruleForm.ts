@@ -11,6 +11,7 @@ const MAX_LOAD = 1e6
 const MAX_PENDING = 10_000
 const MAX_DAYS = 365
 const MAX_EOL_LEAD_DAYS = 730
+export const MAX_ESCALATE_MIN = 10_080 // 7 días (tope del servidor: 604 800 s)
 
 export const KIND_OPTIONS: readonly { value: RuleKind; label: string }[] = [
   { value: 'metric', label: 'Métrica sobre umbral' },
@@ -38,6 +39,8 @@ export interface RuleDraft {
   /** Solo pending_updates. */
   durationDays: string
   resolveMin: string
+  /** Minutos sin reconocer antes de escalar; vacío = sin escalamiento. */
+  escalateMin: string
   includeOffline: boolean
   checkId: string
   warnOrDown: boolean
@@ -47,7 +50,7 @@ export interface RuleDraft {
   enabled: boolean
 }
 
-export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'durationDays' | 'resolve' | 'scope' | 'check' | 'ports', string>>
+export type RuleErrors = Partial<Record<'name' | 'threshold' | 'clear' | 'duration' | 'durationDays' | 'resolve' | 'escalate' | 'scope' | 'check' | 'ports', string>>
 
 const minutesText = (seconds: number) => String(Math.round((seconds / 60) * 100) / 100)
 
@@ -63,6 +66,7 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
       durationMin: '5',
       durationDays: '0',
       resolveMin: '1',
+      escalateMin: '',
       includeOffline: false,
       checkId: '',
       warnOrDown: false,
@@ -82,6 +86,7 @@ export function ruleToDraft(rule: AlertRule | null): RuleDraft {
     durationMin: minutesText(rule.duration_seconds),
     durationDays: String(rule.duration_days ?? 0),
     resolveMin: minutesText(rule.resolve_seconds),
+    escalateMin: rule.escalate_after_seconds === null ? '' : minutesText(rule.escalate_after_seconds),
     includeOffline: rule.include_offline,
     checkId: rule.check_id ?? '',
     warnOrDown: rule.warn_or_down,
@@ -159,6 +164,13 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
   if ('error' in duration) errors.duration = duration.error
   const resolve = minutes(d.resolveMin, 'Espera de resolución')
   if ('error' in resolve) errors.resolve = resolve.error
+  // Escalamiento opcional: entero de minutos; vacío = sin plazo (al editar, null lo desactiva).
+  let escalate: number | null = null
+  if (d.escalateMin.trim() !== '') {
+    const n = parseNumber(d.escalateMin)
+    if (n === null || !Number.isInteger(n) || n < 1 || n > MAX_ESCALATE_MIN) errors.escalate = `Escalar: un entero de minutos entre 1 y ${MAX_ESCALATE_MIN.toLocaleString('es-PE')}.`
+    else escalate = n * 60
+  }
   // Una regla service_check hereda el alcance del chequeo: no lleva alcance propio.
   const inheritsScope = d.kind === 'service_check'
   const scope = inheritsScope ? null : draftToScope(d.scope)
@@ -217,6 +229,7 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
     severity: d.severity,
     enabled: d.enabled,
   }
+  if (escalate !== null || editing) input.escalate_after_seconds = escalate
   if (scope && 'scope' in scope) {
     input.scope = scope.scope
     input.include_offline = d.includeOffline

@@ -179,3 +179,27 @@ func TestBuildMessageDetailLabelDependsOnKind(t *testing.T) {
 		t.Errorf("text got %q, want detalle sin el rotulo de puertos", m.Text)
 	}
 }
+
+func TestBuildMessageEscalationIsFiringWithEscaladaVerb(t *testing.T) {
+	t.Parallel()
+	raw, err := BuildMessage([]Item{{Event: "escalation", Hostname: "srv", Rule: "CPU", Severity: "critical"}}, 0, "", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct {
+		Text   string `json:"text"`
+		Alerts []struct {
+			Event string `json:"event"`
+			State string `json:"state"`
+		} `json:"alerts"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.Text, "ESCALADA CPU") {
+		t.Errorf("text got %q, want verbo ESCALADA", m.Text)
+	}
+	if len(m.Alerts) != 1 || m.Alerts[0].Event != "escalation" || m.Alerts[0].State != "firing" {
+		t.Errorf("alerts got %+v, want event escalation y state firing", m.Alerts)
+	}
+}

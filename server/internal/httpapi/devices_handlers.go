@@ -323,6 +323,7 @@ func (a *API) deleteDevice(w http.ResponseWriter, r *http.Request) error {
 		return store.ErrNotFound
 	}
 	id = strings.ToLower(id)
+	a.extendPurgeDeadline(w, r)
 	name, err := a.store.DeleteDevice(r.Context(), id)
 	if err != nil {
 		return err

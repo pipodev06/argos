@@ -11,7 +11,7 @@ import type { Alert, Delivery } from '../types/alert.types'
 import { canAckAlerts, canResolveAlerts } from '../utils/permissions'
 import { exposedPortsText, formatAlertValue, formatMetricValue, isUpdatesKind, KIND_LABELS, METRIC_LABELS, RESOLVE_REASON_LABELS } from '../utils/format'
 import { AlertActionDialog, type AlertActionKind } from './AlertActionDialog'
-import { AlertStateBadge, FlappingBadge, SeverityBadge } from './AlertBadges'
+import { AlertStateBadge, EscalatedBadge, FlappingBadge, SeverityBadge } from './AlertBadges'
 import { HostEventsList } from './HostEventsList'
 
 const EVENT_LABELS: Record<Delivery['event'], string> = { opened: 'Apertura', resolved: 'Resolución', reminder: 'Recordatorio' }
@@ -82,6 +82,7 @@ export function AlertDetailView({ id }: { id: string }) {
                 <SeverityBadge severity={a.severity} />
                 <AlertStateBadge alert={a} />
                 <FlappingBadge flapping={a.flapping} />
+                <EscalatedBadge escalatedAt={a.escalated_at} />
                 {(canAck || canResolve) && a.state !== 'resolved' && (
                   <span className="ml-auto flex gap-2">
                     {canAck && a.state === 'open' && (
@@ -97,6 +98,7 @@ export function AlertDetailView({ id }: { id: string }) {
                   </span>
                 )}
               </div>
+              {a.escalated_at && <p className="text-sm text-text-muted">Escaló el {formatFullDate(a.escalated_at)}: sin reconocer, subió de severidad.</p>}
               {a.flapping && <p className="text-sm text-text-muted">Se abrió 3 o más veces en 30 minutos; no se envió aviso.</p>}
               {a.suppressed && a.state !== 'resolved' && (
                 <p className="text-sm text-text-muted">

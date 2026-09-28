@@ -4,7 +4,9 @@ import {
   IconAlertTriangle,
   IconBellPause,
   IconBellRinging,
+  IconArrowBigUpLines,
   IconCircleCheck,
+  IconClockUp,
   IconEye,
   IconInfoCircle,
   IconRepeat,
@@ -60,6 +62,28 @@ export function FlappingBadge({ flapping }: { flapping: boolean }) {
     <span className={`${BADGE} bg-text-muted/10`}>
       <IconRepeat className="size-3.5 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
       Intermitente
+    </span>
+  )
+}
+
+/** Alerta que escaló por no ser reconocida a tiempo: icono + texto, solo si `escalatedAt`. */
+export function EscalatedBadge({ escalatedAt }: { escalatedAt: string | null }) {
+  if (!escalatedAt) return null
+  return (
+    <span className={`${BADGE} bg-warn/10`}>
+      <IconArrowBigUpLines className="size-3.5 shrink-0 text-warn" stroke={1.5} aria-hidden />
+      Escalada
+    </span>
+  )
+}
+
+/** En la tabla de reglas: "Escala a los N min" (solo si hay plazo). */
+export function EscalationBadge({ seconds }: { seconds: number | null }) {
+  if (seconds === null) return null
+  return (
+    <span className={`${BADGE} bg-text-muted/10`}>
+      <IconClockUp className="size-3.5 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
+      Escala a los {Math.round((seconds / 60) * 100) / 100} min
     </span>
   )
 }

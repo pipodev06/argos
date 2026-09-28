@@ -87,6 +87,10 @@ type AlertRule struct {
 	// MutedUntil: nil = sin silenciar; en el futuro = las notificaciones nuevas (no `resolved`) quedan suppressed.
 	// Se cambia con MuteRule, no con UpdateAlertRule.
 	MutedUntil *time.Time
+	// EscalateAfterSeconds: nil = sin escalamiento; si no, plazo sin reconocer tras el cual la alerta sube un nivel y avisa a
+	// EscalationChannelIDs (se cambian con SetRuleEscalationChannels).
+	EscalateAfterSeconds *int
+	EscalationChannelIDs []string
 }
 
 const alertRuleSelect = `
@@ -95,7 +99,8 @@ SELECT r.id, r.name, r.kind, r.metric, r.op, r.threshold, r.clear_threshold, r.d
        r.severity, r.enabled, r.created_at, r.updated_at,
        (SELECT count(*)::int FROM alerts a WHERE a.rule_id = r.id AND a.state <> 'resolved'),
        COALESCE((SELECT array_agg(rc.channel_id::text ORDER BY rc.channel_id) FROM rule_channels rc WHERE rc.rule_id = r.id), '{}'),
-       r.muted_until
+       r.muted_until, r.escalate_after_seconds,
+       COALESCE((SELECT array_agg(re.channel_id::text ORDER BY re.channel_id) FROM rule_escalation_channels re WHERE re.rule_id = r.id), '{}')
   FROM alert_rules r LEFT JOIN host_groups g ON g.id = r.scope_group_id
   LEFT JOIN hosts sh ON sh.id = r.scope_host_id
   LEFT JOIN service_check_defs cd ON cd.id = r.check_id`
@@ -106,7 +111,7 @@ func scanAlertRule(row pgx.Row) (AlertRule, error) {
 	err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Metric, &r.Op, &r.Threshold, &r.ClearThreshold, &r.DurationSeconds, &r.DurationDays,
 		&r.ResolveSeconds, &r.IncludeOffline, &r.Scope.Type, &r.Scope.GroupID,
 		&r.GroupName, &r.Scope.HostID, &r.HostName, &r.CheckID, &r.CheckName, &r.WarnOrDown, &expected, &r.Severity, &r.Enabled, &r.CreatedAt, &r.UpdatedAt, &r.ActiveAlerts, &r.ChannelIDs,
-		&r.MutedUntil)
+		&r.MutedUntil, &r.EscalateAfterSeconds, &r.EscalationChannelIDs)
 	if err != nil {
 		return r, err
 	}
@@ -175,6 +180,7 @@ func (s *Store) narrowRules(ctx context.Context, scope Scope, rules []AlertRule)
 	for i := range rules {
 		ids[i] = rules[i].ID
 		rules[i].ChannelIDs = []string{}
+		rules[i].EscalationChannelIDs = []string{}
 		rules[i].ActiveAlerts = 0
 	}
 	args := argList{ids}
@@ -255,12 +261,12 @@ func (s *Store) CreateAlertRule(ctx context.Context, r AlertRule, createdBy stri
 		err = tx.QueryRow(ctx,
 			`INSERT INTO alert_rules (name, kind, metric, op, threshold, clear_threshold, duration_seconds, resolve_seconds,
 			                          include_offline, scope_type, scope_group_id, scope_host_id,
-			                          severity, enabled, created_by, check_id, warn_is_breach, expected_ports, duration_days)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NULLIF($15, '')::uuid, $16, $17, $18, $19)
+			                          severity, enabled, created_by, check_id, warn_is_breach, expected_ports, duration_days, escalate_after_seconds)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NULLIF($15, '')::uuid, $16, $17, $18, $19, $20)
 			 RETURNING id`,
 			r.Name, r.Kind, r.Metric, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds,
 			r.IncludeOffline, r.Scope.Type, r.Scope.GroupID, r.Scope.HostID,
-			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown, expected, r.DurationDays).Scan(&id)
+			r.Severity, r.Enabled, createdBy, r.CheckID, r.WarnOrDown, expected, r.DurationDays, r.EscalateAfterSeconds).Scan(&id)
 		if err != nil {
 			return mapRuleErr(err, "insertando regla de alerta", r.Scope)
 		}
@@ -323,10 +329,10 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id string, mutate func(*Ale
 		if _, err := tx.Exec(ctx,
 			`UPDATE alert_rules SET name = $2, op = $3, threshold = $4, clear_threshold = $5, duration_seconds = $6,
 			        resolve_seconds = $7, include_offline = $8, scope_type = $9, scope_group_id = $10, scope_host_id = $16,
-			        severity = $11, enabled = $12, warn_is_breach = $13, expected_ports = $14, duration_days = $15, updated_at = now()
+			        severity = $11, enabled = $12, warn_is_breach = $13, expected_ports = $14, duration_days = $15, escalate_after_seconds = $17, updated_at = now()
 			  WHERE id = $1`,
 			id, r.Name, r.Op, r.Threshold, r.ClearThreshold, r.DurationSeconds, r.ResolveSeconds, r.IncludeOffline,
-			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected, r.DurationDays, r.Scope.HostID); err != nil {
+			r.Scope.Type, r.Scope.GroupID, r.Severity, r.Enabled, r.WarnOrDown, expected, r.DurationDays, r.Scope.HostID, r.EscalateAfterSeconds); err != nil {
 			return mapRuleErr(err, "actualizando regla de alerta", r.Scope)
 		}
 		if err := channelScopeViolations(ctx, tx, violationsOfRule, id); err != nil {

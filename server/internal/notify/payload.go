@@ -24,7 +24,7 @@ const (
 // estado y enlace. Nunca etiquetas, IPs ni datos de usuario.
 type Item struct {
 	AlertID   string
-	Event     string // opened | resolved | reminder
+	Event     string // opened | resolved | reminder | escalation
 	Hostname  string
 	Rule      string
 	Kind      string // tipo de regla: decide como se rotula Detail en el texto
@@ -120,8 +120,11 @@ func BuildMessage(items []Item, omitted int, baseURL string, now time.Time) ([]b
 		}
 		msg.Alerts = append(msg.Alerts, a)
 		verb := "ALERTA"
-		if a.State == "resolved" {
+		switch {
+		case a.State == "resolved":
 			verb = "RESUELTA"
+		case it.Event == "escalation":
+			verb = "ESCALADA"
 		}
 		lines = append(lines, fmt.Sprintf("[%s] %s %s en %s (valor %s, umbral %s)",
 			strings.ToUpper(a.Severity), verb, a.Rule, a.Hostname, fmtNum(a.Value), fmtNum(a.Threshold)))

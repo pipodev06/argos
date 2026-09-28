@@ -95,7 +95,7 @@ describe('reglas: otros tipos', () => {
 describe('reglas: ida y vuelta (regla -> borrador -> payload)', () => {
   it('una regla de métrica guardada vuelve a armarse igual', () => {
     const rule = {
-      id: 'r1', name: 'CPU', kind: 'metric', metric: 'cpu_pct', op: 'gt', threshold: 90, clear_threshold: 80, duration_seconds: 300,
+      id: 'r1', name: 'CPU', kind: 'metric', metric: 'cpu_pct', op: 'gt', threshold: 90, clear_threshold: 80, escalate_after_seconds: null, escalation_channel_ids: [], duration_seconds: 300,
       duration_days: 0, resolve_seconds: 60, include_offline: true, check_id: null, warn_or_down: false, expected_ports: null,
       scope: { type: 'all' }, severity: 'critical', enabled: false,
     } as unknown as AlertRule
@@ -109,7 +109,7 @@ describe('reglas: ida y vuelta (regla -> borrador -> payload)', () => {
 
 describe('reglas: clonar', () => {
   const metric = {
-    id: 'r1', name: 'CPU', kind: 'metric', metric: 'mem_pct', op: 'lt', threshold: 90, clear_threshold: 95, duration_seconds: 300,
+    id: 'r1', name: 'CPU', kind: 'metric', metric: 'mem_pct', op: 'lt', threshold: 90, clear_threshold: 95, escalate_after_seconds: null, escalation_channel_ids: [], duration_seconds: 300,
     duration_days: 0, resolve_seconds: 120, include_offline: true, check_id: null, warn_or_down: false, expected_ports: null,
     scope: { type: 'all' }, severity: 'critical', enabled: false,
   } as unknown as AlertRule
@@ -135,5 +135,27 @@ describe('reglas: clonar', () => {
     expect(cloneToDraft(check)).toMatchObject({ kind: 'service_check', checkId: 'c1', warnOrDown: true })
     const ports = { ...metric, kind: 'exposed_port', metric: null, expected_ports: [{ proto: 'tcp', port: 22 }] } as unknown as AlertRule
     expect(cloneToDraft(ports).expectedPorts).toContain('22')
+  })
+})
+
+describe('reglas: escalamiento', () => {
+  const input = (escalateMin: string, editing = false) => {
+    const r = buildRuleInput({ ...base, escalateMin, threshold: '90' }, editing)
+    return 'input' in r ? r.input : null
+  }
+  it('vacío es válido: al crear no se envía, al editar manda null', () => {
+    expect(input('')).not.toHaveProperty('escalate_after_seconds')
+    expect(input('', true)?.escalate_after_seconds).toBeNull()
+  })
+  it('rechaza 0, decimales, texto y más de 10080', () => {
+    for (const v of ['0', '1.5', 'abc', '10081']) expect(errorsOf(buildRuleInput({ ...base, escalateMin: v, threshold: '90' }, false)).escalate).toBeTruthy()
+  })
+  it('convierte minutos a segundos en los extremos', () => {
+    expect(input('1')?.escalate_after_seconds).toBe(60)
+    expect(input('10080')?.escalate_after_seconds).toBe(604800)
+  })
+  it('ruleToDraft/cloneToDraft rehidratan el plazo en minutos', () => {
+    const rule = { ...ruleToDraft(null), name: 'x' } as unknown as AlertRule
+    expect(ruleToDraft({ ...rule, name: 'x', kind: 'metric', escalate_after_seconds: 900, duration_seconds: 0, resolve_seconds: 0, scope: { type: 'all' } } as AlertRule).escalateMin).toBe('15')
   })
 })

@@ -28,6 +28,8 @@ export interface Alert {
   suppressed: boolean
   /** Se abrió 3 o más veces en 30 min (misma regla y host): no se envió aviso. */
   flapping: boolean
+  /** RFC3339 o null: cuándo escaló por no ser reconocida a tiempo. */
+  escalated_at: string | null
   opened_at: string
   trigger_value: number | null
   /** exposed_port: "tcp/22, udp/53" (máx 5); null sin permiso de inventario. Parches: null sin permiso `can_updates`. */
@@ -121,6 +123,9 @@ export interface AlertRule {
   enabled: boolean
   active_alerts: number
   channel_ids: string[]
+  /** Segundos sin reconocer antes de escalar (60..604800) o null = sin escalamiento. */
+  escalate_after_seconds: number | null
+  escalation_channel_ids: string[]
   /** Solo exposed_port; otros tipos devuelven []. */
   expected_ports?: ExpectedPort[]
   /** RFC3339 o null: silencia notificaciones nuevas (no `resolved`) sin desactivar la regla. */
@@ -133,6 +138,8 @@ export interface RuleInput {
   threshold?: number
   /** null borra el umbral de recuperación (solo PATCH). */
   clear_threshold?: number | null
+  /** null desactiva el escalamiento (solo PATCH). */
+  escalate_after_seconds?: number | null
   duration_seconds: number
   /** Solo pending_updates (0..365). */
   duration_days?: number

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { AlertRule } from '../types/alert.types'
 import { describeCondition, isMuted, KIND_LABELS, METRIC_LABELS, MUTE_OPTIONS, scopeLabel } from '../utils/format'
-import { MutedBadge, SeverityBadge } from './AlertBadges'
+import { EscalationBadge, MutedBadge, SeverityBadge } from './AlertBadges'
 
 export type RuleAction = 'edit' | 'clone' | 'toggle' | 'delete'
 
@@ -62,6 +62,7 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
               <div className="flex flex-col items-center gap-1">
                 <RuleEnabledBadge enabled={r.enabled} />
                 {isMuted(r) && r.muted_until && <MutedBadge mutedUntil={r.muted_until} />}
+                <EscalationBadge seconds={r.escalate_after_seconds} />
               </div>
             </Cell>
             <Cell className="tabular-nums">{r.channel_ids.length}</Cell>
