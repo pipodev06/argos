@@ -48,6 +48,22 @@ Tests: `TestPurgeHostBatchedByDay`.
   `TestRuleChannelAssignmentContract` fallaba la mitad de las veces; ahora se devuelven ordenados.
 - Verificado con `check-go.sh server --race` (gcc de WinLibs en el PATH del shell) en verde.
 
+## Medición con 10 M de filas y bajas simultáneas (2026-09-28, `scripts/perf/purge-volume.sh`)
+Generador por SQL en una BD desechable (`argos_volume_test`), sin tocar la real. Host con 10 M filas (70 % chequeos,
+20 % métricas, 10 % discos):
+- Una sola transacción: 28,5 s, 1.211 MB de WAL, transacción más larga 28,5 s.
+- Por tandas (primera versión): 69,5 s, 2.264 MB, transacción más larga **27 s** (el "arreglo" no cumplía): la
+  transacción final repetía el `DELETE` por host en `metrics`/`service_checks`/`disk_samples` y recorría 10 M de
+  entradas de índice ya muertas. Ahora esa pasada se limita a los últimos dos días (`tails` en `purgeHostTx`):
+  **36,4 s, 1.868 MB, transacción más larga 9,9 s** (acotada por el tamaño de un día, no del host).
+- El pool tiene 10 conexiones: 10 bajas simultáneas sin tope lo agotaban (una consulta trivial esperó hasta 2,19 s;
+  164 sondeos en la corrida) aunque el total fuese 14,2 s. Con `maxConcurrentPurges = 2` (semáforo en el `Store`,
+  cubre host, dispositivo y grupo; las demás esperan turno) el total sube a 26,7 s pero la peor consulta trivial es de
+  7 ms. Tests: `TestPurgeWaitsForASlotWithoutTouchingTheHost`.
+- `GET /metrics` tiene límite por IP (30/min, antes de validar el token). Test: `TestMetricsRateLimitPerIP`.
+- Volumen real de chequeos: el historial de `service_checks` se muestrea (una muestra por chequeo cada 15 min sin
+  cambio de estado, más una por transición; 14 días): unas 13 mil filas por host con 10 chequeos, no millones.
+
 ## Deuda
 - Sin prueba con decenas de millones de filas reales; la purga sigue siendo síncrona en la petición HTTP (plazo
   30 min). Si un día hace falta, pasarla a tarea en segundo plano con progreso.

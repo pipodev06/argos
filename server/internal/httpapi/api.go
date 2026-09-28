@@ -233,6 +233,7 @@ type API struct {
 	distLimiter        *limiter      // por IP: 30 / min (instaladores y descargas)
 	enrollLimiter      *limiter      // por IP: 10 / min
 	metricsLimiter     *limiter      // por host: 1 cada 2 s, rafaga 5
+	scrapeLimiter      *limiter      // GET /metrics por IP: 30 / min (un scraper usa ~4)
 	inventoryLimiter   *limiter      // por host: 20 / min (3 modulos con minimo de 30 s entre envios completos)
 	inventoryReadDedup *limiter      // por (usuario, host, modulo): 1 evento inventory_read cada 5 min
 	inventoryDenyDedup *limiter      // por (usuario, ruta): 1 authz_denied cada 5 min por falta de can_inventory o can_updates
@@ -271,6 +272,7 @@ func New(s Store, hasher *auth.Hasher, logger *slog.Logger, now func() time.Time
 		loginLimiter:       newLimiter(20, 10*time.Minute),
 		enrollLimiter:      newLimiter(10, time.Minute),
 		metricsLimiter:     newLimiter(5, 10*time.Second),
+		scrapeLimiter:      newLimiter(metricsScrapesPerMinute, time.Minute),
 		inventoryLimiter:   newLimiter(20, time.Minute),
 		inventoryReadDedup: newLimiter(1, invAuditWindow),
 		inventoryDenyDedup: newLimiter(1, invAuditWindow),

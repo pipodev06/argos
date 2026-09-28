@@ -10,6 +10,10 @@ import (
 	"argos/server/internal/store"
 )
 
+// metricsScrapesPerMinute es el tope por IP de GET /metrics: un scraper usa ~4 por minuto (cada 15 s); el margen cubre
+// varios detras del mismo proxy sin dejar que un cliente cargue la BD a peticiones (cada una consulta estado y conteos).
+const metricsScrapesPerMinute = 30
+
 const metricsContentType = "text/plain; version=0.0.4; charset=utf-8"
 
 // metrics (GET /metrics) expone en formato de texto Prometheus agregados globales del servicio. Se autentica con un
@@ -20,6 +24,10 @@ func (a *API) metrics(w http.ResponseWriter, r *http.Request) error {
 	if token == "" {
 		http.NotFound(w, r)
 		return nil
+	}
+	// El limite va antes del token: tambien frena los intentos de adivinarlo.
+	if ok, wait := a.scrapeLimiter.allow(ipKey(a.clientIP(r)), a.now()); !ok {
+		return rateLimited(wait)
 	}
 	got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {

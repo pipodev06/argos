@@ -678,3 +678,26 @@ func TestIngestHostGoneAndPurgeDisables(t *testing.T) {
 		t.Fatalf("ingest de un host purgado: got %v, want ErrHostGone", err)
 	}
 }
+
+// Con todos los turnos de purga ocupados, una baja espera (y se rinde con el contexto) sin tocar el host: asi 10 bajas
+// simultaneas no agotan el pool de conexiones.
+func TestPurgeWaitsForASlotWithoutTouchingTheHost(t *testing.T) {
+	s := newTestStore(t)
+	seedHost(t, "en-cola", "up", ago(time.Second))
+	id := hostID(t, "en-cola")
+	for range cap(s.purgeSlots) {
+		s.purgeSlots <- struct{}{}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := s.PurgeHost(ctx, id, "en-cola"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("baja sin turno libre: got %v, want DeadlineExceeded", err)
+	}
+	if n := count(t, `SELECT count(*) FROM hosts WHERE id = $1 AND status = 'up'`, id); n != 1 {
+		t.Errorf("la baja en espera no debe tocar el host")
+	}
+	<-s.purgeSlots // libera un turno: ahora procede
+	if _, err := s.PurgeHost(context.Background(), id, "en-cola"); err != nil {
+		t.Fatalf("baja con turno libre: %v", err)
+	}
+}
