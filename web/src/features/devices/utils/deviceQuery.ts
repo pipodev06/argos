@@ -18,7 +18,7 @@ export const DEVICE_FIELDS = [
     options: DEVICE_STATUSES.map((s) => ({ id: s, name: HOST_STATUS_LABELS[s] })),
   },
   /** Ids de grupo o "none" (sin grupo). */
-  { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions },
+  { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions, contentClassName: 'w-64' },
   { kind: 'choice', key: 'limit', label: 'Tamaño de página', values: PAGE_SIZES, default: DEFAULT_PAGE_SIZE },
 ] as const satisfies readonly FilterField[]
 

@@ -45,7 +45,7 @@ export const HOST_FIELDS = [
     options: HOST_STATUSES.map((s) => ({ id: s, name: HOST_STATUS_LABELS[s] })),
   },
   /** Ids de grupo o "none" (sin grupo). */
-  { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions },
+  { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions, contentClassName: 'w-64' },
   {
     kind: 'multi',
     key: 'os',
@@ -53,7 +53,7 @@ export const HOST_FIELDS = [
     plural: 'sistemas',
     options: OS_VALUES.map((o) => ({ id: o, name: OS_LABELS[o] })),
   },
-  { kind: 'boolean', key: 'agent_outdated', label: 'Agente desactualizado' },
+  { kind: 'boolean', key: 'agent_outdated', label: 'Agente desactualizado', extra: true },
   { kind: 'numeric', key: 'cpu_gt', label: 'CPU', extra: true, op: '>', max: 100, suffix: '%' },
   { kind: 'numeric', key: 'mem_gt', label: 'Memoria', extra: true, op: '>', max: 100, suffix: '%' },
   { kind: 'numeric', key: 'disk_gt', label: 'Disco', extra: true, op: '>', max: 100, suffix: '%' },

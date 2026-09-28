@@ -37,7 +37,13 @@ export function MultiFilter({ field, selected, onChange }: MultiFilterProps) {
   }
 
   return (
-    <FilterPill label={field.label} summary={summary} onClear={() => onChange([])} onOpenChange={() => setQuery('')}>
+    <FilterPill
+      label={field.label}
+      summary={summary}
+      onClear={() => onChange([])}
+      onOpenChange={() => setQuery('')}
+      contentClassName={field.contentClassName}
+    >
       {() => (
         <>
           {searchable && (

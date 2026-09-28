@@ -32,6 +32,8 @@ export interface MultiField extends FieldBase {
   useOptions?: () => readonly FilterOption[]
   /** Muestra un buscador dentro de la pastilla si hay mas de N opciones. */
   searchAbove?: number
+  /** Ancho del desplegable si el texto de las opciones no entra en el ancho fijo de la pastilla (w-40). */
+  contentClassName?: string
 }
 
 export interface NumericUnit {
@@ -77,6 +79,8 @@ export interface DateTimeField extends FieldBase {
 /** Chip on/off; en la URL `param=true` (ausente = apagado). */
 export interface BooleanField extends FieldBase {
   kind: 'boolean'
+  /** true = vive dentro de "Más filtros" en vez de su propia pastilla en la fila principal. */
+  extra?: true
 }
 
 export type FilterField = SearchField | MultiField | NumericField | ChoiceField | DateTimeField | BooleanField
