@@ -201,6 +201,50 @@ func TestGroupQuotaOnMove(t *testing.T) {
 	}
 }
 
+// TestReenrollAlertLifecycle (B14/B15): re-enrolar un host caido NO resuelve su alerta de una — el host queda
+// 'pending' (host_status solo mira 'up'/'down'/offline), asi que sigue open hasta que reporte de verdad y pase
+// a 'up' (el ingest real, no probado aqui). Documenta el comportamiento real, no lo que se asumia.
+func TestReenrollAlertLifecycle(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	admin := mkUser(t, s, "admin", RoleAdmin)
+	seedHost(t, "srv", "down", ago(time.Hour))
+	mkRule(t, s, AlertRule{Name: "caido", Kind: "host_status", DurationSeconds: 0, ResolveSeconds: 0,
+		Scope: AlertScope{Type: ScopeAll}, Severity: "critical", Enabled: true})
+
+	if r := evalOnce(t, s); r.Opened != 1 {
+		t.Fatalf("opened got %d, want 1", r.Opened)
+	}
+	if a := oneAlert(t); a.State != "open" {
+		t.Fatalf("alerta got %+v, want open", a)
+	}
+
+	// Re-enroll (target_host_id): el host pasa a 'pending', no a 'up'.
+	hid := hostID(t, "srv")
+	if err := mkEnrollToken(ctx, s, th("re"), "", admin, nil, time.Now().Add(time.Hour), &hid); err != nil {
+		t.Fatal(err)
+	}
+	if _, reenroll, err := enrollHost(ctx, s, th("re"), "linux", "amd64", "k-re"); err != nil || !reenroll {
+		t.Fatalf("re-enroll got (reenroll=%v, err=%v)", reenroll, err)
+	}
+	if got := count(t, `SELECT count(*) FROM hosts WHERE id = $1 AND status = 'pending'`, hid); got != 1 {
+		t.Fatalf("el host deberia quedar pending tras el re-enroll")
+	}
+
+	// Con el host 'pending' (no 'up'/'down'), host_status no lo trae como candidato: la alerta sigue open.
+	evalOnce(t, s)
+	if a := oneAlert(t); a.State != "open" {
+		t.Errorf("alerta tras re-enroll (host aun pending) got %+v, want open todavia", a)
+	}
+
+	// Recien cuando el agente reporta de verdad (ingest real pone status='up'; aqui se simula) se resuelve.
+	mustExec(t, `UPDATE hosts SET status = 'up' WHERE id = $1`, hid)
+	evalOnce(t, s)
+	if a := oneAlert(t); a.State != "resolved" || a.Reason != "recovered" {
+		t.Errorf("alerta tras el primer reporte got %+v, want resolved/recovered", a)
+	}
+}
+
 func mustAddr(t *testing.T, s string) netip.Addr {
 	t.Helper()
 	a, err := netip.ParseAddr(s)
