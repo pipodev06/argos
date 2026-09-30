@@ -2,8 +2,8 @@
 
 | Tipo de problema | Agente |
 |---|---|
-| Handlers, rutas, auth, sesiones, ingest, detector, contratos de API (`server/`) | backend-engineer |
-| Agente (`agent/`): colectores, transporte, servicio del SO, instalador | backend-engineer |
+| Handlers, rutas, auth, sesiones, ingest, detector, contratos de API (`server/`) | go-backend-engineer |
+| Agente (`agent/`): colectores, transporte, servicio del SO, instalador | go-backend-engineer |
 | Esquema, migraciones, particionado, retencion, indices, rendimiento de consultas | data-infra-engineer |
 | React/Vite/Tailwind/shadcn, hooks, polling, graficas, rutas (`web/`) | frontend-engineer |
 | Estilo Slate, layout, jerarquia visual, accesibilidad, estados vacio/error | ui-ux-designer |

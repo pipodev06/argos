@@ -86,6 +86,6 @@ Generador por SQL en una BD desechable (`argos_volume_test`), sin tocar la real.
   (~333 req/s; medido 309 req/s en una laptop de 4 núcleos) y la caché (~1 GB por 1000 hosts): recomendado 4 vCPU/16 GB.
 
 ## Deuda
-- Sin prueba con decenas de millones de filas reales; la purga sigue siendo síncrona en la petición HTTP (plazo
-  30 min). Si un día hace falta, pasarla a tarea en segundo plano con progreso.
+- Sin prueba con decenas de millones de filas reales (medido hasta 10 M por host). La baja ya corre en segundo
+  plano (ver arriba, migración 00044); sin latido periódico ni reparto entre varias instancias del server.
 - Tras un borrado grande quedan tuplas muertas hasta que autovacuum pase (no se fuerza VACUUM).

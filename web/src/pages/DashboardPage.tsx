@@ -24,6 +24,7 @@ const SummaryPage = lazy(() => import('./SummaryPage').then((m) => ({ default: m
 const UsersPage = lazy(() => import('./UsersPage').then((m) => ({ default: m.UsersPage })))
 const AuditPage = lazy(() => import('./AuditPage').then((m) => ({ default: m.AuditPage })))
 const SnmpProfilesPage = lazy(() => import('./SnmpProfilesPage').then((m) => ({ default: m.SnmpProfilesPage })))
+const InstructionsPage = lazy(() => import('./InstructionsPage').then((m) => ({ default: m.InstructionsPage })))
 
 export function DashboardPage() {
   const { pathname } = useLocation()
@@ -56,6 +57,7 @@ export function DashboardPage() {
         <Route path="perfiles-snmp" element={<SnmpProfilesPage />} />
         <Route path="configuracion" element={<ConfigurationPage />} />
         <Route path="auditoria" element={<AuditPage />} />
+        <Route path="instrucciones" element={<InstructionsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

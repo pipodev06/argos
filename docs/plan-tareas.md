@@ -91,4 +91,14 @@ Orden sugerido: primero lo que **bloquea entrar al primer cliente** (B1–B5), l
 - [x] **B17 Exportar "todo el cliente" antes de purgar**, purga verificable y limpieza de canales/perfiles SNMP del cliente. (Media, M) *2026-09-27: purga verificable ya estaba resuelta.*
 - [x] **B18 Rotación de `ARGOS_SECRET_KEY`** (doble clave y recifrado). (Media, M) *2026-09-27: `ARGOS_SECRET_KEY_PREVIOUS` + `argos-server rotate-secret-key`.*
 - [ ] **B19 El plan también limita el resumen horario, eventos, alertas e inventario** (decisión del usuario pendiente). (Media, M)
-- [ ] **B20–B30** (consumo por cliente, revisión visual y tests de componentes, restauración por cliente y DR, SMTP, entidad cliente, MFA/sesiones/recuperación, informes programados/PDF/marca, retención en `POST /groups`, flapping/escalamiento, silenciar por el cliente, ayuda/i18n/móvil): ver el informe.
+- [x] **B20 Entidad cliente** = grupo, 1 a 1, sin tabla nueva (decisión del usuario 2026-09-27; ver B7).
+- [x] **B21 Retención en `POST /groups`** (`detail_retention_days` ya en la creación, no solo en `PATCH`).
+- [x] **B22 Flapping y escalamiento de alertas** (2026-09-27/28) -> [escalamiento-y-borrado-por-tandas](decisiones/2026-09-27-escalamiento-y-borrado-por-tandas.md), [b19-b30-medio](decisiones/2026-09-27-b19-b30-medio-metrics-flapping-constancia.md).
+- [x] **B23 Silenciar una regla puntual** (admin, por tiempo; no es autoservicio del cliente) -> [b19-b30-bajo](decisiones/2026-09-27-b19-b30-bajo-plantillas-export-silenciar.md).
+- [ ] **B24 Consumo por cliente más allá de las cuotas de B7** (¿informe de uso/facturación? sin definir con el usuario).
+- [ ] **B25 Revisión visual y tests de componentes de las pantallas que faltan** (historial por fecha, configuración/retención; ver `deuda-tecnica.md` Frontend).
+- [ ] **B26 Restauración por cliente y DR** (bloque grande, aplazado).
+- [ ] **B27 SMTP** (bloque grande, aplazado).
+- [ ] **B28 MFA, sesiones avanzadas y recuperación de contraseña** (bloque grande, aplazado).
+- [ ] **B29 Informes programados / PDF con marca** (bloque grande, aplazado).
+- [ ] **B30 Ayuda / i18n / accesibilidad móvil** (bloque grande, aplazado); la página "Instrucciones" del sidebar (2026-09-30) cubre una parte de "ayuda".
