@@ -1,4 +1,4 @@
-import { IconBell, IconShieldCheck, IconFolders, IconHeartRateMonitor, IconHistory, IconKey, IconLayoutDashboard, IconListCheck, IconSettings, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
+import { IconBell, IconBook2, IconShieldCheck, IconFolders, IconHeartRateMonitor, IconHistory, IconKey, IconLayoutDashboard, IconListCheck, IconSettings, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
 import type { Role, User } from '@/features/auth/types/auth.types'
 
 export interface NavItem {
@@ -36,6 +36,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/perfiles-snmp', label: 'Perfiles SNMP', Icon: IconKey, section: 'Administración', roles: ['admin'] },
   { to: '/configuracion', label: 'Configuración', Icon: IconSettings, section: 'Administración', roles: ['admin'] },
   { to: '/auditoria', label: 'Auditoría', Icon: IconHistory, section: 'Administración', roles: ['admin'] },
+  { to: '/instrucciones', label: 'Instrucciones', Icon: IconBook2, section: 'Administración', roles: ['admin'] },
 ]
 
 /** Agrupa por `section` conservando el orden de aparicion. */
