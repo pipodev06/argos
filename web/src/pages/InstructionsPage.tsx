@@ -136,7 +136,8 @@ export function InstructionsPage() {
           </Note>
         </Section>
 
-        <Section title="Comandos de administración del server (argos-server)">
+        <Section title="Administración del server (argos-server)">
+          <p className="text-sm font-medium text-text">Comandos del CLI</p>
           <CopyBlock label="Crear un usuario admin" value="argos-server create-admin [--must-change] [usuario]" />
           <CopyBlock label="Fijar una contraseña y desbloquear la cuenta" value="argos-server reset-password <usuario>" />
           <CopyBlock label="Aplicar migraciones pendientes" value="argos-server migrate" />
@@ -150,9 +151,48 @@ export function InstructionsPage() {
             agente) son solo para la máquina de compilación: la clave privada nunca debe copiarse al server
             desplegado.
           </p>
-        </Section>
 
-        <Section title="Variables de entorno importantes">
+          <p className="pt-2 text-sm font-medium text-text">Que tu LAN le mande datos al server</p>
+          <p>
+            Necesitas HTTPS: la cookie de sesión solo funciona sin HTTPS accediendo por <code>localhost</code>, y
+            el resto de tus equipos no lo hará. Corre esto en el server:
+          </p>
+          <CopyBlock
+            label="Levantar el server para toda la LAN"
+            value={
+              'sudo bash deploy/install-server.sh --public-url https://argos.lan \\\n  --install-postgres --create-local-db --with-caddy --tls-internal --admin-user admin'
+            }
+          />
+          <p>
+            Luego, en cada equipo de la LAN: agrega <code>argos.lan</code> apuntando a la IP del server en su{' '}
+            <code>/etc/hosts</code> (o tu DNS local), e instala como autoridad de confianza la raíz de Caddy (
+            <code>/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt</code>). Los agentes se instalan
+            con <code>argos-agent install --ca-file root.crt --server https://argos.lan</code>.
+          </p>
+
+          <p className="pt-2 text-sm font-medium text-text">Levantarlo solo para esta máquina, sin dominio</p>
+          <CopyBlock
+            label="Instalación local, sin exponerlo a la red"
+            value="sudo bash deploy/install-server.sh --public-url http://127.0.0.1:8080 --install-postgres --create-local-db --admin-user admin"
+          />
+          <p>
+            Sin <code>--with-caddy</code> ni <code>--domain</code>: solo escucha en <code>127.0.0.1</code>, nadie
+            más en la red lo ve ni hace falta certificado. Queda como servicio (systemd lo vuelve a levantar solo
+            tras un reinicio).
+          </p>
+
+          <p className="pt-2 text-sm font-medium text-text">Cambiar de dominio</p>
+          <CopyBlock
+            label="Cambiar el dominio de un server ya instalado"
+            value="sudo bash deploy/install-server.sh --domain argos.nuevo-dominio.com --with-caddy"
+          />
+          <p>
+            Es idempotente: actualiza el <code>Caddyfile</code>, recarga Caddy, actualiza{' '}
+            <code>ARGOS_PUBLIC_URL</code> en el <code>.env</code> y reinicia el servicio solo. La cookie de sesión
+            queda atada al dominio nuevo, así que todos vuelven a iniciar sesión después del cambio.
+          </p>
+
+          <p className="pt-2 text-sm font-medium text-text">Variables de entorno importantes</p>
           <ul className="flex flex-col gap-1">
             <li>
               <code>ARGOS_PUBLIC_URL</code> — URL pública exacta del server (alimenta la cookie de sesión, CSP y
