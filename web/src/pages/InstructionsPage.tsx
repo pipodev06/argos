@@ -1,8 +1,6 @@
-import { IconAlertTriangle } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { CopyBlock } from '@/components/ui/copy-block'
 import { PageHeader } from '@/components/ui/page-header'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface SectionProps {
   title: string
@@ -29,20 +27,9 @@ function Cmd({ title, value }: { title: string; value: string }) {
   )
 }
 
-function Note({ children }: { children: ReactNode }) {
-  return (
-    <p className="flex items-start gap-1.5 text-sm text-text-muted">
-      <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" stroke={1.5} aria-hidden />
-      <span>{children}</span>
-    </p>
-  )
-}
-
 /**
- * Página de referencia estática (sin llamadas a la API): comandos reales del CLI del agente y del server, tal
- * como están documentados en `agent/cmd/agent/main.go`, `server/cmd/server/main.go` y `deploy/install-server.sh`.
- * Nada de esto es dinámico ni lleva secretos: el token de enrolamiento real se genera en el diálogo "Agregar
- * host" (Hosts) o "Re-enrolar" (detalle de host), nunca aquí.
+ * Página de referencia estática (sin llamadas a la API): comandos reales del CLI del server, tal como están
+ * documentados en `server/cmd/server/main.go`, `agent/cmd/agent/main.go` y `deploy/install-server.sh`.
  */
 export function InstructionsPage() {
   return (
@@ -76,55 +63,8 @@ export function InstructionsPage() {
           <Cmd title="Revisar sin ejecutar nada" value="bash deploy/install-server.sh --dry-run <mismas opciones>" />
         </Section>
 
-        <Section title="Enrolar un host (dar de alta un agente)">
-          <p className="text-sm text-text-muted">
-            Normal: botón <strong>Agregar host</strong> (Hosts) o <strong>Re-enrolar</strong> (detalle de host).
-          </p>
-          <Tabs defaultValue="windows">
-            <TabsList aria-label="Sistema operativo">
-              <TabsTrigger value="windows">Windows (PowerShell)</TabsTrigger>
-              <TabsTrigger value="linux">Linux / macOS (bash)</TabsTrigger>
-            </TabsList>
-            <TabsContent value="windows">
-              <CopyBlock
-                label="Instalar y enrolar en Windows"
-                value={
-                  "'<token>' | argos-agent.exe enroll --server https://argos.tu-dominio --token-stdin\nargos-agent.exe install\nargos-agent.exe start"
-                }
-              />
-            </TabsContent>
-            <TabsContent value="linux">
-              <CopyBlock
-                label="Instalar y enrolar en Linux o macOS"
-                value={
-                  "echo '<token>' | argos-agent enroll --server https://argos.tu-dominio --token-stdin\nsudo argos-agent install\nsudo argos-agent start"
-                }
-              />
-            </TabsContent>
-          </Tabs>
-          <p className="text-sm text-text-muted">
-            Flags de <code>install</code>: <code>--privileged</code>, <code>--inventory &lt;módulos|all&gt;</code>,{' '}
-            <code>--probe-allow &lt;cidr&gt;</code>, <code>--ca-file ca.pem</code>, <code>--insecure</code>.
-          </p>
-        </Section>
-
         <Section title="Actualizar el agente">
           <Cmd title="Actualizar a la última versión publicada" value="sudo argos-agent update" />
-        </Section>
-
-        <Section title="Renovar el token de un host">
-          <p className="text-sm text-text-muted">
-            Detalle del host → <strong>Re-enrolar</strong> (o <strong>Reactivar</strong> si está deshabilitado):
-            token nuevo, el anterior queda invalidado, el historial se conserva.
-          </p>
-        </Section>
-
-        <Section title="Eliminar (dar de baja)">
-          <p className="text-sm text-text-muted">
-            Host, dispositivo o cliente (grupo): en su propia pantalla, confirmando el nombre. Corre en segundo
-            plano con progreso; puedes cerrar la ventana.
-          </p>
-          <Note>Irreversible. Solo se recupera con un respaldo de la base de datos (rotan a los 14 días).</Note>
         </Section>
 
         <Section title="Administración del server (argos-server)">
