@@ -26,6 +26,3 @@ export function formatDuration(seconds: number): string {
 }
 
 /** "hace 5 min" o "Sin ciclos aún" si nunca corrió. */
-export function ageText(ageSeconds: number | null): string {
-  return ageSeconds === null ? 'Sin ciclos aún' : `hace ${formatDuration(ageSeconds)}`
-}

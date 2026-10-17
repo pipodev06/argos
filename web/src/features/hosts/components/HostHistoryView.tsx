@@ -21,7 +21,7 @@ import {
   type HistorySeries,
 } from '../utils/history'
 import { formatFullDate } from '../utils/format'
-import { BackToHostsLink } from './BackToHostsLink'
+import { BackLink } from '@/components/ui/back-link'
 import { HostCharts } from './HostCharts'
 
 function exportErrorMessage(err: unknown): string {
@@ -93,7 +93,7 @@ export function HostHistoryView({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <BackToHostsLink to={`/hosts/${encodeURIComponent(id)}`}>Volver al host</BackToHostsLink>
+      <BackLink to={`/hosts/${encodeURIComponent(id)}`}>Volver al host</BackLink>
       {notFound ? (
         <InlineError>Host no encontrado.</InlineError>
       ) : (

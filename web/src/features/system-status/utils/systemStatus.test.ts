@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ageText, checkLabel, formatDuration } from './systemStatus'
+import { checkLabel, formatDuration } from './systemStatus'
 
 describe('systemStatus utils', () => {
   it('etiqueta los cuatro checks en español y deja pasar uno desconocido', () => {
@@ -17,10 +17,5 @@ describe('systemStatus utils', () => {
     expect(formatDuration(3 * 86400 + 4 * 3600 + 59)).toBe('3 d 4 h')
     expect(formatDuration(86400)).toBe('1 d')
     expect(formatDuration(-5)).toBe('0 s')
-  })
-
-  it('antigüedad: nula = sin ciclos', () => {
-    expect(ageText(null)).toBe('Sin ciclos aún')
-    expect(ageText(120)).toBe('hace 2 min')
   })
 })

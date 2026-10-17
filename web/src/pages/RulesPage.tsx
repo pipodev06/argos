@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { ListChecksIcon } from 'lucide-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
@@ -7,7 +8,6 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { RuleFormDialog } from '@/features/alerts/components/RuleFormDialog'
 import { RulesTable, type RuleAction } from '@/features/alerts/components/RulesTable'
 import { useAlertRules } from '@/features/alerts/hooks/useAlerts'
 import { deleteRule, muteRule, unmuteRule, updateRule } from '@/features/alerts/services/alerts.service'
@@ -19,17 +19,15 @@ export function RulesPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const { data: rules, error, loading, refresh } = useAlertRules()
-  const [form, setForm] = useState<{ rule: AlertRule | null; clone?: boolean } | null>(null)
+  const navigate = useNavigate()
   const [deleting, setDeleting] = useState<AlertRule | null>(null)
   const del = useUserMutation()
   const toggle = useUserMutation()
   const mute = useUserMutation()
 
-  const disabledCount = rules?.filter((r) => !r.enabled).length ?? 0
-
   function handleAction(action: RuleAction, rule: AlertRule) {
-    if (action === 'edit') setForm({ rule })
-    else if (action === 'clone') setForm({ rule, clone: true })
+    if (action === 'edit') navigate(`/alertas/reglas/${rule.id}`)
+    else if (action === 'clone') navigate(`/alertas/reglas/nueva?clonar=${rule.id}`)
     else if (action === 'delete') setDeleting(rule)
     else void toggle.run(() => updateRule(rule.id, { enabled: !rule.enabled })).then((ok) => ok && void refresh())
   }
@@ -54,18 +52,18 @@ export function RulesPage() {
     <>
       <PageHeader
         title="Reglas de alerta"
-        actions={isAdmin && <Button size="sm" onClick={() => setForm({ rule: null })}>Nueva regla</Button>}
+        actions={
+          isAdmin && (
+            <Button asChild size="sm">
+              <Link to="/alertas/reglas/nueva">Nueva regla</Link>
+            </Button>
+          )
+        }
       />
       <div className="flex flex-col gap-4" aria-busy={loading}>
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {toggle.error && <InlineError>{toggle.error}</InlineError>}
         {mute.error && <InlineError>{mute.error}</InlineError>}
-        {disabledCount > 0 && (
-          <p className="text-sm text-text-muted">
-            {disabledCount === 1 ? '1 regla está desactivada' : `${disabledCount} reglas están desactivadas`}: no generan
-            alertas hasta que{isAdmin ? ' las actives' : ' un administrador las active'}.
-          </p>
-        )}
         {loading && !rules && <Skeleton className="h-40 w-full" />}
         {rules && rules.length === 0 && (
           <EmptyState Icon={ListChecksIcon} title="Sin reglas" />
@@ -83,16 +81,6 @@ export function RulesPage() {
       </div>
       {isAdmin && (
         <>
-          <RuleFormDialog
-            rule={form?.rule ?? null}
-            clone={form?.clone}
-            open={form !== null}
-            onClose={() => setForm(null)}
-            onSaved={() => {
-              setForm(null)
-              void refresh()
-            }}
-          />
           <ConfirmDialog
             open={deleting !== null}
             title={`Eliminar "${deleting?.name ?? ''}"`}

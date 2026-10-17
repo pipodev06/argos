@@ -13,7 +13,7 @@ import { useHostDetail } from '../hooks/useHostDetail'
 import { useHostMetrics } from '../hooks/useHostMetrics'
 import type { MetricRange } from '../types/host.types'
 import { RANGES, rangeView } from '../utils/chart'
-import { BackToHostsLink } from './BackToHostsLink'
+import { BackLink } from '@/components/ui/back-link'
 import { EditHostDialog } from './EditHostDialog'
 import { HostCharts } from './HostCharts'
 import { HostDisks } from './HostDisks'
@@ -33,7 +33,7 @@ export function HostDetailView({ id }: { id: string }) {
   if (detail.loading) {
     return (
       <div className="flex flex-col gap-6">
-        <BackToHostsLink />
+        <BackLink to="/hosts">Hosts</BackLink>
         <p className="text-sm text-text-muted">Cargando…</p>
       </div>
     )
@@ -57,7 +57,7 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
 
   return (
     <div className="flex flex-col gap-6">
-      <BackToHostsLink />
+      <BackLink to="/hosts">Hosts</BackLink>
 
       {notFound ? (
         <InlineError>Host no encontrado.</InlineError>

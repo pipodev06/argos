@@ -1,29 +1,33 @@
 import { lazy, useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router'
 import { AppShell } from '@/features/layout/components/AppShell'
+import { AlertDetailPage } from './AlertDetailPage'
+import { AlertsPage } from './AlertsPage'
+import { AuditPage } from './AuditPage'
+import { ChannelsPage } from './ChannelsPage'
+import { CheckFormPage } from './CheckFormPage'
+import { ChecksPage } from './ChecksPage'
+import { ConfigurationPage } from './ConfigurationPage'
+import { DevicesPage } from './DevicesPage'
+import { GroupFormPage } from './GroupFormPage'
+import { GroupsPage } from './GroupsPage'
+import { HostEventsPage } from './HostEventsPage'
+import { HostsPage } from './HostsPage'
+import { InstructionsPage } from './InstructionsPage'
+import { InventoryPage } from './InventoryPage'
+import { MaintenancePage } from './MaintenancePage'
+import { NotFoundPage } from './NotFoundPage'
+import { ReportsPage } from './ReportsPage'
+import { RuleFormPage } from './RuleFormPage'
+import { RulesPage } from './RulesPage'
+import { SummaryPage } from './SummaryPage'
+import { UpdatesPage } from './UpdatesPage'
+import { UsersPage } from './UsersPage'
 
-// Cada pantalla es su propio chunk (el Suspense vive en AppShell, alrededor del Outlet).
-const AlertDetailPage = lazy(() => import('./AlertDetailPage').then((m) => ({ default: m.AlertDetailPage })))
-const AlertsPage = lazy(() => import('./AlertsPage').then((m) => ({ default: m.AlertsPage })))
-const ChecksPage = lazy(() => import('./ChecksPage').then((m) => ({ default: m.ChecksPage })))
-const ChannelsPage = lazy(() => import('./ChannelsPage').then((m) => ({ default: m.ChannelsPage })))
-const ConfigurationPage = lazy(() => import('./ConfigurationPage').then((m) => ({ default: m.ConfigurationPage })))
-const DevicesPage = lazy(() => import('./DevicesPage').then((m) => ({ default: m.DevicesPage })))
-const GroupsPage = lazy(() => import('./GroupsPage').then((m) => ({ default: m.GroupsPage })))
-const ReportsPage = lazy(() => import('./ReportsPage').then((m) => ({ default: m.ReportsPage })))
+// Pantallas livianas en el bundle principal (navegar no espera descargas). Solo las que usan gráficas (Recharts,
+// ~350 KB) se cargan aparte; el Suspense vive en AppShell, alrededor del Outlet.
 const HostDetailPage = lazy(() => import('./HostDetailPage').then((m) => ({ default: m.HostDetailPage })))
-const HostEventsPage = lazy(() => import('./HostEventsPage').then((m) => ({ default: m.HostEventsPage })))
 const HostHistoryPage = lazy(() => import('./HostHistoryPage').then((m) => ({ default: m.HostHistoryPage })))
-const HostsPage = lazy(() => import('./HostsPage').then((m) => ({ default: m.HostsPage })))
-const InventoryPage = lazy(() => import('./InventoryPage').then((m) => ({ default: m.InventoryPage })))
-const UpdatesPage = lazy(() => import('./UpdatesPage').then((m) => ({ default: m.UpdatesPage })))
-const MaintenancePage = lazy(() => import('./MaintenancePage').then((m) => ({ default: m.MaintenancePage })))
-const NotFoundPage = lazy(() => import('./NotFoundPage').then((m) => ({ default: m.NotFoundPage })))
-const RulesPage = lazy(() => import('./RulesPage').then((m) => ({ default: m.RulesPage })))
-const SummaryPage = lazy(() => import('./SummaryPage').then((m) => ({ default: m.SummaryPage })))
-const UsersPage = lazy(() => import('./UsersPage').then((m) => ({ default: m.UsersPage })))
-const AuditPage = lazy(() => import('./AuditPage').then((m) => ({ default: m.AuditPage })))
-const InstructionsPage = lazy(() => import('./InstructionsPage').then((m) => ({ default: m.InstructionsPage })))
 
 export function DashboardPage() {
   const { pathname } = useLocation()
@@ -45,10 +49,16 @@ export function DashboardPage() {
         <Route path="parches" element={<UpdatesPage />} />
         <Route path="dispositivos" element={<DevicesPage />} />
         <Route path="grupos" element={<GroupsPage />} />
+        <Route path="grupos/nuevo" element={<GroupFormPage />} />
+        <Route path="grupos/:id" element={<GroupFormPage />} />
         <Route path="chequeos" element={<ChecksPage />} />
+        <Route path="chequeos/nuevo" element={<CheckFormPage />} />
+        <Route path="chequeos/:id" element={<CheckFormPage />} />
         <Route path="informes" element={<ReportsPage />} />
         <Route path="alertas" element={<AlertsPage />} />
         <Route path="alertas/reglas" element={<RulesPage />} />
+        <Route path="alertas/reglas/nueva" element={<RuleFormPage />} />
+        <Route path="alertas/reglas/:id" element={<RuleFormPage />} />
         <Route path="alertas/mantenimiento" element={<MaintenancePage />} />
         <Route path="alertas/canales" element={<ChannelsPage />} />
         <Route path="alertas/:id" element={<AlertDetailPage />} />

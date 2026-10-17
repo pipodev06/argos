@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
@@ -27,27 +26,17 @@ import {
 } from '../utils/checkForm'
 import { isDeviceCheck, SNMP_METRIC_OPTIONS } from '../utils/format'
 
-interface CheckFormDialogProps {
+interface CheckFormProps {
   /** null = crear; un chequeo = editar. */
   check: ServiceCheck | null
-  open: boolean
-  onClose: () => void
+  onCancel: () => void
   onSaved: () => void
 }
 
 const HEADER_SELECT = HEADER_OPTIONS.map((h) => ({ value: h, label: h }))
 const NO_HEADER = '__none__'
 
-export function CheckFormDialog(props: CheckFormDialogProps) {
-  // El formulario solo existe con el diálogo abierto: al cerrar, el secreto y el resto de campos se descartan.
-  return (
-    <Dialog open={props.open} onOpenChange={(next) => !next && props.onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">{props.open && <CheckForm {...props} />}</DialogContent>
-    </Dialog>
-  )
-}
-
-function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
+export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
   const editing = check !== null
   const [draft, setDraft] = useState<CheckDraft>(() => checkToDraft(check))
   const [errors, setErrors] = useState<CheckErrors>({})
@@ -78,12 +67,6 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate autoComplete="off">
-      <DialogHeader>
-        <DialogTitle>{editing ? 'Editar chequeo' : 'Nuevo chequeo'}</DialogTitle>
-        <DialogDescription>
-          Por seguridad el agente solo comprueba el propio equipo salvo que el host tenga una lista de permitidos local (ARGOS_CHECK_ALLOW; para ping, ARGOS_PROBE_ALLOW).
-        </DialogDescription>
-      </DialogHeader>
       <FormField id="check-name" label="Nombre" maxLength={MAX_NAME} autoComplete="off" autoFocus {...text('name')} />
       <SelectField
         id="check-type"
@@ -226,14 +209,14 @@ function CheckForm({ check, onClose, onSaved }: CheckFormDialogProps) {
         </span>
       </label>
       {error && <InlineError>{error}</InlineError>}
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onClose}>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>
         <Button type="submit" disabled={busy}>
           {busy ? 'Guardando...' : 'Guardar'}
         </Button>
-      </DialogFooter>
+      </div>
     </form>
   )
 }

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { InlineError } from '@/components/ui/inline-error'
-import { BackToHostsLink } from '@/features/hosts/components/BackToHostsLink'
+import { BackLink } from '@/components/ui/back-link'
 import { useHostDetail } from '@/features/hosts/hooks/useHostDetail'
 import { InventoryContent } from './InventoryContent'
 
@@ -13,7 +13,7 @@ export function InventoryView({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <BackToHostsLink to={`/hosts/${encodeURIComponent(id)}`}>Volver al host</BackToHostsLink>
+      <BackLink to={`/hosts/${encodeURIComponent(id)}`}>Volver al host</BackLink>
       {notFound ? (
         <InlineError>Host no encontrado.</InlineError>
       ) : (

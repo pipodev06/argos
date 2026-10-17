@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { ActivityIcon } from 'lucide-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
@@ -9,7 +10,6 @@ import { InlineError } from '@/components/ui/inline-error'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/features/auth/hooks/useAuth'
-import { CheckFormDialog } from '@/features/checks/components/CheckFormDialog'
 import { ChecksTable, type CheckAction } from '@/features/checks/components/ChecksTable'
 import { useServiceChecks } from '@/features/checks/hooks/useChecks'
 import { deleteCheck, updateCheck } from '@/features/checks/services/checks.service'
@@ -25,7 +25,7 @@ export function ChecksPage() {
   const { data: checks, error, loading, refresh } = useServiceChecks()
   const { data: devices } = useAllDevices()
   const { filters, setFilters, clear, hasActive } = useUrlFilters(CHECK_FIELDS)
-  const [form, setForm] = useState<{ check: ServiceCheck | null } | null>(null)
+  const navigate = useNavigate()
   const [deleting, setDeleting] = useState<ServiceCheck | null>(null)
   const del = useUserMutation()
   const toggle = useUserMutation()
@@ -33,7 +33,7 @@ export function ChecksPage() {
   const shown = checks ? filterChecks(checks, filters) : null
 
   function handleAction(action: CheckAction, check: ServiceCheck) {
-    if (action === 'edit') setForm({ check })
+    if (action === 'edit') navigate(`/chequeos/${check.id}`)
     else if (action === 'delete') setDeleting(check)
     else void toggle.run(() => updateCheck(check.id, { enabled: !check.enabled })).then((ok) => ok && void refresh())
   }
@@ -50,7 +50,13 @@ export function ChecksPage() {
     <>
       <PageHeader
         title="Chequeos"
-        actions={isAdmin && <Button size="sm" onClick={() => setForm({ check: null })}>Nuevo chequeo</Button>}
+        actions={
+          isAdmin && (
+            <Button asChild size="sm">
+              <Link to="/chequeos/nuevo">Nuevo chequeo</Link>
+            </Button>
+          )
+        }
       />
       <div className="flex flex-col gap-4" aria-busy={loading}>
         <FilterBar
@@ -78,15 +84,6 @@ export function ChecksPage() {
       </div>
       {isAdmin && (
         <>
-          <CheckFormDialog
-            check={form?.check ?? null}
-            open={form !== null}
-            onClose={() => setForm(null)}
-            onSaved={() => {
-              setForm(null)
-              void refresh()
-            }}
-          />
           <ConfirmDialog
             open={deleting !== null}
             title={`Eliminar "${deleting?.name ?? ''}"`}

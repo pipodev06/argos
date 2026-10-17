@@ -1,15 +1,6 @@
 export type ServiceLevel = 'ok' | 'warn' | 'crit'
 export type CheckName = 'maintenance' | 'evaluator' | 'notification_queue' | 'notification_dead'
 
-export interface BeatStatus {
-  last_ok_at: string | null
-  last_error_at: string | null
-  last_error: string | null
-  age_seconds: number | null
-  interval_seconds: number
-  monitored: boolean
-}
-
 export interface DeadChannel {
   channel_id: string
   name: string
@@ -28,8 +19,6 @@ export interface SystemStatus {
   version: string
   started_at: string
   uptime_seconds: number
-  maintenance: BeatStatus
-  evaluator: BeatStatus
   notifications: {
     pending: number
     oldest_pending_age_seconds: number | null

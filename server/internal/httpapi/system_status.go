@@ -64,11 +64,11 @@ type statusInput struct {
 func evaluateChecks(in statusInput) []statusCheck {
 	checks := []statusCheck{}
 	if in.src.MaintenanceInterval > 0 {
-		checks = append(checks, cycleCheck("maintenance", "mantenimiento de metricas", in.now, in.maint,
+		checks = append(checks, cycleCheck("maintenance", in.now, in.maint,
 			in.src.StartedAt, in.src.MaintenanceInterval, maintWarnCycles, maintCritCycles))
 	}
 	if in.src.EvalInterval > 0 {
-		checks = append(checks, cycleCheck("evaluator", "evaluador de alertas", in.now, in.eval,
+		checks = append(checks, cycleCheck("evaluator", in.now, in.eval,
 			in.src.StartedAt.Add(in.src.EvalGrace), in.src.EvalInterval, evalWarnCycles, evalCritCycles))
 	}
 	checks = append(checks, queueCheck(in.now, in.stats), deadCheck(in.deadTotal))
@@ -77,15 +77,15 @@ func evaluateChecks(in statusInput) []statusCheck {
 
 // cycleCheck juzga una tarea periodica: la edad se mide desde su ultimo ciclo OK o, si aun no hubo ninguno, desde
 // notBefore (arranque, mas la espera inicial de la tarea).
-func cycleCheck(name, label string, now time.Time, st beat.State, notBefore time.Time, interval time.Duration, warnN, critN int) statusCheck {
+func cycleCheck(name string, now time.Time, st beat.State, notBefore time.Time, interval time.Duration, warnN, critN int) statusCheck {
 	ref := st.LastOK
 	if ref.IsZero() {
 		ref = notBefore
 	}
 	age := max(now.Sub(ref), 0)
-	c := statusCheck{Name: name, Status: statusOK, Detail: fmt.Sprintf("%s: ultimo ciclo correcto hace %s", label, age.Round(time.Second))}
+	c := statusCheck{Name: name, Status: statusOK, Detail: fmt.Sprintf("ultimo ciclo correcto hace %s", age.Round(time.Second))}
 	if st.LastOK.IsZero() {
-		c.Detail = fmt.Sprintf("%s: aun sin ciclo correcto desde el arranque (%s)", label, age.Round(time.Second))
+		c.Detail = fmt.Sprintf("aun sin ciclo correcto desde el arranque (%s)", age.Round(time.Second))
 	}
 	switch {
 	case age > time.Duration(critN)*interval:

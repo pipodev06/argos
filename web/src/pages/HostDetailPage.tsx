@@ -1,6 +1,6 @@
 import { useParams } from 'react-router'
 import { InlineError } from '@/components/ui/inline-error'
-import { BackToHostsLink } from '@/features/hosts/components/BackToHostsLink'
+import { BackLink } from '@/components/ui/back-link'
 import { HostDetailView } from '@/features/hosts/components/HostDetailView'
 import { isHostId } from '@/features/hosts/utils/id'
 
@@ -10,7 +10,7 @@ export function HostDetailPage() {
   if (!id || !isHostId(id)) {
     return (
       <div className="flex flex-col gap-4">
-        <BackToHostsLink />
+        <BackLink to="/hosts">Hosts</BackLink>
         <InlineError>Id de host inválido.</InlineError>
       </div>
     )

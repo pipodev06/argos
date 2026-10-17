@@ -1,13 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { Input } from '@/components/ui/input'
@@ -38,27 +30,17 @@ function usageHint(usage: GroupUsageItem | undefined): string | undefined {
   return usage.limit === null ? `${usage.current} en uso, sin límite` : `${usage.current} de ${usage.limit} en uso`
 }
 
-interface GroupFormDialogProps {
+interface GroupFormProps {
   /** null = crear; un grupo = editar. */
   group: Group | null
-  open: boolean
   defaultDownAfter: number
-  onClose: () => void
+  onCancel: () => void
   onSaved: () => void
 }
 
 const MAX_NAME = 64
 
-export function GroupFormDialog(props: GroupFormDialogProps) {
-  // El formulario se monta solo con el dialogo abierto: cada apertura empieza con el estado del grupo.
-  return (
-    <Dialog open={props.open} onOpenChange={(next) => !next && props.onClose()}>
-      <DialogContent>{props.open && <GroupForm {...props} />}</DialogContent>
-    </Dialog>
-  )
-}
-
-function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialogProps) {
+export function GroupForm({ group, defaultDownAfter, onCancel, onSaved }: GroupFormProps) {
   const initial = group?.down_after_seconds != null ? splitThreshold(group.down_after_seconds) : null
   const [name, setName] = useState(group?.name ?? '')
   const [amount, setAmount] = useState(initial?.amount ?? '')
@@ -155,10 +137,6 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
-      <DialogHeader>
-        <DialogTitle>{group ? 'Editar grupo' : 'Nuevo grupo'}</DialogTitle>
-        <DialogDescription>Define cuándo un host del grupo se considera sin reportar.</DialogDescription>
-      </DialogHeader>
       <FormField
         id="group-name"
         label="Nombre"
@@ -252,14 +230,14 @@ function GroupForm({ group, defaultDownAfter, onClose, onSaved }: GroupFormDialo
         </fieldset>
       )}
       {error && <InlineError>{error}</InlineError>}
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onClose}>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>
         <Button type="submit" disabled={submitting}>
           {submitting ? 'Guardando...' : 'Guardar'}
         </Button>
-      </DialogFooter>
+      </div>
       <ShrinkConfirmDialog
         shrink={shrink}
         busy={submitting}

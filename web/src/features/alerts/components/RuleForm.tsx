@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { CheckField } from '@/components/ui/check-field'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
@@ -26,12 +25,11 @@ import {
 import { ScopeFields } from './ScopeFields'
 import { ALL_SCOPE, ruleScopeTypes } from '../utils/scope'
 
-interface RuleFormDialogProps {
+interface RuleFormProps {
   /** null = crear; una regla = editar (o, con `clone`, crear una copia precargada). */
   rule: AlertRule | null
   clone?: boolean
-  open: boolean
-  onClose: () => void
+  onCancel: () => void
   onSaved: () => void
 }
 
@@ -41,15 +39,6 @@ const SEVERITY_OPTIONS = (Object.keys(SEVERITY_LABELS) as AlertSeverity[]).map((
 const BLANK_TEMPLATE = 'blank'
 const TEMPLATE_OPTIONS = [{ value: BLANK_TEMPLATE, label: 'En blanco' }, ...RULE_TEMPLATES.map((t) => ({ value: t.id, label: t.label }))]
 
-export function RuleFormDialog(props: RuleFormDialogProps) {
-  // El formulario se monta solo con el diálogo abierto: cada apertura empieza con el estado de la regla.
-  return (
-    <Dialog open={props.open} onOpenChange={(next) => !next && props.onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">{props.open && <RuleForm {...props} />}</DialogContent>
-    </Dialog>
-  )
-}
-
 const THRESHOLD_LABELS: Partial<Record<RuleKind, string>> = {
   no_data: 'Segundos sin reportar',
   pending_updates: 'Pendientes de seguridad (mínimo)',
@@ -57,7 +46,8 @@ const THRESHOLD_LABELS: Partial<Record<RuleKind, string>> = {
   os_eol: 'Días de antelación al fin de vida',
 }
 
-function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDialogProps) {
+/** Formulario de regla (pagina propia: /alertas/reglas/nueva y /alertas/reglas/:id). */
+export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: RuleFormProps) {
   // Al clonar, el formulario parte de la regla original pero se comporta como creación.
   const rule = clone ? null : source
   const editing = rule !== null
@@ -135,12 +125,6 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2" noValidate>
-      <DialogHeader className="sm:col-span-2">
-        <DialogTitle>{editing ? 'Editar regla' : clone ? 'Duplicar regla' : 'Nueva regla'}</DialogTitle>
-        <DialogDescription>
-          {clone ? 'Se crea una regla nueva con los mismos valores y canales. Cambia el nombre si quieres.' : editing ?'El tipo y la métrica no se pueden cambiar; crea otra regla si los necesitas distintos.' : 'Se evalúa cada 15 segundos sobre los hosts del alcance.'}
-        </DialogDescription>
-      </DialogHeader>
       {!editing && !clone && (
         <div className="sm:col-span-2">
           <SelectField
@@ -335,14 +319,14 @@ function RuleForm({ rule: source, clone = false, onClose, onSaved }: RuleFormDia
           <InlineError>{error}</InlineError>
         </div>
       )}
-      <DialogFooter className="sm:col-span-2">
-        <Button type="button" variant="ghost" onClick={onClose}>
+      <div className="flex justify-end gap-2 sm:col-span-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>
         <Button type="submit" disabled={busy}>
           {busy ? 'Guardando...' : 'Guardar'}
         </Button>
-      </DialogFooter>
+      </div>
     </form>
   )
 }

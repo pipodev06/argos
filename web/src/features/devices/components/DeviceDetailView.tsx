@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { HostChecksSection } from '@/features/checks/components/HostChecksSection'
 import { useAuth } from '@/features/auth/hooks/useAuth'
-import { BackToHostsLink } from '@/features/hosts/components/BackToHostsLink'
+import { BackLink } from '@/components/ui/back-link'
 import { Item } from '@/features/hosts/components/HostSystemInfo'
 import { formatFullDate, formatLastSeen } from '@/features/hosts/utils/format'
 import { versionLabel } from '@/features/snmp-profiles/utils/profileForm'
@@ -30,7 +30,7 @@ export function DeviceDetailView({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <BackToHostsLink to="/dispositivos">Dispositivos</BackToHostsLink>
+      <BackLink to="/dispositivos">Dispositivos</BackLink>
       {detail.errorStatus === 404 && <InlineError>Dispositivo no encontrado.</InlineError>}
       {detail.error && detail.errorStatus !== 404 && <InlineError>{detail.error}</InlineError>}
       {!device && detail.loading && <p className="text-sm text-text-muted">Cargando…</p>}

@@ -2,13 +2,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { checkA11y, mockApi } from '@/test/utils'
-import { GroupFormDialog } from './GroupFormDialog'
+import { GroupForm } from './GroupForm'
 import type { Group } from '../types/group.types'
 
 afterEach(() => vi.unstubAllGlobals())
 
 function renderCreate(onSaved = () => {}) {
-  render(<GroupFormDialog group={null} open defaultDownAfter={300} onClose={() => {}} onSaved={onSaved} />)
+  render(<GroupForm group={null} defaultDownAfter={300} onCancel={() => {}} onSaved={onSaved} />)
 }
 
 const GROUP: Group = {
@@ -24,10 +24,10 @@ const GROUP: Group = {
 }
 
 function renderEdit(onSaved = () => {}) {
-  render(<GroupFormDialog group={GROUP} open defaultDownAfter={300} onClose={() => {}} onSaved={onSaved} />)
+  render(<GroupForm group={GROUP} defaultDownAfter={300} onCancel={() => {}} onSaved={onSaved} />)
 }
 
-describe('GroupFormDialog: cuotas del cliente (B7)', () => {
+describe('GroupForm: cuotas del cliente (B7)', () => {
   it('muestra los 6 campos precargados con el limite actual y el uso, solo al editar', async () => {
     mockApi({ 'GET /groups/g1/usage': { data: { hosts: { current: 3, limit: 10 }, devices: { current: 0, limit: null }, checks: { current: 0, limit: null }, users: { current: 0, limit: null }, rules: { current: 0, limit: null }, channels: { current: 0, limit: null } } } })
     renderEdit()
@@ -80,7 +80,7 @@ describe('GroupFormDialog: cuotas del cliente (B7)', () => {
   })
 })
 
-describe('GroupFormDialog al crear', () => {
+describe('GroupForm al crear', () => {
   it('muestra la retención de detalle desde el alta, heredando por defecto', async () => {
     renderCreate()
     expect(await screen.findByLabelText('Retención de detalle (días)')).toBeTruthy()

@@ -1,8 +1,8 @@
 import { ArrowLeftIcon } from 'lucide-react'
 import { Link } from 'react-router'
 
-// Enlace de vuelta a la lista (o al host, con `to`); lo comparten el detalle, el id invalido y la pagina 404.
-export function BackToHostsLink({ children = 'Hosts', to = '/hosts' }: { children?: string; to?: string }) {
+/** Enlace unico de vuelta (a una lista o al detalle): flecha + texto muted. */
+export function BackLink({ children, to }: { children: string; to: string }) {
   return (
     <Link
       to={to}
