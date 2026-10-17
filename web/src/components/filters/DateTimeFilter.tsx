@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { formatDateTimeSummary, fromLocalInput, toLocalInput } from './datetime'
 import { FilterPill } from './FilterPill'
 import type { DateTimeField } from './types'
@@ -12,7 +12,7 @@ interface DateTimeFilterProps {
   onChange: (next: string) => void
 }
 
-/** Pastilla con selector nativo de fecha y hora (hora local); aplica con "Aplicar". */
+/** Pastilla con selector de fecha y hora (hora local); aplica con "Aplicar". */
 export function DateTimeFilter({ field, value, onChange }: DateTimeFilterProps) {
   const id = useId()
   const [draft, setDraft] = useState('')
@@ -31,7 +31,7 @@ export function DateTimeFilter({ field, value, onChange }: DateTimeFilterProps) 
           <label htmlFor={id} className="text-xs text-text-muted">
             {field.label} (hora local)
           </label>
-          <Input id={id} type="datetime-local" value={draft} onChange={(e) => setDraft(e.target.value)} className="h-8" />
+          <DateTimePicker id={id} value={draft} onChange={setDraft} className="h-8" />
           <Button
             size="sm"
             disabled={!draft}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { checkA11y, mockApi, renderWithRouter } from '@/test/utils'
 import { ReportsPage } from './ReportsPage'
@@ -19,7 +19,7 @@ describe('ReportsPage: rango personalizado (B12)', () => {
   it('sin Desde/Hasta no consulta el informe y deshabilita la exportación', async () => {
     const calls = mockApi(baseRoutes())
     renderWithRouter(<ReportsPage />, '/informes?type=availability&range=custom')
-    expect(await screen.findByText('Elige "Desde" y "Hasta" para ver el informe.')).toBeTruthy()
+    expect(await screen.findByText('Elige Desde y Hasta')).toBeTruthy()
     expect(calls.some((c) => c.path === '/reports/availability')).toBe(false)
     const exportBtn = screen.getByRole('button', { name: 'Exportar CSV' }) as HTMLButtonElement
     expect(exportBtn.disabled).toBe(true)
@@ -40,12 +40,15 @@ describe('ReportsPage: rango personalizado (B12)', () => {
     expect(link.getAttribute('href')).not.toContain('range=custom')
   })
 
-  it('escribir Desde y Hasta pasa de "elige fechas" a consultar el informe', async () => {
+  it('elegir Desde y Hasta en el calendario pasa de "elige fechas" a consultar el informe', async () => {
     mockApi(baseRoutes())
     renderWithRouter(<ReportsPage />, '/informes?type=availability&range=custom')
-    await screen.findByText('Elige "Desde" y "Hasta" para ver el informe.')
-    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-08-01T00:00' } })
-    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-08-08T00:00' } })
-    await waitFor(() => expect(screen.queryByText('Elige "Desde" y "Hasta" para ver el informe.')).toBeNull())
+    await screen.findByText('Elige Desde y Hasta')
+    for (const [label, day] of [['Desde', '10'], ['Hasta', '20']] as const) {
+      fireEvent.click(screen.getByRole('button', { name: label }))
+      fireEvent.click(within(await screen.findByRole('grid')).getByText(day))
+      fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
+    }
+    await waitFor(() => expect(screen.queryByText('Elige Desde y Hasta')).toBeNull())
   })
 })

@@ -30,7 +30,7 @@ export function AttentionPanel({ items, now }: { items: RecentDown[]; now: numbe
                 <IconCircleX className="size-4 shrink-0 text-danger" stroke={1.5} aria-label="Caído" />
                 <span className="min-w-0 truncate font-semibold">{h.hostname}</span>
                 <span className="hidden truncate text-text-muted sm:inline">{h.group?.name ?? 'Sin grupo'}</span>
-                <span className="ml-auto shrink-0 text-xs text-text-muted tabular-nums">
+                <span className="ml-auto shrink-0 text-sm text-text-muted tabular-nums">
                   caído hace {formatElapsed(h.status_changed_at, now)}
                 </span>
               </Link>

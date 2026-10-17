@@ -56,7 +56,7 @@ export function RulesPage() {
         title="Reglas de alerta"
         actions={isAdmin && <Button size="sm" onClick={() => setForm({ rule: null })}>Nueva regla</Button>}
       />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {toggle.error && <InlineError>{toggle.error}</InlineError>}
         {mute.error && <InlineError>{mute.error}</InlineError>}
@@ -68,7 +68,7 @@ export function RulesPage() {
         )}
         {loading && !rules && <Skeleton className="h-40 w-full" />}
         {rules && rules.length === 0 && (
-          <EmptyState Icon={IconListCheck} title="Sin reglas" description={isAdmin ? 'Crea la primera con "Nueva regla".' : undefined} />
+          <EmptyState Icon={IconListCheck} title="Sin reglas" />
         )}
         {rules && rules.length > 0 && (
           <RulesTable
@@ -98,6 +98,7 @@ export function RulesPage() {
             title={`Eliminar "${deleting?.name ?? ''}"`}
             description="La regla se elimina de forma definitiva y sus alertas abiertas se resuelven."
             confirmLabel="Eliminar"
+            destructive
             busy={del.busy}
             error={del.error}
             onConfirm={() => void confirmDelete()}

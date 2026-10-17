@@ -139,7 +139,7 @@ export function AlertDetailView({ id }: { id: string }) {
                 {data.deliveries.length === 0 ? (
                   <p className="flex items-center gap-2 text-sm text-text-muted">
                     <IconBellOff className="size-4 shrink-0" stroke={1.5} aria-hidden />
-                    Sin notificaciones: esta alerta no tiene entregas (aún no hay canales configurados).
+                    Sin notificaciones
                   </p>
                 ) : (
                   <DataTable caption="Entregas de notificaciones" className="min-w-[40rem]">

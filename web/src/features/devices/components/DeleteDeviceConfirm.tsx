@@ -43,6 +43,7 @@ function DeleteDeviceForm({ device, onClose, onDeleted }: { device: Device } & O
       title={`Eliminar "${device.name}"`}
       description="El dispositivo se elimina de forma definitiva y deja de sondearse."
       confirmLabel="Eliminar"
+      destructive
       busy={run.busy}
       error={run.error}
       onConfirm={() => void run.start()}

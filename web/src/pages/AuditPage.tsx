@@ -21,7 +21,7 @@ export function AuditPage() {
     return (
       <>
         <PageHeader title="Auditoría" />
-        <EmptyState Icon={IconLock} title="No tienes permiso" description="Solo los administradores consultan la auditoría." />
+        <EmptyState Icon={IconLock} title="Sin permiso" />
       </>
     )
   }
@@ -57,7 +57,7 @@ function AuditAdmin() {
           </Button>
         }
       />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         <FilterBar
           fields={AUDIT_FIELDS}
           values={filters}
@@ -68,8 +68,8 @@ function AuditAdmin() {
           overall={null}
         />
         {message && <TableError message={message} onRetry={() => void refresh()} />}
-        {noEntries && <EmptyState Icon={IconHistory} title="Sin eventos" description="Aún no hay eventos en el registro de auditoría." />}
-        {noMatch && <NoResultsState Icon={IconHistory} title="Ningún evento coincide con los filtros." onClear={clear} />}
+        {noEntries && <EmptyState Icon={IconHistory} title="Sin eventos" />}
+        {noMatch && <NoResultsState Icon={IconHistory} onClear={clear} />}
         {showTable && (
           <>
             <AuditTable entries={data?.items ?? null} page={pagination.page} pageSize={filters.limit} />

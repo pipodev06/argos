@@ -1,8 +1,8 @@
-import { IconDownload, IconReportAnalytics } from '@tabler/icons-react'
+import { IconCalendar, IconDownload, IconReportAnalytics } from '@tabler/icons-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
-import { FormField } from '@/components/ui/form-field'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { PageHeader } from '@/components/ui/page-header'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -36,7 +36,7 @@ function AvailabilityView({ range, by = 'host', groupId, from, to }: RangeProps)
     <>
       <ReportSummaryTiles fleet={data.fleet} />
       {data.items.length === 0 ? (
-        <EmptyState Icon={IconReportAnalytics} title="Sin hosts en el informe" />
+        <EmptyState Icon={IconReportAnalytics} title="Sin hosts" />
       ) : (
         <ReportAvailabilityTable items={data.items} isGroupView={data.by === 'group'} />
       )}
@@ -49,7 +49,7 @@ function ServiceChecksView({ range, groupId, from, to }: RangeProps) {
   if (error) return <TableError message={error} onRetry={() => void refresh()} />
   if (!data) return loading ? <Skeleton className="h-40 w-full" /> : null
   return data.items.length === 0 ? (
-    <EmptyState Icon={IconReportAnalytics} title="Sin chequeos en el informe" />
+    <EmptyState Icon={IconReportAnalytics} title="Sin chequeos" />
   ) : (
     <ReportServiceChecksTable items={data.items} />
   )
@@ -68,11 +68,39 @@ export function ReportsPage() {
   const to = isCustom && filters.to ? filters.to : undefined
   const customIncomplete = isCustom && !(from && to)
 
+  function exportButton(kind: Parameters<typeof reportCsvUrl>[0], label: string) {
+    const content = (
+      <>
+        <IconDownload aria-hidden stroke={1.5} />
+        {label}
+      </>
+    )
+    return customIncomplete ? (
+      <Button variant="outline" size="sm" disabled>
+        {content}
+      </Button>
+    ) : (
+      <Button asChild variant="outline" size="sm">
+        <a href={reportCsvUrl(kind, range, groupId, from, to)} download>
+          {content}
+        </a>
+      </Button>
+    )
+  }
+
   return (
     <>
-      <PageHeader title="Informes" />
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+      <PageHeader
+        title="Informes"
+        actions={
+          <>
+            {exportButton(csvKind, 'Exportar CSV')}
+            {exportButton('alerts', 'Exportar alertas')}
+          </>
+        }
+      />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-2">
           <SegmentedControl
             aria-label="Informe"
             options={TYPE_OPTIONS}
@@ -80,26 +108,6 @@ export function ReportsPage() {
             onChange={(v) => setFilters({ type: v })}
           />
           <SegmentedControl aria-label="Rango de tiempo" options={RANGE_OPTIONS} value={range} onChange={(v) => setFilters({ range: v })} />
-          {isCustom && (
-            <>
-              <FormField
-                id="report-from"
-                label="Desde"
-                type="datetime-local"
-                className="w-56"
-                value={filters.from ? toLocalInput(new Date(filters.from).getTime()) : ''}
-                onChange={(e) => setFilters({ from: e.target.value ? toUtcIso(parseLocalInput(e.target.value)) : '' })}
-              />
-              <FormField
-                id="report-to"
-                label="Hasta"
-                type="datetime-local"
-                className="w-56"
-                value={filters.to ? toLocalInput(new Date(filters.to).getTime()) : ''}
-                onChange={(e) => setFilters({ to: e.target.value ? toUtcIso(parseLocalInput(e.target.value)) : '' })}
-              />
-            </>
-          )}
           {type === 'availability' && (
             <SegmentedControl aria-label="Vista" options={VIEW_OPTIONS} value={by} onChange={(v) => setFilters({ by: v })} />
           )}
@@ -116,38 +124,27 @@ export function ReportsPage() {
               ))}
             </SelectContent>
           </Select>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {customIncomplete ? (
-              <>
-                <Button variant="outline" size="sm" disabled>
-                  <IconDownload aria-hidden stroke={1.5} />
-                  Exportar CSV
-                </Button>
-                <Button variant="outline" size="sm" disabled>
-                  <IconDownload aria-hidden stroke={1.5} />
-                  Exportar alertas
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button asChild variant="outline" size="sm">
-                  <a href={reportCsvUrl(csvKind, range, groupId, from, to)} download>
-                    <IconDownload aria-hidden stroke={1.5} />
-                    Exportar CSV
-                  </a>
-                </Button>
-                <Button asChild variant="outline" size="sm">
-                  <a href={reportCsvUrl('alerts', range, groupId, from, to)} download>
-                    <IconDownload aria-hidden stroke={1.5} />
-                    Exportar alertas
-                  </a>
-                </Button>
-              </>
-            )}
-          </div>
         </div>
+        {isCustom && (
+          <div className="flex flex-wrap items-center gap-2">
+            <DateTimePicker
+              aria-label="Desde"
+              placeholder="Desde"
+              className="w-56"
+              value={filters.from ? toLocalInput(new Date(filters.from).getTime()) : ''}
+              onChange={(v) => setFilters({ from: v ? toUtcIso(parseLocalInput(v)) : '' })}
+            />
+            <DateTimePicker
+              aria-label="Hasta"
+              placeholder="Hasta"
+              className="w-56"
+              value={filters.to ? toLocalInput(new Date(filters.to).getTime()) : ''}
+              onChange={(v) => setFilters({ to: v ? toUtcIso(parseLocalInput(v)) : '' })}
+            />
+          </div>
+        )}
         {customIncomplete ? (
-          <p className="text-sm text-text-muted">Elige "Desde" y "Hasta" para ver el informe.</p>
+          <EmptyState Icon={IconCalendar} title="Elige Desde y Hasta" />
         ) : type === 'availability' ? (
           <AvailabilityView range={range} by={by} groupId={groupId} from={from} to={to} />
         ) : (

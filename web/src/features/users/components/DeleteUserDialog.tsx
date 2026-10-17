@@ -37,6 +37,7 @@ function DeleteUserForm({ user, onClose, onSaved }: DeleteUserDialogProps & { us
       title={`Eliminar a "${user.username}"`}
       description="Se elimina de forma definitiva el usuario, se cierran sus sesiones y se quitan sus permisos. La auditoría se conserva. Esta acción no se puede deshacer."
       confirmLabel="Eliminar usuario"
+      destructive
       busy={busy}
       error={error}
       confirmDisabled={!purgeNameMatches(typed, user.username)}

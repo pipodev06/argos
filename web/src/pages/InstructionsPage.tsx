@@ -41,7 +41,7 @@ export function InstructionsPage() {
   return (
     <>
       <PageHeader title="Instrucciones" />
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <Collapsible title="Levantar el server (Go: compila y sirve API + web en :8080)">
           <SubHeading>Windows (PowerShell, con el alias de $PROFILE)</SubHeading>
           <Cmd title="Arrancar (recompila web y server)" value="argos-local start --web" />

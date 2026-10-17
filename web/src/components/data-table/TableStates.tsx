@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
 
-/** Sin resultados con los filtros actuales: mensaje + "Limpiar". */
-export function NoResultsState({ Icon, title, onClear }: { Icon: Icon; title: string; onClear: () => void }) {
+/** Sin resultados con los filtros actuales: mismo texto en toda la app + "Limpiar". */
+export function NoResultsState({ Icon, onClear }: { Icon: Icon; onClear: () => void }) {
   return (
     <EmptyState
       Icon={Icon}
-      title={title}
+      title="Sin resultados"
       action={
         <Button variant="outline" size="sm" onClick={onClear}>
           Limpiar

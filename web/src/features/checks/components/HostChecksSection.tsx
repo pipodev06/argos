@@ -51,12 +51,12 @@ function EventsPanel({ hostId, checkId }: { hostId: string; checkId: string }) {
           {events.map((e) => (
             <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-sm">
               <span className="flex items-center gap-2">
-                {e.from_status ? <CheckStatusBadge status={e.from_status} /> : <span className="text-xs text-text-muted">Primer resultado</span>}
+                {e.from_status ? <CheckStatusBadge status={e.from_status} /> : <span className="text-sm text-text-muted">Primer resultado</span>}
                 <IconArrowRight className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-label="a" />
                 <CheckStatusBadge status={e.to_status} />
               </span>
               <span className="tabular-nums">{formatFullDate(e.at)}</span>
-              <span className="text-xs text-text-muted">{detailLabel(e.detail)}</span>
+              <span className="text-sm text-text-muted">{detailLabel(e.detail)}</span>
             </li>
           ))}
         </ul>
@@ -124,7 +124,7 @@ function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallb
   const now = useNow(30_000)
   if (error && !data) return <InlineError>{error}</InlineError>
   if (!data) return <Skeleton className="h-16 w-full" />
-  if (data.length === 0) return <EmptyState Icon={IconHeartRateMonitor} title="Este host no tiene chequeos asignados" />
+  if (data.length === 0) return <EmptyState Icon={IconHeartRateMonitor} title="Sin chequeos" />
   return (
     <DataTable caption="Chequeos del host" className="min-w-[68rem]">
       <thead>

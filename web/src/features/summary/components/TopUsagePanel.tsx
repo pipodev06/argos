@@ -45,7 +45,7 @@ export function TopUsagePanel({ summary }: { summary: Summary }) {
               >
                 {h.hostname}
               </Link>
-              {h.mount && <span className="text-xs text-text-muted">{h.mount}</span>}
+              {h.mount && <span className="text-sm text-text-muted">{h.mount}</span>}
               <div className="min-w-48 flex-1">
                 <UsageBar value={h.value} label={`Uso de ${NAMES[metric]} de ${h.hostname}`} />
               </div>

@@ -63,7 +63,7 @@ export function DevicesPage() {
           </>
         }
       />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         <FilterBar
           fields={DEVICE_FIELDS}
           values={filters}
@@ -75,16 +75,11 @@ export function DevicesPage() {
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {enabling.error && <InlineError>{enabling.error}</InlineError>}
-        {noResults && <NoResultsState Icon={IconRouter} title="Ningún dispositivo coincide con los filtros." onClear={clear} />}
+        {noResults && <NoResultsState Icon={IconRouter} onClear={clear} />}
         {empty && (
           <EmptyState
             Icon={IconRouter}
             title="Sin dispositivos"
-            description={
-              isAdmin
-                ? 'Un dispositivo (router, switch, impresora...) no lleva agente: un host con agente lo sondea por ping. Crea el primero con "Nuevo dispositivo".'
-                : 'Un administrador debe agregar el primero.'
-            }
           />
         )}
         {showTable && (

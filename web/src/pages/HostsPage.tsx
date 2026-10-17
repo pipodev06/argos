@@ -117,7 +117,7 @@ export function HostsPage() {
           </>
         }
       />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         {isAdmin && selected.size > 0 ? (
           <BulkBar ids={[...selected]} onClear={() => setSelected(new Set())} onDone={afterBulk} />
         ) : (
@@ -144,10 +144,9 @@ export function HostsPage() {
           <EmptyState
             Icon={IconServer2}
             title="Sin hosts"
-            description={isAdmin ? 'Usa "Agregar host" para enrolar el primero.' : 'Un administrador debe enrolar el primero.'}
           />
         )}
-        {noMatch && <NoResultsState Icon={IconServer2} title="Ningún host coincide con los filtros." onClear={clear} />}
+        {noMatch && <NoResultsState Icon={IconServer2} onClear={clear} />}
         {showTable && (
           <>
             <HostTable

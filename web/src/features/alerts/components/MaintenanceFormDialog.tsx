@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DateTimeField } from '@/components/ui/date-time-picker'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
@@ -68,22 +69,8 @@ function MaintenanceForm({ window: win, onClose, onSaved }: MaintenanceFormDialo
         error={errors.name}
       />
       <div className="grid gap-3 sm:grid-cols-2">
-        <FormField
-          id="maint-start"
-          type="datetime-local"
-          label="Inicio"
-          value={draft.startsAt}
-          onChange={(e) => set('startsAt', e.target.value)}
-          error={errors.startsAt}
-        />
-        <FormField
-          id="maint-end"
-          type="datetime-local"
-          label="Fin"
-          value={draft.endsAt}
-          onChange={(e) => set('endsAt', e.target.value)}
-          error={errors.endsAt}
-        />
+        <DateTimeField id="maint-start" label="Inicio" value={draft.startsAt} onChange={(v) => set('startsAt', v)} error={errors.startsAt} />
+        <DateTimeField id="maint-end" label="Fin" value={draft.endsAt} onChange={(v) => set('endsAt', v)} error={errors.endsAt} />
         <p className="text-xs text-text-muted sm:col-span-2">Máximo 31 días; sobre todos los hosts, máximo 24 horas.</p>
       </div>
       <ScopeFields id="maint" types={MAINTENANCE_SCOPE_TYPES} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />

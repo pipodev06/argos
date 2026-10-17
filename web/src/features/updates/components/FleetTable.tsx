@@ -64,7 +64,7 @@ export function FleetTable({ items, page, pageSize, sort, dir, onSort, now }: Fl
                 {it.last_installed ? lastInstalledText(it.last_installed) : <span className="text-text-muted">Desconocido</span>}
               </Cell>
               <Cell><EolText eol={it.eol} /></Cell>
-              <Cell className="text-xs text-text-muted"><DataAgeText seconds={it.data_age_s} stale={it.stale} /></Cell>
+              <Cell className="text-sm text-text-muted"><DataAgeText seconds={it.data_age_s} stale={it.stale} /></Cell>
             </Row>
           ))
         )}

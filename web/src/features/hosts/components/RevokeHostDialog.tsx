@@ -23,6 +23,7 @@ export function RevokeHostDialog({ host, onClose, onDone }: RevokeHostDialogProp
       title={`Deshabilitar "${host?.hostname ?? ''}"`}
       description="Dejará de sondearse y sus alertas se resuelven. Podrás reactivarlo más adelante con un token nuevo."
       confirmLabel="Deshabilitar"
+      destructive
       busy={mutation.busy}
       error={mutation.error}
       onConfirm={() => void confirm()}

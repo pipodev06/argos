@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { IconDownload, IconInfoCircle } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
-import { FormField } from '@/components/ui/form-field'
+import { DateTimeField } from '@/components/ui/date-time-picker'
 import { InlineError } from '@/components/ui/inline-error'
 import { ApiError } from '@/lib/api'
 import { useHostDetail } from '../hooks/useHostDetail'
@@ -110,17 +110,17 @@ export function HostHistoryView({ id }: { id: string }) {
             }}
             noValidate
           >
-            <div className="flex flex-wrap items-start gap-3">
-              <div className="w-72">
-                <FormField id="history-from" label="Desde" type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-60">
+                <DateTimeField id="history-from" label="Desde" value={from} onChange={setFrom} />
               </div>
-              <div className="w-72">
-                <FormField id="history-to" label="Hasta" type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
+              <div className="w-60">
+                <DateTimeField id="history-to" label="Hasta" value={to} onChange={setTo} />
               </div>
-              <div className="w-52">
-                <FormField id="history-day" label="Día:" type="date" value={day} onChange={(e) => onDayChange(e.target.value)} />
+              <div className="w-48">
+                <DateTimeField id="history-day" label="Día" withTime={false} value={day} onChange={onDayChange} />
               </div>
-              <Button type="submit" className="mt-[1.625rem]">
+              <Button type="submit">
                 Consultar
               </Button>
             </div>

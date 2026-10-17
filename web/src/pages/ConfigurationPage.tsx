@@ -19,7 +19,7 @@ export function ConfigurationPage() {
     return (
       <>
         <PageHeader title="Configuración" />
-        <EmptyState Icon={IconLock} title="No tienes permiso" description="Solo los administradores cambian la configuración." />
+        <EmptyState Icon={IconLock} title="Sin permiso" />
       </>
     )
   }
@@ -36,7 +36,7 @@ function ConfigurationAdmin() {
   return (
     <>
       <PageHeader title="Configuración" />
-      <div className="flex flex-col gap-6" aria-busy={retention.loading}>
+      <div className="flex flex-col gap-4" aria-busy={retention.loading}>
         <ServiceStatusSection />
         {retention.error && <InlineError>{retention.error}</InlineError>}
         {retention.loading && !retention.data && <Skeleton className="h-48 w-full" />}

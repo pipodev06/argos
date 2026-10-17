@@ -27,7 +27,7 @@ export function ChannelPicker({ selected, onChange, legend = 'Canales de notific
       {loading && !channels && <p className="text-xs text-text-muted">Cargando canales...</p>}
       {channels && channels.length === 0 && (
         <p className="text-sm text-text-muted">
-          Aún no hay canales.{' '}
+          Sin canales.{' '}
           <Link to="/alertas/canales" className="text-text underline">
             Crear un canal
           </Link>

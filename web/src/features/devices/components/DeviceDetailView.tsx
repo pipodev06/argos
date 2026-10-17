@@ -80,7 +80,7 @@ export function DeviceDetailView({ id }: { id: string }) {
               </Item>
             )}
             <Item term="Grupo">{device.group?.name ?? 'Sin grupo'}</Item>
-            <Item term="Visto">{device.last_seen_at ? formatLastSeen(device.last_seen_at) : 'Sin respuestas todavía'}</Item>
+            <Item term="Visto">{device.last_seen_at ? formatLastSeen(device.last_seen_at) : 'Sin respuestas'}</Item>
             <Item term="Estado desde">{formatFullDate(device.status_changed_at)}</Item>
             <Item term="Creado">{formatFullDate(device.created_at)}</Item>
           </dl>

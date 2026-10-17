@@ -68,13 +68,10 @@ export function emptyKind(status: ModuleStatus, count: number): EmptyKind {
   return count === 0 ? 'empty' : null
 }
 
-export const EMPTY_TEXT: Record<Exclude<EmptyKind, null>, { title: string; description?: string }> = {
-  disabled: {
-    title: 'Módulo desactivado en este agente',
-    description: 'Se activa con ARGOS_INVENTORY_MODULES en el agente.',
-  },
-  no_data: { title: 'Sin datos aún' },
-  empty: { title: 'Sin elementos' },
+export const EMPTY_TEXT: Record<Exclude<EmptyKind, null>, string> = {
+  disabled: 'Módulo desactivado',
+  no_data: 'Sin datos',
+  empty: 'Sin elementos',
 }
 
 const FIELD_LABELS: Record<string, string> = {

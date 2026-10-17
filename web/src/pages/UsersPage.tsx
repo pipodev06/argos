@@ -26,7 +26,7 @@ export function UsersPage() {
     return (
       <>
         <PageHeader title="Usuarios" />
-        <EmptyState Icon={IconLock} title="No tienes permiso" description="Solo los administradores gestionan usuarios." />
+        <EmptyState Icon={IconLock} title="Sin permiso" />
       </>
     )
   }
@@ -51,7 +51,7 @@ function UsersAdmin({ currentUserId }: { currentUserId: string }) {
   return (
     <>
       <PageHeader title="Usuarios" actions={<Button size="sm" onClick={() => setCreating(true)}>Nuevo usuario</Button>} />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         <FilterBar
           fields={USER_FIELDS}
           values={filters}
@@ -63,9 +63,9 @@ function UsersAdmin({ currentUserId }: { currentUserId: string }) {
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {loading && !users && <Skeleton className="h-40 w-full" />}
-        {users && users.length === 0 && <EmptyState Icon={IconUsers} title="Aún no hay usuarios" />}
+        {users && users.length === 0 && <EmptyState Icon={IconUsers} title="Sin usuarios" />}
         {visible && users && users.length > 0 && visible.length === 0 && hasActive && (
-          <NoResultsState Icon={IconUsers} title="Ningún usuario coincide con los filtros" onClear={clear} />
+          <NoResultsState Icon={IconUsers} onClear={clear} />
         )}
         {visible && visible.length > 0 && (
           <UsersTable

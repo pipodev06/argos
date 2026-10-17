@@ -33,7 +33,7 @@ export function GroupsPage() {
         title="Grupos"
         actions={canEdit && <Button size="sm" onClick={() => openForm(null)}>Nuevo grupo</Button>}
       />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         {error && (
           <div className="flex flex-wrap items-center gap-3">
             <InlineError>{error}</InlineError>
@@ -44,8 +44,7 @@ export function GroupsPage() {
         {groups && groups.items.length === 0 && (
           <EmptyState
             Icon={IconFolders}
-            title="Aún no hay grupos"
-            description={canEdit ? 'Crea uno para clasificar tus hosts.' : 'Un administrador debe crear el primero.'}
+            title="Sin grupos"
           />
         )}
         {groups && (groups.items.length > 0 || groups.ungrouped.host_count > 0) && (
@@ -55,8 +54,7 @@ export function GroupsPage() {
             defaultDownAfter={groups.defaults.down_after_seconds}
             canEdit={canEdit}
             onEdit={openForm}
-            onDelete={setDeleting}
-            onPurge={setPurging}
+            onDelete={(g) => (g.host_count > 0 ? setPurging(g) : setDeleting(g))}
           />
         )}
       </div>

@@ -44,6 +44,17 @@ Software de monitoreo (tipo Zabbix/PRTG/Nagios) — agente en host + servidor ce
 **Controles nuevos** (checkbox, radio, select): borde con `border-text-muted` (contraste ≥3:1); el `Input` existente no cambia.
 **Patrones nuevos:** tabla semántica con filas de 36px y cabecera de 32px, encabezados y celdas centrados horizontalmente en todas las tablas (decidido por el usuario el 2026-09-24), primera columna `#` con el número de fila (1, 2, 3… continuo entre páginas; va entre la casilla de selección, si la hay, y la columna del nombre; decidido por el usuario el 2026-09-25), encabezados ordenables con `aria-sort`, fila entera clicable vía enlace del nombre; filtros como chips (radio 6px, ancho fijo `w-40`, texto truncado) con estado en la URL; paginación por cursor con un único componente `Pagination` (tamaños de página 15, 30, 50 y 100, por defecto 15: decidido por el usuario el 2026-09-25); tile de contador (icono de estado + etiqueta `xs` muted + cifra `2xl` tabular); barra de uso (`UsageBar`, `role="meter"`, marcas en 80 % y 90 %, estado con icono + palabra, nunca solo color); umbrales de disco globales 80/90; `CopyBlock` para comandos copiables. Vista "pared" de hosts: diferida.
 
+**Ajustes del 2026-10-17** (pedidos por el usuario; auditoría de ui-ux-designer):
+- **Estado vacío:** `EmptyState` = icono + una sola línea muted (`Sin hosts`, `Sin datos`, `Sin permiso`…), sin textos de ayuda; filtros sin coincidencias = `NoResultsState` con el texto fijo "Sin resultados" + "Limpiar".
+- **Ritmo vertical:** 16px (`gap-4`, y `mb-4` del `PageHeader`) entre bloques de una página (título, filtros, tabla, paginación, secciones); 8px (`gap-2`) dentro de un bloque. Sin `gap-3`/`gap-6` en contenedores de página.
+- **Texto:** `xs` solo para etiquetas, ayudas, pills y contadores; los datos de celdas y filas van en `sm`.
+- **Botón deshabilitado:** plano (`bg-muted` + `text-text-muted`), nunca `opacity` (el primario al 50% era ilegible en oscuro).
+- **Marca:** `AppLogo` (ojo en un cuadro invertido `bg-text`/`text-bg`) + "argos" en sidebar y barra móvil; mismo dibujo en `public/favicon.svg`. Sin header superior en escritorio.
+- **Componentes shadcn, nunca controles nativos con popup del navegador:** fechas con `DateTimePicker`/`DateTimeField` (Popover + Calendar de shadcn, `components/ui/date-time-picker.tsx`; prohibido `type="date"`/`"datetime-local"`); pills de estado solo con `Badge` (`tint` ok/warn/danger/info/muted pinta fondo e icono, texto en `text`, radio 6px).
+- **Acciones irreversibles** (eliminar, revocar, purgar, deshabilitar un agente): botón `variant="destructive"` (`bg-danger` + texto `bg`); en `ConfirmDialog`, prop `destructive`. Excepción a "brand solo en acciones": el rojo marca peligro, no estado.
+- **Informes:** exportar en el `PageHeader`; filtros en una fila; Desde/Hasta en otra fila solo con "Personalizado".
+- **Grupos:** una sola acción "Eliminar": grupo vacío se borra; con hosts abre la baja (purga) con "Eliminar también el grupo" marcado.
+
 **Gráficas (paleta categórica de 5 series, basada en Okabe-Ito):**
 - Claro: `#0072B2`, `#D55E00`, `#007A5C`, `#A66A00`, `#A6427F`.
 - Oscuro: `#56B4E9`, `#E69F00`, `#009E73`, `#F0E442`, `#CC79A7`.

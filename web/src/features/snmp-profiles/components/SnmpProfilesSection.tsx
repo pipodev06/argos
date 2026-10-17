@@ -42,7 +42,7 @@ export function SnmpProfilesSection() {
       {error && <TableError message={error} onRetry={() => void refresh()} />}
       {loading && !profiles && <Skeleton className="h-40 w-full" />}
       {profiles && profiles.length === 0 && (
-        <EmptyState Icon={IconKey} title="Sin perfiles SNMP" description='Crea el primero con "Nuevo perfil" y asígnalo a un dispositivo.' />
+        <EmptyState Icon={IconKey} title="Sin perfiles SNMP" />
       )}
       {profiles && profiles.length > 0 && <SnmpProfilesTable profiles={profiles} onAction={handleAction} />}
       <SnmpProfileFormDialog
@@ -59,6 +59,7 @@ export function SnmpProfilesSection() {
         title={`Eliminar "${deleting?.name ?? ''}"`}
         description="El perfil se elimina de forma definitiva. No se puede si hay dispositivos que lo usan."
         confirmLabel="Eliminar"
+        destructive
         busy={del.busy}
         error={del.error}
         onConfirm={() => void confirmDelete()}

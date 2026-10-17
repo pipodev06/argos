@@ -65,8 +65,7 @@ function ModuleBody<T>({
 
   const empty = emptyKind(data.status, data.count)
   if (empty) {
-    const { title, description } = EMPTY_TEXT[empty]
-    return <EmptyState Icon={IconListDetails} title={title} description={description} />
+    return <EmptyState Icon={IconListDetails} title={EMPTY_TEXT[empty]} />
   }
   const stamp = data.updated_at ?? data.collected_at
   return (
@@ -126,7 +125,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
       render={(items) => {
         const shown = state === 'all' ? items : items.filter((s) => s.state === state)
         return shown.length === 0 ? (
-          <EmptyState Icon={IconListDetails} title="Ningún servicio coincide con el estado elegido" />
+          <EmptyState Icon={IconListDetails} title="Sin resultados" />
         ) : (
           <PagedList key={state} items={shown} itemLabel="servicios" render={(rows, page, pageSize) => <ServicesTable items={rows} page={page} pageSize={pageSize} />} />
         )
@@ -175,7 +174,7 @@ function ChangesView({
         </Button>
       </div>
       {data.items.length === 0 && pagination.page === 1 ? (
-        <EmptyState Icon={IconListDetails} title="Sin cambios registrados" />
+        <EmptyState Icon={IconListDetails} title="Sin cambios" />
       ) : (
         <>
           <ChangesTable items={data.items} page={pagination.page} pageSize={pagination.pageSize} />

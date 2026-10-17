@@ -95,7 +95,7 @@ export function FilterBar<F extends readonly FilterField[]>({
           </li>
         </ul>
       )}
-      <div className="flex items-center gap-3 text-xs text-text-muted" aria-live="polite">
+      <div className="flex items-center gap-2 text-xs text-text-muted" aria-live="polite">
         {total !== null && (
           <span className="tabular-nums">
             {active && overall !== null ? `${total.toLocaleString('es-PE')} de ${overall.toLocaleString('es-PE')}` : total.toLocaleString('es-PE')}{' '}

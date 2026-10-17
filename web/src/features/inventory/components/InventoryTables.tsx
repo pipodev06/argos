@@ -5,32 +5,39 @@ import {
   IconHelpCircle,
   IconLock,
   IconPlayerPause,
+  type Icon,
 } from '@tabler/icons-react'
+import { Badge, type BadgeTint } from '@/components/ui/badge'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { rowNumber } from '@/lib/pagination'
 import { formatFullDate, formatMemory, formatNumber } from '@/features/hosts/utils/format'
 import type { InventoryChange, PortItem, ProcessItem, ServiceItem, ServiceState } from '../types/inventory.types'
 import { describeChange, isExposed, KIND_LABELS, MODULE_LABELS, START_LABELS, STATE_LABELS } from '../utils/inventory'
-import { InventoryBadge } from './InventoryBadge'
 
 function ExposureBadge({ bind }: { bind: string }) {
   return isExposed(bind) ? (
-    <InventoryBadge Icon={IconAlertTriangle} label="Expuesto" tint="bg-warn/10" iconClass="text-warn" />
+    <Badge Icon={IconAlertTriangle} tint="warn">
+      Expuesto
+    </Badge>
   ) : (
-    <InventoryBadge Icon={IconLock} label="Solo local" tint="bg-text-muted/10" iconClass="text-text-muted" />
+    <Badge Icon={IconLock}>Solo local</Badge>
   )
 }
 
-const STATE_STYLE: Record<ServiceState, { Icon: typeof IconCircleCheck; tint: string; iconClass: string }> = {
-  running: { Icon: IconCircleCheck, tint: 'bg-ok/10', iconClass: 'text-ok' },
-  stopped: { Icon: IconCircleOff, tint: 'bg-text-muted/10', iconClass: 'text-text-muted' },
-  paused: { Icon: IconPlayerPause, tint: 'bg-info/10', iconClass: 'text-info' },
-  other: { Icon: IconHelpCircle, tint: 'bg-text-muted/10', iconClass: 'text-text-muted' },
+const STATE_STYLE: Record<ServiceState, { Icon: Icon; tint: BadgeTint }> = {
+  running: { Icon: IconCircleCheck, tint: 'ok' },
+  stopped: { Icon: IconCircleOff, tint: 'muted' },
+  paused: { Icon: IconPlayerPause, tint: 'info' },
+  other: { Icon: IconHelpCircle, tint: 'muted' },
 }
 
 function ServiceStateBadge({ state }: { state: ServiceState }) {
   const s = STATE_STYLE[state] ?? STATE_STYLE.other
-  return <InventoryBadge Icon={s.Icon} label={STATE_LABELS[state] ?? STATE_LABELS.other} tint={s.tint} iconClass={s.iconClass} />
+  return (
+    <Badge Icon={s.Icon} tint={s.tint}>
+      {STATE_LABELS[state] ?? STATE_LABELS.other}
+    </Badge>
+  )
 }
 
 export function PortsTable({ items, page, pageSize }: { items: PortItem[]; page: number; pageSize: number }) {

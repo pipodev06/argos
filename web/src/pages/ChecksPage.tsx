@@ -52,7 +52,7 @@ export function ChecksPage() {
         title="Chequeos"
         actions={isAdmin && <Button size="sm" onClick={() => setForm({ check: null })}>Nuevo chequeo</Button>}
       />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         <FilterBar
           fields={CHECK_FIELDS}
           values={filters}
@@ -69,11 +69,10 @@ export function ChecksPage() {
           <EmptyState
             Icon={IconHeartRateMonitor}
             title="Sin chequeos"
-            description={isAdmin ? 'Crea el primero con "Nuevo chequeo".' : undefined}
           />
         )}
         {checks && checks.length > 0 && shown?.length === 0 && hasActive && (
-          <NoResultsState Icon={IconHeartRateMonitor} title="Ningún chequeo coincide con los filtros." onClear={clear} />
+          <NoResultsState Icon={IconHeartRateMonitor} onClear={clear} />
         )}
         {shown && shown.length > 0 && <ChecksTable checks={shown} canAct={isAdmin} busy={toggle.busy} devices={devices ?? undefined} onAction={handleAction} />}
       </div>
@@ -93,6 +92,7 @@ export function ChecksPage() {
             title={`Eliminar "${deleting?.name ?? ''}"`}
             description="El chequeo se elimina de forma definitiva, junto con su estado actual en los hosts y las reglas de alerta que lo usan."
             confirmLabel="Eliminar"
+            destructive
             busy={del.busy}
             error={del.error}
             onConfirm={() => void confirmDelete()}

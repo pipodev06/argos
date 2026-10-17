@@ -20,6 +20,8 @@ interface ConfirmDialogProps {
   error: string | null
   /** Contenido extra bajo la descripcion (p. ej. un campo de confirmacion). */
   children?: ReactNode
+  /** Accion irreversible (eliminar, revocar, purgar): boton rojo. */
+  destructive?: boolean
   /** Deshabilita el boton de confirmar (p. ej. hasta teclear el nombre). */
   confirmDisabled?: boolean
   onConfirm: () => void
@@ -27,7 +29,7 @@ interface ConfirmDialogProps {
 }
 
 // Confirmacion unica de acciones (eliminar, resolver...): la logica y el estado ocupado/error viven en quien la usa.
-function ConfirmDialog({ open, title, description, confirmLabel, busy, error, children, confirmDisabled = false, onConfirm, onClose }: ConfirmDialogProps) {
+function ConfirmDialog({ open, title, description, confirmLabel, busy, error, children, destructive = false, confirmDisabled = false, onConfirm, onClose }: ConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(next) => !next && onClose()}>
       <AlertDialogContent>
@@ -40,6 +42,7 @@ function ConfirmDialog({ open, title, description, confirmLabel, busy, error, ch
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction
+            variant={destructive ? "destructive" : "default"}
             disabled={busy || confirmDisabled}
             onClick={(e) => {
               e.preventDefault()

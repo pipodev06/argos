@@ -46,6 +46,7 @@ function PurgeHostForm({ host, onClose, onDone }: { host: { id: string; hostname
       title={`Eliminar datos de "${host.hostname}"`}
       description="Se borra de forma definitiva el host y sus métricas, el resumen horario, el historial, los discos y los chequeos. No se borran los respaldos de la base de datos (se rotan a los 14 días) ni la auditoría. Esta acción no se puede deshacer."
       confirmLabel="Eliminar datos"
+      destructive
       busy={run.busy}
       error={run.error}
       confirmDisabled={!purgeNameMatches(typed, host.hostname)}

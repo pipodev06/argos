@@ -62,7 +62,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
                   {isAdmin && d.collector_group_mismatch && <CollectorMismatchNotice compact />}
                 </span>
               </Cell>
-              <Cell className="text-xs text-text-muted tabular-nums">{formatLastSeen(d.last_seen_at)}</Cell>
+              <Cell className="text-sm text-text-muted tabular-nums">{formatLastSeen(d.last_seen_at)}</Cell>
               {isAdmin && (
                 <Cell className="relative z-10">
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar dispositivo ${d.name}`} title="Editar" onClick={() => onAction('edit', d)}>

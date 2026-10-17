@@ -22,7 +22,7 @@ function Cards({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   if (errorStatus === 404 || (error && !data)) return null
   const u = data?.updates ?? null
   if (data && (data.status === 'no_data' || !u)) {
-    return <p className="text-sm text-text-muted">Sin datos aún: activa el módulo updates en el agente.</p>
+    return <p className="text-sm text-text-muted">Sin datos</p>
   }
   const pending = !data
   const advisories = u?.advisories ?? []

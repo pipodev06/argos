@@ -61,7 +61,7 @@ export function PermissionsFields({ idPrefix, form, onChange }: PermissionsField
           )}
           {groupsError && <InlineError>{groupsError}</InlineError>}
           {loading && <p className="text-xs text-text-muted">Cargando grupos...</p>}
-          {data && groups.length === 0 && <p className="text-sm text-text-muted">Aún no hay grupos.</p>}
+          {data && groups.length === 0 && <p className="text-sm text-text-muted">Sin grupos</p>}
           {data && groups.length > 0 && shown.length === 0 && <p className="text-sm text-text-muted">Ningún grupo coincide.</p>}
           <div className="grid max-h-56 gap-2 overflow-y-auto">
             {shown.map((g) => (

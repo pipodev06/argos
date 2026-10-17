@@ -1,6 +1,6 @@
-import { IconCalendarEvent, IconCircleCheck, IconTool, IconPencil, IconTrash } from '@tabler/icons-react'
-import type { ComponentType } from 'react'
+import { IconCalendarEvent, IconCircleCheck, IconTool, IconPencil, IconTrash, type Icon } from '@tabler/icons-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Badge, type BadgeTint } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatFullDate } from '@/features/hosts/utils/format'
 import type { MaintenanceStatus, MaintenanceWindow } from '../types/alert.types'
@@ -15,20 +15,18 @@ interface MaintenanceTableProps {
   onAction: (action: MaintenanceAction, window: MaintenanceWindow) => void
 }
 
-type BadgeIcon = ComponentType<{ className?: string; stroke?: number; 'aria-hidden'?: boolean }>
-const statusStyles: Record<MaintenanceStatus, { Icon: BadgeIcon; badge: string; icon: string }> = {
-  active: { Icon: IconTool, badge: 'bg-info/10', icon: 'text-info' },
-  scheduled: { Icon: IconCalendarEvent, badge: 'bg-text-muted/10', icon: 'text-text-muted' },
-  ended: { Icon: IconCircleCheck, badge: 'bg-text-muted/10', icon: 'text-text-muted' },
+const statusStyles: Record<MaintenanceStatus, { Icon: Icon; tint: BadgeTint }> = {
+  active: { Icon: IconTool, tint: 'info' },
+  scheduled: { Icon: IconCalendarEvent, tint: 'muted' },
+  ended: { Icon: IconCircleCheck, tint: 'muted' },
 }
 
 function MaintenanceStatusBadge({ status }: { status: MaintenanceStatus }) {
-  const { Icon, badge, icon } = statusStyles[status]
+  const { Icon, tint } = statusStyles[status]
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-text ${badge}`}>
-      <Icon className={`size-3.5 shrink-0 ${icon}`} stroke={1.5} aria-hidden />
+    <Badge Icon={Icon} tint={tint}>
       {MAINTENANCE_STATUS_LABELS[status]}
-    </span>
+    </Badge>
   )
 }
 

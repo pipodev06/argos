@@ -73,7 +73,7 @@ function FleetUpdates() {
       {denied ? (
         <InlineError>Sin acceso a los parches.</InlineError>
       ) : (
-        <div className="flex flex-col gap-3" aria-busy={loading}>
+        <div className="flex flex-col gap-4" aria-busy={loading}>
           <FilterBar
             fields={FLEET_FIELDS}
             values={filters}
@@ -87,11 +87,10 @@ function FleetUpdates() {
           {empty && (
             <EmptyState
               Icon={IconShieldCheck}
-              title="Sin datos aún"
-              description="Activa el módulo updates en el agente para ver aquí los parches pendientes."
+              title="Sin datos"
             />
           )}
-          {noMatch && <NoResultsState Icon={IconShieldCheck} title="Ningún host coincide con los filtros." onClear={clear} />}
+          {noMatch && <NoResultsState Icon={IconShieldCheck} onClear={clear} />}
           {showTable && (
             <>
               <FleetTable

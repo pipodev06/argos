@@ -1,4 +1,4 @@
-import { IconEraser, IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconPencil, IconTrash } from '@tabler/icons-react'
 import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,8 @@ interface GroupsTableProps {
   defaultDownAfter: number
   canEdit: boolean
   onEdit: (group: Group) => void
+  /** Vacío: borra el grupo. Con hosts: abre la baja (purga) de todo el grupo. */
   onDelete: (group: Group) => void
-  onPurge: (group: Group) => void
 }
 
 export function GroupsTable({
@@ -22,7 +22,6 @@ export function GroupsTable({
   canEdit,
   onEdit,
   onDelete,
-  onPurge,
 }: GroupsTableProps) {
   return (
     <DataTable caption="Grupos de hosts" className="min-w-[48rem]">
@@ -64,9 +63,6 @@ export function GroupsTable({
                 <Cell>
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar ${g.name}`} onClick={() => onEdit(g)}>
                     <IconPencil stroke={1.5} aria-hidden />
-                  </Button>
-                  <Button variant="ghost" size="icon-sm" aria-label={`Dar de baja al cliente ${g.name}`} title="Dar de baja al cliente…" onClick={() => onPurge(g)}>
-                    <IconEraser stroke={1.5} aria-hidden />
                   </Button>
                   <Button variant="ghost" size="icon-sm" aria-label={`Eliminar ${g.name}`} onClick={() => onDelete(g)}>
                     <IconTrash stroke={1.5} aria-hidden />

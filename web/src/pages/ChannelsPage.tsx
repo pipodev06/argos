@@ -50,19 +50,18 @@ export function ChannelsPage() {
         title="Canales de notificación"
         actions={isAdmin && <Button size="sm" onClick={() => setForm({ channel: null })}>Nuevo canal</Button>}
       />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         {forbidden && (
           <EmptyState
             Icon={IconLock}
-            title="Sin acceso a los canales"
-            description="Tu acceso está limitado a ciertos grupos; los canales los ve un usuario con acceso a todos los grupos."
+            title="Sin permiso"
           />
         )}
         {error && !forbidden && <TableError message={error} onRetry={() => void refresh()} />}
         {toggle.error && <InlineError>{toggle.error}</InlineError>}
         {loading && !channels && <Skeleton className="h-40 w-full" />}
         {channels && channels.length === 0 && (
-          <EmptyState Icon={IconWebhook} title="Sin canales" description={isAdmin ? 'Crea el primero con "Nuevo canal".' : undefined} />
+          <EmptyState Icon={IconWebhook} title="Sin canales" />
         )}
         {channels && channels.length > 0 && (
           <ChannelsTable
@@ -91,6 +90,7 @@ export function ChannelsPage() {
             title={`Eliminar "${deleting?.name ?? ''}"`}
             description="El canal se elimina de forma definitiva y deja de recibir alertas."
             confirmLabel="Eliminar"
+            destructive
             busy={del.busy}
             error={del.error}
             onConfirm={() => void confirmDelete()}

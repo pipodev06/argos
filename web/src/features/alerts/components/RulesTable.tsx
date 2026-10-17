@@ -1,5 +1,6 @@
 import { IconBellPause, IconBellRinging2, IconCircleCheck, IconCircleOff, IconCopy, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { AlertRule } from '../types/alert.types'
@@ -19,14 +20,12 @@ interface RulesTableProps {
 }
 
 export function RuleEnabledBadge({ enabled }: { enabled: boolean }) {
-  const Icon = enabled ? IconCircleCheck : IconCircleOff
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-text ${enabled ? 'bg-ok/10' : 'bg-text-muted/10'}`}
-    >
-      <Icon className={`size-3.5 shrink-0 ${enabled ? 'text-ok' : 'text-text-muted'}`} stroke={1.5} aria-hidden />
-      {enabled ? 'Activa' : 'Desactivada'}
-    </span>
+  return enabled ? (
+    <Badge Icon={IconCircleCheck} tint="ok">
+      Activa
+    </Badge>
+  ) : (
+    <Badge Icon={IconCircleOff}>Desactivada</Badge>
   )
 }
 

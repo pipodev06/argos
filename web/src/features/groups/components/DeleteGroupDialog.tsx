@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { IconAlertTriangle } from '@tabler/icons-react'
-import { Link } from 'react-router'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +24,6 @@ interface DeleteGroupDialogProps {
 export function DeleteGroupDialog({ group, onClose, onDeleted }: DeleteGroupDialogProps) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const blocked = group !== null && group.host_count > 0
 
   function handleOpenChange(next: boolean) {
     if (next) return
@@ -43,7 +41,7 @@ export function DeleteGroupDialog({ group, onClose, onDeleted }: DeleteGroupDial
     } catch (err) {
       setError(
         err instanceof ApiError && err.code === 'group_not_empty'
-          ? 'El grupo ya tiene hosts: reasígnalos antes de eliminar.'
+          ? 'El grupo ya tiene hosts: recarga la página.'
           : err instanceof Error
             ? err.message
             : 'Error desconocido',
@@ -59,35 +57,25 @@ export function DeleteGroupDialog({ group, onClose, onDeleted }: DeleteGroupDial
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <IconAlertTriangle className="size-5 shrink-0 text-danger" stroke={1.5} aria-hidden />
-            {blocked ? 'No se puede eliminar' : `Eliminar "${group?.name ?? ''}"`}
+            {`Eliminar "${group?.name ?? ''}"`}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {blocked ? (
-              <>
-                Reasigna los {group.host_count} hosts antes de eliminar.{' '}
-                <Link to={`/hosts?group=${group.id}`} className="underline" onClick={onClose}>
-                  Ver hosts del grupo
-                </Link>
-              </>
-            ) : (
-              'El grupo se elimina de forma definitiva.'
-            )}
+            El grupo está vacío y se elimina de forma definitiva.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <InlineError>{error}</InlineError>}
         <AlertDialogFooter>
-          <AlertDialogCancel>{blocked ? 'Cerrar' : 'Cancelar'}</AlertDialogCancel>
-          {!blocked && (
-            <AlertDialogAction
-              disabled={busy}
-              onClick={(e) => {
-                e.preventDefault()
-                void handleDelete()
-              }}
-            >
-              {busy ? 'Eliminando...' : 'Eliminar'}
-            </AlertDialogAction>
-          )}
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            disabled={busy}
+            onClick={(e) => {
+              e.preventDefault()
+              void handleDelete()
+            }}
+          >
+            {busy ? 'Eliminando...' : 'Eliminar'}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

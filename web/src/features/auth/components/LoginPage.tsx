@@ -17,7 +17,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthCard title="Iniciar sesión" description="Ingresa con tu cuenta de argos.">
+    <AuthCard title="Iniciar sesión">
       <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
         <FormField
           id="username"

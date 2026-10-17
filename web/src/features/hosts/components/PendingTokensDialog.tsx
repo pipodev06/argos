@@ -58,7 +58,7 @@ function PendingTokensBody() {
       <DialogHeader>
         <DialogTitle>Tokens pendientes</DialogTitle>
         <DialogDescription>
-          Tokens de enrolamiento generados que aún no se usaron ni expiraron. Revoca los que ya no necesites.
+          Sin usar y sin expirar.
         </DialogDescription>
       </DialogHeader>
       {error && <TableError message={error} onRetry={() => void refresh()} />}
@@ -116,6 +116,7 @@ function PendingTokensBody() {
         title={`Revocar token de "${revoking?.hostname ?? 'alta masiva'}"`}
         description="El token deja de servir para enrolar: si ya se pegó el comando en el host, fallará. Puedes generar otro después."
         confirmLabel="Revocar"
+        destructive
         busy={busy}
         error={revokeError}
         onConfirm={() => void confirm()}

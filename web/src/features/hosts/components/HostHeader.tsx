@@ -21,7 +21,7 @@ interface HostHeaderProps {
 }
 
 export function HostHeader({ host, ip, canEdit, onEdit, onPurge, onRevoke, onReEnroll }: HostHeaderProps) {
-  const seen = host.last_seen_at ? `Visto ${formatLastSeen(host.last_seen_at)}` : 'Sin reportes todavía'
+  const seen = host.last_seen_at ? `Visto ${formatLastSeen(host.last_seen_at)}` : 'Sin reportes'
   const line = [host.group?.name ?? 'Sin grupo', formatOs(host.os), ip, seen].filter(Boolean).join(' · ')
   const isAgent = host.kind === 'agent'
   const isDisabled = host.status === 'disabled'

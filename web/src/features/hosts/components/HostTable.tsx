@@ -127,7 +127,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                       <span className="inline-flex items-center justify-center gap-1">
                         {formatAgentVersion(h.agent_version)}
                         {h.agent_outdated && (
-                          <span className="inline-flex items-center gap-1 text-xs text-text-muted">
+                          <span className="inline-flex items-center gap-1 text-sm text-text-muted">
                             <IconAlertTriangle className="size-3.5 shrink-0 text-warn" stroke={1.5} aria-hidden />
                             Desactualizado
                           </span>
@@ -138,7 +138,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                     <Cell className="hidden text-center md:table-cell"><Pct value={h.mem_pct} /></Cell>
                     <Cell className="hidden text-center md:table-cell">
                       <Pct value={h.disk?.pct ?? null} />
-                      {h.disk && <span className="ml-1 text-xs text-text-muted">{h.disk.mount}</span>}
+                      {h.disk && <span className="ml-1 text-sm text-text-muted">{h.disk.mount}</span>}
                     </Cell>
                     {show('ip') && (
                       <Cell className="hidden md:table-cell">{h.ip ?? '—'}</Cell>
@@ -169,7 +169,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                         {physicalDisksSummary(h.physical_disks)}
                       </Cell>
                     )}
-                    <Cell className="text-center text-xs text-text-muted tabular-nums">
+                    <Cell className="text-center text-sm text-text-muted tabular-nums">
                       {formatLastSeen(h.last_seen_at)}
                     </Cell>
                   </Row>

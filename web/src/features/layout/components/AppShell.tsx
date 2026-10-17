@@ -1,7 +1,8 @@
 import { Suspense, useState, type MouseEvent } from 'react'
-import { IconEye, IconMenu2 } from '@tabler/icons-react'
+import { IconMenu2 } from '@tabler/icons-react'
 import { cn } from 'cn'
 import { Outlet } from 'react-router'
+import { AppLogo } from '@/components/ui/app-logo'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -41,8 +42,7 @@ export function AppShell() {
                 <IconMenu2 stroke={1.5} aria-hidden />
               </Button>
             </SheetTrigger>
-            <IconEye className="size-5 shrink-0" stroke={1.5} aria-hidden />
-            <span className="text-sm font-semibold">argos</span>
+            <AppLogo />
             <div className="ml-auto">
               <ThemeToggle />
             </div>

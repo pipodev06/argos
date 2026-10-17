@@ -39,7 +39,7 @@ export function AlertsPage() {
   return (
     <>
       <PageHeader title="Alertas" />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         <FilterBar
           fields={ALERT_FIELDS}
           values={filters}
@@ -54,10 +54,9 @@ export function AlertsPage() {
           <EmptyState
             Icon={IconBell}
             title="Sin alertas"
-            description="Cuando una regla activa se cumpla en un host, la alerta aparecerá aquí."
           />
         )}
-        {noMatch && <NoResultsState Icon={IconBell} title="Ninguna alerta coincide con los filtros." onClear={clear} />}
+        {noMatch && <NoResultsState Icon={IconBell} onClear={clear} />}
         {showTable && (
           <>
             <AlertsTable

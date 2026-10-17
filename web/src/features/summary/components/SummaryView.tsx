@@ -56,8 +56,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
         {title}
         <EmptyState
           Icon={IconServer2}
-          title="Aún no hay hosts"
-          description={isAdmin ? 'Agrega el primero para empezar a monitorear.' : 'Un administrador debe enrolar el primero.'}
+          title="Sin hosts"
           action={isAdmin && <Button size="sm" onClick={onAddHost}>Agregar host</Button>}
         />
       </>
@@ -70,7 +69,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
   return (
     <>
       {title}
-      <div className="flex flex-col gap-6" aria-busy={loading}>
+      <div className="flex flex-col gap-4" aria-busy={loading}>
         {error && (
           <div className="flex flex-wrap items-center gap-3">
             <InlineError>
@@ -84,14 +83,14 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
         )}
 
         {/* Tres bloques de 3 filas (hosts 2x3, dispositivos 2x3, alertas 1x3) alineados; sin dispositivos, dos. */}
-        <div className={'grid gap-6 ' + (showDevices ? 'lg:grid-cols-[2fr_2fr_1fr]' : 'lg:grid-cols-[2fr_1fr]')}>
+        <div className={'grid gap-4 ' + (showDevices ? 'lg:grid-cols-[2fr_2fr_1fr]' : 'lg:grid-cols-[2fr_1fr]')}>
           <StatusBlock id="summary-hosts" title="Hosts" counts={data?.counts} to="/hosts" note={data && outdated > 0 && data.agent_versions.latest !== null && <AgentsNote count={outdated} latest={data.agent_versions.latest} />} />
           {showDevices && <StatusBlock id="summary-devices" title="Dispositivos" counts={data?.devices} to="/dispositivos" />}
           <AlertsBlock />
         </div>
 
         {data ? (
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <AttentionPanel items={data.recently_down} now={now} />
             <GroupBreakdown groups={data.by_group} />
             <div className="lg:col-span-2">

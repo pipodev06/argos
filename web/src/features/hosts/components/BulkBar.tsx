@@ -91,6 +91,7 @@ export function BulkBar({ ids, onClear, onDone }: BulkBarProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               disabled={busy}
               onClick={(e) => {
                 e.preventDefault()

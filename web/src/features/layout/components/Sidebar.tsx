@@ -1,10 +1,10 @@
 import {
-  IconEye,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
 } from '@tabler/icons-react'
 import { cn } from 'cn'
 import { NavLink, useMatch, useResolvedPath } from 'react-router'
+import { AppLogo } from '@/components/ui/app-logo'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OpenAlertsCount } from '@/features/alerts/components/OpenAlertsCount'
@@ -72,8 +72,7 @@ export function SidebarContent({ collapsed = false, onToggleCollapsed, onNavigat
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className={cn('flex h-12 shrink-0 items-center gap-2', collapsed ? 'justify-center' : 'px-4')}>
-        <IconEye className="size-5 shrink-0" stroke={1.5} aria-hidden />
-        {!collapsed && <span className="text-sm font-semibold">argos</span>}
+        <AppLogo withName={!collapsed} />
       </div>
 
       <nav aria-label="Principal" className="min-h-0 flex-1 overflow-y-auto p-2">

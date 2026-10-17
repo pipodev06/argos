@@ -37,7 +37,7 @@ export function PurgeGroupDialog({ group, onClose, onDone }: PurgeGroupDialogPro
 
 function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<PurgeGroupDialogProps, 'group'>) {
   const [typed, setTyped] = useState('')
-  const [deleteGroup, setDeleteGroup] = useState(false)
+  const [deleteGroup, setDeleteGroup] = useState(true)
   const [disableUsers, setDisableUsers] = useState(false)
   const exportMutation = useUserMutation()
   const { job, pollError, busy, error, start, close } = usePurgeRun(
@@ -103,17 +103,17 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <IconAlertTriangle className="size-5 shrink-0 text-danger" stroke={1.5} aria-hidden />
-            {`Dar de baja a "${group.name}"`}
+            {`Eliminar "${group.name}" y sus ${group.host_count} hosts`}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Se borran de forma definitiva todos los hosts y dispositivos del grupo con sus métricas, resumen horario, historial, discos y chequeos, además de sus reglas, ventanas de mantenimiento y tokens. No se borran los respaldos (se rotan a los 14 días) ni la auditoría. No se puede deshacer.
+            Se borran los hosts y dispositivos del grupo con todos sus datos. La auditoría se conserva. No se puede deshacer.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="grid gap-3">
           <div className="flex flex-col items-start gap-1.5">
             <Button type="button" variant="outline" size="sm" disabled={exportMutation.busy} onClick={() => void exportBackup()}>
               <IconDownload stroke={1.5} aria-hidden />
-              {exportMutation.busy ? 'Exportando...' : 'Exportar antes de purgar'}
+              {exportMutation.busy ? 'Exportando...' : 'Exportar antes'}
             </Button>
             {exportMutation.error && <InlineError>{exportMutation.error}</InlineError>}
           </div>
@@ -138,13 +138,14 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
+            variant="destructive"
             disabled={busy || !purgeNameMatches(typed, group.name)}
             onClick={(e) => {
               e.preventDefault()
               void start()
             }}
           >
-            {busy ? 'Enviando...' : 'Dar de baja'}
+            {busy ? 'Enviando...' : 'Eliminar'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

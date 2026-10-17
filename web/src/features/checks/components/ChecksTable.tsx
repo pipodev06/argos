@@ -56,7 +56,7 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
             </Cell>
             <Cell>
               {c.has_secret ? (
-                <span className="inline-flex items-center gap-1 text-xs">
+                <span className="inline-flex items-center gap-1 text-sm">
                   <IconKey className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
                   Sí
                 </span>
