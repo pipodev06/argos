@@ -8,7 +8,7 @@ cd "$ROOT/web" || exit 2
 FAILED=0
 for name in build lint test; do
   log="$ROOT/.check/web-$name.log"; t0=$SECONDS
-  if npm run "$name" >"$log" 2>&1; then
+  if pnpm run "$name" >"$log" 2>&1; then
     warns="$(grep -ci 'warning' "$log")"
     echo "OK   web/$name ($((SECONDS - t0))s, $warns lineas con 'warning')"
   else

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconChevronDown } from '@tabler/icons-react'
+import { ChevronDownIcon } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -31,7 +31,7 @@ export function HostEventsSection({ hostId }: { hostId: string }) {
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-3">
       <CollapsibleTrigger className="flex w-fit items-center gap-1.5 rounded-md text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <IconChevronDown className={`size-4 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} stroke={1.5} aria-hidden />
+        <ChevronDownIcon className={`size-4 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} strokeWidth={1.5} aria-hidden />
         Historial de estado
       </CollapsibleTrigger>
       <CollapsibleContent>{open && <EventsContent hostId={hostId} />}</CollapsibleContent>

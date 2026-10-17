@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconPlugConnectedX, IconRouter } from '@tabler/icons-react'
+import { TriangleAlertIcon, UnplugIcon, RouterIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { HostStatusBadge } from '@/features/hosts/components/HostStatusBadge'
 import type { Device } from '../types/device.types'
@@ -7,7 +7,7 @@ import { deviceStateOverride } from '../utils/status'
 
 /** Etiqueta "Dispositivo" (icono + texto) para distinguir un dispositivo sin agente de un host con agente. */
 export function DeviceKindBadge() {
-  return <Badge Icon={IconRouter}>Dispositivo</Badge>
+  return <Badge Icon={RouterIcon}>Dispositivo</Badge>
 }
 
 /** Estado de un dispositivo: el de un host, o "Sin evaluar" (muted, con el motivo) si su colector no esta activo. */
@@ -15,7 +15,7 @@ export function DeviceStatusBadge({ device }: { device: Pick<Device, 'evaluated'
   const override = deviceStateOverride(device)
   if (!override) return <HostStatusBadge status={device.status} />
   return (
-    <Badge Icon={IconPlugConnectedX} title={override.reason}>
+    <Badge Icon={UnplugIcon} title={override.reason}>
       {override.label}
       <span className="sr-only">: {override.reason}</span>
     </Badge>
@@ -26,7 +26,7 @@ export function DeviceStatusBadge({ device }: { device: Pick<Device, 'evaluated'
 export function CollectorMismatchNotice({ compact = false }: { compact?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1 text-xs">
-      <IconAlertTriangle className="size-3.5 shrink-0 text-warn" stroke={1.5} aria-hidden />
+      <TriangleAlertIcon className="size-3.5 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
       {compact ? (
         <>
           <span title={COLLECTOR_MISMATCH_NOTICE}>Colector de otro grupo</span>

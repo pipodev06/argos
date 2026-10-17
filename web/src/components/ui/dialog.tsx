@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
-import { IconX } from "@tabler/icons-react"
+import { XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
@@ -39,7 +39,7 @@ function DialogContent({
             className="absolute top-3 right-3 text-text-muted"
             aria-label="Cerrar"
           >
-            <IconX stroke={1.5} />
+            <XIcon strokeWidth={1.5} />
           </Button>
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>

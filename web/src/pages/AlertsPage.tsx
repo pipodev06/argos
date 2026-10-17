@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconBell } from '@tabler/icons-react'
+import { BellIcon } from 'lucide-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -52,11 +52,11 @@ export function AlertsPage() {
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {noAlerts && (
           <EmptyState
-            Icon={IconBell}
+            Icon={BellIcon}
             title="Sin alertas"
           />
         )}
-        {noMatch && <NoResultsState Icon={IconBell} onClear={clear} />}
+        {noMatch && <NoResultsState Icon={BellIcon} onClear={clear} />}
         {showTable && (
           <>
             <AlertsTable

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconLock, IconWebhook } from '@tabler/icons-react'
+import { LockIcon, WebhookIcon } from 'lucide-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -53,7 +53,7 @@ export function ChannelsPage() {
       <div className="flex flex-col gap-4" aria-busy={loading}>
         {forbidden && (
           <EmptyState
-            Icon={IconLock}
+            Icon={LockIcon}
             title="Sin permiso"
           />
         )}
@@ -61,7 +61,7 @@ export function ChannelsPage() {
         {toggle.error && <InlineError>{toggle.error}</InlineError>}
         {loading && !channels && <Skeleton className="h-40 w-full" />}
         {channels && channels.length === 0 && (
-          <EmptyState Icon={IconWebhook} title="Sin canales" />
+          <EmptyState Icon={WebhookIcon} title="Sin canales" />
         )}
         {channels && channels.length > 0 && (
           <ChannelsTable

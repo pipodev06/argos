@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { IconHistory, IconLock, IconRefresh } from '@tabler/icons-react'
+import { HistoryIcon, LockIcon, RefreshCwIcon } from 'lucide-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,7 @@ export function AuditPage() {
     return (
       <>
         <PageHeader title="Auditoría" />
-        <EmptyState Icon={IconLock} title="Sin permiso" />
+        <EmptyState Icon={LockIcon} title="Sin permiso" />
       </>
     )
   }
@@ -52,7 +52,7 @@ function AuditAdmin() {
         title="Auditoría"
         actions={
           <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
-            <IconRefresh stroke={1.5} aria-hidden />
+            <RefreshCwIcon strokeWidth={1.5} aria-hidden />
             Actualizar
           </Button>
         }
@@ -68,8 +68,8 @@ function AuditAdmin() {
           overall={null}
         />
         {message && <TableError message={message} onRetry={() => void refresh()} />}
-        {noEntries && <EmptyState Icon={IconHistory} title="Sin eventos" />}
-        {noMatch && <NoResultsState Icon={IconHistory} onClear={clear} />}
+        {noEntries && <EmptyState Icon={HistoryIcon} title="Sin eventos" />}
+        {noMatch && <NoResultsState Icon={HistoryIcon} onClear={clear} />}
         {showTable && (
           <>
             <AuditTable entries={data?.items ?? null} page={pagination.page} pageSize={filters.limit} />

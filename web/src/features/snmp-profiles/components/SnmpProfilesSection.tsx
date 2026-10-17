@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconKey } from '@tabler/icons-react'
+import { KeyRoundIcon } from 'lucide-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -42,7 +42,7 @@ export function SnmpProfilesSection() {
       {error && <TableError message={error} onRetry={() => void refresh()} />}
       {loading && !profiles && <Skeleton className="h-40 w-full" />}
       {profiles && profiles.length === 0 && (
-        <EmptyState Icon={IconKey} title="Sin perfiles SNMP" />
+        <EmptyState Icon={KeyRoundIcon} title="Sin perfiles SNMP" />
       )}
       {profiles && profiles.length > 0 && <SnmpProfilesTable profiles={profiles} onAction={handleAction} />}
       <SnmpProfileFormDialog

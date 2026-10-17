@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconCircleCheck } from '@tabler/icons-react'
+import { CircleCheckIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -37,7 +37,7 @@ export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProp
         {done ? (
           <>
             <p className="flex items-center gap-1.5 text-sm">
-              <IconCircleCheck className="size-4 shrink-0 text-ok" stroke={1.5} aria-hidden />
+              <CircleCheckIcon className="size-4 shrink-0 text-ok" strokeWidth={1.5} aria-hidden />
               Contraseña actualizada
             </p>
             <DialogFooter>

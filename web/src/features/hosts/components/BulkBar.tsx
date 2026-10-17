@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconAlertTriangle, IconX } from '@tabler/icons-react'
+import { TriangleAlertIcon, XIcon } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,7 +55,7 @@ export function BulkBar({ ids, onClear, onDone }: BulkBarProps) {
       <Button variant="outline" size="sm" onClick={() => setMode('set_group')}>Asignar grupo</Button>
       <Button variant="outline" size="sm" onClick={() => setConfirmDisable(true)}>Deshabilitar</Button>
       <Button variant="ghost" size="icon-sm" aria-label="Quitar selección" className="ml-auto" onClick={onClear}>
-        <IconX stroke={1.5} aria-hidden />
+        <XIcon strokeWidth={1.5} aria-hidden />
       </Button>
 
       <BulkDialog
@@ -79,7 +79,7 @@ export function BulkBar({ ids, onClear, onDone }: BulkBarProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <IconAlertTriangle className="size-5 shrink-0 text-danger" stroke={1.5} aria-hidden />
+              <TriangleAlertIcon className="size-5 shrink-0 text-danger" strokeWidth={1.5} aria-hidden />
               Deshabilitar {ids.length} {ids.length === 1 ? 'host' : 'hosts'}
             </AlertDialogTitle>
             <AlertDialogDescription>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconDownload, IconRouter } from '@tabler/icons-react'
+import { DownloadIcon, RouterIcon } from 'lucide-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
@@ -55,7 +55,7 @@ export function DevicesPage() {
           <>
             <Button asChild variant="outline" size="sm">
               <a href={devicesCsvUrl(buildDeviceCsvQuery(filters))} download>
-                <IconDownload stroke={1.5} aria-hidden />
+                <DownloadIcon strokeWidth={1.5} aria-hidden />
                 Exportar CSV
               </a>
             </Button>
@@ -75,10 +75,10 @@ export function DevicesPage() {
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {enabling.error && <InlineError>{enabling.error}</InlineError>}
-        {noResults && <NoResultsState Icon={IconRouter} onClear={clear} />}
+        {noResults && <NoResultsState Icon={RouterIcon} onClear={clear} />}
         {empty && (
           <EmptyState
-            Icon={IconRouter}
+            Icon={RouterIcon}
             title="Sin dispositivos"
           />
         )}

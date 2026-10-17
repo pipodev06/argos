@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconSearch } from '@tabler/icons-react'
+import { SearchIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import type { SearchField } from './types'
 
@@ -41,7 +41,7 @@ export function SearchBox({ field, value, onCommit }: SearchBoxProps) {
 
   return (
     <div className="relative min-w-64 flex-1">
-      <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" stroke={1.5} aria-hidden />
+      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" strokeWidth={1.5} aria-hidden />
       <Input
         ref={input}
         type="search"

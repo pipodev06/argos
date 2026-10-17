@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconFolders } from '@tabler/icons-react'
+import { FoldersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
@@ -43,7 +43,7 @@ export function GroupsPage() {
         {loading && <Skeleton className="h-40 w-full" />}
         {groups && groups.items.length === 0 && (
           <EmptyState
-            Icon={IconFolders}
+            Icon={FoldersIcon}
             title="Sin grupos"
           />
         )}

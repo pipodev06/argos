@@ -1,4 +1,4 @@
-import { IconServer2 } from '@tabler/icons-react'
+import { ServerIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -55,7 +55,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
       <>
         {title}
         <EmptyState
-          Icon={IconServer2}
+          Icon={ServerIcon}
           title="Sin hosts"
           action={isAdmin && <Button size="sm" onClick={onAddHost}>Agregar host</Button>}
         />

@@ -1,7 +1,4 @@
-import {
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-} from '@tabler/icons-react'
+import { PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react'
 import { cn } from 'cn'
 import { NavLink, useMatch, useResolvedPath } from 'react-router'
 import { AppLogo } from '@/components/ui/app-logo'
@@ -37,7 +34,7 @@ function SidebarNavLink({ item, collapsed, onNavigate }: SidebarNavLinkProps) {
       )}
     >
       {isActive && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-text" />}
-      <Icon className="size-4 shrink-0" stroke={1.5} aria-hidden />
+      <Icon className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
       {!collapsed && <span className="truncate">{label}</span>}
       {!collapsed && openAlertsCount && <OpenAlertsCount />}
     </NavLink>
@@ -66,7 +63,7 @@ interface SidebarContentProps {
 export function SidebarContent({ collapsed = false, onToggleCollapsed, onNavigate }: SidebarContentProps) {
   const { user } = useAuth()
   const items = NAV_ITEMS.filter((item) => isNavItemVisible(item, user))
-  const CollapseIcon = collapsed ? IconLayoutSidebarLeftExpand : IconLayoutSidebarLeftCollapse
+  const CollapseIcon = collapsed ? PanelLeftOpenIcon : PanelLeftCloseIcon
   const collapseLabel = collapsed ? 'Expandir menú' : 'Contraer menú'
 
   return (
@@ -109,7 +106,7 @@ export function SidebarContent({ collapsed = false, onToggleCollapsed, onNavigat
                   aria-label={collapseLabel}
                   aria-expanded={!collapsed}
                 >
-                  <CollapseIcon stroke={1.5} aria-hidden />
+                  <CollapseIcon strokeWidth={1.5} aria-hidden />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">{collapseLabel}</TooltipContent>

@@ -1,4 +1,4 @@
-import { IconKey, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
+import { KeyRoundIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
@@ -57,7 +57,7 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
             <Cell>
               {c.has_secret ? (
                 <span className="inline-flex items-center gap-1 text-sm">
-                  <IconKey className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
+                  <KeyRoundIcon className="size-4 shrink-0 text-text-muted" strokeWidth={1.5} aria-hidden />
                   Sí
                 </span>
               ) : (
@@ -67,7 +67,7 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
             {canAct && (
               <Cell>
                 <Button variant="ghost" size="icon-sm" aria-label={`Editar chequeo ${c.name}`} title="Editar" onClick={() => onAction('edit', c)}>
-                  <IconPencil stroke={1.5} aria-hidden />
+                  <PencilIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"
@@ -77,10 +77,10 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
                   disabled={busy}
                   onClick={() => onAction('toggle', c)}
                 >
-                  {c.enabled ? <IconPlayerPause stroke={1.5} aria-hidden /> : <IconPlayerPlay stroke={1.5} aria-hidden />}
+                  {c.enabled ? <PauseIcon strokeWidth={1.5} aria-hidden /> : <PlayIcon strokeWidth={1.5} aria-hidden />}
                 </Button>
                 <Button variant="ghost" size="icon-sm" aria-label={`Eliminar chequeo ${c.name}`} title="Eliminar" onClick={() => onAction('delete', c)}>
-                  <IconTrash stroke={1.5} aria-hidden />
+                  <Trash2Icon strokeWidth={1.5} aria-hidden />
                 </Button>
               </Cell>
             )}

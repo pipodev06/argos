@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
+import { PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
@@ -44,15 +44,15 @@ export function DeviceDetailView({ id }: { id: string }) {
               {isAdmin && (
                 <div className="ml-auto flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                    <IconPencil stroke={1.5} aria-hidden />
+                    <PencilIcon strokeWidth={1.5} aria-hidden />
                     Editar
                   </Button>
                   <Button variant="outline" size="sm" disabled={enabling.busy} onClick={() => void enabling.toggle(device)}>
-                    {device.status === 'disabled' ? <IconPlayerPlay stroke={1.5} aria-hidden /> : <IconPlayerPause stroke={1.5} aria-hidden />}
+                    {device.status === 'disabled' ? <PlayIcon strokeWidth={1.5} aria-hidden /> : <PauseIcon strokeWidth={1.5} aria-hidden />}
                     {device.status === 'disabled' ? 'Habilitar' : 'Deshabilitar'}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setDeleting(true)}>
-                    <IconTrash stroke={1.5} aria-hidden />
+                    <Trash2Icon strokeWidth={1.5} aria-hidden />
                     Eliminar
                   </Button>
                 </div>

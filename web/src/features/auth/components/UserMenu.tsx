@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconKey, IconLogout, IconUser } from '@tabler/icons-react'
+import { KeyRoundIcon, LogOutIcon, UserIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -28,11 +28,11 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
   const summary = `${user.username} · ${roleLabel(user.role)}`
   const trigger = collapsed ? (
     <Button variant="ghost" size="icon-sm" aria-label={`Cuenta: ${summary}`}>
-      <IconUser stroke={1.5} aria-hidden />
+      <UserIcon strokeWidth={1.5} aria-hidden />
     </Button>
   ) : (
     <Button variant="ghost" className="h-auto w-full justify-start gap-2 px-2 py-1.5 text-left">
-      <IconUser className="text-text-muted" stroke={1.5} aria-hidden />
+      <UserIcon className="text-text-muted" strokeWidth={1.5} aria-hidden />
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-sm font-semibold">{user.username}</span>
         <span className="truncate text-xs font-normal text-text-muted">{roleLabel(user.role)}</span>
@@ -58,7 +58,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
           <DropdownMenuLabel>{summary}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setPasswordOpen(true)}>
-            <IconKey stroke={1.5} aria-hidden />
+            <KeyRoundIcon strokeWidth={1.5} aria-hidden />
             Cambiar contraseña
           </DropdownMenuItem>
           {/* preventDefault: el menu queda abierto para mostrar el error si el servidor no confirma el cierre */}
@@ -68,7 +68,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
               void logout()
             }}
           >
-            <IconLogout stroke={1.5} aria-hidden />
+            <LogOutIcon strokeWidth={1.5} aria-hidden />
             Cerrar sesión
           </DropdownMenuItem>
           {error && <InlineError className="px-2 py-1.5">{error}</InlineError>}

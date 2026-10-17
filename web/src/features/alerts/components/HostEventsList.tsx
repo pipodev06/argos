@@ -1,4 +1,4 @@
-import { IconArrowRight } from '@tabler/icons-react'
+import { ArrowRightIcon } from 'lucide-react'
 import { HostStatusBadge } from '@/features/hosts/components/HostStatusBadge'
 import { formatFullDate } from '@/features/hosts/utils/format'
 import type { HostEvent } from '../types/alert.types'
@@ -17,7 +17,7 @@ export function HostEventsList({ events }: { events: HostEvent[] }) {
             ) : (
               <HostStatusBadge status={e.from_status} />
             )}
-            <IconArrowRight className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-label="a" />
+            <ArrowRightIcon className="size-4 shrink-0 text-text-muted" strokeWidth={1.5} aria-label="a" />
             <HostStatusBadge status={e.to_status} />
           </span>
           <span className="tabular-nums">{formatFullDate(e.at)}</span>

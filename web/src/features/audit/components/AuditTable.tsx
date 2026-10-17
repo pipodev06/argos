@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react'
-import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
+import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { rowNumber } from '@/lib/pagination'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
@@ -37,7 +37,7 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
         {entries?.map((e, i) => {
           const open = openId === e.id
           const panelId = `audit-detail-${e.id}`
-          const Chevron = open ? IconChevronDown : IconChevronRight
+          const Chevron = open ? ChevronDownIcon : ChevronRightIcon
           const detail = Object.entries(e.detail ?? {})
           return (
             <Fragment key={e.id}>
@@ -52,7 +52,7 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
                     onClick={() => setOpenId(open ? null : e.id)}
                     className="inline-flex items-center gap-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <Chevron className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
+                    <Chevron className="size-4 shrink-0 text-text-muted" strokeWidth={1.5} aria-hidden />
                     {formatAuditDate(e.ts)}
                   </button>
                 </Cell>

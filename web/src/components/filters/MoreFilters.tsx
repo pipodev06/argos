@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { IconArrowLeft } from '@tabler/icons-react'
+import { ArrowLeftIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -85,7 +85,7 @@ export function MoreFilters({ fields, onApply }: MoreFiltersProps) {
           ) : (
             <>
               <button type="button" className={`${ITEM} gap-1.5 text-text-muted`} onClick={() => setFieldKey(null)}>
-                <IconArrowLeft className="size-4" stroke={1.5} aria-hidden />
+                <ArrowLeftIcon className="size-4" strokeWidth={1.5} aria-hidden />
                 {def.label} {def.op}
               </button>
               <form onSubmit={submit} className="flex flex-col gap-2 p-2">

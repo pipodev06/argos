@@ -1,4 +1,4 @@
-import { IconCalendarEvent, IconCircleCheck, IconTool, IconPencil, IconTrash, type Icon } from '@tabler/icons-react'
+import { CalendarClockIcon, CircleCheckIcon, WrenchIcon, PencilIcon, Trash2Icon, type LucideIcon as Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,9 +16,9 @@ interface MaintenanceTableProps {
 }
 
 const statusStyles: Record<MaintenanceStatus, { Icon: Icon; tint: BadgeTint }> = {
-  active: { Icon: IconTool, tint: 'info' },
-  scheduled: { Icon: IconCalendarEvent, tint: 'muted' },
-  ended: { Icon: IconCircleCheck, tint: 'muted' },
+  active: { Icon: WrenchIcon, tint: 'info' },
+  scheduled: { Icon: CalendarClockIcon, tint: 'muted' },
+  ended: { Icon: CircleCheckIcon, tint: 'muted' },
 }
 
 function MaintenanceStatusBadge({ status }: { status: MaintenanceStatus }) {
@@ -64,7 +64,7 @@ export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTable
                   title="Editar"
                   onClick={() => onAction('edit', w)}
                 >
-                  <IconPencil stroke={1.5} aria-hidden />
+                  <PencilIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"
@@ -73,7 +73,7 @@ export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTable
                   title="Eliminar"
                   onClick={() => onAction('delete', w)}
                 >
-                  <IconTrash stroke={1.5} aria-hidden />
+                  <Trash2Icon strokeWidth={1.5} aria-hidden />
                 </Button>
               </Cell>
             )}

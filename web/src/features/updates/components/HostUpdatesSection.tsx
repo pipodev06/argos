@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { IconArrowRight, IconCircleCheck, IconClockHour4, IconRefreshAlert, IconShieldCheck, IconShieldLock } from '@tabler/icons-react'
+import { ArrowRightIcon, CircleCheckIcon, Clock4Icon, RotateCwIcon, ShieldCheckIcon, ShieldAlertIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { StatCard, StatValue } from '@/components/ui/stat-card'
@@ -31,7 +31,7 @@ function Cards({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
     return (
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="inline-flex items-center gap-1.5">
-          <IconCircleCheck className="size-4 shrink-0 text-ok" stroke={1.5} aria-hidden />
+          <CircleCheckIcon className="size-4 shrink-0 text-ok" strokeWidth={1.5} aria-hidden />
           Al día: sin parches pendientes ni reinicio
         </span>
         <span className="text-text-muted">·</span>
@@ -49,20 +49,20 @@ function Cards({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Pendientes" Icon={IconClockHour4}>
+        <StatCard label="Pendientes" Icon={Clock4Icon}>
           <StatValue pending={pending} detail={u ? `Actualizado ${formatDataAge(u.data_age_s)}` : undefined}>
             {u ? countText(u.pending_total) : null}
           </StatValue>
         </StatCard>
-        <StatCard label="De seguridad" Icon={IconShieldLock}>
+        <StatCard label="De seguridad" Icon={ShieldAlertIcon}>
           <StatValue pending={pending}>{u ? countText(u.pending_security) : null}</StatValue>
         </StatCard>
-        <StatCard label="Reinicio pendiente" Icon={IconRefreshAlert}>
+        <StatCard label="Reinicio pendiente" Icon={RotateCwIcon}>
           <StatValue pending={pending} size="md">
             {u ? <RebootText required={u.reboot_required} since={u.reboot_since} now={now} /> : null}
           </StatValue>
         </StatCard>
-        <StatCard label="Fin de vida" Icon={IconShieldCheck}>
+        <StatCard label="Fin de vida" Icon={ShieldCheckIcon}>
           <StatValue pending={pending} size="md" detail={data?.eol?.label}>
             {data ? <EolText eol={data.eol} /> : null}
           </StatValue>
@@ -98,7 +98,7 @@ export function HostUpdatesSection({ hostId }: { hostId: string }) {
         <Button asChild variant="outline" size="sm">
           <Link to="/parches">
             Ver todos los hosts
-            <IconArrowRight stroke={1.5} aria-hidden />
+            <ArrowRightIcon strokeWidth={1.5} aria-hidden />
           </Link>
         </Button>
       </div>

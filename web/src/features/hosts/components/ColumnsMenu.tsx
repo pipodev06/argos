@@ -1,4 +1,4 @@
-import { IconColumns3 } from '@tabler/icons-react'
+import { Columns3Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -14,7 +14,7 @@ export function ColumnsMenu({ visible, onToggle }: ColumnsMenuProps) {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="hidden md:inline-flex">
-          <IconColumns3 stroke={1.5} aria-hidden />
+          <Columns3Icon strokeWidth={1.5} aria-hidden />
           Columnas
         </Button>
       </PopoverTrigger>

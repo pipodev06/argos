@@ -57,7 +57,7 @@ start)
 
 	if [[ "${2:-}" == "--web" || ! -f "$root/web/dist/index.html" ]]; then
 		echo "compilando el frontend..."
-		(cd "$root/web" && npm run build)
+		(cd "$root/web" && pnpm run build)
 	fi
 	echo "compilando el server..."
 	(cd "$root/server" && go build -o "$bin" ./cmd/server)

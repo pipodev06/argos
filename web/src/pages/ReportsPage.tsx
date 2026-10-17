@@ -1,4 +1,4 @@
-import { IconCalendar, IconDownload, IconReportAnalytics } from '@tabler/icons-react'
+import { CalendarIcon, DownloadIcon, FileChartColumnIcon } from 'lucide-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -36,7 +36,7 @@ function AvailabilityView({ range, by = 'host', groupId, from, to }: RangeProps)
     <>
       <ReportSummaryTiles fleet={data.fleet} />
       {data.items.length === 0 ? (
-        <EmptyState Icon={IconReportAnalytics} title="Sin hosts" />
+        <EmptyState Icon={FileChartColumnIcon} title="Sin hosts" />
       ) : (
         <ReportAvailabilityTable items={data.items} isGroupView={data.by === 'group'} />
       )}
@@ -49,7 +49,7 @@ function ServiceChecksView({ range, groupId, from, to }: RangeProps) {
   if (error) return <TableError message={error} onRetry={() => void refresh()} />
   if (!data) return loading ? <Skeleton className="h-40 w-full" /> : null
   return data.items.length === 0 ? (
-    <EmptyState Icon={IconReportAnalytics} title="Sin chequeos" />
+    <EmptyState Icon={FileChartColumnIcon} title="Sin chequeos" />
   ) : (
     <ReportServiceChecksTable items={data.items} />
   )
@@ -71,7 +71,7 @@ export function ReportsPage() {
   function exportButton(kind: Parameters<typeof reportCsvUrl>[0], label: string) {
     const content = (
       <>
-        <IconDownload aria-hidden stroke={1.5} />
+        <DownloadIcon aria-hidden strokeWidth={1.5} />
         {label}
       </>
     )
@@ -144,7 +144,7 @@ export function ReportsPage() {
           </div>
         )}
         {customIncomplete ? (
-          <EmptyState Icon={IconCalendar} title="Elige Desde y Hasta" />
+          <EmptyState Icon={CalendarIcon} title="Elige Desde y Hasta" />
         ) : type === 'availability' ? (
           <AvailabilityView range={range} by={by} groupId={groupId} from={from} to={to} />
         ) : (

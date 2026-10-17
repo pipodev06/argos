@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { IconDownload, IconShieldCheck } from '@tabler/icons-react'
+import { DownloadIcon, ShieldCheckIcon } from 'lucide-react'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
@@ -63,7 +63,7 @@ function FleetUpdates() {
           !denied && (
             <Button asChild variant="outline" size="sm">
               <a href={updatesCsvUrl(buildFleetCsvQuery(filters))} download>
-                <IconDownload stroke={1.5} aria-hidden />
+                <DownloadIcon strokeWidth={1.5} aria-hidden />
                 Exportar CSV
               </a>
             </Button>
@@ -86,11 +86,11 @@ function FleetUpdates() {
           {error && <TableError message={error} onRetry={() => void refresh()} />}
           {empty && (
             <EmptyState
-              Icon={IconShieldCheck}
+              Icon={ShieldCheckIcon}
               title="Sin datos"
             />
           )}
-          {noMatch && <NoResultsState Icon={IconShieldCheck} onClear={clear} />}
+          {noMatch && <NoResultsState Icon={ShieldCheckIcon} onClear={clear} />}
           {showTable && (
             <>
               <FleetTable

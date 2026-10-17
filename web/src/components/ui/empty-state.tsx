@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Icon } from "@tabler/icons-react"
+import type { LucideIcon as Icon } from "lucide-react"
 
 interface EmptyStateProps {
   Icon?: Icon
@@ -12,7 +12,7 @@ interface EmptyStateProps {
 function EmptyState({ Icon, title, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-md border border-border bg-surface px-6 py-10 text-center">
-      {Icon && <Icon className="size-6 text-text-muted" stroke={1.5} aria-hidden />}
+      {Icon && <Icon className="size-6 text-text-muted" strokeWidth={1.5} aria-hidden />}
       <p className="text-sm text-text-muted">{title}</p>
       {action && <div className="mt-2">{action}</div>}
     </div>

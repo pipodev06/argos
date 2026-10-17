@@ -1,4 +1,4 @@
-import { IconKey, IconLock, IconLockOpen, IconPencil, IconTrash } from '@tabler/icons-react'
+import { KeyRoundIcon, LockIcon, LockOpenIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ interface SnmpProfilesTableProps {
 }
 
 function VersionBadge({ profile }: { profile: SnmpProfile }) {
-  return <Badge Icon={profile.version === 3 ? IconLock : IconLockOpen}>{versionLabel(profile.version)}</Badge>
+  return <Badge Icon={profile.version === 3 ? LockIcon : LockOpenIcon}>{versionLabel(profile.version)}</Badge>
 }
 
 const protocols = (p: SnmpProfile): string => (p.auth_proto && p.priv_proto ? `${p.auth_proto} / ${p.priv_proto}` : '—')
@@ -49,7 +49,7 @@ export function SnmpProfilesTable({ profiles, onAction }: SnmpProfilesTableProps
             <Cell>
               {p.has_secret || p.has_community ? (
                 <span className="inline-flex items-center gap-1 text-xs">
-                  <IconKey className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-hidden />
+                  <KeyRoundIcon className="size-4 shrink-0 text-text-muted" strokeWidth={1.5} aria-hidden />
                   Sí
                 </span>
               ) : (
@@ -59,10 +59,10 @@ export function SnmpProfilesTable({ profiles, onAction }: SnmpProfilesTableProps
             <Cell className="text-sm text-text-muted tabular-nums">{formatFullDate(p.created_at)}</Cell>
             <Cell>
               <Button variant="ghost" size="icon-sm" aria-label={`Editar perfil ${p.name}`} title="Editar" onClick={() => onAction('edit', p)}>
-                <IconPencil stroke={1.5} aria-hidden />
+                <PencilIcon strokeWidth={1.5} aria-hidden />
               </Button>
               <Button variant="ghost" size="icon-sm" aria-label={`Eliminar perfil ${p.name}`} title="Eliminar" onClick={() => onAction('delete', p)}>
-                <IconTrash stroke={1.5} aria-hidden />
+                <Trash2Icon strokeWidth={1.5} aria-hidden />
               </Button>
             </Cell>
           </Row>

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { IconChevronDown, IconCopy, IconCheck } from '@tabler/icons-react'
+import { ChevronDownIcon, CopyIcon, CheckIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
@@ -29,9 +29,9 @@ export function HostSystemInfo({ host, info }: { host: HostDetail; info: HostInf
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-2">
       <CollapsibleTrigger className="flex w-fit items-center gap-1 rounded-md text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <IconChevronDown
+        <ChevronDownIcon
           className={`size-4 transition-transform motion-reduce:transition-none ${open ? '' : '-rotate-90'}`}
-          stroke={1.5}
+          strokeWidth={1.5}
           aria-hidden
         />
         Detalles del sistema
@@ -63,7 +63,7 @@ export function HostSystemInfo({ host, info }: { host: HostDetail; info: HostInf
                 aria-label="Copiar ID del host"
                 onClick={() => void copy(host.id)}
               >
-                {copied ? <IconCheck stroke={1.5} aria-hidden /> : <IconCopy stroke={1.5} aria-hidden />}
+                {copied ? <CheckIcon strokeWidth={1.5} aria-hidden /> : <CopyIcon strokeWidth={1.5} aria-hidden />}
                 {copied ? 'Copiado' : 'Copiar'}
               </Button>
             </span>

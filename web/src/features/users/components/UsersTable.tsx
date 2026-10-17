@@ -1,4 +1,4 @@
-import { IconKey, IconLockAccess, IconShield, IconTrash, IconUserCheck, IconUserOff } from '@tabler/icons-react'
+import { KeyRoundIcon, LockKeyholeIcon, ShieldIcon, Trash2Icon, UserCheckIcon, UserXIcon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { roleLabel } from '@/features/auth/utils/format'
@@ -56,7 +56,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                     title="Permisos por grupo"
                     onClick={() => onAction('permissions', u)}
                   >
-                    <IconLockAccess stroke={1.5} aria-hidden />
+                    <LockKeyholeIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                 )}
                 <Button
@@ -67,7 +67,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                   disabled={self}
                   onClick={() => onAction('role', u)}
                 >
-                  <IconShield stroke={1.5} aria-hidden />
+                  <ShieldIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"
@@ -77,7 +77,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                   disabled={self}
                   onClick={() => onAction('toggle', u)}
                 >
-                  {u.disabled ? <IconUserCheck stroke={1.5} aria-hidden /> : <IconUserOff stroke={1.5} aria-hidden />}
+                  {u.disabled ? <UserCheckIcon strokeWidth={1.5} aria-hidden /> : <UserXIcon strokeWidth={1.5} aria-hidden />}
                 </Button>
                 <Button
                   variant="ghost"
@@ -87,7 +87,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                   disabled={self}
                   onClick={() => onAction('password', u)}
                 >
-                  <IconKey stroke={1.5} aria-hidden />
+                  <KeyRoundIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"
@@ -97,7 +97,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                   disabled={self}
                   onClick={() => onAction('delete', u)}
                 >
-                  <IconTrash stroke={1.5} aria-hidden />
+                  <Trash2Icon strokeWidth={1.5} aria-hidden />
                 </Button>
               </Cell>
             </Row>

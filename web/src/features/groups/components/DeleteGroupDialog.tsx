@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconAlertTriangle } from '@tabler/icons-react'
+import { TriangleAlertIcon } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,7 +56,7 @@ export function DeleteGroupDialog({ group, onClose, onDeleted }: DeleteGroupDial
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <IconAlertTriangle className="size-5 shrink-0 text-danger" stroke={1.5} aria-hidden />
+            <TriangleAlertIcon className="size-5 shrink-0 text-danger" strokeWidth={1.5} aria-hidden />
             {`Eliminar "${group?.name ?? ''}"`}
           </AlertDialogTitle>
           <AlertDialogDescription>

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Checkbox as CheckboxPrimitive } from "radix-ui"
-import { IconCheck } from "@tabler/icons-react"
+import { CheckIcon } from "lucide-react"
 
 // Slate: borde `text-muted` (>= 3:1), marcado = relleno neutro `text` + icono (no `brand`: no es una accion).
 // `after:` amplia el area tactil a 32px sin cambiar el tamano visual.
@@ -22,7 +22,7 @@ function Checkbox({
         data-slot="checkbox-indicator"
         className="grid place-content-center text-current"
       >
-        <IconCheck className="size-3" stroke={2.5} aria-hidden />
+        <CheckIcon className="size-3" strokeWidth={2.5} aria-hidden />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )

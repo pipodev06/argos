@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconAlertTriangle } from '@tabler/icons-react'
+import { TriangleAlertIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { CopyBlock } from '@/components/ui/copy-block'
@@ -73,7 +73,7 @@ export function EnrollTokenStep({ token, title, onClose, onAnother }: EnrollToke
             <CopyBlock value={token.enroll_token} label="Token de enrolamiento" />
           </div>
           <p className="flex items-start gap-1.5 text-sm">
-            <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" stroke={1.5} aria-hidden />
+            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
             Trátalo como una contraseña: no lo pegues en chats, tickets ni correos. Quien lo tenga puede registrar un
             equipo falso.
           </p>
@@ -100,7 +100,7 @@ export function EnrollTokenStep({ token, title, onClose, onAnother }: EnrollToke
 function HostnameConflictNotice({ conflict }: { conflict: HostnameConflict }) {
   return (
     <p className="flex items-start gap-1.5 text-sm">
-      <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" stroke={1.5} aria-hidden />
+      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
       <span>
         Ya existe un host con este nombre (estado: {HOST_STATUS_LABELS[conflict.status]}). Si es el mismo equipo,
         considera{' '}

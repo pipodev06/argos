@@ -1,12 +1,4 @@
-import {
-  IconAlertTriangle,
-  IconCircleCheck,
-  IconCircleOff,
-  IconHelpCircle,
-  IconLock,
-  IconPlayerPause,
-  type Icon,
-} from '@tabler/icons-react'
+import { TriangleAlertIcon, CircleCheckIcon, CircleOffIcon, CircleHelpIcon, LockIcon, PauseIcon, type LucideIcon as Icon } from 'lucide-react'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { rowNumber } from '@/lib/pagination'
@@ -16,19 +8,19 @@ import { describeChange, isExposed, KIND_LABELS, MODULE_LABELS, START_LABELS, ST
 
 function ExposureBadge({ bind }: { bind: string }) {
   return isExposed(bind) ? (
-    <Badge Icon={IconAlertTriangle} tint="warn">
+    <Badge Icon={TriangleAlertIcon} tint="warn">
       Expuesto
     </Badge>
   ) : (
-    <Badge Icon={IconLock}>Solo local</Badge>
+    <Badge Icon={LockIcon}>Solo local</Badge>
   )
 }
 
 const STATE_STYLE: Record<ServiceState, { Icon: Icon; tint: BadgeTint }> = {
-  running: { Icon: IconCircleCheck, tint: 'ok' },
-  stopped: { Icon: IconCircleOff, tint: 'muted' },
-  paused: { Icon: IconPlayerPause, tint: 'info' },
-  other: { Icon: IconHelpCircle, tint: 'muted' },
+  running: { Icon: CircleCheckIcon, tint: 'ok' },
+  stopped: { Icon: CircleOffIcon, tint: 'muted' },
+  paused: { Icon: PauseIcon, tint: 'info' },
+  other: { Icon: CircleHelpIcon, tint: 'muted' },
 }
 
 function ServiceStateBadge({ state }: { state: ServiceState }) {

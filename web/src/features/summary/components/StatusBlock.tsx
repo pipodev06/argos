@@ -1,4 +1,4 @@
-import { IconCircleCheck, IconCircleOff, IconCircleX, IconClock, IconPlugConnectedX } from '@tabler/icons-react'
+import { CircleCheckIcon, CircleOffIcon, CircleXIcon, ClockIcon, UnplugIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -18,11 +18,11 @@ interface StatusBlockProps {
 }
 
 const TILES = [
-  { label: 'Activos', status: 'up', Icon: IconCircleCheck, icon: 'text-ok' },
-  { label: 'Caídos', status: 'down', Icon: IconCircleX, icon: 'text-danger' },
-  { label: 'Sin conexión', status: 'offline', Icon: IconPlugConnectedX, icon: 'text-text-muted' },
-  { label: 'Pendientes', status: 'pending', Icon: IconClock, icon: 'text-info' },
-  { label: 'Deshabilitados', status: 'disabled', Icon: IconCircleOff, icon: 'text-text-muted' },
+  { label: 'Activos', status: 'up', Icon: CircleCheckIcon, icon: 'text-ok' },
+  { label: 'Caídos', status: 'down', Icon: CircleXIcon, icon: 'text-danger' },
+  { label: 'Sin conexión', status: 'offline', Icon: UnplugIcon, icon: 'text-text-muted' },
+  { label: 'Pendientes', status: 'pending', Icon: ClockIcon, icon: 'text-info' },
+  { label: 'Deshabilitados', status: 'disabled', Icon: CircleOffIcon, icon: 'text-text-muted' },
 ] as const
 
 /** Bloque de 3 filas x 2 columnas (Activos/Caídos, Sin conexión/Pendientes, Deshabilitados a ancho completo). */

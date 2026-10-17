@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconBattery, IconBatteryCharging } from '@tabler/icons-react'
+import { TriangleAlertIcon, BatteryIcon, BatteryChargingIcon } from 'lucide-react'
 import { cn } from 'cn'
 import { Link } from 'react-router'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -36,7 +36,7 @@ function Pct({ value }: { value: number | null }) {
   const high = usageLevel(value) !== 'ok'
   return (
     <span className="inline-flex items-center justify-center gap-1 tabular-nums">
-      {high && <IconAlertTriangle className="size-3.5 shrink-0 text-warn" stroke={1.5} aria-label="Uso alto" />}
+      {high && <TriangleAlertIcon className="size-3.5 shrink-0 text-warn" strokeWidth={1.5} aria-label="Uso alto" />}
       {formatNumber(value)} %
     </span>
   )
@@ -128,7 +128,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                         {formatAgentVersion(h.agent_version)}
                         {h.agent_outdated && (
                           <span className="inline-flex items-center gap-1 text-sm text-text-muted">
-                            <IconAlertTriangle className="size-3.5 shrink-0 text-warn" stroke={1.5} aria-hidden />
+                            <TriangleAlertIcon className="size-3.5 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
                             Desactualizado
                           </span>
                         )}
@@ -153,9 +153,9 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                         {h.battery ? (
                           <span className="inline-flex items-center gap-1">
                             {h.battery.charging ? (
-                              <IconBatteryCharging className="size-4" stroke={1.5} aria-label="Cargando" />
+                              <BatteryChargingIcon className="size-4" strokeWidth={1.5} aria-label="Cargando" />
                             ) : (
-                              <IconBattery className="size-4" stroke={1.5} aria-hidden />
+                              <BatteryIcon className="size-4" strokeWidth={1.5} aria-hidden />
                             )}
                             {h.battery.pct} %
                           </span>

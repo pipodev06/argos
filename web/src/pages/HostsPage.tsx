@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconDownload, IconRefresh, IconServer2 } from '@tabler/icons-react'
+import { DownloadIcon, RefreshCwIcon, ServerIcon } from 'lucide-react'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
@@ -94,13 +94,13 @@ export function HostsPage() {
           <>
             {volatile && (
               <Button variant="outline" size="sm" onClick={() => void refresh()}>
-                <IconRefresh stroke={1.5} aria-hidden />
+                <RefreshCwIcon strokeWidth={1.5} aria-hidden />
                 Actualizar
               </Button>
             )}
             <Button asChild variant="outline" size="sm">
               <a href={hostsCsvUrl(buildCsvQuery(filters))} download>
-                <IconDownload stroke={1.5} aria-hidden />
+                <DownloadIcon strokeWidth={1.5} aria-hidden />
                 Exportar CSV
               </a>
             </Button>
@@ -142,11 +142,11 @@ export function HostsPage() {
 
         {noHosts && (
           <EmptyState
-            Icon={IconServer2}
+            Icon={ServerIcon}
             title="Sin hosts"
           />
         )}
-        {noMatch && <NoResultsState Icon={IconServer2} onClear={clear} />}
+        {noMatch && <NoResultsState Icon={ServerIcon} onClear={clear} />}
         {showTable && (
           <>
             <HostTable

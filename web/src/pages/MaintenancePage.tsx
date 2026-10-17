@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconTool } from '@tabler/icons-react'
+import { WrenchIcon } from 'lucide-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -46,7 +46,7 @@ export function MaintenancePage() {
         {loading && !windows && <Skeleton className="h-40 w-full" />}
         {windows && windows.length === 0 && (
           <EmptyState
-            Icon={IconTool}
+            Icon={WrenchIcon}
             title="Sin ventanas"
           />
         )}

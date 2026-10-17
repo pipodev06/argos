@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as SheetPrimitive } from "radix-ui"
-import { IconX } from "@tabler/icons-react"
+import { XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
@@ -57,7 +57,7 @@ function SheetContent({
             className="absolute top-2 right-2 text-text-muted"
             aria-label="Cerrar"
           >
-            <IconX stroke={1.5} aria-hidden />
+            <XIcon strokeWidth={1.5} aria-hidden />
           </Button>
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>

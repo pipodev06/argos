@@ -1,4 +1,4 @@
-import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { PencilIcon, Trash2Icon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
@@ -62,10 +62,10 @@ export function GroupsTable({
               {canEdit && (
                 <Cell>
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar ${g.name}`} onClick={() => onEdit(g)}>
-                    <IconPencil stroke={1.5} aria-hidden />
+                    <PencilIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                   <Button variant="ghost" size="icon-sm" aria-label={`Eliminar ${g.name}`} onClick={() => onDelete(g)}>
-                    <IconTrash stroke={1.5} aria-hidden />
+                    <Trash2Icon strokeWidth={1.5} aria-hidden />
                   </Button>
                 </Cell>
               )}

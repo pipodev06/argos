@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import type { Icon as TablerIcon } from "@tabler/icons-react"
+import type { LucideIcon as TablerIcon } from "lucide-react"
 
 /** Tinte de estado: pinta el fondo (10%) y el icono; el texto va siempre en `text` (regla de color de AGENTS.md). */
 export type BadgeTint = "ok" | "warn" | "danger" | "info" | "muted"
@@ -35,7 +35,7 @@ function Badge({
       )}
       {...props}
     >
-      {Icon && <Icon className={cn("size-3.5 shrink-0", icon)} stroke={1.5} aria-hidden />}
+      {Icon && <Icon className={cn("size-3.5 shrink-0", icon)} strokeWidth={1.5} aria-hidden />}
       {children}
     </span>
   )

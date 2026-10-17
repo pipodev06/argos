@@ -1,4 +1,4 @@
-import { IconLock } from '@tabler/icons-react'
+import { LockIcon } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
 import { PageHeader } from '@/components/ui/page-header'
@@ -19,7 +19,7 @@ export function ConfigurationPage() {
     return (
       <>
         <PageHeader title="Configuración" />
-        <EmptyState Icon={IconLock} title="Sin permiso" />
+        <EmptyState Icon={LockIcon} title="Sin permiso" />
       </>
     )
   }

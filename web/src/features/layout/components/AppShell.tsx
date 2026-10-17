@@ -1,5 +1,5 @@
 import { Suspense, useState, type MouseEvent } from 'react'
-import { IconMenu2 } from '@tabler/icons-react'
+import { MenuIcon } from 'lucide-react'
 import { cn } from 'cn'
 import { Outlet } from 'react-router'
 import { AppLogo } from '@/components/ui/app-logo'
@@ -39,7 +39,7 @@ export function AppShell() {
           <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-surface px-2 md:hidden">
             <SheetTrigger asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="Abrir menú">
-                <IconMenu2 stroke={1.5} aria-hidden />
+                <MenuIcon strokeWidth={1.5} aria-hidden />
               </Button>
             </SheetTrigger>
             <AppLogo />

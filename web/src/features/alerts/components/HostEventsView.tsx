@@ -1,4 +1,4 @@
-import { IconHistory } from '@tabler/icons-react'
+import { HistoryIcon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { TableError } from '@/components/data-table/TableStates'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -35,7 +35,7 @@ export function HostEventsView({ id }: { id: string }) {
             {error && <TableError message={error} onRetry={() => void refresh()} />}
             {!data && !error && <Skeleton className="h-40 w-full" />}
             {data && data.items.length === 0 && pagination.page === 1 && (
-              <EmptyState Icon={IconHistory} title="Sin cambios" />
+              <EmptyState Icon={HistoryIcon} title="Sin cambios" />
             )}
             {data && data.items.length > 0 && (
               <>

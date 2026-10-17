@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { IconArrowRight, IconListDetails } from '@tabler/icons-react'
+import { ArrowRightIcon, ListIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { StatCard, StatValue } from '@/components/ui/stat-card'
@@ -26,7 +26,7 @@ function SummaryCards({ hostId, onDenied }: { hostId: string; onDenied: () => vo
         const mod = data?.modules[m]
         const { text, detail } = summaryValue(mod, now)
         return (
-          <StatCard key={m} label={MODULE_LABELS[m]} Icon={IconListDetails}>
+          <StatCard key={m} label={MODULE_LABELS[m]} Icon={ListIcon}>
             <StatValue pending={!data} detail={detail}>
               {text}
             </StatValue>
@@ -52,7 +52,7 @@ export function HostInventorySummary({ hostId }: { hostId: string }) {
         <Button asChild variant="outline" size="sm">
           <Link to={inventoryPath(hostId)}>
             Ver inventario
-            <IconArrowRight stroke={1.5} aria-hidden />
+            <ArrowRightIcon strokeWidth={1.5} aria-hidden />
           </Link>
         </Button>
       </div>

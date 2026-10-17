@@ -1,5 +1,5 @@
-import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconHelpCircle, IconRefreshAlert } from '@tabler/icons-react'
-import type { Icon } from '@tabler/icons-react'
+import { TriangleAlertIcon, CircleCheckIcon, CircleXIcon, CircleHelpIcon, RotateCwIcon } from 'lucide-react'
+import type { LucideIcon as Icon } from 'lucide-react'
 import type { Eol } from '../types/updates.types'
 import { eolInfo, formatDataAge, rebootInfo, type EolState, type RebootState } from '../utils/updates'
 
@@ -7,23 +7,23 @@ import { eolInfo, formatDataAge, rebootInfo, type EolState, type RebootState } f
 function IconText({ Icon, iconClassName, children }: { Icon: Icon; iconClassName?: string; children: string }) {
   return (
     <span className="inline-flex items-center justify-center gap-1.5">
-      <Icon className={`size-4 shrink-0 ${iconClassName ?? ''}`} stroke={1.5} aria-hidden />
+      <Icon className={`size-4 shrink-0 ${iconClassName ?? ''}`} strokeWidth={1.5} aria-hidden />
       <span>{children}</span>
     </span>
   )
 }
 
 const REBOOT_ICON: Record<RebootState, { Icon: Icon; className: string }> = {
-  yes: { Icon: IconRefreshAlert, className: 'text-warn' },
-  no: { Icon: IconCircleCheck, className: 'text-ok' },
-  unknown: { Icon: IconHelpCircle, className: 'text-text-muted' },
+  yes: { Icon: RotateCwIcon, className: 'text-warn' },
+  no: { Icon: CircleCheckIcon, className: 'text-ok' },
+  unknown: { Icon: CircleHelpIcon, className: 'text-text-muted' },
 }
 
 const EOL_ICON: Record<EolState, { Icon: Icon; className: string }> = {
-  ok: { Icon: IconCircleCheck, className: 'text-ok' },
-  soon: { Icon: IconAlertTriangle, className: 'text-warn' },
-  expired: { Icon: IconCircleX, className: 'text-danger' },
-  none: { Icon: IconHelpCircle, className: 'text-text-muted' },
+  ok: { Icon: CircleCheckIcon, className: 'text-ok' },
+  soon: { Icon: TriangleAlertIcon, className: 'text-warn' },
+  expired: { Icon: CircleXIcon, className: 'text-danger' },
+  none: { Icon: CircleHelpIcon, className: 'text-text-muted' },
 }
 
 export function RebootText({ required, since, now }: { required: boolean | null; since: string | null; now?: number }) {
@@ -53,7 +53,7 @@ export function DataAgeText({ seconds, stale }: { seconds: number; stale: boolea
       <span>{formatDataAge(seconds)}</span>
       {stale && (
         <span className="inline-flex items-center gap-1 text-xs text-text-muted">
-          <IconAlertTriangle className="size-3.5 shrink-0 text-warn" stroke={1.5} aria-hidden />
+          <TriangleAlertIcon className="size-3.5 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
           desactualizado
         </span>
       )}

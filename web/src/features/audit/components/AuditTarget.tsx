@@ -1,4 +1,4 @@
-import { IconCheck, IconCopy } from '@tabler/icons-react'
+import { CheckIcon, CopyIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { shortId } from '../utils/labels'
@@ -25,7 +25,7 @@ export function AuditTarget({ type, id }: AuditTargetProps) {
             title="Copiar id"
             onClick={() => void copy(id)}
           >
-            {copied ? <IconCheck stroke={1.5} aria-hidden /> : <IconCopy stroke={1.5} aria-hidden />}
+            {copied ? <CheckIcon strokeWidth={1.5} aria-hidden /> : <CopyIcon strokeWidth={1.5} aria-hidden />}
           </Button>
           <span role="status" className="sr-only">
             {copied ? 'Copiado' : ''}

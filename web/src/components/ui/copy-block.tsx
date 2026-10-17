@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IconCheck, IconCopy } from "@tabler/icons-react"
+import { CheckIcon, CopyIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { InlineError } from "@/components/ui/inline-error"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
@@ -41,12 +41,12 @@ function CopyBlock({ value, label }: CopyBlockProps) {
         <Button type="button" variant="outline" size="sm" onClick={() => void handleCopy()}>
           {copied ? (
             <>
-              <IconCheck stroke={1.5} aria-hidden />
+              <CheckIcon strokeWidth={1.5} aria-hidden />
               Copiado
             </>
           ) : (
             <>
-              <IconCopy stroke={1.5} aria-hidden />
+              <CopyIcon strokeWidth={1.5} aria-hidden />
               Copiar
             </>
           )}

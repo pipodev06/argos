@@ -1,4 +1,4 @@
-import { IconCheck, IconEye } from '@tabler/icons-react'
+import { CheckIcon, EyeIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
@@ -84,7 +84,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
                     title="Reconocer"
                     onClick={() => onAction('ack', a)}
                   >
-                    <IconEye stroke={1.5} aria-hidden />
+                    <EyeIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                 )}
                 {canResolve && a.state !== 'resolved' && (
@@ -95,7 +95,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
                     title="Resolver"
                     onClick={() => onAction('resolve', a)}
                   >
-                    <IconCheck stroke={1.5} aria-hidden />
+                    <CheckIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                 )}
               </Cell>

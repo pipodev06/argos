@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Select as SelectPrimitive } from "radix-ui"
-import { IconCheck, IconSelector } from "@tabler/icons-react"
+import { CheckIcon, ChevronsUpDownIcon } from "lucide-react"
 
 // Slate: disparador con borde `text-muted` (>= 3:1); lista bg-surface + borde 1px, SIN sombra (no esta en la
 // lista de overlays con sombra). Aviso CSP: el viewport de Radix Select inyecta un <style> (oculta la barra de
@@ -44,7 +44,7 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <IconSelector className="text-text-muted" stroke={1.5} aria-hidden />
+        <ChevronsUpDownIcon className="text-text-muted" strokeWidth={1.5} aria-hidden />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -106,7 +106,7 @@ function SelectItem({
     >
       <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <IconCheck className="size-4" stroke={1.5} aria-hidden />
+          <CheckIcon className="size-4" strokeWidth={1.5} aria-hidden />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

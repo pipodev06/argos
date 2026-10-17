@@ -1,4 +1,4 @@
-import { IconAlertOctagon, IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react'
+import { OctagonAlertIcon, TriangleAlertIcon, InfoIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusTile, TILE_LINK } from '@/components/ui/status-tile'
@@ -6,10 +6,10 @@ import { useAlertSummary } from '../hooks/useAlerts'
 import type { AlertSeverity } from '../types/alert.types'
 import { openBySeverity, openCount } from '../utils/summary'
 
-const TILES: { label: string; severity: AlertSeverity; Icon: typeof IconAlertOctagon; icon: string }[] = [
-  { label: 'Críticas', severity: 'critical', Icon: IconAlertOctagon, icon: 'text-danger' },
-  { label: 'Advertencias', severity: 'warn', Icon: IconAlertTriangle, icon: 'text-warn' },
-  { label: 'Info', severity: 'info', Icon: IconInfoCircle, icon: 'text-info' },
+const TILES: { label: string; severity: AlertSeverity; Icon: typeof OctagonAlertIcon; icon: string }[] = [
+  { label: 'Críticas', severity: 'critical', Icon: OctagonAlertIcon, icon: 'text-danger' },
+  { label: 'Advertencias', severity: 'warn', Icon: TriangleAlertIcon, icon: 'text-warn' },
+  { label: 'Info', severity: 'info', Icon: InfoIcon, icon: 'text-info' },
 ]
 
 /**

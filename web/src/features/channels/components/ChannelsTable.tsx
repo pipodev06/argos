@@ -1,4 +1,4 @@
-import { IconPencil, IconPlayerPause, IconPlayerPlay, IconSend, IconTrash } from '@tabler/icons-react'
+import { PencilIcon, PauseIcon, PlayIcon, SendIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { SeverityBadge } from '@/features/alerts/components/AlertBadges'
@@ -66,10 +66,10 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
                   disabled={testingId !== null}
                   onClick={() => onAction('test', c)}
                 >
-                  <IconSend stroke={1.5} aria-hidden />
+                  <SendIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button variant="ghost" size="icon-sm" aria-label={`Editar canal ${c.name}`} title="Editar" onClick={() => onAction('edit', c)}>
-                  <IconPencil stroke={1.5} aria-hidden />
+                  <PencilIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"
@@ -79,10 +79,10 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
                   disabled={busy}
                   onClick={() => onAction('toggle', c)}
                 >
-                  {c.enabled ? <IconPlayerPause stroke={1.5} aria-hidden /> : <IconPlayerPlay stroke={1.5} aria-hidden />}
+                  {c.enabled ? <PauseIcon strokeWidth={1.5} aria-hidden /> : <PlayIcon strokeWidth={1.5} aria-hidden />}
                 </Button>
                 <Button variant="ghost" size="icon-sm" aria-label={`Eliminar canal ${c.name}`} title="Eliminar" onClick={() => onAction('delete', c)}>
-                  <IconTrash stroke={1.5} aria-hidden />
+                  <Trash2Icon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <span role="status" className="block text-xs text-text-muted">
                   {testText(c.id, testingId, outcomes[c.id])}

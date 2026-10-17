@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IconCalendar } from "@tabler/icons-react"
+import { CalendarIcon } from "lucide-react"
 import { cn } from "cn"
 import { es } from "react-day-picker/locale"
 import { Button } from "@/components/ui/button"
@@ -68,7 +68,7 @@ function DateTimePicker({
           className={cn("w-full justify-start font-normal", !selected && "text-text-muted", className)}
           {...aria}
         >
-          <IconCalendar stroke={1.5} aria-hidden />
+          <CalendarIcon strokeWidth={1.5} aria-hidden />
           <span className="truncate tabular-nums">
             {selected ? `${LABEL.format(selected)}${withTime ? `, ${time}` : ""}` : placeholder}
           </span>

@@ -1,14 +1,14 @@
-import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconHelpCircle, IconPlayerPause, type Icon } from '@tabler/icons-react'
+import { TriangleAlertIcon, CircleCheckIcon, CircleXIcon, CircleHelpIcon, PauseIcon, type LucideIcon as Icon } from 'lucide-react'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
 import type { CheckStatus } from '../types/check.types'
 
 /** `paused` no viene del servidor: lo usa el detalle para un chequeo deshabilitado. */
 const styles: Record<CheckStatus | 'paused', { Icon: Icon; tint: BadgeTint; label: string }> = {
-  up: { Icon: IconCircleCheck, tint: 'ok', label: 'Activo' },
-  down: { Icon: IconCircleX, tint: 'danger', label: 'Caído' },
-  warn: { Icon: IconAlertTriangle, tint: 'warn', label: 'Advertencia' },
-  unknown: { Icon: IconHelpCircle, tint: 'muted', label: 'Desconocido' },
-  paused: { Icon: IconPlayerPause, tint: 'muted', label: 'Pausado' },
+  up: { Icon: CircleCheckIcon, tint: 'ok', label: 'Activo' },
+  down: { Icon: CircleXIcon, tint: 'danger', label: 'Caído' },
+  warn: { Icon: TriangleAlertIcon, tint: 'warn', label: 'Advertencia' },
+  unknown: { Icon: CircleHelpIcon, tint: 'muted', label: 'Desconocido' },
+  paused: { Icon: PauseIcon, tint: 'muted', label: 'Pausado' },
 }
 
 export function CheckStatusBadge({ status }: { status: CheckStatus | 'paused' }) {

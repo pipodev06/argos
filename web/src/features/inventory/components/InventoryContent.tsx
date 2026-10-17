@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { IconAlertTriangle, IconListDetails, IconRefresh } from '@tabler/icons-react'
+import { TriangleAlertIcon, ListIcon, RefreshCwIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
@@ -65,7 +65,7 @@ function ModuleBody<T>({
 
   const empty = emptyKind(data.status, data.count)
   if (empty) {
-    return <EmptyState Icon={IconListDetails} title={EMPTY_TEXT[empty]} />
+    return <EmptyState Icon={ListIcon} title={EMPTY_TEXT[empty]} />
   }
   const stamp = data.updated_at ?? data.collected_at
   return (
@@ -74,7 +74,7 @@ function ModuleBody<T>({
         {stamp && <span className="tabular-nums">Actualizado hace {formatElapsed(stamp, now)}</span>}
         {data.truncated && (
           <span className="inline-flex items-center gap-1">
-            <IconAlertTriangle className="size-4 shrink-0 text-warn" stroke={1.5} aria-hidden />
+            <TriangleAlertIcon className="size-4 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
             {truncatedNote}
           </span>
         )}
@@ -125,7 +125,7 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
       render={(items) => {
         const shown = state === 'all' ? items : items.filter((s) => s.state === state)
         return shown.length === 0 ? (
-          <EmptyState Icon={IconListDetails} title="Sin resultados" />
+          <EmptyState Icon={ListIcon} title="Sin resultados" />
         ) : (
           <PagedList key={state} items={shown} itemLabel="servicios" render={(rows, page, pageSize) => <ServicesTable items={rows} page={page} pageSize={pageSize} />} />
         )
@@ -169,12 +169,12 @@ function ChangesView({
     <div className="flex flex-col gap-3" aria-busy={loading}>
       <div>
         <Button variant="outline" size="sm" onClick={() => void refresh()}>
-          <IconRefresh stroke={1.5} aria-hidden />
+          <RefreshCwIcon strokeWidth={1.5} aria-hidden />
           Actualizar
         </Button>
       </div>
       {data.items.length === 0 && pagination.page === 1 ? (
-        <EmptyState Icon={IconListDetails} title="Sin cambios" />
+        <EmptyState Icon={ListIcon} title="Sin cambios" />
       ) : (
         <>
           <ChangesTable items={data.items} page={pagination.page} pageSize={pagination.pageSize} />

@@ -1,4 +1,4 @@
-import { IconBell, IconBook2, IconShieldCheck, IconFolders, IconHeartRateMonitor, IconHistory, IconLayoutDashboard, IconListCheck, IconSettings, IconReportAnalytics, IconRouter, IconServer2, IconTool, IconUsers, IconWebhook, type Icon } from '@tabler/icons-react'
+import { BellIcon, BookOpenIcon, ShieldCheckIcon, FoldersIcon, ActivityIcon, HistoryIcon, LayoutDashboardIcon, ListChecksIcon, SettingsIcon, FileChartColumnIcon, RouterIcon, ServerIcon, WrenchIcon, UsersIcon, WebhookIcon, type LucideIcon as Icon } from 'lucide-react'
 import type { Role, User } from '@/features/auth/types/auth.types'
 
 export interface NavItem {
@@ -21,21 +21,21 @@ export interface NavItem {
 
 // Solo hay items para rutas que existen (sin "proximamente").
 export const NAV_ITEMS: readonly NavItem[] = [
-  { to: '/', label: 'Resumen', Icon: IconLayoutDashboard, section: 'Monitoreo', end: true },
-  { to: '/hosts', label: 'Hosts', Icon: IconServer2, section: 'Monitoreo' },
-  { to: '/dispositivos', label: 'Dispositivos', Icon: IconRouter, section: 'Monitoreo' },
-  { to: '/grupos', label: 'Grupos', Icon: IconFolders, section: 'Monitoreo' },
-  { to: '/chequeos', label: 'Chequeos', Icon: IconHeartRateMonitor, section: 'Monitoreo' },
-  { to: '/parches', label: 'Parches', Icon: IconShieldCheck, section: 'Monitoreo', requiresUpdates: true },
-  { to: '/informes', label: 'Informes', Icon: IconReportAnalytics, section: 'Monitoreo' },
-  { to: '/alertas', label: 'Alertas', Icon: IconBell, section: 'Alertas', end: true, openAlertsCount: true },
-  { to: '/alertas/reglas', label: 'Reglas', Icon: IconListCheck, section: 'Alertas' },
-  { to: '/alertas/mantenimiento', label: 'Mantenimiento', Icon: IconTool, section: 'Alertas' },
-  { to: '/alertas/canales', label: 'Canales', Icon: IconWebhook, section: 'Alertas', fullScope: true },
-  { to: '/usuarios', label: 'Usuarios', Icon: IconUsers, section: 'Administración', roles: ['admin'] },
-  { to: '/configuracion', label: 'Configuración', Icon: IconSettings, section: 'Administración', roles: ['admin'] },
-  { to: '/auditoria', label: 'Auditoría', Icon: IconHistory, section: 'Administración', roles: ['admin'] },
-  { to: '/instrucciones', label: 'Instrucciones', Icon: IconBook2, section: 'Administración', roles: ['admin'] },
+  { to: '/', label: 'Resumen', Icon: LayoutDashboardIcon, section: 'Monitoreo', end: true },
+  { to: '/hosts', label: 'Hosts', Icon: ServerIcon, section: 'Monitoreo' },
+  { to: '/dispositivos', label: 'Dispositivos', Icon: RouterIcon, section: 'Monitoreo' },
+  { to: '/grupos', label: 'Grupos', Icon: FoldersIcon, section: 'Monitoreo' },
+  { to: '/chequeos', label: 'Chequeos', Icon: ActivityIcon, section: 'Monitoreo' },
+  { to: '/parches', label: 'Parches', Icon: ShieldCheckIcon, section: 'Monitoreo', requiresUpdates: true },
+  { to: '/informes', label: 'Informes', Icon: FileChartColumnIcon, section: 'Monitoreo' },
+  { to: '/alertas', label: 'Alertas', Icon: BellIcon, section: 'Alertas', end: true, openAlertsCount: true },
+  { to: '/alertas/reglas', label: 'Reglas', Icon: ListChecksIcon, section: 'Alertas' },
+  { to: '/alertas/mantenimiento', label: 'Mantenimiento', Icon: WrenchIcon, section: 'Alertas' },
+  { to: '/alertas/canales', label: 'Canales', Icon: WebhookIcon, section: 'Alertas', fullScope: true },
+  { to: '/usuarios', label: 'Usuarios', Icon: UsersIcon, section: 'Administración', roles: ['admin'] },
+  { to: '/configuracion', label: 'Configuración', Icon: SettingsIcon, section: 'Administración', roles: ['admin'] },
+  { to: '/auditoria', label: 'Auditoría', Icon: HistoryIcon, section: 'Administración', roles: ['admin'] },
+  { to: '/instrucciones', label: 'Instrucciones', Icon: BookOpenIcon, section: 'Administración', roles: ['admin'] },
 ]
 
 /** Agrupa por `section` conservando el orden de aparicion. */

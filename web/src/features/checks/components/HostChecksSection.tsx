@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useState } from 'react'
-import { IconArrowRight, IconChevronDown, IconHeartRateMonitor } from '@tabler/icons-react'
+import { ArrowRightIcon, ChevronDownIcon, ActivityIcon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -52,7 +52,7 @@ function EventsPanel({ hostId, checkId }: { hostId: string; checkId: string }) {
             <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-sm">
               <span className="flex items-center gap-2">
                 {e.from_status ? <CheckStatusBadge status={e.from_status} /> : <span className="text-sm text-text-muted">Primer resultado</span>}
-                <IconArrowRight className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-label="a" />
+                <ArrowRightIcon className="size-4 shrink-0 text-text-muted" strokeWidth={1.5} aria-label="a" />
                 <CheckStatusBadge status={e.to_status} />
               </span>
               <span className="tabular-nums">{formatFullDate(e.at)}</span>
@@ -104,7 +104,7 @@ function CheckRow({ n, hostId, item, now, targetFallback }: { n: number; hostId:
             title="Transiciones"
             onClick={() => setOpen((o) => !o)}
           >
-            <IconChevronDown className={`transition-transform ${open ? '' : '-rotate-90'}`} stroke={1.5} aria-hidden />
+            <ChevronDownIcon className={`transition-transform ${open ? '' : '-rotate-90'}`} strokeWidth={1.5} aria-hidden />
           </Button>
         </Cell>
       </Row>
@@ -124,7 +124,7 @@ function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallb
   const now = useNow(30_000)
   if (error && !data) return <InlineError>{error}</InlineError>
   if (!data) return <Skeleton className="h-16 w-full" />
-  if (data.length === 0) return <EmptyState Icon={IconHeartRateMonitor} title="Sin chequeos" />
+  if (data.length === 0) return <EmptyState Icon={ActivityIcon} title="Sin chequeos" />
   return (
     <DataTable caption="Chequeos del host" className="min-w-[68rem]">
       <thead>

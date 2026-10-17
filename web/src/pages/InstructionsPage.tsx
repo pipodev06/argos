@@ -1,4 +1,4 @@
-import { IconChevronDown } from '@tabler/icons-react'
+import { ChevronDownIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { CopyBlock } from '@/components/ui/copy-block'
 import { PageHeader } from '@/components/ui/page-header'
@@ -10,7 +10,7 @@ function Collapsible({ title, children }: { title: string; children: ReactNode }
     <details className="group rounded-md border border-border">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-md px-4 py-3 text-sm font-semibold outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-ring">
         {title}
-        <IconChevronDown className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180" stroke={1.5} aria-hidden />
+        <ChevronDownIcon className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180" strokeWidth={1.5} aria-hidden />
       </summary>
       <div className="flex flex-col gap-4 border-t border-border px-4 py-4">{children}</div>
     </details>
@@ -55,7 +55,7 @@ export function InstructionsPage() {
         </Collapsible>
 
         <Collapsible title="Editar la interfaz con recarga en caliente (Node, :5173)">
-          <Cmd title="Con el server ya corriendo, en otra terminal" value="cd web && npm run dev" />
+          <Cmd title="Con el server ya corriendo, en otra terminal" value="cd web && pnpm dev" />
         </Collapsible>
 
         <Collapsible title="Agente">

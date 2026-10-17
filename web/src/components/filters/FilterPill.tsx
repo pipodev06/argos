@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { IconChevronDown, IconX } from '@tabler/icons-react'
+import { ChevronDownIcon, XIcon } from 'lucide-react'
 import { cn } from 'cn'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
@@ -40,7 +40,7 @@ export function FilterPill({ label, summary, onClear, onOpenChange, contentClass
             className="flex min-w-0 flex-1 items-center gap-1 px-3 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <span className={`min-w-0 flex-1 truncate ${active ? 'font-medium' : ''}`}>{summary ?? label}</span>
-            {!active && <IconChevronDown className="size-4 shrink-0 text-text-muted" stroke={1.5} aria-hidden />}
+            {!active && <ChevronDownIcon className="size-4 shrink-0 text-text-muted" strokeWidth={1.5} aria-hidden />}
           </button>
         </PopoverTrigger>
         {active && (
@@ -50,7 +50,7 @@ export function FilterPill({ label, summary, onClear, onOpenChange, contentClass
             onClick={onClear}
             className="inline-flex w-8 items-center justify-center border-l border-text-muted text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
-            <IconX className="size-4" stroke={1.5} aria-hidden />
+            <XIcon className="size-4" strokeWidth={1.5} aria-hidden />
           </button>
         )}
       </div>
@@ -75,7 +75,7 @@ export function RemovableChip({ text, onRemove }: { text: string; onRemove: () =
         onClick={onRemove}
         className="inline-flex w-8 items-center justify-center border-l border-text-muted text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <IconX className="size-4" stroke={1.5} aria-hidden />
+        <XIcon className="size-4" strokeWidth={1.5} aria-hidden />
       </button>
     </li>
   )

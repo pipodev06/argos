@@ -1,4 +1,4 @@
-import { IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
+import { PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
@@ -66,7 +66,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
               {isAdmin && (
                 <Cell className="relative z-10">
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar dispositivo ${d.name}`} title="Editar" onClick={() => onAction('edit', d)}>
-                    <IconPencil stroke={1.5} aria-hidden />
+                    <PencilIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                   <Button
                     variant="ghost"
@@ -75,10 +75,10 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
                     title={d.status === 'disabled' ? 'Habilitar' : 'Deshabilitar'}
                     onClick={() => onAction('toggle', d)}
                   >
-                    {d.status === 'disabled' ? <IconPlayerPlay stroke={1.5} aria-hidden /> : <IconPlayerPause stroke={1.5} aria-hidden />}
+                    {d.status === 'disabled' ? <PlayIcon strokeWidth={1.5} aria-hidden /> : <PauseIcon strokeWidth={1.5} aria-hidden />}
                   </Button>
                   <Button variant="ghost" size="icon-sm" aria-label={`Eliminar dispositivo ${d.name}`} title="Eliminar" onClick={() => onAction('delete', d)}>
-                    <IconTrash stroke={1.5} aria-hidden />
+                    <Trash2Icon strokeWidth={1.5} aria-hidden />
                   </Button>
                 </Cell>
               )}

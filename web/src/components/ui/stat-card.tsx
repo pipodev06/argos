@@ -1,9 +1,10 @@
-import type { ComponentType, ReactNode } from "react"
+import type { ReactNode } from "react"
 import { cn } from "cn"
+import type { LucideIcon } from "lucide-react"
 
 interface StatCardProps {
   label: string
-  Icon: ComponentType<{ className?: string; stroke?: number; "aria-hidden"?: boolean }>
+  Icon: LucideIcon
   /** Color del icono (p. ej. `text-ok`); por defecto hereda el muted de la etiqueta. */
   iconClassName?: string
   /** Barra de 2px `danger` a la izquierda (mismo patron que la fila de host caido). */
@@ -20,7 +21,7 @@ function StatCard({ label, Icon, iconClassName, alert = false, children }: StatC
     >
       {alert && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-danger" />}
       <h3 className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
-        <Icon className={cn("size-4 shrink-0", iconClassName)} stroke={1.5} aria-hidden />
+        <Icon className={cn("size-4 shrink-0", iconClassName)} strokeWidth={1.5} aria-hidden />
         {label}
       </h3>
       <div className="flex flex-col gap-1">{children}</div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconHeartRateMonitor } from '@tabler/icons-react'
+import { ActivityIcon } from 'lucide-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
@@ -67,12 +67,12 @@ export function ChecksPage() {
         {loading && !checks && <Skeleton className="h-40 w-full" />}
         {checks && checks.length === 0 && (
           <EmptyState
-            Icon={IconHeartRateMonitor}
+            Icon={ActivityIcon}
             title="Sin chequeos"
           />
         )}
         {checks && checks.length > 0 && shown?.length === 0 && hasActive && (
-          <NoResultsState Icon={IconHeartRateMonitor} onClear={clear} />
+          <NoResultsState Icon={ActivityIcon} onClear={clear} />
         )}
         {shown && shown.length > 0 && <ChecksTable checks={shown} canAct={isAdmin} busy={toggle.busy} devices={devices ?? undefined} onAction={handleAction} />}
       </div>

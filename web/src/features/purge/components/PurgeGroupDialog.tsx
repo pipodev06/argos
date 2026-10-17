@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconAlertTriangle, IconDownload } from '@tabler/icons-react'
+import { TriangleAlertIcon, DownloadIcon } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,7 +86,7 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
               variant="outline"
               onClick={() => downloadBlob(buildConstancia(result), constanciaFilename(result.group_name, result.purged_at))}
             >
-              <IconDownload stroke={1.5} aria-hidden />
+              <DownloadIcon strokeWidth={1.5} aria-hidden />
               Descargar constancia
             </Button>
           )
@@ -102,7 +102,7 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <IconAlertTriangle className="size-5 shrink-0 text-danger" stroke={1.5} aria-hidden />
+            <TriangleAlertIcon className="size-5 shrink-0 text-danger" strokeWidth={1.5} aria-hidden />
             {`Eliminar "${group.name}" y sus ${group.host_count} hosts`}
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -112,7 +112,7 @@ function PurgeGroupForm({ group, onClose, onDone }: { group: Group } & Omit<Purg
         <div className="grid gap-3">
           <div className="flex flex-col items-start gap-1.5">
             <Button type="button" variant="outline" size="sm" disabled={exportMutation.busy} onClick={() => void exportBackup()}>
-              <IconDownload stroke={1.5} aria-hidden />
+              <DownloadIcon strokeWidth={1.5} aria-hidden />
               {exportMutation.busy ? 'Exportando...' : 'Exportar antes'}
             </Button>
             {exportMutation.error && <InlineError>{exportMutation.error}</InlineError>}

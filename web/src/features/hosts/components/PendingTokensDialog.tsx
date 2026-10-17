@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { IconKey, IconTrash } from '@tabler/icons-react'
+import { KeyRoundIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
@@ -63,7 +63,7 @@ function PendingTokensBody() {
       </DialogHeader>
       {error && <TableError message={error} onRetry={() => void refresh()} />}
       {loading && !data && <Skeleton className="h-24 w-full" />}
-      {data && data.length === 0 && <EmptyState Icon={IconKey} title="Sin tokens pendientes" />}
+      {data && data.length === 0 && <EmptyState Icon={KeyRoundIcon} title="Sin tokens pendientes" />}
       {data && data.length > 0 && (
         <DataTable caption="Tokens de enrolamiento pendientes" className="min-w-[40rem]">
           <thead>
@@ -98,7 +98,7 @@ function PendingTokensBody() {
                     title="Revocar"
                     onClick={() => setRevoking(t)}
                   >
-                    <IconTrash stroke={1.5} aria-hidden />
+                    <Trash2Icon strokeWidth={1.5} aria-hidden />
                   </Button>
                 </Cell>
               </Row>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconListCheck } from '@tabler/icons-react'
+import { ListChecksIcon } from 'lucide-react'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -68,7 +68,7 @@ export function RulesPage() {
         )}
         {loading && !rules && <Skeleton className="h-40 w-full" />}
         {rules && rules.length === 0 && (
-          <EmptyState Icon={IconListCheck} title="Sin reglas" />
+          <EmptyState Icon={ListChecksIcon} title="Sin reglas" />
         )}
         {rules && rules.length > 0 && (
           <RulesTable

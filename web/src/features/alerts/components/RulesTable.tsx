@@ -1,4 +1,4 @@
-import { IconBellPause, IconBellRinging2, IconCircleCheck, IconCircleOff, IconCopy, IconPencil, IconPlayerPause, IconPlayerPlay, IconTrash } from '@tabler/icons-react'
+import { BellMinusIcon, BellRingIcon, CircleCheckIcon, CircleOffIcon, CopyIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,11 +21,11 @@ interface RulesTableProps {
 
 export function RuleEnabledBadge({ enabled }: { enabled: boolean }) {
   return enabled ? (
-    <Badge Icon={IconCircleCheck} tint="ok">
+    <Badge Icon={CircleCheckIcon} tint="ok">
       Activa
     </Badge>
   ) : (
-    <Badge Icon={IconCircleOff}>Desactivada</Badge>
+    <Badge Icon={CircleOffIcon}>Desactivada</Badge>
   )
 }
 
@@ -75,7 +75,7 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
                   title="Editar"
                   onClick={() => onAction('edit', r)}
                 >
-                  <IconPencil stroke={1.5} aria-hidden />
+                  <PencilIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"
@@ -84,7 +84,7 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
                   title="Duplicar"
                   onClick={() => onAction('clone', r)}
                 >
-                  <IconCopy stroke={1.5} aria-hidden />
+                  <CopyIcon strokeWidth={1.5} aria-hidden />
                 </Button>
                 <Button
                   variant="ghost"
@@ -94,7 +94,7 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
                   disabled={busy}
                   onClick={() => onAction('toggle', r)}
                 >
-                  {r.enabled ? <IconPlayerPause stroke={1.5} aria-hidden /> : <IconPlayerPlay stroke={1.5} aria-hidden />}
+                  {r.enabled ? <PauseIcon strokeWidth={1.5} aria-hidden /> : <PlayIcon strokeWidth={1.5} aria-hidden />}
                 </Button>
                 <Button
                   variant="ghost"
@@ -103,7 +103,7 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
                   title="Eliminar"
                   onClick={() => onAction('delete', r)}
                 >
-                  <IconTrash stroke={1.5} aria-hidden />
+                  <Trash2Icon strokeWidth={1.5} aria-hidden />
                 </Button>
                 {isMuted(r) ? (
                   <Button
@@ -114,13 +114,13 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
                     disabled={busy}
                     onClick={() => onUnmute(r)}
                   >
-                    <IconBellRinging2 stroke={1.5} aria-hidden />
+                    <BellRingIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                 ) : (
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon-sm" aria-label={`Silenciar regla ${r.name}`} title="Silenciar" disabled={busy}>
-                        <IconBellPause stroke={1.5} aria-hidden />
+                        <BellMinusIcon strokeWidth={1.5} aria-hidden />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>

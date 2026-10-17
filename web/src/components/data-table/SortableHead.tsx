@@ -1,4 +1,4 @@
-import { IconArrowDown, IconArrowUp, IconArrowsSort } from '@tabler/icons-react'
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon } from 'lucide-react'
 import { cn } from 'cn'
 import { HeadCell } from './DataTable'
 
@@ -16,7 +16,7 @@ interface SortableHeadProps<K extends string> {
 /** Encabezado ordenable (`aria-sort`, centrado). `sort`/`dir` = orden actual de la tabla. */
 export function SortableHead<K extends string>({ id, label, sort, dir, onSort, className }: SortableHeadProps<K>) {
   const active = sort === id
-  const Icon = !active ? IconArrowsSort : dir === 'asc' ? IconArrowUp : IconArrowDown
+  const Icon = !active ? ArrowUpDownIcon : dir === 'asc' ? ArrowUpIcon : ArrowDownIcon
   return (
     <HeadCell aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined} className={className}>
       <button
@@ -28,7 +28,7 @@ export function SortableHead<K extends string>({ id, label, sort, dir, onSort, c
         )}
       >
         {label}
-        <Icon className="size-3.5" stroke={1.5} aria-hidden />
+        <Icon className="size-3.5" strokeWidth={1.5} aria-hidden />
       </button>
     </HeadCell>
   )

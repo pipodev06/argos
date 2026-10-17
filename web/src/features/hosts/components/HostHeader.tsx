@@ -1,4 +1,4 @@
-import { IconEraser, IconPencil, IconPlayerPause, IconRefresh } from '@tabler/icons-react'
+import { EraserIcon, PencilIcon, PauseIcon, RefreshCwIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { HostDetail } from '../types/host.types'
 import { formatLastSeen } from '../utils/format'
@@ -33,24 +33,24 @@ export function HostHeader({ host, ip, canEdit, onEdit, onPurge, onRevoke, onReE
         {canEdit && (
           <div className="ml-auto flex gap-2">
             <Button variant="outline" size="sm" onClick={onEdit}>
-              <IconPencil stroke={1.5} aria-hidden />
+              <PencilIcon strokeWidth={1.5} aria-hidden />
               Editar
             </Button>
             {isAgent && onRevoke && !isDisabled && (
               <Button variant="outline" size="sm" onClick={onRevoke}>
-                <IconPlayerPause stroke={1.5} aria-hidden />
+                <PauseIcon strokeWidth={1.5} aria-hidden />
                 Deshabilitar
               </Button>
             )}
             {isAgent && onReEnroll && (
               <Button variant="outline" size="sm" onClick={onReEnroll}>
-                <IconRefresh stroke={1.5} aria-hidden />
+                <RefreshCwIcon strokeWidth={1.5} aria-hidden />
                 {isDisabled ? 'Reactivar' : 'Re-enrolar'}
               </Button>
             )}
             {onPurge && (
               <Button variant="outline" size="sm" onClick={onPurge}>
-                <IconEraser stroke={1.5} aria-hidden />
+                <EraserIcon strokeWidth={1.5} aria-hidden />
                 Eliminar datos del host…
               </Button>
             )}

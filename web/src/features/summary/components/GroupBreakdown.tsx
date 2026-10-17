@@ -1,4 +1,4 @@
-import { IconCircleX } from '@tabler/icons-react'
+import { CircleXIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import type { SummaryGroup } from '../types/summary.types'
 
@@ -25,7 +25,7 @@ export function GroupBreakdown({ groups }: { groups: SummaryGroup[] }) {
                     <span className="flex items-center gap-3 text-xs tabular-nums">
                       {g.down > 0 && (
                         <span className="flex items-center gap-1">
-                          <IconCircleX className="size-3.5 text-danger" stroke={1.5} aria-hidden />
+                          <CircleXIcon className="size-3.5 text-danger" strokeWidth={1.5} aria-hidden />
                           {g.down} {g.down === 1 ? 'caído' : 'caídos'}
                         </span>
                       )}

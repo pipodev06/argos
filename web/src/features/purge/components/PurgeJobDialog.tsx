@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IconCircleCheck, IconCircleX, IconLoader2 } from '@tabler/icons-react'
+import { CircleCheckIcon, CircleXIcon, LoaderCircleIcon } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,7 +52,7 @@ export function PurgeJobDialog({
   const failed = job.state === 'failed'
   const active = !isPurgeJobFinal(job)
   const label = purgeProgressLabel(job)
-  const StatusIcon = done ? IconCircleCheck : failed ? IconCircleX : IconLoader2
+  const StatusIcon = done ? CircleCheckIcon : failed ? CircleXIcon : LoaderCircleIcon
 
   return (
     <AlertDialog open onOpenChange={(next) => !next && onClose()}>
@@ -61,7 +61,7 @@ export function PurgeJobDialog({
           <AlertDialogTitle className="flex items-center gap-2">
             <StatusIcon
               className={`size-5 shrink-0 ${done ? 'text-ok' : failed ? 'text-danger' : 'animate-spin motion-reduce:animate-none'}`}
-              stroke={1.5}
+              strokeWidth={1.5}
               aria-hidden
             />
             {done ? doneTitle : failed ? 'La baja falló' : runningTitle}

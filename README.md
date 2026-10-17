@@ -12,10 +12,10 @@ Documentación interna: `docs/estado-del-proyecto.md` (resumen) y `docs/decision
 
 Dos piezas, dos herramientas:
 - **Server** (Go): se compila a un ejecutable (`.dev-bin/argos-server.exe`) que sirve la API **y** la web ya compilada en `:8080`. `run-local.sh` compila y arranca todo; no hay backend en Node.
-- **Web** (Node): solo hace falta `npm run dev` si vas a editar pantallas y quieres recarga en caliente (`:5173`). Usa el mismo server de `:8080` por detrás.
+- **Web** (Node): solo hace falta `pnpm dev` si vas a editar pantallas y quieres recarga en caliente (`:5173`). Usa el mismo server de `:8080` por detrás.
 
 ### Requisitos
-- Go 1.27.2 o superior, Node 22 o superior y Git Bash (en Windows).
+- Go 1.27.2 o superior, Node 22 o superior con pnpm (`corepack enable` lo activa) y Git Bash (en Windows).
 - PostgreSQL 18 local con usuario y clave `argos` y dos bases de datos: `argos` (la de uso diario) y `argos_test` (solo para tests). Si no tienes Postgres instalado, `docker compose up -d` levanta uno igual en `127.0.0.1:5432`.
 - La clave de cifrado del servidor, creada una sola vez:
   ```bash
@@ -37,7 +37,7 @@ cd server && DATABASE_URL='postgres://argos:argos@localhost:5432/argos?sslmode=d
   ARGOS_SECRET_KEY="$(cat ~/.argos-dev/secret-key.txt)" go run ./cmd/server create-admin admin   # pide la contraseña sin eco
 ```
 
-Para editar la interfaz con recarga en caliente, deja el servidor corriendo y usa `cd web && npm run dev` (Vite en `http://localhost:5173`, con `/api` redirigido a `:8080`).
+Para editar la interfaz con recarga en caliente, deja el servidor corriendo y usa `cd web && pnpm dev` (Vite en `http://localhost:5173`, con `/api` redirigido a `:8080`).
 
 ### Agente local
 ```bash

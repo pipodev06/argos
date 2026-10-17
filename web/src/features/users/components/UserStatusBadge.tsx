@@ -1,11 +1,11 @@
-import { IconCircleCheck, IconCircleOff } from '@tabler/icons-react'
+import { CircleCheckIcon, CircleOffIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 export function UserStatusBadge({ disabled }: { disabled: boolean }) {
   return disabled ? (
-    <Badge Icon={IconCircleOff}>Deshabilitado</Badge>
+    <Badge Icon={CircleOffIcon}>Deshabilitado</Badge>
   ) : (
-    <Badge Icon={IconCircleCheck} tint="ok">
+    <Badge Icon={CircleCheckIcon} tint="ok">
       Activo
     </Badge>
   )

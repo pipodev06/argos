@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconLock, IconUsers } from '@tabler/icons-react'
+import { LockIcon, UsersIcon } from 'lucide-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,7 @@ export function UsersPage() {
     return (
       <>
         <PageHeader title="Usuarios" />
-        <EmptyState Icon={IconLock} title="Sin permiso" />
+        <EmptyState Icon={LockIcon} title="Sin permiso" />
       </>
     )
   }
@@ -63,9 +63,9 @@ function UsersAdmin({ currentUserId }: { currentUserId: string }) {
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {loading && !users && <Skeleton className="h-40 w-full" />}
-        {users && users.length === 0 && <EmptyState Icon={IconUsers} title="Sin usuarios" />}
+        {users && users.length === 0 && <EmptyState Icon={UsersIcon} title="Sin usuarios" />}
         {visible && users && users.length > 0 && visible.length === 0 && hasActive && (
-          <NoResultsState Icon={IconUsers} onClear={clear} />
+          <NoResultsState Icon={UsersIcon} onClear={clear} />
         )}
         {visible && visible.length > 0 && (
           <UsersTable

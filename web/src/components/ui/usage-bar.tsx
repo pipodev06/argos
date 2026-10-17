@@ -1,12 +1,12 @@
-import type { Icon } from "@tabler/icons-react"
-import { IconAlertOctagon, IconAlertTriangle, IconCircleCheck } from "@tabler/icons-react"
+import type { LucideIcon as Icon } from "lucide-react"
+import { OctagonAlertIcon, TriangleAlertIcon, CircleCheckIcon } from "lucide-react"
 import { USAGE_CRIT_PCT, USAGE_WARN_PCT, clampPct, displayPct, usageLevel, type UsageLevel } from "@/lib/usage"
 
 // El estado se dice siempre con icono + palabra; el color (relleno e icono) solo lo refuerza.
 const LEVELS: Record<UsageLevel, { word: string; Icon: Icon; fill: string; icon: string }> = {
-  ok: { word: "Normal", Icon: IconCircleCheck, fill: "bg-ok", icon: "text-ok" },
-  warn: { word: "Casi lleno", Icon: IconAlertTriangle, fill: "bg-warn", icon: "text-warn" },
-  critical: { word: "Lleno", Icon: IconAlertOctagon, fill: "bg-danger", icon: "text-danger" },
+  ok: { word: "Normal", Icon: CircleCheckIcon, fill: "bg-ok", icon: "text-ok" },
+  warn: { word: "Casi lleno", Icon: TriangleAlertIcon, fill: "bg-warn", icon: "text-warn" },
+  critical: { word: "Lleno", Icon: OctagonAlertIcon, fill: "bg-danger", icon: "text-danger" },
 }
 
 interface UsageBarProps {
@@ -48,7 +48,7 @@ function UsageBar({ value, label, hideStatus = false }: UsageBarProps) {
       {!hideStatus && (
         <div className="flex shrink-0 items-center gap-1.5 text-xs">
           <span className="w-9 text-right tabular-nums">{shown} %</span>
-          <StatusIcon className={`size-4 shrink-0 ${icon}`} stroke={1.5} aria-hidden />
+          <StatusIcon className={`size-4 shrink-0 ${icon}`} strokeWidth={1.5} aria-hidden />
           <span>{word}</span>
         </div>
       )}

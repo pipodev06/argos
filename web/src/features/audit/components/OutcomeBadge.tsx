@@ -1,12 +1,12 @@
-import { IconAlertTriangle, IconCircleCheck, IconLock, type Icon } from '@tabler/icons-react'
+import { TriangleAlertIcon, CircleCheckIcon, LockIcon, type LucideIcon as Icon } from 'lucide-react'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
 import type { AuditOutcome } from '../types/audit.types'
 import { OUTCOME_LABELS } from '../utils/labels'
 
 const STYLES: Record<AuditOutcome, { Icon: Icon; tint: BadgeTint }> = {
-  ok: { Icon: IconCircleCheck, tint: 'ok' },
-  fail: { Icon: IconAlertTriangle, tint: 'warn' },
-  denied: { Icon: IconLock, tint: 'danger' },
+  ok: { Icon: CircleCheckIcon, tint: 'ok' },
+  fail: { Icon: TriangleAlertIcon, tint: 'warn' },
+  denied: { Icon: LockIcon, tint: 'danger' },
 }
 
 export function OutcomeBadge({ outcome }: { outcome: AuditOutcome }) {

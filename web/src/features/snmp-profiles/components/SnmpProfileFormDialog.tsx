@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { IconAlertTriangle } from '@tabler/icons-react'
+import { TriangleAlertIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -114,7 +114,7 @@ function ProfileForm({ profile, onClose, onSaved }: SnmpProfileFormDialogProps) 
       ) : (
         <>
           <div role="alert" className="flex items-start gap-2 rounded-md border border-border bg-warn/10 p-3 text-sm">
-            <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" stroke={1.5} aria-hidden />
+            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
             <p>
               <strong className="font-semibold">SNMPv2c es menos seguro.</strong> La comunidad viaja sin cifrar por la red y cualquiera que la vea puede reutilizarla.
               Solo lectura. Usa SNMPv3 siempre que el equipo lo permita.

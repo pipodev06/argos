@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { IconDownload, IconInfoCircle } from '@tabler/icons-react'
+import { DownloadIcon, InfoIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DateTimeField } from '@/components/ui/date-time-picker'
 import { InlineError } from '@/components/ui/inline-error'
@@ -137,7 +137,7 @@ export function HostHistoryView({ id }: { id: string }) {
           {data && (
             <div className="flex flex-col gap-1 text-sm" role="status">
               <p className="flex items-start gap-1.5">
-                <IconInfoCircle className="mt-0.5 size-4 shrink-0 text-info" stroke={1.5} aria-hidden />
+                <InfoIcon className="mt-0.5 size-4 shrink-0 text-info" strokeWidth={1.5} aria-hidden />
                 <span>
                   {data.resolution === 'raw'
                     ? 'Detalle cada 30 s.'
@@ -154,11 +154,11 @@ export function HostHistoryView({ id }: { id: string }) {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" disabled={exporting !== null} onClick={() => void exportCsv('metrics')}>
-              <IconDownload stroke={1.5} aria-hidden />
+              <DownloadIcon strokeWidth={1.5} aria-hidden />
               {exporting === 'metrics' ? 'Exportando…' : 'Exportar CSV (métricas)'}
             </Button>
             <Button type="button" variant="outline" size="sm" disabled={exporting !== null} onClick={() => void exportCsv('disks')}>
-              <IconDownload stroke={1.5} aria-hidden />
+              <DownloadIcon strokeWidth={1.5} aria-hidden />
               {exporting === 'disks' ? 'Exportando…' : 'Exportar CSV (discos)'}
             </Button>
           </div>

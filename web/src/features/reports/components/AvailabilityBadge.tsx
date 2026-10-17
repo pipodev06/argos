@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconCircleCheck, IconCircleOff } from '@tabler/icons-react'
+import { TriangleAlertIcon, CircleCheckIcon, CircleOffIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { AVAILABILITY_TARGET_PCT, formatAvailabilityPercent } from '../utils/format'
 
@@ -6,9 +6,9 @@ import { AVAILABILITY_TARGET_PCT, formatAvailabilityPercent } from '../utils/for
 export function AvailabilityBadge({ pct }: { pct: number | null }) {
   const props =
     pct === null
-      ? ({ Icon: IconCircleOff, tint: 'muted' } as const)
+      ? ({ Icon: CircleOffIcon, tint: 'muted' } as const)
       : pct >= AVAILABILITY_TARGET_PCT
-        ? ({ Icon: IconCircleCheck, tint: 'ok' } as const)
-        : ({ Icon: IconAlertTriangle, tint: 'warn' } as const)
+        ? ({ Icon: CircleCheckIcon, tint: 'ok' } as const)
+        : ({ Icon: TriangleAlertIcon, tint: 'warn' } as const)
   return <Badge {...props}>{formatAvailabilityPercent(pct)}</Badge>
 }

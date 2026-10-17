@@ -1,4 +1,4 @@
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SegmentedControl } from "@/components/ui/segmented-control"
 import { PAGE_SIZES, formatPageRange, isPageSize, type PageSize } from "@/lib/pagination"
@@ -64,12 +64,12 @@ function Pagination({
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onPrev} disabled={!hasPrev || loading}>
-            <IconChevronLeft stroke={1.5} aria-hidden />
+            <ChevronLeftIcon strokeWidth={1.5} aria-hidden />
             Anterior
           </Button>
           <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext || loading}>
             Siguiente
-            <IconChevronRight stroke={1.5} aria-hidden />
+            <ChevronRightIcon strokeWidth={1.5} aria-hidden />
           </Button>
         </div>
       </div>

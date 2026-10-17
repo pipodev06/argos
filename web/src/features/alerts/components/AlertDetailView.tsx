@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { IconArrowLeft, IconBellOff } from '@tabler/icons-react'
+import { ArrowLeftIcon, BellOffIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
@@ -65,7 +65,7 @@ export function AlertDetailView({ id }: { id: string }) {
         to="/alertas"
         className="flex w-fit items-center gap-1 rounded-md text-sm text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <IconArrowLeft className="size-4" stroke={1.5} aria-hidden />
+        <ArrowLeftIcon className="size-4" strokeWidth={1.5} aria-hidden />
         Volver a alertas
       </Link>
 
@@ -138,7 +138,7 @@ export function AlertDetailView({ id }: { id: string }) {
               <Section title="Notificaciones">
                 {data.deliveries.length === 0 ? (
                   <p className="flex items-center gap-2 text-sm text-text-muted">
-                    <IconBellOff className="size-4 shrink-0" stroke={1.5} aria-hidden />
+                    <BellOffIcon className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
                     Sin notificaciones
                   </p>
                 ) : (
