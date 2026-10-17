@@ -1,15 +1,56 @@
 import { Suspense, type MouseEvent } from 'react'
-import { Outlet } from 'react-router'
-import { AppLogo } from '@/components/ui/app-logo'
+import { Link, Outlet, useLocation } from 'react-router'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { ThemeToggle } from '@/features/theme/components/ThemeToggle'
 import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed'
+import { navItemForPath } from '../nav-items'
 import { AppSidebar } from './Sidebar'
 
-// Shell de las pantallas con sesion sobre el Sidebar de shadcn: 240px / 56px desde `md`; en movil barra superior
-// de 48px + drawer. El login y el cambio forzado de clave NO usan el shell.
+/** Migas de la barra superior: seccion › pagina (› "Detalle" en rutas hijas de la pagina). */
+function PageBreadcrumb() {
+  const { pathname } = useLocation()
+  const item = navItemForPath(pathname)
+  if (!item) return null
+  const nested = pathname !== item.to
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem className="hidden md:block">{item.section}</BreadcrumbItem>
+        <BreadcrumbSeparator className="hidden md:block" />
+        <BreadcrumbItem>
+          {nested ? (
+            <BreadcrumbLink asChild>
+              <Link to={item.to}>{item.label}</Link>
+            </BreadcrumbLink>
+          ) : (
+            <BreadcrumbPage>{item.label}</BreadcrumbPage>
+          )}
+        </BreadcrumbItem>
+        {nested && (
+          <>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Detalle</BreadcrumbPage>
+            </BreadcrumbItem>
+          </>
+        )}
+      </BreadcrumbList>
+    </Breadcrumb>
+  )
+}
+
+// Shell sobre el bloque sidebar-07 de shadcn: sidebar 240px / 56px y barra superior con contraer + migas.
+// El login y el cambio forzado de clave NO usan el shell.
 export function AppShell() {
   const { collapsed, setCollapsed } = useSidebarCollapsed()
 
@@ -31,16 +72,13 @@ export function AppShell() {
         </a>
         <AppSidebar />
         <SidebarInset className="min-w-0 bg-bg text-text">
-          {/* Movil (<md): barra superior; el drawer lo abre SidebarTrigger */}
-          <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-surface px-2 md:hidden">
-            <SidebarTrigger aria-label="Abrir menú" />
-            <AppLogo />
-            <div className="ml-auto">
-              <ThemeToggle />
-            </div>
+          <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-bg px-4">
+            <SidebarTrigger className="-ml-1" aria-label="Mostrar u ocultar el menú" />
+            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+            <PageBreadcrumb />
           </header>
           <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
-            <div className="w-full px-4 py-6 md:px-8 md:py-8">
+            <div className="w-full px-4 py-6 md:px-8">
               <Suspense
                 fallback={
                   <div role="status" aria-label="Cargando">
