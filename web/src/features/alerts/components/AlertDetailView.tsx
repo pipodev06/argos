@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { ArrowLeftIcon, BellOffIcon } from 'lucide-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { useAuth } from '@/features/auth/hooks/useAuth'
@@ -143,7 +143,7 @@ export function AlertDetailView({ id }: { id: string }) {
                   </p>
                 ) : (
                   <DataTable caption="Entregas de notificaciones" className="min-w-[40rem]">
-                    <thead>
+                    <TableHeader>
                       <HeadRow>
                         <RowNumberHeadCell />
                         <HeadCell>Canal</HeadCell>
@@ -152,8 +152,8 @@ export function AlertDetailView({ id }: { id: string }) {
                         <HeadCell>Intentos</HeadCell>
                         <HeadCell>Enviada</HeadCell>
                       </HeadRow>
-                    </thead>
-                    <tbody>
+                    </TableHeader>
+                    <TableBody>
                       {data.deliveries.map((d, i) => (
                         <Row key={d.id}>
                           <RowNumberCell n={i + 1} />
@@ -164,7 +164,7 @@ export function AlertDetailView({ id }: { id: string }) {
                           <Cell className="tabular-nums">{d.sent_at ? formatFullDate(d.sent_at) : '—'}</Cell>
                         </Row>
                       ))}
-                    </tbody>
+                    </TableBody>
                   </DataTable>
                 )}
               </Section>

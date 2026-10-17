@@ -1,4 +1,4 @@
-# argos
+<h1><img src="docs/assets/logo.svg" alt="argos" height="40"></h1>
 
 Monitoreo de hosts, dispositivos y servicios (tipo Zabbix/PRTG), pensado para hospedarse como servicio para varios clientes.
 

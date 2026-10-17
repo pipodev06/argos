@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { SortableHead, type SortDir } from '@/components/data-table/SortableHead'
 import { formatOs } from '@/features/hosts/utils/os'
@@ -28,7 +28,7 @@ export function FleetTable({ items, page, pageSize, sort, dir, onSort, now }: Fl
   const sp = { sort, dir, onSort }
   return (
     <DataTable caption="Parches del sistema operativo">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <SortableHead id="name" label="Host" {...sp} />
@@ -40,8 +40,8 @@ export function FleetTable({ items, page, pageSize, sort, dir, onSort, now }: Fl
           <SortableHead id="eol" label="Fin de vida" {...sp} />
           <SortableHead id="updated" label="Dato" {...sp} />
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {items === null ? (
           <SkeletonRows colSpan={9} />
         ) : (
@@ -68,7 +68,7 @@ export function FleetTable({ items, page, pageSize, sort, dir, onSort, now }: Fl
             </Row>
           ))
         )}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

@@ -18,7 +18,7 @@ export function GroupBreakdown({ groups }: { groups: SummaryGroup[] }) {
               <li key={g.group_id ?? 'none'} className="border-b border-border last:border-b-0">
                 <Link
                   to={`/hosts?group=${g.group_id ?? 'none'}`}
-                  className="flex min-h-9 flex-col gap-1 px-3 py-2 text-sm outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  className="flex min-h-8 flex-col gap-1 px-2 py-1 text-sm outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <span className="flex flex-wrap items-baseline justify-between gap-x-3">
                     <span className="min-w-0 truncate font-semibold">{g.name}</span>

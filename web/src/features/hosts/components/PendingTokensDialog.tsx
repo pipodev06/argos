@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { KeyRoundIcon, Trash2Icon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -66,7 +66,7 @@ function PendingTokensBody() {
       {data && data.length === 0 && <EmptyState Icon={KeyRoundIcon} title="Sin tokens pendientes" />}
       {data && data.length > 0 && (
         <DataTable caption="Tokens de enrolamiento pendientes" className="min-w-[40rem]">
-          <thead>
+          <TableHeader>
             <HeadRow>
               <RowNumberHeadCell />
               <HeadCell>Hostname</HeadCell>
@@ -77,8 +77,8 @@ function PendingTokensBody() {
               <HeadCell>Expira</HeadCell>
               <HeadCell>Acciones</HeadCell>
             </HeadRow>
-          </thead>
-          <tbody>
+          </TableHeader>
+          <TableBody>
             {data.map((t, i) => (
               <Row key={t.id}>
                 <RowNumberCell n={i + 1} />
@@ -103,7 +103,7 @@ function PendingTokensBody() {
                 </Cell>
               </Row>
             ))}
-          </tbody>
+          </TableBody>
         </DataTable>
       )}
       <DialogFooter>

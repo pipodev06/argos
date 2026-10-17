@@ -1,6 +1,6 @@
 import { TriangleAlertIcon, CircleCheckIcon, CircleOffIcon, CircleHelpIcon, LockIcon, PauseIcon, type LucideIcon as Icon } from 'lucide-react'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { rowNumber } from '@/lib/pagination'
 import { formatFullDate, formatMemory, formatNumber } from '@/features/hosts/utils/format'
 import type { InventoryChange, PortItem, ProcessItem, ServiceItem, ServiceState } from '../types/inventory.types'
@@ -35,7 +35,7 @@ function ServiceStateBadge({ state }: { state: ServiceState }) {
 export function PortsTable({ items, page, pageSize }: { items: PortItem[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Puertos en escucha" className="min-w-[40rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Puerto</HeadCell>
@@ -44,8 +44,8 @@ export function PortsTable({ items, page, pageSize }: { items: PortItem[]; page:
           <HeadCell>Exposición</HeadCell>
           <HeadCell>Proceso</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {items.map((p, i) => (
           <Row key={`${p.proto}/${p.bind}/${p.port}`}>
             <RowNumberCell n={rowNumber(page, pageSize, i)} />
@@ -60,7 +60,7 @@ export function PortsTable({ items, page, pageSize }: { items: PortItem[]; page:
             </Cell>
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }
@@ -68,7 +68,7 @@ export function PortsTable({ items, page, pageSize }: { items: PortItem[]; page:
 export function ServicesTable({ items, page, pageSize }: { items: ServiceItem[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Servicios" className="min-w-[44rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
@@ -76,8 +76,8 @@ export function ServicesTable({ items, page, pageSize }: { items: ServiceItem[];
           <HeadCell>Estado</HeadCell>
           <HeadCell>Inicio</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {items.map((s, i) => (
           <Row key={s.name}>
             <RowNumberCell n={rowNumber(page, pageSize, i)} />
@@ -93,7 +93,7 @@ export function ServicesTable({ items, page, pageSize }: { items: ServiceItem[];
             <Cell>{START_LABELS[s.start] ?? START_LABELS.other}</Cell>
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }
@@ -101,15 +101,15 @@ export function ServicesTable({ items, page, pageSize }: { items: ServiceItem[];
 export function ProcessesTable({ items, page, pageSize }: { items: ProcessItem[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Procesos (agrupados por nombre)" className="min-w-[32rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Instancias</HeadCell>
           <HeadCell>Memoria (RSS)</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {items.map((p, i) => (
           <Row key={p.name}>
             <RowNumberCell n={rowNumber(page, pageSize, i)} />
@@ -120,7 +120,7 @@ export function ProcessesTable({ items, page, pageSize }: { items: ProcessItem[]
             <Cell className="tabular-nums">{formatMemory(p.rss_bytes / 1_048_576)}</Cell>
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }
@@ -128,7 +128,7 @@ export function ProcessesTable({ items, page, pageSize }: { items: ProcessItem[]
 export function ChangesTable({ items, page, pageSize }: { items: InventoryChange[]; page: number; pageSize: number }) {
   return (
     <DataTable caption="Cambios de inventario" className="min-w-[48rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Fecha</HeadCell>
@@ -137,8 +137,8 @@ export function ChangesTable({ items, page, pageSize }: { items: InventoryChange
           <HeadCell>Elemento</HeadCell>
           <HeadCell>Detalle</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {items.map((c, i) => {
           const detail = describeChange(c.kind, c.before, c.after)
           return (
@@ -156,7 +156,7 @@ export function ChangesTable({ items, page, pageSize }: { items: InventoryChange
             </Row>
           )
         })}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

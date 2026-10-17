@@ -1,6 +1,6 @@
 import { PencilIcon, Trash2Icon } from 'lucide-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import type { Group } from '../types/group.types'
 import { formatThreshold } from '../utils/format'
@@ -25,7 +25,7 @@ export function GroupsTable({
 }: GroupsTableProps) {
   return (
     <DataTable caption="Grupos de hosts" className="min-w-[48rem]">
-        <thead>
+        <TableHeader>
           <HeadRow>
             <RowNumberHeadCell />
             <HeadCell>Nombre</HeadCell>
@@ -39,8 +39,8 @@ export function GroupsTable({
               </HeadCell>
             )}
           </HeadRow>
-        </thead>
-        <tbody>
+        </TableHeader>
+        <TableBody>
           {groups.map((g, i) => (
             <Row key={g.id}>
               <RowNumberCell n={i + 1} />
@@ -87,7 +87,7 @@ export function GroupsTable({
             <Cell className="text-text-muted">Global</Cell>
             {canEdit && <Cell />}
           </Row>
-        </tbody>
+        </TableBody>
     </DataTable>
   )
 }

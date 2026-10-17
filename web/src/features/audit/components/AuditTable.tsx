@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { rowNumber } from '@/lib/pagination'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import type { AuditEntry } from '../types/audit.types'
@@ -21,7 +21,7 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
   const [openId, setOpenId] = useState<number | null>(null)
   return (
     <DataTable caption="Registro de auditoría" className="min-w-[56rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Fecha</HeadCell>
@@ -31,8 +31,8 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
           <HeadCell>Objetivo</HeadCell>
           <HeadCell>IP</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {entries === null && <SkeletonRows colSpan={COLS} />}
         {entries?.map((e, i) => {
           const open = openId === e.id
@@ -89,7 +89,7 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
             </Fragment>
           )
         })}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

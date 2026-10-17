@@ -2,7 +2,7 @@ import { TriangleAlertIcon, BatteryIcon, BatteryChargingIcon } from 'lucide-reac
 import { cn } from 'cn'
 import { Link } from 'react-router'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { SortableHead, type SortDir } from '@/components/data-table/SortableHead'
 import { rowNumber } from '@/lib/pagination'
@@ -53,7 +53,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
 
   return (
     <DataTable caption="Hosts">
-        <thead>
+        <TableHeader>
           <HeadRow>
             {selected && (
               <th scope="col" className="hidden w-10 px-3 md:table-cell">
@@ -79,8 +79,8 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
             {show('physical_disk') && <HeadCell className="hidden md:table-cell">Disco físico</HeadCell>}
             <SortableHead id="last_seen" label="Visto" {...sortProps} />
           </HeadRow>
-        </thead>
-        <tbody>
+        </TableHeader>
+        <TableBody>
           {hosts === null
             ? <SkeletonRows colSpan={colSpan} />
             : hosts.map((h, i) => {
@@ -175,7 +175,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                   </Row>
                 )
               })}
-        </tbody>
+        </TableBody>
     </DataTable>
   )
 }

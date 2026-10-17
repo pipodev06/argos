@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import type { Group } from '@/features/groups/types/group.types'
 import { sourceLabel } from '../utils/retention'
 
@@ -18,7 +18,7 @@ export function RetentionExceptions({ groups }: { groups: Group[] }) {
         <p className="text-sm text-text-muted">Ningún grupo tiene retención propia: todos usan la global.</p>
       ) : (
         <DataTable caption="Grupos con retención de detalle propia" className="min-w-[36rem]">
-          <thead>
+          <TableHeader>
             <HeadRow>
               <RowNumberHeadCell />
               <HeadCell>Nombre</HeadCell>
@@ -27,8 +27,8 @@ export function RetentionExceptions({ groups }: { groups: Group[] }) {
               <HeadCell>Efectiva</HeadCell>
               <HeadCell>Origen</HeadCell>
             </HeadRow>
-          </thead>
-          <tbody>
+          </TableHeader>
+          <TableBody>
             {own.map((g, i) => (
               <Row key={g.id}>
                 <RowNumberCell n={i + 1} />
@@ -41,7 +41,7 @@ export function RetentionExceptions({ groups }: { groups: Group[] }) {
                 <Cell>{sourceLabel(g.retention_source)}</Cell>
               </Row>
             ))}
-          </tbody>
+          </TableBody>
         </DataTable>
       )}
     </section>

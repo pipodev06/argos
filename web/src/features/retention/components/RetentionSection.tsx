@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
@@ -42,7 +43,7 @@ export function RetentionSection({ settings, hostCount, onSaved }: RetentionSect
   }
 
   return (
-    <section aria-labelledby="ret-title" className="flex flex-col gap-4 rounded-md border border-border bg-surface p-4">
+    <Card role="region" aria-labelledby="ret-title" className="gap-4 px-4">
       <div className="flex flex-col gap-1">
         <h2 id="ret-title" className="text-sm font-semibold">Retención de datos</h2>
         <p className="text-sm text-text-muted">
@@ -90,6 +91,6 @@ export function RetentionSection({ settings, hostCount, onSaved }: RetentionSect
         onConfirm={() => void submit(true)}
         onClose={save.cancelShrink}
       />
-    </section>
+    </Card>
   )
 }

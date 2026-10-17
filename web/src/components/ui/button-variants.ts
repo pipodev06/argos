@@ -13,10 +13,10 @@ export const buttonVariants = cva(
         ghost: "text-foreground hover:bg-muted disabled:text-text-muted",
       },
       size: {
-        default: "h-9 gap-1.5 px-3",
-        sm: "h-8 gap-1 px-2.5",
-        icon: "size-9",
-        "icon-sm": "size-8",
+        default: "h-8 gap-1.5 px-2 py-1",
+        sm: "h-7 gap-1 px-2 py-1",
+        icon: "size-8",
+        "icon-sm": "size-7",
       },
     },
     defaultVariants: {

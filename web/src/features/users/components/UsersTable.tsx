@@ -1,5 +1,5 @@
 import { KeyRoundIcon, LockKeyholeIcon, ShieldIcon, Trash2Icon, UserCheckIcon, UserXIcon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { roleLabel } from '@/features/auth/utils/format'
 import { formatFullDate } from '@/features/hosts/utils/format'
@@ -18,7 +18,7 @@ interface UsersTableProps {
 export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) {
   return (
     <DataTable caption="Usuarios" className="min-w-[56rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Usuario</HeadCell>
@@ -29,8 +29,8 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
           <HeadCell>Creado</HeadCell>
           <HeadCell>Acciones</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {users.map((u, i) => {
           const self = u.id === currentUserId
           return (
@@ -103,7 +103,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
             </Row>
           )
         })}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

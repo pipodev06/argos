@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { cn } from "cn"
+import { Card } from "@/components/ui/card"
 import type { LucideIcon } from "lucide-react"
 
 interface StatCardProps {
@@ -12,20 +13,17 @@ interface StatCardProps {
   children: ReactNode
 }
 
-/** Tarjeta de ultimo valor: etiqueta con icono + contenido (uno o mas `StatValue`). */
+/** Tarjeta de ultimo valor (sobre `Card` de shadcn): etiqueta con icono + contenido (uno o mas `StatValue`). */
 function StatCard({ label, Icon, iconClassName, alert = false, children }: StatCardProps) {
   return (
-    <section
-      aria-label={label}
-      className="relative flex min-h-24 flex-col gap-2 overflow-hidden rounded-md border border-border bg-surface p-4"
-    >
+    <Card role="region" aria-label={label} className="relative min-h-24 gap-2 px-4">
       {alert && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-danger" />}
       <h3 className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
         <Icon className={cn("size-4 shrink-0", iconClassName)} strokeWidth={1.5} aria-hidden />
         {label}
       </h3>
       <div className="flex flex-col gap-1">{children}</div>
-    </section>
+    </Card>
   )
 }
 

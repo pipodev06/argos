@@ -1,5 +1,5 @@
 import { KeyRoundIcon, LockIcon, LockOpenIcon, PencilIcon, Trash2Icon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatFullDate } from '@/features/hosts/utils/format'
@@ -22,7 +22,7 @@ const protocols = (p: SnmpProfile): string => (p.auth_proto && p.priv_proto ? `$
 export function SnmpProfilesTable({ profiles, onAction }: SnmpProfilesTableProps) {
   return (
     <DataTable caption="Perfiles SNMP" className="min-w-[56rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
@@ -34,8 +34,8 @@ export function SnmpProfilesTable({ profiles, onAction }: SnmpProfilesTableProps
           <HeadCell>Creado</HeadCell>
           <HeadCell>Acciones</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {profiles.map((p, i) => (
           <Row key={p.id}>
             <RowNumberCell n={i + 1} />
@@ -67,7 +67,7 @@ export function SnmpProfilesTable({ profiles, onAction }: SnmpProfilesTableProps
             </Cell>
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

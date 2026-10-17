@@ -1,5 +1,5 @@
 import { BellMinusIcon, BellRingIcon, CircleCheckIcon, CircleOffIcon, CopyIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -32,7 +32,7 @@ export function RuleEnabledBadge({ enabled }: { enabled: boolean }) {
 export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: RulesTableProps) {
   return (
     <DataTable caption="Reglas de alerta" className="min-w-[60rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
@@ -45,8 +45,8 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
           <HeadCell>Alertas abiertas</HeadCell>
           {canAct && <HeadCell>Acciones</HeadCell>}
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {rules.map((r, i) => (
           <Row key={r.id}>
             <RowNumberCell n={i + 1} />
@@ -136,7 +136,7 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
             )}
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

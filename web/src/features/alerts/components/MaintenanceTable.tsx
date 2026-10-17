@@ -1,5 +1,5 @@
 import { CalendarClockIcon, CircleCheckIcon, WrenchIcon, PencilIcon, Trash2Icon, type LucideIcon as Icon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatFullDate } from '@/features/hosts/utils/format'
@@ -33,7 +33,7 @@ function MaintenanceStatusBadge({ status }: { status: MaintenanceStatus }) {
 export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTableProps) {
   return (
     <DataTable caption="Ventanas de mantenimiento" className="min-w-[52rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
@@ -43,8 +43,8 @@ export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTable
           <HeadCell>Estado</HeadCell>
           {canAct && <HeadCell>Acciones</HeadCell>}
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {windows.map((w, i) => (
           <Row key={w.id}>
             <RowNumberCell n={i + 1} />
@@ -79,7 +79,7 @@ export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTable
             )}
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

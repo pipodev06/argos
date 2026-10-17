@@ -60,7 +60,7 @@ function SegmentedControl<T extends string>({
             tabIndex={checked ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              "h-7 min-w-10 shrink-0 rounded-md px-2.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              "h-7 min-w-10 shrink-0 rounded-md px-2 py-1 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
               checked ? "bg-border font-semibold text-text" : "text-text-muted hover:text-text"
             )}
           >

@@ -65,7 +65,7 @@ function DateTimePicker({
           type="button"
           variant="outline"
           disabled={disabled}
-          className={cn("w-full justify-start font-normal", !selected && "text-text-muted", className)}
+          className={cn("w-full justify-start border-text-muted font-normal", !selected && "text-text-muted", className)}
           {...aria}
         >
           <CalendarIcon strokeWidth={1.5} aria-hidden />

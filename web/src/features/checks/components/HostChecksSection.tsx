@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useState } from 'react'
 import { ArrowRightIcon, ChevronDownIcon, ActivityIcon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
@@ -127,7 +127,7 @@ function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallb
   if (data.length === 0) return <EmptyState Icon={ActivityIcon} title="Sin chequeos" />
   return (
     <DataTable caption="Chequeos del host" className="min-w-[68rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Estado</HeadCell>
@@ -141,12 +141,12 @@ function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallb
           <HeadCell>Estado desde</HeadCell>
           <HeadCell>Transiciones</HeadCell>
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {data.map((item, i) => (
           <CheckRow key={item.check.id} n={i + 1} hostId={hostId} item={item} now={now} targetFallback={targetFallback} />
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

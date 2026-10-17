@@ -82,6 +82,14 @@
   --color-input: var(--border);
   --color-ring: var(--brand);
 
+  /* sidebar de shadcn: superficie + borde; el activo usa `muted` (= border), nunca brand */
+  --color-sidebar: var(--surface);
+  --color-sidebar-foreground: var(--text);
+  --color-sidebar-accent: var(--border);
+  --color-sidebar-accent-foreground: var(--text);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--brand);
+
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
 }

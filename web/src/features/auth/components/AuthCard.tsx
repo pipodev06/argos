@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Card } from '@/components/ui/card'
 import { AppLogo } from '@/components/ui/app-logo'
 import { ThemeToggle } from '@/features/theme/components/ThemeToggle'
 
@@ -15,14 +16,14 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      <div className="grid w-full max-w-sm gap-5 rounded-md border border-border bg-surface p-6">
+      <Card className="w-full max-w-sm gap-5 px-6 py-6">
         <div className="grid gap-1">
           <AppLogo className="mb-2" />
           <h1 className="text-lg font-semibold">{title}</h1>
           {description && <p className="text-sm text-text-muted">{description}</p>}
         </div>
         {children}
-      </div>
+      </Card>
     </main>
   )
 }

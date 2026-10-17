@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatBytes } from '@/features/retention/utils/retention'
@@ -27,14 +27,14 @@ export function ServiceStatusSection() {
           </dl>
 
           <DataTable caption="Chequeos del servicio" className="min-w-[36rem]">
-            <thead>
+            <TableHeader>
               <HeadRow>
                 <HeadCell>Chequeo</HeadCell>
                 <HeadCell>Estado</HeadCell>
                 <HeadCell>Detalle</HeadCell>
               </HeadRow>
-            </thead>
-            <tbody>
+            </TableHeader>
+            <TableBody>
               {data.checks.map((c) => (
                 <Row key={c.name}>
                   <RowHeadCell>{checkLabel(c.name)}</RowHeadCell>
@@ -42,7 +42,7 @@ export function ServiceStatusSection() {
                   <Cell>{c.detail}</Cell>
                 </Row>
               ))}
-            </tbody>
+            </TableBody>
           </DataTable>
 
           <ul className="flex flex-col gap-1 text-sm">
@@ -57,14 +57,14 @@ export function ServiceStatusSection() {
             ) : (
               <>
                 <DataTable caption="Canales con entregas fallidas en 24 horas" className="min-w-[28rem]">
-                  <thead>
+                  <TableHeader>
                     <HeadRow>
                       <HeadCell>Canal</HeadCell>
                       <HeadCell>Dueño</HeadCell>
                       <HeadCell>Entregas fallidas</HeadCell>
                     </HeadRow>
-                  </thead>
-                  <tbody>
+                  </TableHeader>
+                  <TableBody>
                     {data.notifications.dead_24h.map((d) => (
                       <Row key={d.channel_id}>
                         <RowHeadCell>{d.name}</RowHeadCell>
@@ -72,7 +72,7 @@ export function ServiceStatusSection() {
                         <Cell className="tabular-nums">{d.count}</Cell>
                       </Row>
                     ))}
-                  </tbody>
+                  </TableBody>
                 </DataTable>
                 <Link to="/alertas/canales" className="text-sm text-brand underline">Ir a Canales</Link>
               </>

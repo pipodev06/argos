@@ -1,5 +1,5 @@
 import { PencilIcon, PauseIcon, PlayIcon, SendIcon, Trash2Icon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { SeverityBadge } from '@/features/alerts/components/AlertBadges'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
@@ -28,7 +28,7 @@ function testText(id: string, testingId: string | null, outcome: TestOutcome | u
 export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onAction }: ChannelsTableProps) {
   return (
     <DataTable caption="Canales de notificación" className="min-w-[56rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
@@ -40,8 +40,8 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
           <HeadCell>Estado</HeadCell>
           {canAct && <HeadCell>Acciones</HeadCell>}
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {channels.map((c, i) => (
           <Row key={c.id}>
             <RowNumberCell n={i + 1} />
@@ -91,7 +91,7 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
             )}
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

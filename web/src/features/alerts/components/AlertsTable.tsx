@@ -1,6 +1,6 @@
 import { CheckIcon, EyeIcon } from 'lucide-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { Button } from '@/components/ui/button'
 import { rowNumber } from '@/lib/pagination'
@@ -28,7 +28,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
   const cols = canAct ? 8 : 7
   return (
     <DataTable caption="Alertas" className="min-w-[60rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Severidad</HeadCell>
@@ -39,8 +39,8 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
           <HeadCell>Abierta</HeadCell>
           {canAct && <HeadCell>Acciones</HeadCell>}
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {alerts === null && <SkeletonRows colSpan={cols} />}
         {alerts?.map((a, i) => (
           <Row key={a.id}>
@@ -102,7 +102,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
             )}
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

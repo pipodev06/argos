@@ -1,6 +1,6 @@
 import { PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { Button } from '@/components/ui/button'
 import { formatLastSeen } from '@/features/hosts/utils/format'
@@ -23,7 +23,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
   const colSpan = isAdmin ? 10 : 6
   return (
     <DataTable caption="Dispositivos" className="min-w-[48rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Dispositivo</HeadCell>
@@ -35,8 +35,8 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
           <HeadCell>Visto</HeadCell>
           {isAdmin && <HeadCell>Acciones</HeadCell>}
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {devices === null ? (
           <SkeletonRows colSpan={colSpan} />
         ) : (
@@ -85,7 +85,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
             </Row>
           ))
         )}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

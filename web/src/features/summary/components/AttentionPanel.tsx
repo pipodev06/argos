@@ -25,7 +25,7 @@ export function AttentionPanel({ items, now }: { items: RecentDown[]; now: numbe
             <li key={h.id} className="border-b border-border last:border-b-0">
               <Link
                 to={`/hosts/${h.id}`}
-                className="flex min-h-9 items-center gap-2 px-3 py-1.5 text-sm outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="flex min-h-8 items-center gap-2 px-2 py-1 text-sm outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <CircleXIcon className="size-4 shrink-0 text-danger" strokeWidth={1.5} aria-label="Caído" />
                 <span className="min-w-0 truncate font-semibold">{h.hostname}</span>

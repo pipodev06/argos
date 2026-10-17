@@ -5,7 +5,7 @@ import { Row } from './DataTable'
 export function SkeletonRows({ rows = 8, colSpan }: { rows?: number; colSpan: number }) {
   return Array.from({ length: rows }, (_, i) => (
     <Row key={i} aria-hidden>
-      <td colSpan={colSpan} className="h-9 px-3">
+      <td colSpan={colSpan} className="h-8 px-2 py-1">
         <Skeleton className="h-4 w-full" />
       </td>
     </Row>

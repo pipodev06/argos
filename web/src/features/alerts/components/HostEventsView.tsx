@@ -1,5 +1,5 @@
 import { HistoryIcon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { TableError } from '@/components/data-table/TableStates'
 import { EmptyState } from '@/components/ui/empty-state'
 import { InlineError } from '@/components/ui/inline-error'
@@ -40,7 +40,7 @@ export function HostEventsView({ id }: { id: string }) {
             {data && data.items.length > 0 && (
               <>
                 <DataTable caption="Historial de estado del host" className="min-w-[44rem]">
-                  <thead>
+                  <TableHeader>
                     <HeadRow>
                       <RowNumberHeadCell />
                       <HeadCell>De</HeadCell>
@@ -48,8 +48,8 @@ export function HostEventsView({ id }: { id: string }) {
                       <HeadCell>Fecha</HeadCell>
                       <HeadCell>Origen</HeadCell>
                     </HeadRow>
-                  </thead>
-                  <tbody>
+                  </TableHeader>
+                  <TableBody>
                     {data.items.map((e, i) => (
                       <Row key={e.id}>
                         <RowNumberCell n={rowNumber(pagination.page, pagination.pageSize, i)} />
@@ -63,7 +63,7 @@ export function HostEventsView({ id }: { id: string }) {
                         <Cell>{HOST_EVENT_SOURCE_LABELS[e.source]}</Cell>
                       </Row>
                     ))}
-                  </tbody>
+                  </TableBody>
                 </DataTable>
                 <Pagination
                   page={pagination.page}

@@ -31,6 +31,11 @@ type Values = Record<string, FilterValue>
  * Barra de filtros dirigida por configuración: [Buscar][pastillas…][Más filtros][acciones] +
  * fila de filtros numéricos activos con "Limpiar" + contador (aria-live).
  */
+/** "hosts" -> "host", "canales" -> "canal": basta pa las etiquetas de la app (todas regulares). */
+function singular(label: string): string {
+  return label.endsWith('les') ? label.slice(0, -2) : label.replace(/s$/, '')
+}
+
 export function FilterBar<F extends readonly FilterField[]>({
   fields,
   values,
@@ -99,7 +104,7 @@ export function FilterBar<F extends readonly FilterField[]>({
         {total !== null && (
           <span className="tabular-nums">
             {active && overall !== null ? `${total.toLocaleString('es-PE')} de ${overall.toLocaleString('es-PE')}` : total.toLocaleString('es-PE')}{' '}
-            {itemLabel}
+            {total === 1 && !(active && overall !== null) ? singular(itemLabel) : itemLabel}
           </span>
         )}
       </div>

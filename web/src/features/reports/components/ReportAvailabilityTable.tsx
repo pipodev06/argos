@@ -1,4 +1,4 @@
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { AvailabilityBadge } from './AvailabilityBadge'
 import { formatCoveragePct, formatSeconds, formatTrackedFrom } from '../utils/format'
 import type { AvailabilityGroupItem, AvailabilityItem } from '../types/report.types'
@@ -15,7 +15,7 @@ function isAvailabilityItem(item: AvailabilityItem | AvailabilityGroupItem): ite
 export function ReportAvailabilityTable({ items, isGroupView }: ReportAvailabilityTableProps) {
   return (
     <DataTable caption={isGroupView ? 'Disponibilidad por grupo' : 'Disponibilidad por host'} className="min-w-[70rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>{isGroupView ? 'Grupo' : 'Host'}</HeadCell>
@@ -25,8 +25,8 @@ export function ReportAvailabilityTable({ items, isGroupView }: ReportAvailabili
           <HeadCell>Cobertura</HeadCell>
           {!isGroupView && <HeadCell>Desde</HeadCell>}
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {items.map((item, i) => {
           const isHost = isAvailabilityItem(item)
           const name = isHost ? item.hostname : item.group_name || '(Sin grupo)'
@@ -46,7 +46,7 @@ export function ReportAvailabilityTable({ items, isGroupView }: ReportAvailabili
             </Row>
           )
         })}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

@@ -1,5 +1,5 @@
 import { KeyRoundIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
-import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell } from '@/components/data-table/DataTable'
+import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
 import { formatSeconds } from '@/features/alerts/utils/format'
@@ -23,7 +23,7 @@ interface ChecksTableProps {
 export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksTableProps) {
   return (
     <DataTable caption="Chequeos de servicios" className="min-w-[68rem]">
-      <thead>
+      <TableHeader>
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
@@ -36,8 +36,8 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
           <HeadCell>Secreto</HeadCell>
           {canAct && <HeadCell>Acciones</HeadCell>}
         </HeadRow>
-      </thead>
-      <tbody>
+      </TableHeader>
+      <TableBody>
         {checks.map((c, i) => (
           <Row key={c.id}>
             <RowNumberCell n={i + 1} />
@@ -86,7 +86,7 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
             )}
           </Row>
         ))}
-      </tbody>
+      </TableBody>
     </DataTable>
   )
 }

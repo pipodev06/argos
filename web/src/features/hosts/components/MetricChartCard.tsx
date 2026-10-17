@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Card } from '@/components/ui/card'
 import { LineSwatch } from '@/components/ui/chart'
 import type { SeriesStyle } from '../utils/chart'
 
@@ -30,8 +31,8 @@ export function MetricChartCard({
   children,
 }: MetricChartCardProps) {
   return (
-    <section className="rounded-md border border-border bg-surface p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+    <Card role="region" aria-label={title} className="gap-3 px-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <h3 className="text-sm font-semibold">{title}</h3>
         <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
           {legend.map((item) => (
@@ -53,6 +54,6 @@ export function MetricChartCard({
           </div>
         )}
       </div>
-    </section>
+    </Card>
   )
 }

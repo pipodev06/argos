@@ -11,11 +11,10 @@ function initialCollapsed(): boolean {
 export function useSidebarCollapsed() {
   const [collapsed, setCollapsed] = useState(initialCollapsed)
 
-  const toggle = useCallback(() => {
-    const next = !collapsed
+  const set = useCallback((next: boolean) => {
     setCollapsed(next)
     storeSidebar(next ? 'collapsed' : 'expanded')
-  }, [collapsed])
+  }, [])
 
-  return { collapsed, toggle }
+  return { collapsed, setCollapsed: set }
 }

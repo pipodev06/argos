@@ -1,21 +1,17 @@
-import { Suspense, useState, type MouseEvent } from 'react'
-import { MenuIcon } from 'lucide-react'
-import { cn } from 'cn'
+import { Suspense, type MouseEvent } from 'react'
 import { Outlet } from 'react-router'
 import { AppLogo } from '@/components/ui/app-logo'
-import { Button } from '@/components/ui/button'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeToggle } from '@/features/theme/components/ThemeToggle'
 import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed'
-import { SidebarContent } from './Sidebar'
+import { AppSidebar } from './Sidebar'
 
-// Shell de las pantallas con sesion: sidebar (240px / 56px) desde `md`; en movil barra superior de 48px + drawer.
-// El login y el cambio forzado de clave NO usan el shell.
+// Shell de las pantallas con sesion sobre el Sidebar de shadcn: 240px / 56px desde `md`; en movil barra superior
+// de 48px + drawer. El login y el cambio forzado de clave NO usan el shell.
 export function AppShell() {
-  const { collapsed, toggle } = useSidebarCollapsed()
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const { collapsed, setCollapsed } = useSidebarCollapsed()
 
   // El ancla "#main" ensuciaria la URL de react-router; se enfoca el <main> directamente.
   function skipToContent(event: MouseEvent<HTMLAnchorElement>) {
@@ -25,7 +21,7 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-svh bg-bg text-text md:flex">
+      <SidebarProvider open={!collapsed} onOpenChange={(open) => setCollapsed(!open)}>
         <a
           href="#main"
           onClick={skipToContent}
@@ -33,50 +29,31 @@ export function AppShell() {
         >
           Saltar al contenido
         </a>
-
-        {/* Movil (<md): barra superior + drawer */}
-        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <AppSidebar />
+        <SidebarInset className="min-w-0 bg-bg text-text">
+          {/* Movil (<md): barra superior; el drawer lo abre SidebarTrigger */}
           <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-surface px-2 md:hidden">
-            <SheetTrigger asChild>
-              <Button type="button" variant="ghost" size="icon" aria-label="Abrir menú">
-                <MenuIcon strokeWidth={1.5} aria-hidden />
-              </Button>
-            </SheetTrigger>
+            <SidebarTrigger aria-label="Abrir menú" />
             <AppLogo />
             <div className="ml-auto">
               <ThemeToggle />
             </div>
           </header>
-          <SheetContent side="left" aria-describedby={undefined} className="gap-0">
-            <SheetTitle className="sr-only">Menú</SheetTitle>
-            <SidebarContent onNavigate={() => setDrawerOpen(false)} />
-          </SheetContent>
-        </Sheet>
-
-        {/* Escritorio (>=md) */}
-        <aside
-          className={cn(
-            'sticky top-0 hidden h-svh shrink-0 border-r border-border bg-surface md:block',
-            collapsed ? 'w-14' : 'w-60',
-          )}
-        >
-          <SidebarContent collapsed={collapsed} onToggleCollapsed={toggle} />
-        </aside>
-
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
-          <div className="w-full px-4 py-6 md:px-8 md:py-8">
-            <Suspense
-              fallback={
-                <div role="status" aria-label="Cargando">
-                  <Skeleton className="h-64 w-full" />
-                </div>
-              }
-            >
-              <Outlet />
-            </Suspense>
-          </div>
-        </main>
-      </div>
+          <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+            <div className="w-full px-4 py-6 md:px-8 md:py-8">
+              <Suspense
+                fallback={
+                  <div role="status" aria-label="Cargando">
+                    <Skeleton className="h-64 w-full" />
+                  </div>
+                }
+              >
+                <Outlet />
+              </Suspense>
+            </div>
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
     </TooltipProvider>
   )
 }
