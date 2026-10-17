@@ -1,0 +1,54 @@
+# argos
+
+Software de monitoreo (tipo Zabbix/PRTG/Nagios) — agente en host + servidor central con dashboard.
+
+**Al iniciar una sesión nueva:** leer `docs/estado-del-proyecto.md` (una página: qué hay, qué sigue, cómo verificar y levantar en local). Del resto (`docs/decisiones.md` índice, `docs/deuda-tecnica.md`) abrir solo lo que toque la tarea. Verificar siempre con `ARGOS_TEST_DATABASE_URL` definida (ver ese documento).
+
+## Decisiones de estilo/diseño congeladas
+
+**Estilo visual: "Slate"** (elegido por el usuario el 2026-09-23, propuesto por ui-ux-designer; reemplaza a `terminal-dark`). Moderno y sereno, claro y oscuro. Cambiar cualquier punto de esta sección requiere pedido explícito del usuario.
+
+**Modo:** claro y oscuro, claro por defecto. Se cambia SOLO con un botón (toggle manual); no se detecta la preferencia del sistema (`prefers-color-scheme`) — decidido por el usuario el 2026-09-23. La elección se recuerda en el navegador (preferencia por-viewer en `localStorage`, con try/catch); el estado del tema se aplica antes del primer render pa evitar parpadeo, sin scripts inline (CSP estricta).
+
+**Tokens** (contrastes WCAG calculados por el diseñador, ±0.05):
+
+| Token | Claro | Oscuro |
+|---|---|---|
+| bg | `#F8FAFC` | `#0B1220` |
+| surface | `#FFFFFF` | `#111A2C` |
+| border | `#E2E8F0` | `#1F2A3F` |
+| text (primario) | `#0F172A` | `#E6EAF2` |
+| text-muted (secundario) | `#526074` | `#94A3B8` |
+| brand (solo acciones) | `#2563EB` (texto blanco encima) | `#60A5FA` |
+| ok | `#15803D` | `#4ADE80` |
+| warn | `#B45309` | `#FBBF24` |
+| danger | `#B91C1C` | `#F87171` |
+| info | `#0E7490` | `#22D3EE` |
+
+**Reglas de color:**
+- Texto: solo 2 tonos (`text` y `text-muted`), siempre ≥4.5:1.
+- El color de marca (`brand`) es solo para acciones (botones primarios, links, foco). Nunca como estado.
+- El color de estado (ok/warn/danger/info) va solo en icono, punto o relleno/tinte, **nunca en texto**. El estado nunca depende solo del color: siempre icono + texto.
+
+**Tipografía:** Inter Variable auto-hospedada (`@fontsource-variable/inter`), sin CDN, con `tabular-nums` en datos numéricos. Mono (`ui-monospace`) solo para tokens de enroll y comandos copiables (`CopyBlock`); IP, ID y puntos de montaje usan la fuente normal (decidido por el usuario el 2026-09-24).
+
+**Forma:** un solo radio, `6px` (`rounded-md`), en todo. Sin sombras en cards/filas (separación por borde 1px). Única excepción: sombra suave en modal y popover. El anillo de foco visible (accesibilidad) está permitido.
+
+**Patrón fila de host:** 36px de alto; nombre en semibold; IP/OS en `text-muted`; badge de estado = pill tintada con icono + texto; si el host está `down`, barra de 2px `danger` a la izquierda. Iconos de estado (Tabler outline): up `IconCircleCheck`, down `IconCircleX`, pending `IconClock`, disabled `IconCircleOff` (muted).
+
+**Estados de host** (aprobado el 2026-09-23): `up` (`IconCircleCheck`, ok), `down`/Caído (`IconCircleX`, danger + barra 2px), `offline`/Sin conexión (`IconPlugConnectedX`, muted, sin barra: es normal, no cuenta como falla ni entra en "Requieren atención"), `pending` (`IconClock`, info), `disabled` (`IconCircleOff`, muted). El grupo decide (`always_on`) si un host que deja de reportar pasa a Caído o a Sin conexión; hosts sin grupo pasan a Sin conexión.
+
+**Layout y navegación** (aprobado el 2026-09-23): sidebar de 240px colapsable a 56px (solo iconos con tooltip), drawer (Sheet) en móvil, ítems con `NavLink`; estado activo = `bg-muted` + texto semibold en `text` + barra de 2px a la izquierda en `text` (nunca `brand` ni color de estado). Contenido a ancho completo (sin tope de ancho; crece al contraer el sidebar), decidido por el usuario el 2026-09-24. Ítems desde un arreglo de config; sin ítems "próximamente". Rutas: `/` Resumen, `/hosts`, `/hosts/:id`, `/grupos`.
+**Resumen** (decidido por el usuario el 2026-09-26): tres bloques alineados de 3 filas: **Hosts** (2 columnas × 3 filas: Activos/Caídos, Sin conexión/Pendientes y Deshabilitados a ancho completo), **Dispositivos** (mismo patrón; solo si hay dispositivos) y **Alertas abiertas · N** (3 tarjetas apiladas: Críticas, Advertencias, Info; cada una enlaza a `/alertas?state=open&severity=…` y la de críticas lleva la barra `danger` si hay alguna). En pantallas angostas los bloques se apilan. Un dispositivo puede deshabilitarse/habilitarse (acción en la fila y en el detalle, sin confirmación: es reversible).
+**Tipografía en pantallas:** solo 4 tamaños: `xs` meta, `sm` cuerpo y encabezados de sección (semibold), `lg` título de página, `2xl` cifras grandes.
+**Controles nuevos** (checkbox, radio, select): borde con `border-text-muted` (contraste ≥3:1); el `Input` existente no cambia.
+**Patrones nuevos:** tabla semántica con filas de 36px y cabecera de 32px, encabezados y celdas centrados horizontalmente en todas las tablas (decidido por el usuario el 2026-09-24), primera columna `#` con el número de fila (1, 2, 3… continuo entre páginas; va entre la casilla de selección, si la hay, y la columna del nombre; decidido por el usuario el 2026-09-25), encabezados ordenables con `aria-sort`, fila entera clicable vía enlace del nombre; filtros como chips (radio 6px, ancho fijo `w-40`, texto truncado) con estado en la URL; paginación por cursor con un único componente `Pagination` (tamaños de página 15, 30, 50 y 100, por defecto 15: decidido por el usuario el 2026-09-25); tile de contador (icono de estado + etiqueta `xs` muted + cifra `2xl` tabular); barra de uso (`UsageBar`, `role="meter"`, marcas en 80 % y 90 %, estado con icono + palabra, nunca solo color); umbrales de disco globales 80/90; `CopyBlock` para comandos copiables. Vista "pared" de hosts: diferida.
+
+**Gráficas (paleta categórica de 5 series, basada en Okabe-Ito):**
+- Claro: `#0072B2`, `#D55E00`, `#007A5C`, `#A66A00`, `#A6427F`.
+- Oscuro: `#56B4E9`, `#E69F00`, `#009E73`, `#F0E442`, `#CC79A7`.
+- Diferenciar además por trazo (línea, punteada, punto-raya) y leyenda directa; una métrica por gráfica, usar 5 series solo pa multi-núcleo/multi-host. No se corrió simulación de daltonismo (CVD).
+
+## Stack
+
+Vite + Tailwind v4 (`@tailwindcss/vite`) + shadcn/ui (radix) + Tabler Icons **outline** (variante fija, no mezclar filled). Gráficas: shadcn chart (Recharts) para MVP; evaluar uPlot si el volumen de puntos por host lo exige.

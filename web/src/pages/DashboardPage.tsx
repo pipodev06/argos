@@ -23,7 +23,6 @@ const RulesPage = lazy(() => import('./RulesPage').then((m) => ({ default: m.Rul
 const SummaryPage = lazy(() => import('./SummaryPage').then((m) => ({ default: m.SummaryPage })))
 const UsersPage = lazy(() => import('./UsersPage').then((m) => ({ default: m.UsersPage })))
 const AuditPage = lazy(() => import('./AuditPage').then((m) => ({ default: m.AuditPage })))
-const SnmpProfilesPage = lazy(() => import('./SnmpProfilesPage').then((m) => ({ default: m.SnmpProfilesPage })))
 const InstructionsPage = lazy(() => import('./InstructionsPage').then((m) => ({ default: m.InstructionsPage })))
 
 export function DashboardPage() {
@@ -54,7 +53,6 @@ export function DashboardPage() {
         <Route path="alertas/canales" element={<ChannelsPage />} />
         <Route path="alertas/:id" element={<AlertDetailPage />} />
         <Route path="usuarios" element={<UsersPage />} />
-        <Route path="perfiles-snmp" element={<SnmpProfilesPage />} />
         <Route path="configuracion" element={<ConfigurationPage />} />
         <Route path="auditoria" element={<AuditPage />} />
         <Route path="instrucciones" element={<InstructionsPage />} />

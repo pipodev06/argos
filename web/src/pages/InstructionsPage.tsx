@@ -1,20 +1,25 @@
+import { IconChevronDown } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { CopyBlock } from '@/components/ui/copy-block'
 import { PageHeader } from '@/components/ui/page-header'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-interface SectionProps {
-  title: string
-  children: ReactNode
+/** Sección plegable (`<details>` nativo: accesible, sin JS propio). Cerrada por defecto. */
+function Collapsible({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-md border border-border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-md px-4 py-3 text-sm font-semibold outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-ring">
+        {title}
+        <IconChevronDown className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180" stroke={1.5} aria-hidden />
+      </summary>
+      <div className="flex flex-col gap-4 border-t border-border px-4 py-4">{children}</div>
+    </details>
+  )
 }
 
-/** Sección con separador inferior (sin sombra: borde 1px, como el resto del estilo Slate). */
-function Section({ title, children }: SectionProps) {
-  return (
-    <section className="flex flex-col gap-3 border-b border-border pb-6 last:border-b-0 last:pb-0">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      <div className="flex flex-col gap-4">{children}</div>
-    </section>
-  )
+/** Subtítulo dentro de una sección plegable (agrupa comandos sin abrir otro nivel de plegado). */
+function SubHeading({ children }: { children: ReactNode }) {
+  return <p className="text-sm font-semibold text-text first:pt-0 [&:not(:first-child)]:pt-2">{children}</p>
 }
 
 /** Título corto + comando copiable. Sin texto explicativo: el título ya dice qué es. */
@@ -28,15 +33,39 @@ function Cmd({ title, value }: { title: string; value: string }) {
 }
 
 /**
- * Página de referencia estática (sin llamadas a la API): comandos reales del CLI del server, tal como están
- * documentados en `server/cmd/server/main.go`, `agent/cmd/agent/main.go` y `deploy/install-server.sh`.
+ * Página de referencia estática (sin llamadas a la API): comandos reales del CLI del server y del agente, tal
+ * como están documentados en `server/cmd/server/main.go`, `agent/cmd/agent/main.go` y `deploy/install-server.sh`.
+ * El agente compila para 3 SO (windows/linux/darwin, `scripts/build-agent.sh`); el server (`deploy/install-server.sh`)
+ * solo instala en Linux con systemd, no hay instalador para Windows/macOS.
  */
 export function InstructionsPage() {
   return (
     <>
       <PageHeader title="Instrucciones" />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Section title="Instalar el server">
+      <div className="flex flex-col gap-3">
+        <Collapsible title="Levantarlo en tu máquina de desarrollo (scripts/run-local.sh)">
+          <SubHeading>Windows (PowerShell, con el alias de $PROFILE)</SubHeading>
+          <Cmd title="Arrancar (compila y levanta)" value="argos-local start" />
+          <Cmd title="Ver estado" value="argos-local status" />
+          <Cmd title="Seguir el log" value="argos-local logs" />
+          <Cmd title="Detener" value="argos-local stop" />
+
+          <SubHeading>Windows (PowerShell, sin el alias) / Linux o macOS (bash)</SubHeading>
+          <Cmd title="Arrancar (compila y levanta)" value="bash scripts/run-local.sh start" />
+          <Cmd title="Detener" value="bash scripts/run-local.sh stop" />
+        </Collapsible>
+
+        <Collapsible title="Generar el paquete de instalación">
+          <Cmd title="Compilar el agente (windows/linux/macOS)" value="bash scripts/build-agent.sh 1.0.0" />
+          <Cmd title="Compilar server + web y armar el .tar.gz" value="bash scripts/package-server.sh 1.0.0 --build-web" />
+        </Collapsible>
+
+        <Collapsible title="Instalación">
+          <SubHeading>Servidor (Linux — único SO soportado hoy)</SubHeading>
+          <Cmd
+            title="Extraer el paquete"
+            value="tar -xzf argos-server_1.0.0_linux_amd64.tar.gz && cd argos-server_1.0.0_linux_amd64"
+          />
           <Cmd
             title="LAN (HTTPS con CA propia)"
             value={
@@ -61,18 +90,39 @@ export function InstructionsPage() {
           />
           <Cmd title="Cambiar de dominio (ya instalado)" value="sudo bash deploy/install-server.sh --domain argos.nuevo-dominio.com --with-caddy" />
           <Cmd title="Revisar sin ejecutar nada" value="bash deploy/install-server.sh --dry-run <mismas opciones>" />
-        </Section>
 
-        <Section title="Actualizar el agente">
-          <Cmd title="Actualizar a la última versión publicada" value="sudo argos-agent update" />
-        </Section>
+          <SubHeading>Agente (Windows, Linux y macOS)</SubHeading>
+          <Tabs defaultValue="windows">
+            <TabsList aria-label="Sistema operativo">
+              <TabsTrigger value="windows">Windows (PowerShell)</TabsTrigger>
+              <TabsTrigger value="linux">Linux / macOS (bash)</TabsTrigger>
+            </TabsList>
+            <TabsContent value="windows">
+              <CopyBlock
+                label="Instalar y enrolar en Windows"
+                value={
+                  "'<token>' | argos-agent.exe enroll --server https://argos.tu-dominio --token-stdin\nargos-agent.exe install\nargos-agent.exe start"
+                }
+              />
+            </TabsContent>
+            <TabsContent value="linux">
+              <CopyBlock
+                label="Instalar y enrolar en Linux o macOS"
+                value={
+                  "echo '<token>' | argos-agent enroll --server https://argos.tu-dominio --token-stdin\nsudo argos-agent install\nsudo argos-agent start"
+                }
+              />
+            </TabsContent>
+          </Tabs>
+          <Cmd title="Actualizar el agente a la última versión publicada" value="sudo argos-agent update" />
+        </Collapsible>
 
-        <Section title="Administración del server (argos-server)">
+        <Collapsible title="Administración del servidor">
           <Cmd title="Crear un usuario admin" value="argos-server create-admin [--must-change] [usuario]" />
           <Cmd title="Fijar contraseña y desbloquear la cuenta" value="argos-server reset-password <usuario>" />
           <Cmd title="Aplicar migraciones pendientes" value="argos-server migrate" />
           <Cmd title="Rotar la clave de cifrado" value="argos-server rotate-secret-key" />
-        </Section>
+        </Collapsible>
       </div>
     </>
   )

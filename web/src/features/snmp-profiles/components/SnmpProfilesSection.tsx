@@ -4,18 +4,17 @@ import { TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
-import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { SnmpProfileFormDialog } from '@/features/snmp-profiles/components/SnmpProfileFormDialog'
-import { SnmpProfilesTable, type SnmpProfileAction } from '@/features/snmp-profiles/components/SnmpProfilesTable'
-import { useSnmpProfiles } from '@/features/snmp-profiles/hooks/useSnmpProfiles'
-import { deleteSnmpProfile } from '@/features/snmp-profiles/services/snmpProfiles.service'
-import type { SnmpProfile } from '@/features/snmp-profiles/types/snmpProfile.types'
-import { mapSnmpProfileError } from '@/features/snmp-profiles/utils/errors'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
+import { useSnmpProfiles } from '../hooks/useSnmpProfiles'
+import { deleteSnmpProfile } from '../services/snmpProfiles.service'
+import type { SnmpProfile } from '../types/snmpProfile.types'
+import { mapSnmpProfileError } from '../utils/errors'
+import { SnmpProfileFormDialog } from './SnmpProfileFormDialog'
+import { SnmpProfilesTable, type SnmpProfileAction } from './SnmpProfilesTable'
 
-// Página solo de admin (el ítem del menú y la API lo exigen).
-export function SnmpProfilesPage() {
+/** Perfiles SNMP, dentro de Configuración (solo admin: la página y la API lo exigen). */
+export function SnmpProfilesSection() {
   const { data: profiles, error, loading, refresh } = useSnmpProfiles()
   const [form, setForm] = useState<{ profile: SnmpProfile | null } | null>(null)
   const [deleting, setDeleting] = useState<SnmpProfile | null>(null)
@@ -35,16 +34,17 @@ export function SnmpProfilesPage() {
   }
 
   return (
-    <>
-      <PageHeader title="Perfiles SNMP" actions={<Button size="sm" onClick={() => setForm({ profile: null })}>Nuevo perfil</Button>} />
-      <div className="flex flex-col gap-3" aria-busy={loading}>
-        {error && <TableError message={error} onRetry={() => void refresh()} />}
-        {loading && !profiles && <Skeleton className="h-40 w-full" />}
-        {profiles && profiles.length === 0 && (
-          <EmptyState Icon={IconKey} title="Sin perfiles SNMP" description='Crea el primero con "Nuevo perfil" y asígnalo a un dispositivo.' />
-        )}
-        {profiles && profiles.length > 0 && <SnmpProfilesTable profiles={profiles} onAction={handleAction} />}
+    <section aria-labelledby="snmp-title" aria-busy={loading} className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="snmp-title" className="text-sm font-semibold">Perfiles SNMP</h2>
+        <Button size="sm" variant="outline" onClick={() => setForm({ profile: null })}>Nuevo perfil</Button>
       </div>
+      {error && <TableError message={error} onRetry={() => void refresh()} />}
+      {loading && !profiles && <Skeleton className="h-40 w-full" />}
+      {profiles && profiles.length === 0 && (
+        <EmptyState Icon={IconKey} title="Sin perfiles SNMP" description='Crea el primero con "Nuevo perfil" y asígnalo a un dispositivo.' />
+      )}
+      {profiles && profiles.length > 0 && <SnmpProfilesTable profiles={profiles} onAction={handleAction} />}
       <SnmpProfileFormDialog
         profile={form?.profile ?? null}
         open={form !== null}
@@ -67,6 +67,6 @@ export function SnmpProfilesPage() {
           setDeleting(null)
         }}
       />
-    </>
+    </section>
   )
 }

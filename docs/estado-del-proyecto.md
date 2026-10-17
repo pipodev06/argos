@@ -1,4 +1,4 @@
-# Estado del proyecto (actualizado 2026-09-26) — LEER ESTO AL INICIAR UNA SESIÓN NUEVA
+# Estado del proyecto (actualizado 2026-10-17) — LEER ESTO AL INICIAR UNA SESIÓN NUEVA
 Detalle por tema en `decisiones/` (índice: `decisiones.md`; abre solo el tema de tu tarea). Tareas: `plan-tareas.md`. Límites conocidos: `deuda-tecnica.md`. Tests que se saltaron a propósito mientras se cierra el core: `tests-pendientes.md`. Historia: git. Reglas del orquestador y lecciones de agentes: memoria del proyecto y `~/.claude/agents/*.md`.
 
 ## Qué es
@@ -10,13 +10,15 @@ Monitoreo tipo Zabbix/PRTG que el usuario **hospeda como servicio** para varios 
 - **Web**: hosts, dispositivos, grupos, chequeos, alertas/reglas/mantenimiento/canales, usuarios y permisos, auditoría, informes, parches (gráfica y filtros), historial por fecha, Configuración (retención), purga, Resumen en 3 bloques; Vitest 267+.
 - **Despliegue**: `scripts/package-server.sh <ver>` → `dist/server/*.tar.gz`; `deploy/install-server.sh` de un paso (`--install-postgres --create-local-db --with-caddy|túnel --admin-user`, `--dry-run`); guía del túnel en `deploy/README.md`. Herramientas de carga en `scripts/perf/`.
 
-## Siguiente (ver `plan-tareas.md`)
+Cómo levantar y desplegar, para cualquiera: `README.md` de la raíz.
+
+## Siguiente (ver `plan-tareas.md`, que ya solo lista lo abierto)
 1. Decisiones del usuario abiertas: túnel (¿Cloudflare?) y bloqueo de la cuenta admin (H4), respaldos cifrados (H6, `age`/`gpg` y destino), política del resumen horario (400 d vs retención del cliente).
-2. Brechas de producto por flujo (análisis K) y la limpieza de código (J): resultados en curso.
-3. Seguridad H3/H5/H7 y probar el empaquetado con volumen antes de actualizar una BD con historial (E3).
-4. Validación real en Linux/Windows del instalador (T3, a cargo del usuario; macOS sin equipo) y primer despliegue (D1).
+2. Revisión visual en navegador de las pantallas sin revisar (B25).
+3. Validación real en Linux/Windows del instalador (T3, a cargo del usuario; macOS sin equipo) y primer despliegue (D1).
 Hecho 2026-09-27 (B19-B30 bajo y medio + escalamiento; goose hasta 00045, aplicadas a la BD `argos` local con respaldos `argos-pre00040/00042/00043/00044.dump`): plantillas de reglas, export CSV de hosts/dispositivos/parches, silenciar regla, `GET /metrics` (`ARGOS_METRICS_TOKEN`), flapping, constancia de baja, escalamiento de alertas, fix del borrado de dispositivos, borrado por tandas, bajas en segundo plano (`purge_jobs`) y flapping que se libera al estabilizarse. Server local corriendo desde `.dev-bin/argos-server.exe`.
-Aplazado por el usuario: SMTP, firma de binarios (reprioriza por el servicio hospedado), dominio/VPS público.
+Hecho 2026-09-30/10-17: página Instrucciones; auditoría (Go 1.27.2, react-doctor, parches del host sin tabla, Perfiles SNMP dentro de Configuración, chequeos pausados visibles, webhook compatible con Discord, README): ver `decisiones/2026-10-17-auditoria-y-limpieza.md`.
+Aplazado por el usuario: ver la última sección de `plan-tareas.md`.
 
 ## Cómo trabajar y verificar
 - Verificar: `bash scripts/check-go.sh <server|agent|all> [--fast] [--race] [--pkg ./ruta]` y `bash scripts/check-web.sh`. Los tests de BD se SALTAN sin `ARGOS_TEST_DATABASE_URL=postgres://argos:argos@localhost:5432/argos_test?sslmode=disable` (la BD `argos_test` ya existe): definirla SIEMPRE. `--race` local necesita gcc (`winget install BrechtSanders.WinLibs.POSIX.UCRT`; añade `.../WinGet/Packages/BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin` al PATH del shell).

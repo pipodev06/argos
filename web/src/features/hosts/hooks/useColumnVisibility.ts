@@ -17,17 +17,18 @@ function load(): OptionalColumn[] {
 export function useColumnVisibility() {
   const [visible, setVisible] = useState<OptionalColumn[]>(load)
 
-  const toggle = useCallback((id: OptionalColumn, on: boolean) => {
-    setVisible((prev) => {
-      const next = OPTIONAL_COLUMNS.map((c) => c.id).filter((c) => (c === id ? on : prev.includes(c)))
+  const toggle = useCallback(
+    (id: OptionalColumn, on: boolean) => {
+      const next = OPTIONAL_COLUMNS.map((c) => c.id).filter((c) => (c === id ? on : visible.includes(c)))
+      setVisible(next)
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       } catch {
         // almacenamiento no disponible: la preferencia vive solo esta sesion
       }
-      return next
-    })
-  }, [])
+    },
+    [visible],
+  )
 
   return { visible, toggle }
 }

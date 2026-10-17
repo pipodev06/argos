@@ -66,7 +66,8 @@ export interface CheckState {
 }
 
 export interface HostCheck {
-  check: { id: string; name: string; type: CheckType; target: string; interval_s: number }
+  /** `enabled: false` = chequeo pausado (se lista igual, con su último estado conocido). */
+  check: { id: string; name: string; type: CheckType; target: string; interval_s: number; enabled: boolean }
   state: CheckState | null
 }
 

@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: argos
-      POSTGRES_PASSWORD: argos_dev
+      POSTGRES_PASSWORD: argos
       POSTGRES_DB: argos
     ports:
       - "127.0.0.1:5432:5432"

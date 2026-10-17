@@ -8,6 +8,7 @@ import { useGroups } from '@/features/groups/hooks/useGroups'
 import { RetentionExceptions } from '@/features/retention/components/RetentionExceptions'
 import { RetentionSection } from '@/features/retention/components/RetentionSection'
 import { useRetention } from '@/features/retention/hooks/useRetention'
+import { SnmpProfilesSection } from '@/features/snmp-profiles/components/SnmpProfilesSection'
 import { ServiceStatusSection } from '@/features/system-status/components/ServiceStatusSection'
 import { useSummary } from '@/features/summary/hooks/useSummary'
 
@@ -44,6 +45,7 @@ function ConfigurationAdmin() {
         )}
         {groups.error && <InlineError>{groups.error}</InlineError>}
         {groups.groups && <RetentionExceptions groups={groups.groups.items} />}
+        <SnmpProfilesSection />
       </div>
     </>
   )

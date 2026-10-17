@@ -15,3 +15,4 @@ Mientras se ataca el core de negocio (B7, B12, …) no se escriben tests nuevos 
 - ~~**B19-B30 (export CSV de inventario), sin test.**~~ **Cerrado 2026-09-28** (`inventory_csv_test.go`: ámbito del viewer, fórmulas neutralizadas, filtro `q`, 401 sin sesión; `inventory_export_test.go`: tope de 5000 y separación agentes/dispositivos). Sin cubrir: `updates.csv` (mismo patrón, requiere datos de parches) y el tope de dispositivos/parches.
 
 (Vacío a partir de aquí: se va llenando según avance el core sin tests.)
+- (2026-10-17) `store.HostServiceChecks` devuelve también los chequeos pausados (`Def.Enabled=false`, después de los activos); y un test de componente del badge "Pausado" en `HostChecksSection`.

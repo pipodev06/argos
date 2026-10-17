@@ -1,4 +1,4 @@
-# Deuda técnica (repaso completo el 2026-09-26; lo resuelto está en `decisiones/archivo.md`)
+# Deuda técnica (repaso completo el 2026-09-26, ajustado el 2026-10-17; lo resuelto está en `decisiones/archivo.md`)
 
 Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites y riesgos conocidos. Hallazgos de seguridad del servicio hospedado: `decisiones/2026-09-26-seguridad-multicliente.md`.
 
@@ -10,12 +10,10 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Pantallas nuevas sin revisar en navegador (Resumen sí lo revisó el usuario): parches (gráfica y filtros), modal "Agregar host", historial por fecha, configuración/retención, purga, dispositivos (deshabilitar) -> [Frontend](#frontend)
 - Estado en memoria mono-instancia (rate limits, clave HMAC de cursores, dedup de auditoría) -> [Seguridad](#seguridad)
 - Auditoría best-effort (no transaccional) -> [Seguridad](#seguridad)
-- Monitorear el propio servicio: un `DETACH`/empaquetado que falla solo deja un ERROR en el log (sin alerta) -> [Operación](#operación)
+- Monitorear el propio servicio: un `DETACH`/empaquetado que falla se ve en "Estado del servicio" y en el aviso del Resumen (admin), pero no llega por webhook; fuera del dashboard, vigilar `GET /metrics` (`argos_task_last_ok_age_seconds`) o `/health` con un monitor externo -> [Operación](#operación)
 ### Baja
-- Webhook: Discord solo funciona con el sufijo `/slack` (payload con `text`, no `content`) -> [Operación](#operación)
 - Límites de colectores (batería, discos, `host_info`, red virtual), Linux solo systemd, macOS sin rotación de log, Windows con estado de solo lectura -> [Agente](#agente-y-servicio)
 - Series: primer tramo sin tasa, datos tardíos >3 h no se reprocesan, partición ausente tras una parada larga -> [Datos](#datos-y-api)
-- Un chequeo deshabilitado no se distingue de "sin chequeos" en el detalle del host/dispositivo (hallazgo 2026-09-27) -> [Frontend](#frontend)
 - Sin test de `main`/SIGTERM real; tests de BD se SALTAN en silencio sin `ARGOS_TEST_DATABASE_URL` -> [Operación](#operación)
 
 ## Servicio hospedado
@@ -50,7 +48,6 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - `host_events`: el pasado no se reconstruye; una caída se subcuenta hasta `down_after_seconds`; editar una ventana de mantenimiento cambia el % de disponibilidad pasado.
 
 ## Frontend
-- Un chequeo deshabilitado no aparece en el detalle del host/dispositivo (la sección "Chequeos" solo lista los habilitados): parece "sin chequeos" en vez de "1 pausado". Falta listarlo igual con un badge "Pausado" (hallazgo 2026-09-27).
 - Bundle dividido (entrada 48 kB; Recharts en su chunk). Vitest (361 tests) con tests de componentes y axe (contraste no medible en jsdom); sin probar en navegador ni los rangos 30d/90d/1y contra la API real. En la tabla de dispositivos el aviso de desfase puede desbordar los 36 px de fila en pantallas angostas. El origen para `--insecure` del modal es `window.location.origin`.
 
 ## Operación
