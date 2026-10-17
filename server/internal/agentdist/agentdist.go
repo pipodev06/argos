@@ -27,17 +27,13 @@ import (
 const (
 	latestFile   = "latest"
 	manifestFile = "manifest.json"
-	sigFile      = "manifest.json.sig"
-	maxMetaBytes = 1 << 16 // tope pa `latest`, `manifest.json` y su firma
+	maxMetaBytes = 1 << 16 // tope pa `latest` y `manifest.json`
 )
 
 // versionRe limita la version a un nombre de directorio seguro (sin separadores ni "..").
 var versionRe = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$`)
 
 var sha256Re = regexp.MustCompile(`^[0-9a-f]{64}$`)
-
-// sigRe es una firma ed25519 (64 bytes) en hex.
-var sigRe = regexp.MustCompile(`^[0-9a-f]{128}$`)
 
 // targets son los seis objetivos obligatorios.
 var targets = []struct{ os, arch string }{
@@ -62,9 +58,6 @@ type Catalog struct {
 	dir     string          // <dir>/<version>
 	// manifest es el manifiesto canonico (una entrada por linea: lo parsean los scripts de instalacion).
 	manifest []byte
-	// signature es la firma ed25519 del manifiesto (hex + salto de linea), leida de manifest.json.sig.
-	// El server nunca la genera ni la valida (no tiene la clave publica): solo la sirve tal cual.
-	signature []byte
 }
 
 type manifestDoc struct {
@@ -105,15 +98,6 @@ func Load(root string) (*Catalog, error) {
 		return nil, fmt.Errorf("el manifiesto declara la version %q, latest apunta a %q", docVersion, version)
 	}
 
-	sigRaw, err := readSmall(filepath.Join(dir, sigFile))
-	if err != nil {
-		return nil, fmt.Errorf("leyendo %s: %w (H7: el manifiesto debe ir firmado)", sigFile, err)
-	}
-	sig := strings.TrimSpace(string(sigRaw))
-	if !sigRe.MatchString(sig) {
-		return nil, fmt.Errorf("%s no contiene una firma hex valida", sigFile)
-	}
-
 	c := &Catalog{Version: version, dir: dir, files: make(map[string]File, len(targets))}
 	for _, t := range targets {
 		name := FileName(t.os, t.arch)
@@ -128,13 +112,12 @@ func Load(root string) (*Catalog, error) {
 	}
 
 	c.manifest = canon
-	c.signature = []byte(sig + "\n")
 	return c, nil
 }
 
 // canonicalizeManifest valida un manifest.json (dedup, exactamente los objetivos esperados, formato de
-// cada entrada) y devuelve su version, sus archivos por nombre y la forma canonica que el server sirve
-// (y por lo tanto la que hay que firmar). No toca disco: no verifica que los binarios existan.
+// cada entrada) y devuelve su version, sus archivos por nombre y la forma canonica que el server sirve.
+// No toca disco: no verifica que los binarios existan.
 func canonicalizeManifest(raw []byte) (version string, byName map[string]File, canon []byte, err error) {
 	var doc manifestDoc
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -168,20 +151,8 @@ func canonicalizeManifest(raw []byte) (version string, byName map[string]File, c
 	return doc.Version, byName, canonicalManifest(doc.Version, doc.Files), nil
 }
 
-// CanonicalManifest valida un manifest.json y devuelve su forma canonica: exactamente los bytes que
-// Load va a servir por /dl/latest/manifest.json. Es lo que hay que firmar (comando `sign-manifest`) pa
-// que la firma verifique contra lo que el agente recibe.
-func CanonicalManifest(raw []byte) ([]byte, error) {
-	_, _, canon, err := canonicalizeManifest(raw)
-	return canon, err
-}
-
 // Manifest devuelve el manifiesto canonico.
 func (c *Catalog) Manifest() []byte { return c.manifest }
-
-// Signature devuelve la firma ed25519 del manifiesto (hex, con salto de linea final), leida de
-// manifest.json.sig. El agente la verifica con su clave publica embebida (ver agent/internal/updater).
-func (c *Catalog) Signature() []byte { return c.signature }
 
 // Open abre un binario por nombre exacto. ok=false si no esta en el mapa cerrado. El tamaño en disco se
 // re-comprueba: si el archivo cambio despues del arranque, devuelve error (el llamador responde 404).

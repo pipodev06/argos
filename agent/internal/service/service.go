@@ -101,14 +101,3 @@ func printf(out io.Writer, format string, args ...any) {
 		_, _ = fmt.Fprintf(out, format, args...) // progreso informativo: un fallo al escribirlo no debe abortar la instalacion
 	}
 }
-
-// StatusRunning dice si la linea que devuelve Manager.Status describe un servicio en ejecucion
-// (systemd "active", launchd "running", Windows "en ejecucion").
-func StatusRunning(line string) bool {
-	for _, s := range []string{"estado: active", "estado: running", "estado: en ejecucion"} {
-		if strings.Contains(line, s) {
-			return true
-		}
-	}
-	return false
-}

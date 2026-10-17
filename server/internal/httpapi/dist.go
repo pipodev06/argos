@@ -72,7 +72,6 @@ func (a *API) registerDist(mux *http.ServeMux) {
 	a.route(mux, "GET /install.sh", accessPublic, a.installScript("install.sh", installSH))
 	a.route(mux, "GET /install.ps1", accessPublic, a.installScript("install.ps1", installPS1))
 	a.route(mux, "GET /dl/latest/manifest.json", accessPublic, a.distManifest)
-	a.route(mux, "GET /dl/latest/manifest.json.sig", accessPublic, a.distManifestSig)
 	a.route(mux, "GET /dl/{version}/{file}", accessPublic, a.distDownload)
 }
 
@@ -119,28 +118,6 @@ func (a *API) distManifest(w http.ResponseWriter, r *http.Request) error {
 	if r.Method != http.MethodHead {
 		if _, err := w.Write(body); err != nil {
 			a.logger.DebugContext(r.Context(), "escribiendo manifiesto", "err", err)
-		}
-	}
-	return nil
-}
-
-// distManifestSig sirve la firma ed25519 del manifiesto (manifest.json.sig, hex). El server NUNCA la
-// genera ni la valida (no tiene la clave privada ni la publica): solo la sirve tal cual quedo al
-// empaquetar (H7, docs/decisiones/2026-09-26-seguridad-multicliente.md #11). La verifica el agente con
-// su clave publica embebida.
-func (a *API) distManifestSig(w http.ResponseWriter, r *http.Request) error {
-	if err := a.distGuard(r); err != nil {
-		return err
-	}
-	body := a.opts.Dist.Signature()
-	h := w.Header()
-	h.Set("Content-Type", "text/plain; charset=utf-8")
-	h.Set("Cache-Control", "no-cache")
-	h.Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(http.StatusOK)
-	if r.Method != http.MethodHead {
-		if _, err := w.Write(body); err != nil {
-			a.logger.DebugContext(r.Context(), "escribiendo firma del manifiesto", "err", err)
 		}
 	}
 	return nil

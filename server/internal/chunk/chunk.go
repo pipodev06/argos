@@ -5,7 +5,7 @@
 //
 // Garantias:
 //   - Determinista: las mismas filas dan los mismos bytes (con la misma version de Go).
-//   - Sin perdidas salvo los flotantes de 32 bits (cpu, load), que se redondean a 2 decimales (Round2), y los
+//   - Sin perdidas salvo los flotantes de 32 bits (cpu, load), que se redondean (Round2), y los
 //     valores absurdos: NaN/Inf se guardan como NULL y |valor| > maxQuant/100 se recorta.
 //   - Decode nunca entra en panico con bytes arbitrarios: un blob alterado se detecta por el CRC32 del contenido.
 package chunk
@@ -303,12 +303,6 @@ func Decode(data []byte) ([]Row, error) {
 		return nil, fmt.Errorf("crc32 distinto: %w", ErrCorrupt)
 	}
 	return unmarshalPayload(payload, n)
-}
-
-// Count devuelve el numero de filas de un blob sin descomprimirlo (solo lee la cabecera).
-func Count(data []byte) (int, error) {
-	n, _, err := parseHeader(data)
-	return n, err
 }
 
 func parseHeader(data []byte) (n int, crc uint32, err error) {

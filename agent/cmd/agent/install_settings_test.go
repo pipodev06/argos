@@ -123,23 +123,3 @@ func TestStatusShowsEffectiveSettings(t *testing.T) {
 	}
 	h.assertNoSecrets(t)
 }
-
-func TestUpdateGuards(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	dev := newHarness(t) // version "test": el guardia es la build dev y el servicio no instalado
-	dev.app.version = "dev"
-	dev.svc.installed = true
-	if err := dev.app.execute(ctx, []string{"update"}); err == nil || !strings.Contains(err.Error(), "desarrollo") {
-		t.Errorf("update en build dev: err got %v", err)
-	}
-
-	notInstalled := newHarness(t)
-	if err := notInstalled.app.execute(ctx, []string{"update"}); err == nil || !strings.Contains(err.Error(), "no esta instalado") {
-		t.Errorf("update sin servicio: err got %v", err)
-	}
-	if err := notInstalled.app.execute(ctx, []string{"update", "x"}); err == nil {
-		t.Error("update no acepta argumentos")
-	}
-}

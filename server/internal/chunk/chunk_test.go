@@ -51,9 +51,6 @@ func roundTrip(t *testing.T, rows []Row) {
 			t.Fatalf("fila %d:\n got  %+v\n want %+v", i, got[i], w)
 		}
 	}
-	if n, err := Count(blob); err != nil || n != len(rows) {
-		t.Errorf("Count = %d, %v; want %d", n, err, len(rows))
-	}
 }
 
 func TestRoundTripEdgeCases(t *testing.T) {

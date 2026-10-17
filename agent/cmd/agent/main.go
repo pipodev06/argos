@@ -9,7 +9,6 @@
 //	                                                    --privileged: modo con mas visibilidad (opt-in)
 //	argos-agent uninstall [--keep-state]                elimina el servicio y, por defecto, sus credenciales
 //	argos-agent start | stop | status                   controlan el servicio
-//	argos-agent update                                  instala la ultima version publicada por el servidor (requiere administrador/root)
 //
 // Codigos de salida: 0 ok, 1 error, 2 el servidor rechazo el token (revocado o
 // invalido: re-enrolar). El codigo 2 aplica solo en primer plano: como servicio, un
@@ -33,11 +32,6 @@ import (
 // version se inyecta en el build: go build -ldflags "-X main.version=1.2.3".
 var version = "dev"
 
-// publicKey es la clave publica ed25519 (hex) que verifica la firma del manifiesto de `update` (H7); se
-// inyecta igual que version: -ldflags "-X main.publicKey=<hex>". Vacia en builds de dev: `update` falla
-// cerrado (ver updater.ErrNoPublicKey).
-var publicKey = ""
-
 const (
 	exitError         = 1
 	exitTokenRejected = 2
@@ -54,13 +48,12 @@ func realMain() int {
 	defer stop()
 
 	a := &app{
-		version:   version,
-		publicKey: publicKey,
-		getenv:    os.Getenv,
-		stdin:     os.Stdin,
-		stdout:    os.Stdout,
-		stderr:    os.Stderr,
-		svc:       service.Manager{},
+		version: version,
+		getenv:  os.Getenv,
+		stdin:   os.Stdin,
+		stdout:  os.Stdout,
+		stderr:  os.Stderr,
+		svc:     service.Manager{},
 	}
 
 	// Windows: si lo lanzo el gestor de servicios no hay consola; los logs van al registro de eventos.

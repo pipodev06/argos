@@ -110,7 +110,6 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /install.sh":                        {"public", fixed("/install.sh")},
 		"GET /install.ps1":                       {"public", fixed("/install.ps1")},
 		"GET /dl/latest/manifest.json":           {"public", fixed("/dl/latest/manifest.json")},
-		"GET /dl/latest/manifest.json.sig":       {"public", fixed("/dl/latest/manifest.json.sig")},
 		"GET /dl/{version}/{file}":               {"public", fixed("/dl/v0/argos-agent-linux-amd64")},
 		"GET /":                                  {"public", fixed("/", "/hosts")},
 		"GET /api/v1/auth/me":                    {"own", fixed(api + "/auth/me")},

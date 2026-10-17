@@ -1,5 +1,7 @@
 # H7: firma de binarios del agente (2026-09-27)
 
+> **2026-10-17:** quitado del código por decisión del usuario (sin despliegue, solo desarrollo). Recuperar del historial de git (commit `a75145e`) si vuelve la producción. La rotación de `ARGOS_SECRET_KEY` sigue vigente.
+
 ## Problema
 `agent/internal/updater` descargaba `manifest.json` del mismo server y verificaba el sha256 del binario contra ese manifiesto. El sha256 protege de corrupción, no de un server (o túnel) comprometido: quien lo controla puede servir un manifiesto y un binario maliciosos a la vez.
 

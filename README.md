@@ -41,7 +41,7 @@ Para editar la interfaz con recarga en caliente, deja el servidor corriendo y us
 
 ### Agente local
 ```bash
-bash scripts/build-agent.sh 0.0.0-dev            # binarios en dist/agent (sin firma: sirve para pruebas, no permite `update`)
+bash scripts/build-agent.sh 0.0.0-dev            # binarios + manifest.json en dist/agent
 ```
 Enrólalo desde el dashboard: **Hosts → Agregar host** genera el comando. Los equipos de la LAN que hablen por `http://` necesitan `--insecure` (solo en desarrollo).
 

@@ -460,23 +460,3 @@ func TestHasRPMManager(t *testing.T) {
 		t.Error("apt no es gestor RPM: sin sudoers")
 	}
 }
-
-func TestStatusRunning(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		line string
-		want bool
-	}{
-		{"instalado; estado: active; al arranque: enabled", true},
-		{"instalado; estado: running", true},
-		{"instalado; estado: en ejecucion", true},
-		{"instalado; estado: inactive; al arranque: enabled", false},
-		{"instalado; estado: detenido", false},
-		{"no instalado", false},
-	}
-	for _, tt := range tests {
-		if got := StatusRunning(tt.line); got != tt.want {
-			t.Errorf("StatusRunning(%q) got %v, want %v", tt.line, got, tt.want)
-		}
-	}
-}

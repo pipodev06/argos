@@ -25,14 +25,11 @@ import (
 	"argos/agent/internal/service"
 	"argos/agent/internal/state"
 	"argos/agent/internal/transport"
-	"argos/agent/internal/updater"
 )
 
 const (
 	httpTimeout = 10 * time.Second
-	// updateTimeout cubre la descarga completa del binario (~15 MiB), que httpTimeout no alcanza en enlaces lentos.
-	updateTimeout = 5 * time.Minute
-	usage         = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] [--privileged] [--inventory <modulos|all>] [--probe-allow <cidr,...>] [--insecure] | uninstall [--keep-state] | start | stop | status | update"
+	usage       = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] [--privileged] [--inventory <modulos|all>] [--probe-allow <cidr,...>] [--insecure] | uninstall [--keep-state] | start | stop | status"
 
 	// maxTokenBytes acota lo que se lee del token por stdin (un enroll token real ocupa ~50 bytes).
 	maxTokenBytes = 4096
@@ -62,13 +59,11 @@ type serviceManager interface {
 // app agrupa las dependencias de los subcomandos (inyectables en tests).
 type app struct {
 	version string
-	// publicKey verifica la firma del manifiesto en `update` (H7); "" en builds de dev.
-	publicKey string
-	getenv    func(string) string
-	stdin     io.Reader
-	stdout    io.Writer
-	stderr    io.Writer
-	logger    *slog.Logger
+	getenv  func(string) string
+	stdin   io.Reader
+	stdout  io.Writer
+	stderr  io.Writer
+	logger  *slog.Logger
 	// collector es el medidor; nil = el real (gopsutil). Si tambien implementa
 	// agent.DiskCollector / agent.HostInfoCollector, se usan pa discos y host_info.
 	collector agent.Collector
@@ -76,8 +71,6 @@ type app struct {
 	svc serviceManager
 	// serviceMode: el proceso corre bajo el gestor de servicios (Windows) y no en primer plano.
 	serviceMode bool
-	// swapper reemplaza el binario en `update`; nil = el real (rename junto al instalado + reinicio del servicio).
-	swapper updater.Swapper
 	// runAsService, si no es nil, ejecuta run bajo el gestor de servicios (Windows: svc.Run).
 	runAsService func(run func(context.Context) error) error
 
@@ -107,8 +100,6 @@ func (a *app) execute(ctx context.Context, args []string) error {
 		return a.stop(ctx, args)
 	case "status":
 		return a.status(ctx, args)
-	case "update":
-		return a.update(ctx, args)
 	default:
 		return fmt.Errorf("subcomando desconocido %q; %s", cmd, usage)
 	}
@@ -634,52 +625,4 @@ func orNone(s string) string {
 		return "(ninguno)"
 	}
 	return s
-}
-
-// update baja e instala la ultima version publicada por el servidor (ver package updater). Requiere
-// root/administrador y el servicio instalado; conserva estado y config y reinicia el servicio.
-func (a *app) update(ctx context.Context, args []string) error {
-	if err := noArgs("update", args); err != nil {
-		return err
-	}
-	if a.version == "dev" || a.version == "" {
-		return fmt.Errorf("update: %w", updater.ErrDevBuild)
-	}
-	if !a.svc.Installed() {
-		return errors.New("update: el servicio no esta instalado; instala con `argos-agent install` (o el script install.sh / install.ps1)")
-	}
-	if err := a.svc.RequirePrivileges(); err != nil {
-		return fmt.Errorf("update: %w", err)
-	}
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return err
-	}
-	creds, err := a.newStore(cfg).Load()
-	if err != nil {
-		return fmt.Errorf("update: %w", err)
-	}
-	serverURL := firstNonEmpty(cfg.ServerURL, creds.ServerURL)
-	if serverURL == "" {
-		return errors.New("update: falta el servidor: define ARGOS_SERVER_URL")
-	}
-	if err := a.checkTransport(serverURL, cfg.AllowInsecure); err != nil {
-		return err
-	}
-	client, err := transport.NewClient(cfg.CAFile, updateTimeout)
-	if err != nil {
-		return fmt.Errorf("cliente http: %w", err)
-	}
-	swapper := a.swapper
-	if swapper == nil {
-		swapper = updater.FileSwapper{Svc: a.svc, IsRunning: service.StatusRunning, Logger: a.logger}
-	}
-	err = updater.Run(ctx, updater.Options{
-		Server: serverURL, Version: a.version, PubKeyHex: a.publicKey, HTTP: client, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
-		Swapper: swapper, Out: a.stdout,
-	})
-	if err != nil {
-		return fmt.Errorf("update: %w", err)
-	}
-	return nil
 }

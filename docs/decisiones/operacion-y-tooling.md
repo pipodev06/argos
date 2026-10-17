@@ -14,7 +14,6 @@ Variables verificadas contra `server/internal/config/config.go`, `agent/internal
 | `ARGOS_METRICS_RETENTION_DAYS` | 30, min 8 (default global del DETALLE comprimido; editable en la pantalla Configuración) | detalle-comprimido-retencion |
 | `ARGOS_METRICS_HOT_DAYS` | 8, min 8 (ventana del crudo antes de empaquetar) | detalle-comprimido-retencion |
 | `ARGOS_AUTO_MIGRATE` | true (false = el server no migra; usa `argos-server migrate`) | roles-bd |
-| `ARGOS_MIGRATE_DATABASE_URL`, `ARGOS_APP_ROLE` | solo para `argos-server migrate` (rol dueño y rol de runtime) | roles-bd |
 | `ARGOS_METRICS_HOURLY_RETENTION_DAYS` | 400, min 8, >= cruda | datos-retencion-particionado |
 | `ARGOS_SERVICE_CHECKS_RETENTION_DAYS` | 14, min 8 | datos-retencion-particionado |
 | `ARGOS_DISK_RETENTION_DAYS` | 30, min 8 | grupos-etiquetas-metricas |

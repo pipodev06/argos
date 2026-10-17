@@ -76,17 +76,6 @@ func (a *API) startPurgeJobs(ctx context.Context, wg *sync.WaitGroup, slots chan
 	}
 }
 
-// runPurgeJobsOnce ejecuta, una tras otra, las bajas en cola hasta vaciarla (los tests lo usan en vez del worker).
-func (a *API) runPurgeJobsOnce(ctx context.Context) error {
-	for {
-		job, ok, err := a.store.ClaimPurgeJob(ctx)
-		if err != nil || !ok {
-			return err
-		}
-		a.executePurgeJob(ctx, job)
-	}
-}
-
 // executePurgeJob hace la baja, cierra el trabajo y deja la auditoria (con el solicitante como actor).
 func (a *API) executePurgeJob(ctx context.Context, job store.PurgeJob) {
 	result, detail, err := a.runPurge(ctx, job)
