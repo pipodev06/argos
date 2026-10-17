@@ -55,7 +55,7 @@ func TestBuildMessageIsValidJSONWithOnlyTheAllowedFields(t *testing.T) {
 	}
 	for k := range m {
 		switch k {
-		case "version", "kind", "sent_at", "text", "alerts", "omitted":
+		case "version", "kind", "sent_at", "text", "alerts", "omitted", "content", "allowed_mentions":
 		default:
 			t.Errorf("campo inesperado en el mensaje: %q", k)
 		}
@@ -201,5 +201,36 @@ func TestBuildMessageEscalationIsFiringWithEscaladaVerb(t *testing.T) {
 	}
 	if len(m.Alerts) != 1 || m.Alerts[0].Event != "escalation" || m.Alerts[0].State != "firing" {
 		t.Errorf("alerts got %+v, want event escalation y state firing", m.Alerts)
+	}
+}
+
+func TestBuildMessageDiscordContent(t *testing.T) {
+	t.Parallel()
+	items := make([]Item, 0, MaxItemsPerMessage)
+	for i := 0; i < MaxItemsPerMessage; i++ {
+		items = append(items, Item{Event: "opened", Hostname: "@everyone " + strings.Repeat("h", 60), Rule: strings.Repeat("r", 60), Severity: "critical"})
+	}
+	raw, err := BuildMessage(items, 0, "", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct {
+		Text            string `json:"text"`
+		Content         string `json:"content"`
+		AllowedMentions struct {
+			Parse []string `json:"parse"`
+		} `json:"allowed_mentions"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if n := len([]rune(m.Content)); n == 0 || n > discordMaxContent {
+		t.Errorf("content con %d caracteres, want 1..%d", n, discordMaxContent)
+	}
+	if !strings.HasPrefix(m.Text, m.Content[:50]) {
+		t.Error("content debe empezar igual que text")
+	}
+	if m.AllowedMentions.Parse == nil || len(m.AllowedMentions.Parse) != 0 {
+		t.Errorf("allowed_mentions.parse got %v, want [] (sin menciones)", m.AllowedMentions.Parse)
 	}
 }

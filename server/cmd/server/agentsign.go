@@ -33,8 +33,7 @@ func runAgentSign(args []string) error {
 
 // cmdKeygen genera el par de claves ed25519 que firma el manifiesto del agente. Escribe la clave privada
 // (semilla hex) en <outfile> con permisos 0600 y falla si ya existe (una clave nueva no debe pisar una
-// vieja por accidente). La clave publica se imprime en stdout: el admin la guarda (deploy/README.md o
-// donde documente su despliegue) y la usa al compilar el agente con
+// vieja por accidente). La clave publica se imprime en stdout: el admin la guarda y la usa al compilar el agente con
 // -ldflags "-X main.publicKey=<hex>".
 func cmdKeygen(args []string, out io.Writer) error {
 	if len(args) != 1 {
@@ -107,7 +106,7 @@ func cmdSignManifest(args []string, out io.Writer) error {
 		return fmt.Errorf("guardando %s: %w", sigPath, err)
 	}
 	// Hash por canal aparte (H7 punto 5): el admin lo guarda/compara fuera de la petición HTTP al mismo
-	// server, junto al de package-server.sh.
+	// server.
 	sum := sha256.Sum256([]byte(sigHex + "\n"))
 	if _, err := fmt.Fprintf(out, "firmado: %s\nsha256 de %s (guardalo fuera de banda): %s\n", sigPath, sigPath, hex.EncodeToString(sum[:])); err != nil {
 		return fmt.Errorf("escribiendo la confirmacion: %w", err)

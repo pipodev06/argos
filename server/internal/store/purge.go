@@ -10,7 +10,7 @@ import (
 )
 
 // Purga (baja de un cliente): borra un host o todo un grupo con TODOS sus datos. Lo que NO limpia: los respaldos de la
-// base (deploy/argos-backup.sh; se rotan a los 14 dias) ni audit_log (append-only: conserva ids de host y, en algunos
+// base ni audit_log (append-only: conserva ids de host y, en algunos
 // eventos, su nombre hasta que vence su propia retencion). El resumen horario (metrics_hourly, hasta 400 dias) SI se
 // borra.
 

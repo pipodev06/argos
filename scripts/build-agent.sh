@@ -56,7 +56,7 @@ if [[ -n "$keyfile" ]]; then
 	[[ -f "$keyfile" ]] || { echo "no existe la clave privada: $keyfile" >&2; exit 1; }
 	keyfile="$(cd "$(dirname "$keyfile")" && pwd)/$(basename "$keyfile")" # absoluto: los sub-go run hacen cd antes
 	pubkey="$(cd "$root/server" && go run ./cmd/server pubkey "$keyfile")"
-	echo "clave publica (para --key en futuros builds y para deploy/README.md): $pubkey"
+	echo "clave publica (para --key en futuros builds): $pubkey"
 else
 	echo "aviso: sin --key, el agente compila sin clave publica embebida; update fallara cerrado (solo para desarrollo local)" >&2
 fi

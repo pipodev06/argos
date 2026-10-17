@@ -125,7 +125,7 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
         value={draft.snmpProfileId || NO_PROFILE}
         onChange={(v) => set('snmpProfileId', v === NO_PROFILE ? '' : v)}
         options={profileOptions}
-        hint="Opcional. Sin perfil, los chequeos SNMP no se envían a este dispositivo."
+        hint="Opcional. Sin perfil, los chequeos SNMP no se envían a este dispositivo. Los perfiles se crean en Configuración."
       />
       {profiles.error && <InlineError>{profiles.error}</InlineError>}
       {error && <InlineError>{error}</InlineError>}

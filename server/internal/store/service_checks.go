@@ -310,7 +310,8 @@ type HostCheck struct {
 	State *CheckState
 }
 
-// HostServiceChecks devuelve los chequeos habilitados que alcanzan al host con su estado, por nombre.
+// HostServiceChecks devuelve los chequeos que alcanzan al host con su estado: primero los habilitados y luego los
+// pausados (asi el detalle muestra "Pausado" en vez de parecer "sin chequeos"), cada grupo por nombre.
 // ErrNotFound si el host no existe o esta fuera del ambito.
 func (s *Store) HostServiceChecks(ctx context.Context, scope Scope, hostID string) ([]HostCheck, error) {
 	if err := s.requireHost(ctx, scope, hostID); err != nil {
@@ -318,10 +319,10 @@ func (s *Store) HostServiceChecks(ctx context.Context, scope Scope, hostID strin
 	}
 	rows, err := s.pool.Query(ctx,
 		`SELECT d.id, d.name, d.type, d.interval_seconds, d.target_host, d.target_port, d.url, d.service_name,
-		        d.snmp_metric, d.snmp_if_index, st.status, st.status_changed_at, st.ts, st.response_ms, st.value, st.detail
+		        d.snmp_metric, d.snmp_if_index, d.enabled, st.status, st.status_changed_at, st.ts, st.response_ms, st.value, st.detail
 		   FROM service_check_defs d JOIN hosts h ON h.id = $1
 		   LEFT JOIN service_check_state st ON st.host_id = h.id AND st.check_id = d.id
-		  WHERE d.enabled AND `+hostInScopeSQL+` ORDER BY lower(d.name), d.id LIMIT $2`, hostID, MaxChecksPerHost)
+		  WHERE `+hostInScopeSQL+` ORDER BY d.enabled DESC, lower(d.name), d.id LIMIT $2`, hostID, MaxChecksPerHost)
 	if err != nil {
 		return nil, fmt.Errorf("listando chequeos del host: %w", err)
 	}
@@ -331,7 +332,7 @@ func (s *Store) HostServiceChecks(ctx context.Context, scope Scope, hostID strin
 		var changed, ts *time.Time
 		var st CheckState
 		err := row.Scan(&c.Def.ID, &c.Def.Name, &c.Def.Type, &c.Def.IntervalSeconds, &c.Def.TargetHost, &c.Def.TargetPort,
-			&c.Def.URL, &c.Def.ServiceName, &c.Def.Metric, &c.Def.IfIndex, &status, &changed, &ts, &st.ResponseMs, &st.Value, &st.Detail)
+			&c.Def.URL, &c.Def.ServiceName, &c.Def.Metric, &c.Def.IfIndex, &c.Def.Enabled, &status, &changed, &ts, &st.ResponseMs, &st.Value, &st.Detail)
 		if err == nil && status != nil && changed != nil && ts != nil {
 			st.Status, st.StatusChangedAt, st.TS = *status, *changed, *ts
 			c.State = &st

@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# Corre argos-server con la config del servicio: argos-admin create-admin <usuario> | reset-password <usuario> | migrate
-set -euo pipefail
-[[ $EUID -eq 0 ]] || { echo "ejecuta con sudo" >&2; exit 1; }
-set -a; . /etc/argos/argos.env
-# migrate necesita ademas la clave del rol dueño (0600 root; el server en marcha nunca la ve).
-[[ "${1:-}" == migrate && -r /etc/argos/argos-migrate.env ]] && . /etc/argos/argos-migrate.env
-set +a
-exec runuser -u argos --preserve-environment -- /opt/argos/argos-server "$@"

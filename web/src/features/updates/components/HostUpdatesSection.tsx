@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { IconArrowRight, IconClockHour4, IconRefreshAlert, IconShieldCheck, IconShieldLock } from '@tabler/icons-react'
+import { IconArrowRight, IconCircleCheck, IconClockHour4, IconRefreshAlert, IconShieldCheck, IconShieldLock } from '@tabler/icons-react'
 import { Link } from 'react-router'
-import { Cell, DataTable, HeadCell, HeadRow, Row } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { StatCard, StatValue } from '@/components/ui/stat-card'
 import { useAuth } from '@/features/auth/hooks/useAuth'
-import { formatDateTime } from '@/features/hosts/utils/format'
 import { useNow } from '@/hooks/useNow'
 import { useHostUpdates } from '../hooks/useUpdates'
 import { canViewUpdates, countText, formatDataAge } from '../utils/updates'
@@ -13,7 +11,6 @@ import { PatchHistoryChart } from './PatchHistoryChart'
 import { EolText, RebootText } from './UpdatesBadges'
 
 const MAX_ADVISORIES = 10
-const MAX_HISTORY_ROWS = 8
 
 function Cards({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   const now = useNow(60_000)
@@ -29,7 +26,26 @@ function Cards({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
   }
   const pending = !data
   const advisories = u?.advisories ?? []
-  const history = (data?.history ?? []).slice(0, MAX_HISTORY_ROWS)
+  // Al día (nada pendiente ni reinicio): una sola línea en vez de tarjetas y gráfica, para no cargar el detalle.
+  if (u && u.pending_total === 0 && u.reboot_required !== true) {
+    return (
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <span className="inline-flex items-center gap-1.5">
+          <IconCircleCheck className="size-4 shrink-0 text-ok" stroke={1.5} aria-hidden />
+          Al día: sin parches pendientes ni reinicio
+        </span>
+        <span className="text-text-muted">·</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-text-muted">Fin de vida:</span>
+          <EolText eol={data?.eol ?? null} />
+        </span>
+        <span className="text-xs text-text-muted">
+          Actualizado {formatDataAge(u.data_age_s)}
+          {u.stale ? ' (caché de paquetes antigua)' : ''}
+        </span>
+      </p>
+    )
+  }
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -63,28 +79,6 @@ function Cards({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
         </p>
       )}
       <PatchHistoryChart history={data?.history} />
-      {history.length > 0 && (
-        <DataTable caption="Historial de parches">
-          <thead>
-            <HeadRow>
-              <HeadCell>Fecha</HeadCell>
-              <HeadCell>Pendientes</HeadCell>
-              <HeadCell>Seguridad</HeadCell>
-              <HeadCell>Reinicio pendiente</HeadCell>
-            </HeadRow>
-          </thead>
-          <tbody>
-            {history.map((p) => (
-              <Row key={p.at}>
-                <Cell className="tabular-nums">{formatDateTime(Date.parse(p.at))}</Cell>
-                <Cell className="tabular-nums">{countText(p.pending_total)}</Cell>
-                <Cell className="tabular-nums">{countText(p.pending_security)}</Cell>
-                <Cell><RebootText required={p.reboot_required} since={null} now={now} /></Cell>
-              </Row>
-            ))}
-          </tbody>
-        </DataTable>
-      )}
     </div>
   )
 }

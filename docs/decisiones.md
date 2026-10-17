@@ -62,4 +62,5 @@
 - [vigente] E3: empaquetado con volumen (backfill real 1000x10d) y disk_samples en chunks -> [e3-volumen-disk-chunks](decisiones/2026-09-27-e3-volumen-disk-chunks.md)
 - [vigente] O1: `alert_candidates` por rama de tipo (0,4s -> 13-64ms) y `dead_at` real -> [alert-candidates-split](decisiones/2026-09-27-alert-candidates-split.md)
 - [vigente] Lote O/P/Q: auto-monitoreo `/system/status`, tope de ingest H5, `ARGOS_LOG_LEVEL`, jitter del agente, tests de componentes y code-splitting -> [operacion-tests-splitting](decisiones/2026-09-27-operacion-tests-splitting.md)
+- [vigente] Auditoría 2026-10-17: Go 1.27.2, react-doctor, parches sin tabla, Perfiles SNMP en Configuración, chequeos pausados, Discord nativo, README -> [auditoria-y-limpieza](decisiones/2026-10-17-auditoria-y-limpieza.md)
 - [reemplazada] terminal-dark, navegación por hash, tema por `prefers-color-scheme`, tokens en claro, y lo resuelto el 2026-09-26 (buffer offline, roles de BD, Vitest, SPA en el binario, CI `-race`…) -> [archivo](decisiones/archivo.md) (no leer salvo que investigues historia)

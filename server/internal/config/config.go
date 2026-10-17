@@ -138,7 +138,7 @@ type Config struct {
 	MetricsToken string
 	// AutoMigrate (ARGOS_AUTO_MIGRATE, por defecto true) hace que el server aplique las migraciones al arrancar.
 	// Con false no migra y se niega a arrancar si hay migraciones pendientes: las corre `argos-server migrate` con
-	// otro rol (el dueño del esquema), y el server opera con un rol sin DDL (ver deploy/README.md).
+	// otro rol (el dueño del esquema), y el server opera con un rol sin DDL.
 	AutoMigrate bool
 }
 

@@ -1,20 +1,25 @@
+import { IconChevronDown } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { CopyBlock } from '@/components/ui/copy-block'
 import { PageHeader } from '@/components/ui/page-header'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-interface SectionProps {
-  title: string
-  children: ReactNode
+/** Sección plegable (`<details>` nativo: accesible, sin JS propio). Cerrada por defecto. */
+function Collapsible({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-md border border-border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-md px-4 py-3 text-sm font-semibold outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-ring">
+        {title}
+        <IconChevronDown className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180" stroke={1.5} aria-hidden />
+      </summary>
+      <div className="flex flex-col gap-4 border-t border-border px-4 py-4">{children}</div>
+    </details>
+  )
 }
 
-/** Sección con separador inferior (sin sombra: borde 1px, como el resto del estilo Slate). */
-function Section({ title, children }: SectionProps) {
-  return (
-    <section className="flex flex-col gap-3 border-b border-border pb-6 last:border-b-0 last:pb-0">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      <div className="flex flex-col gap-4">{children}</div>
-    </section>
-  )
+/** Subtítulo dentro de una sección plegable (agrupa comandos sin abrir otro nivel de plegado). */
+function SubHeading({ children }: { children: ReactNode }) {
+  return <p className="text-sm font-semibold text-text first:pt-0 [&:not(:first-child)]:pt-2">{children}</p>
 }
 
 /** Título corto + comando copiable. Sin texto explicativo: el título ya dice qué es. */
@@ -28,51 +33,64 @@ function Cmd({ title, value }: { title: string; value: string }) {
 }
 
 /**
- * Página de referencia estática (sin llamadas a la API): comandos reales del CLI del server, tal como están
- * documentados en `server/cmd/server/main.go`, `agent/cmd/agent/main.go` y `deploy/install-server.sh`.
+ * Página de referencia estática (sin llamadas a la API), solo para desarrollo: comandos reales de
+ * `scripts/run-local.sh`, `scripts/build-agent.sh` y del CLI del server y del agente
+ * (`server/cmd/server/main.go`, `agent/cmd/agent/main.go`).
  */
 export function InstructionsPage() {
   return (
     <>
       <PageHeader title="Instrucciones" />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Section title="Instalar el server">
-          <Cmd
-            title="LAN (HTTPS con CA propia)"
-            value={
-              'sudo bash deploy/install-server.sh --public-url https://argos.lan \\\n  --install-postgres --create-local-db --with-caddy --tls-internal --admin-user admin'
-            }
-          />
-          <Cmd
-            title="Dominio público (Let's Encrypt)"
-            value={
-              'sudo bash deploy/install-server.sh --domain argos.midominio.com \\\n  --install-postgres --create-local-db --with-caddy --admin-user admin'
-            }
-          />
-          <Cmd
-            title="Detrás de un túnel (sin Caddy)"
-            value={
-              'sudo bash deploy/install-server.sh --public-url https://argos.midominio.com \\\n  --install-postgres --create-local-db --admin-user admin'
-            }
-          />
-          <Cmd
-            title="Solo esta máquina (sin dominio)"
-            value="sudo bash deploy/install-server.sh --public-url http://127.0.0.1:8080 --install-postgres --create-local-db --admin-user admin"
-          />
-          <Cmd title="Cambiar de dominio (ya instalado)" value="sudo bash deploy/install-server.sh --domain argos.nuevo-dominio.com --with-caddy" />
-          <Cmd title="Revisar sin ejecutar nada" value="bash deploy/install-server.sh --dry-run <mismas opciones>" />
-        </Section>
+      <div className="flex flex-col gap-3">
+        <Collapsible title="Levantar el server (Go: compila y sirve API + web en :8080)">
+          <SubHeading>Windows (PowerShell, con el alias de $PROFILE)</SubHeading>
+          <Cmd title="Arrancar (recompila web y server)" value="argos-local start --web" />
+          <Cmd title="Ver estado" value="argos-local status" />
+          <Cmd title="Seguir el log" value="argos-local logs" />
+          <Cmd title="Detener" value="argos-local stop" />
 
-        <Section title="Actualizar el agente">
-          <Cmd title="Actualizar a la última versión publicada" value="sudo argos-agent update" />
-        </Section>
+          <SubHeading>Sin el alias (Git Bash, Linux o macOS)</SubHeading>
+          <Cmd title="Arrancar (recompila web y server)" value="bash scripts/run-local.sh start --web" />
+          <Cmd title="Detener" value="bash scripts/run-local.sh stop" />
+        </Collapsible>
 
-        <Section title="Administración del server (argos-server)">
-          <Cmd title="Crear un usuario admin" value="argos-server create-admin [--must-change] [usuario]" />
-          <Cmd title="Fijar contraseña y desbloquear la cuenta" value="argos-server reset-password <usuario>" />
-          <Cmd title="Aplicar migraciones pendientes" value="argos-server migrate" />
-          <Cmd title="Rotar la clave de cifrado" value="argos-server rotate-secret-key" />
-        </Section>
+        <Collapsible title="Editar la interfaz con recarga en caliente (Node, :5173)">
+          <Cmd title="Con el server ya corriendo, en otra terminal" value="cd web && npm run dev" />
+        </Collapsible>
+
+        <Collapsible title="Agente">
+          <Cmd title="Compilar el agente (windows/linux/macOS → dist/agent)" value="bash scripts/build-agent.sh 0.0.0-dev" />
+          <Cmd title="Otro equipo de la LAN" value="Hosts → Agregar host → marcar insecure → copiar el comando" />
+          <SubHeading>Este mismo PC (consola como administrador, desde la raíz del repo; token de Hosts → Agregar host)</SubHeading>
+          <Tabs defaultValue="windows">
+            <TabsList aria-label="Sistema operativo">
+              <TabsTrigger value="windows">Windows (PowerShell)</TabsTrigger>
+              <TabsTrigger value="linux">Linux / macOS (bash)</TabsTrigger>
+            </TabsList>
+            <TabsContent value="windows">
+              <CopyBlock
+                label="Enrolar e instalar en Windows"
+                value={
+                  "$a = '.\\dist\\agent\\0.0.0-dev\\argos-agent_windows_amd64.exe'\n'<token>' | & $a enroll --server http://localhost:8080 --token-stdin\n& $a install\n& $a start"
+                }
+              />
+            </TabsContent>
+            <TabsContent value="linux">
+              <CopyBlock
+                label="Enrolar e instalar en Linux o macOS"
+                value={
+                  "a=./dist/agent/0.0.0-dev/argos-agent_linux_amd64\necho '<token>' | sudo $a enroll --server http://localhost:8080 --token-stdin\nsudo $a install\nsudo $a start"
+                }
+              />
+            </TabsContent>
+          </Tabs>
+        </Collapsible>
+
+        <Collapsible title="Administración del server">
+          <SubHeading>Desde server/, con DATABASE_URL y ARGOS_SECRET_KEY definidas (ver README)</SubHeading>
+          <Cmd title="Crear un usuario admin" value="go run ./cmd/server create-admin [--must-change] [usuario]" />
+          <Cmd title="Fijar contraseña y desbloquear la cuenta" value="go run ./cmd/server reset-password <usuario>" />
+        </Collapsible>
       </div>
     </>
   )

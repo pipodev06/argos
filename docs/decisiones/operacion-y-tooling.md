@@ -40,5 +40,5 @@ Variables verificadas contra `server/internal/config/config.go`, `agent/internal
 - Tests con Postgres real: `ARGOS_TEST_DATABASE_URL=postgres://.../argos_test?sslmode=disable go test ./...` (sin la variable se saltan; paquetes serializados con lock advisory sondeado).
 - `go test -race` en Windows necesita gcc (CGO): correr en CI Linux o instalar MSYS2/mingw (`devops-engineer`). Hoy no hay CI ni Dockerfile.
 - E2E manual: server propio en 127.0.0.1:18080 contra `argos_test` (o Postgres temporal con initdb en scratchpad, puerto 55432); NO tocar la BD `argos` ni el server/Vite de :8080/:5173. Limpiar todo al terminar.
-- `docker-compose.yml`: solo `db` = `postgres:18`, user/pass `argos`/`argos_dev` (distinta a la BD local), puerto `127.0.0.1:5432`, volumen en `/var/lib/postgresql` (PG18+).
+- `docker-compose.yml`: solo `db` = `postgres:18`, user/pass `argos`/`argos` (igual que la BD local de desarrollo; en producción cambiar `POSTGRES_PASSWORD`), puerto `127.0.0.1:5432`, volumen en `/var/lib/postgresql` (PG18+).
 - BD local `argos`: ultimo dato documentado = 00004 aplicada (con backup; `srv-test-01` intacto, no borrarlo); 00006-00013 pendientes de backup + reinicio del server (ver estado). Sin usuarios en `argos`: crear el admin con `argos-server create-admin`.

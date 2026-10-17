@@ -43,7 +43,7 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
   const [removeSecret, setRemoveSecret] = useState(false)
   const [severity, setSeverity] = useState<AlertSeverity>(channel?.min_severity ?? 'warn')
   const [enabled, setEnabled] = useState(channel?.enabled ?? true)
-  const [owner, setOwner] = useState(ownerValue(channel))
+  const [owner, setOwner] = useState(() => ownerValue(channel))
   const { groups } = useGroups()
   const ownerOptions = [{ value: GLOBAL_OWNER, label: 'Global (todos los clientes)' }, ...(groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))]
   const [errors, setErrors] = useState<{ name?: string; url?: string }>({})

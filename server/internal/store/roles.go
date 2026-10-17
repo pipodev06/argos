@@ -51,7 +51,7 @@ func PrepareRuntimeRole(ctx context.Context, pool *pgxpool.Pool, role string) er
 		return fmt.Errorf("consultando roles: %w", err)
 	}
 	if !exists {
-		return fmt.Errorf("el rol %q no existe: creale antes (ver deploy/README.md)", role)
+		return fmt.Errorf("el rol %q no existe: creale antes", role)
 	}
 	if same {
 		return nil

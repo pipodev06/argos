@@ -81,7 +81,7 @@ function CheckRow({ n, hostId, item, now, targetFallback }: { n: number; hostId:
       <Row>
         <RowNumberCell n={n} />
         <Cell>
-          <CheckStatusBadge status={state?.status ?? 'unknown'} />
+          <CheckStatusBadge status={check.enabled ? (state?.status ?? 'unknown') : 'paused'} />
         </Cell>
         <Cell className="max-w-56 truncate font-semibold">{check.name}</Cell>
         <Cell>{CHECK_TYPE_LABELS[check.type]}</Cell>

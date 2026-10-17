@@ -55,6 +55,26 @@ type messageJSON struct {
 	Text    string      `json:"text"`
 	Alerts  []alertJSON `json:"alerts"`
 	Omitted int         `json:"omitted"`
+	// Content y AllowedMentions son para Discord (lee `content`, no `text`); Slack y receptores propios los
+	// ignoran. Sin menciones: un hostname o regla con "@everyone" no debe notificar a todo el canal.
+	Content         string          `json:"content"`
+	AllowedMentions allowedMentions `json:"allowed_mentions"`
+}
+
+type allowedMentions struct {
+	Parse []string `json:"parse"`
+}
+
+// discordMaxContent es el tope de `content` en Discord (mas largo responde 400).
+const discordMaxContent = 2000
+
+func newMessage(kind string, now time.Time, text string) messageJSON {
+	content := text
+	if r := []rune(content); len(r) > discordMaxContent {
+		content = string(r[:discordMaxContent-1]) + "…"
+	}
+	return messageJSON{Version: payloadVersion, Kind: kind, SentAt: now.UTC(), Text: text, Content: content,
+		AllowedMentions: allowedMentions{Parse: []string{}}}
 }
 
 // Clean deja s apto pa salir en un mensaje: sin caracteres de control ni de formato (incluye bidi y de ancho
@@ -107,7 +127,7 @@ func BuildMessage(items []Item, omitted int, baseURL string, now time.Time) ([]b
 		omitted += len(items) - MaxItemsPerMessage
 		items = items[:MaxItemsPerMessage]
 	}
-	msg := messageJSON{Version: payloadVersion, Kind: "alerts", SentAt: now.UTC(), Alerts: make([]alertJSON, 0, len(items)), Omitted: omitted}
+	alerts := make([]alertJSON, 0, len(items))
 	var lines []string
 	for _, it := range items {
 		a := alertJSON{
@@ -118,7 +138,7 @@ func BuildMessage(items []Item, omitted int, baseURL string, now time.Time) ([]b
 		if baseURL != "" && it.AlertID != "" {
 			a.URL = strings.TrimRight(baseURL, "/") + "/alertas/" + Clean(it.AlertID, 40)
 		}
-		msg.Alerts = append(msg.Alerts, a)
+		alerts = append(alerts, a)
 		verb := "ALERTA"
 		switch {
 		case a.State == "resolved":
@@ -139,12 +159,14 @@ func BuildMessage(items []Item, omitted int, baseURL string, now time.Time) ([]b
 	if omitted > 0 {
 		lines = append(lines, fmt.Sprintf("y %d alertas mas (ver el dashboard)", omitted))
 	}
-	msg.Text = strings.Join(lines, "\n")
+	msg := newMessage("alerts", now, strings.Join(lines, "\n"))
+	msg.Alerts, msg.Omitted = alerts, omitted
 	return json.Marshal(msg)
 }
 
 // BuildTestMessage es el mensaje de POST /channels/{id}/test: sin datos de ninguna alerta real.
 func BuildTestMessage(now time.Time) ([]byte, error) {
-	return json.Marshal(messageJSON{Version: payloadVersion, Kind: "test", SentAt: now.UTC(),
-		Text: "Mensaje de prueba de argos", Alerts: []alertJSON{}})
+	msg := newMessage("test", now, "Mensaje de prueba de argos")
+	msg.Alerts = []alertJSON{}
+	return json.Marshal(msg)
 }

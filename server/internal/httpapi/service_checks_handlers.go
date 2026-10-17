@@ -794,6 +794,7 @@ type hostCheckDTO struct {
 		Type      string `json:"type"`
 		Target    string `json:"target"`
 		IntervalS int    `json:"interval_s"`
+		Enabled   bool   `json:"enabled"`
 		// Metric e IfIndex solo en los chequeos snmp.
 		Metric  *string `json:"metric,omitempty"`
 		IfIndex *int    `json:"if_index,omitempty"`
@@ -823,7 +824,7 @@ func (a *API) hostServiceChecks(w http.ResponseWriter, r *http.Request) error {
 	for _, c := range checks {
 		var dto hostCheckDTO
 		dto.Check.ID, dto.Check.Name, dto.Check.Type = c.Def.ID, c.Def.Name, c.Def.Type
-		dto.Check.Target, dto.Check.IntervalS = checkTarget(c.Def), c.Def.IntervalSeconds
+		dto.Check.Target, dto.Check.IntervalS, dto.Check.Enabled = checkTarget(c.Def), c.Def.IntervalSeconds, c.Def.Enabled
 		dto.Check.Metric, dto.Check.IfIndex = c.Def.Metric, c.Def.IfIndex
 		if c.State != nil {
 			dto.State = &checkStateDTO{Status: c.State.Status, StatusChangedAt: c.State.StatusChangedAt.UTC(), TS: c.State.TS.UTC(),

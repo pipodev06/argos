@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconHelpCircle } from '@tabler/icons-react'
+import { IconAlertTriangle, IconCircleCheck, IconCircleX, IconHelpCircle, IconPlayerPause } from '@tabler/icons-react'
 import type { CheckStatus } from '../types/check.types'
 
 interface StatusStyle {
@@ -10,14 +10,16 @@ interface StatusStyle {
 }
 
 // Mismo patrón que HostStatusBadge: el color de estado va en el icono y el tinte; el texto usa `text`.
-const styles: Record<CheckStatus, StatusStyle> = {
+/** `paused` no viene del servidor: lo usa el detalle para un chequeo deshabilitado. */
+const styles: Record<CheckStatus | 'paused', StatusStyle> = {
   up: { Icon: IconCircleCheck, badge: 'bg-ok/10', icon: 'text-ok', label: 'Activo' },
   down: { Icon: IconCircleX, badge: 'bg-danger/10', icon: 'text-danger', label: 'Caído' },
   warn: { Icon: IconAlertTriangle, badge: 'bg-warn/10', icon: 'text-warn', label: 'Advertencia' },
   unknown: { Icon: IconHelpCircle, badge: 'bg-text-muted/10', icon: 'text-text-muted', label: 'Desconocido' },
+  paused: { Icon: IconPlayerPause, badge: 'bg-text-muted/10', icon: 'text-text-muted', label: 'Pausado' },
 }
 
-export function CheckStatusBadge({ status }: { status: CheckStatus }) {
+export function CheckStatusBadge({ status }: { status: CheckStatus | 'paused' }) {
   const { Icon, badge, icon, label } = styles[status]
   return (
     <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-text ${badge}`}>
