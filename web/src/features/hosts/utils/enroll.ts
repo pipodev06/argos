@@ -1,4 +1,4 @@
-import type { EnrollCommands, EnrollToken } from '../types/host.types'
+import type { EnrollToken } from '../types/host.types'
 
 export const MIN_BULK_ENROLL_USES = 2
 export const MAX_BULK_ENROLL_USES = 500
@@ -19,21 +19,6 @@ export function minutesLeft(expiresAt: string, now: number): number {
   return ms <= 0 ? 0 : Math.ceil(ms / 60_000)
 }
 
-/**
- * Comandos por SO. Usa los que devuelve el servidor (`commands`); si aun no vienen, construye el del agente
- * (`argos-agent enroll --server <origen> --token-stdin`) en el cliente, con el token por stdin.
- */
-export function enrollCommands(token: EnrollToken, origin: string): Required<EnrollCommands> {
-  const quoted = `'${token.enroll_token}'`
-  return {
-    windows:
-      token.commands?.windows ??
-      `${quoted} | .\\argos-agent.exe enroll --server ${origin} --token-stdin`,
-    linux:
-      token.commands?.linux ??
-      `echo ${quoted} | argos-agent enroll --server ${origin} --token-stdin`,
-  }
-}
 
 /** Opciones del agente que se añaden como flags al comando de instalación. */
 export interface AgentOptions {
@@ -136,3 +121,36 @@ export function applyAgentOptions(command: string, os: 'linux' | 'windows', opts
 
 /** `http://` = sin TLS: solo entonces se ofrece `--insecure`. */
 export const isHttpOrigin = (origin: string): boolean => origin.startsWith('http://')
+
+/**
+ * Comando para instalar el agente en el equipo con las opciones elegidas.
+ * Con instalador del servidor (`token.commands`: https o localhost) es la linea de una vez con sus flags.
+ * Sin el (p. ej. servidor por http en la LAN, donde bajar un script no es seguro) se arma el comando manual
+ * completo en el orden correcto, install (con las opciones) -> enroll -> start, sobre el binario ya copiado
+ * al equipo. Nunca se descartan opciones en silencio.
+ */
+export function buildEnrollCommand(token: EnrollToken, origin: string, os: 'linux' | 'windows', opts: AgentOptions): InstallCommand {
+  const server = token.commands?.[os]
+  if (server) return applyAgentOptions(server, os, opts)
+  const inv = [...(opts.inventory ? ['ports', 'services', 'processes'] : []), ...(opts.updates ? ['updates'] : [])].join(',')
+  let nets = ''
+  if (opts.probe) {
+    const r = parseNets(opts.probeNets)
+    if (!r.ok) return r
+    nets = r.nets.join(',')
+  }
+  const flags = [
+    inv && `--inventory ${inv}`,
+    nets && `--probe-allow ${nets}`,
+    opts.privileged && '--privileged',
+    opts.insecure && '--insecure',
+  ].filter((f): f is string => typeof f === 'string' && f !== '')
+  const install = ['install', ...flags].join(' ')
+  const quoted = `'${token.enroll_token}'`
+  // Una linea por paso (PowerShell y bash los ejecutan en orden al pegarlos).
+  const lines =
+    os === 'windows'
+      ? [`$a = '.\\argos-agent.exe'`, `& $a ${install}`, `${quoted} | & $a enroll --server ${origin} --token-stdin`, '& $a start']
+      : [`sudo ./argos-agent ${install}`, `echo ${quoted} | sudo ./argos-agent enroll --server ${origin} --token-stdin`, 'sudo ./argos-agent start']
+  return { ok: true, command: lines.join('\n') }
+}

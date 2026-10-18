@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyAgentOptions, DEFAULT_AGENT_OPTIONS, isHttpOrigin, isValidCidr, parseBulkUses, parseNets, type AgentOptions } from './enroll'
+import { applyAgentOptions, buildEnrollCommand, DEFAULT_AGENT_OPTIONS, isHttpOrigin, isValidCidr, parseBulkUses, parseNets, type AgentOptions } from './enroll'
+import type { EnrollToken } from '../types/host.types'
 
 describe('alta masiva: parseBulkUses', () => {
   it('acepta enteros entre 2 y 500', () => {
@@ -85,5 +86,26 @@ describe('CIDR', () => {
   it('origen http', () => {
     expect(isHttpOrigin('http://192.168.1.5:8080')).toBe(true)
     expect(isHttpOrigin('https://argos.lan')).toBe(false)
+  })
+})
+
+describe('buildEnrollCommand (sin instalador del servidor)', () => {
+  const token = { enroll_token: 'abc123', expires_at: '2026-10-18T00:00:00Z', max_uses: 1 } as unknown as EnrollToken
+  const opts: AgentOptions = { inventory: true, updates: true, probe: true, probeNets: '192.168.100.0/24', privileged: true, insecure: true }
+
+  it('Windows: install con todas las opciones, luego enroll y start', () => {
+    const r = buildEnrollCommand(token, 'http://192.168.100.18:8080', 'windows', opts)
+    expect(r.ok && r.command.split('\n')).toEqual([
+      "$a = '.\\argos-agent.exe'",
+      '& $a install --inventory ports,services,processes,updates --probe-allow 192.168.100.0/24 --privileged --insecure',
+      "'abc123' | & $a enroll --server http://192.168.100.18:8080 --token-stdin",
+      '& $a start',
+    ])
+  })
+
+  it('Linux: mismos pasos con sudo; red invalida bloquea la copia', () => {
+    const r = buildEnrollCommand(token, 'http://x:8080', 'linux', { ...opts, privileged: false, insecure: false })
+    expect(r.ok && r.command.split('\n')[0]).toBe('sudo ./argos-agent install --inventory ports,services,processes,updates --probe-allow 192.168.100.0/24')
+    expect(buildEnrollCommand(token, 'http://x:8080', 'linux', { ...opts, probeNets: 'nope' }).ok).toBe(false)
   })
 })

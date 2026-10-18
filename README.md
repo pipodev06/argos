@@ -54,6 +54,26 @@ $a = '.\dist\agent\' + (Get-Content .\dist\agent\latest) + '\argos-agent_windows
 ```
 Para actualizar un agente ya instalado basta `& $a install` con la versión nueva: detiene, reemplaza el binario y vuelve a arrancar, conservando el enrolamiento.
 
+#### Opciones del agente
+Se pasan a `install` y quedan en `settings.json` del estado. Sobre un agente ya instalado, `install` con opciones las aplica y reinicia el servicio, sin enrolar de nuevo:
+```powershell
+& $a install --inventory all                     # puertos, servicios, procesos y parches (o una lista: ports,services,processes,updates)
+& $a install --probe-allow 192.168.100.0/24      # puede sondear (ping/SNMP) dispositivos de esas redes (CIDR, /24 o más chicas, separadas por comas)
+& $a install --insecure                          # acepta un servidor http fuera de localhost (solo LAN de desarrollo)
+& $a install --inventory all --probe-allow 192.168.100.0/24   # se combinan; un flag vacío lo apaga: --probe-allow ""
+& "C:\Program Files\argos-agent\argos-agent.exe" status       # servicio, enrolamiento y opciones activas
+```
+Modo privilegiado (ve procesos, puertos y servicios de otros usuarios; en Windows el servicio corre como LocalSystem) y `--ca-file` cambian la definición del servicio: hay que reinstalar conservando el enrolamiento (sin `--keep-state` se borran las credenciales):
+```powershell
+& $a stop
+& $a uninstall --keep-state
+& $a install --privileged                        # para volver al modo normal: lo mismo sin --privileged
+& $a start
+```
+Un dispositivo (ping/SNMP) pasa de "Pendiente" a activo cuando hay un chequeo **Ping** que lo alcanza, su colector tiene `--probe-allow` para su red y ambos están en el mismo grupo.
+
+En Linux/macOS son los mismos subcomandos con `sudo ./argos-agent …`.
+
 Olvidaste la contraseña: `cd server && go run ./cmd/server reset-password <usuario>` (con las mismas variables que `create-admin`).
 
 ### Verificar antes de commitear

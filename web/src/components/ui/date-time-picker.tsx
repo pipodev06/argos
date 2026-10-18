@@ -98,7 +98,7 @@ function DateTimePicker({
             if (!withTime) setOpen(false)
           }}
         />
-        {/* Pie en 2 columnas: no ensancha el popup mas alla del calendario. */}
+        {/* Pie (no ensancha el popup): hora; debajo "Ahora"; debajo Limpiar y Listo en la misma fila. */}
         <div className="grid grid-cols-2 gap-2 border-t border-border p-2">
           {withTime && (
             <Input
@@ -107,11 +107,11 @@ function DateTimePicker({
               value={time}
               disabled={!selected}
               onChange={(e) => selected && e.target.value && emit(selected, e.target.value)}
-              className="h-8 w-full appearance-none tabular-nums [&::-webkit-calendar-picker-indicator]:hidden"
+              className="col-span-2 h-8 w-full appearance-none tabular-nums [&::-webkit-calendar-picker-indicator]:hidden"
             />
           )}
           {withTime && (
-            <Button type="button" variant="outline" size="sm" onClick={() => emit(new Date(), timeText(new Date()))}>
+            <Button type="button" variant="outline" size="sm" className="col-span-2" onClick={() => emit(new Date(), timeText(new Date()))}>
               Ahora
             </Button>
           )}

@@ -9,12 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useNow } from '@/hooks/useNow'
 import { AgentOptionsForm } from './AgentOptionsForm'
 import type { EnrollToken, HostnameConflict } from '../types/host.types'
-import { applyAgentOptions, DEFAULT_AGENT_OPTIONS, enrollCommands, isHttpOrigin, minutesLeft, parseNets, type AgentOptions } from '../utils/enroll'
+import { buildEnrollCommand, DEFAULT_AGENT_OPTIONS, isHttpOrigin, minutesLeft, parseNets, type AgentOptions } from '../utils/enroll'
 import { formatExpiry } from '../utils/format'
 import { HOST_STATUS_LABELS } from '../utils/status'
 
 const ENROLL_HELP: readonly HelpItem[] = [
-  ['Comando', 'Cópialo y ejecútalo en el equipo como administrador (Windows) o root (Linux/macOS): instala, enrola y arranca el agente.'],
+  ['Comando', 'Ejecútalo como administrador (Windows) o root (Linux/macOS). Con servidor https o localhost descarga el agente solo; si no, córrelo en la carpeta donde copiaste el binario (argos-agent.exe). Instala con las opciones marcadas, enrola y arranca el servicio.'],
   ['Token', 'Se muestra solo aquí. Trátalo como una contraseña: quien lo tenga puede registrar un equipo falso.'],
   ['Inventario y Parches', 'Activan esos módulos del agente (puertos, servicios, procesos y actualizaciones pendientes).'],
   ['Sondear dispositivos', 'El agente hace ping/SNMP a dispositivos de las redes permitidas (CIDR).'],
@@ -36,14 +36,13 @@ export function EnrollTokenStep({ token, title, onClose, onAnother }: EnrollToke
   const left = minutesLeft(token.expires_at, now)
   const origin = window.location.origin
   const showInsecure = isHttpOrigin(origin)
-  const commands = enrollCommands(token, origin)
   const [options, setOptions] = useState<AgentOptions>(DEFAULT_AGENT_OPTIONS)
   const effective = { ...options, insecure: options.insecure && showInsecure }
   const netsResult = options.probe ? parseNets(options.probeNets) : null
   // Con la casilla recién marcada y el campo vacío no se grita: el error aparece al escribir; la copia sigue bloqueada.
   const netsError = netsResult && !netsResult.ok && options.probeNets.trim() !== '' ? netsResult.error : null
-  const windows = applyAgentOptions(commands.windows, 'windows', effective)
-  const linux = applyAgentOptions(commands.linux, 'linux', effective)
+  const windows = buildEnrollCommand(token, origin, 'windows', effective)
+  const linux = buildEnrollCommand(token, origin, 'linux', effective)
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">

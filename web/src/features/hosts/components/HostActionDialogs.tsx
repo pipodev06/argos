@@ -6,7 +6,7 @@ import { ReEnrollHostDialog } from './ReEnrollHostDialog'
 import { RevokeHostDialog } from './RevokeHostDialog'
 
 /** Host sobre el que se actua: lo que tienen en comun la fila de la tabla y el detalle. */
-type ActionHost = Pick<HostDetail, 'id' | 'hostname' | 'status' | 'group'> & Partial<Pick<HostDetail, 'detail_retention_days' | 'effective_detail_days'>>
+type ActionHost = Pick<HostDetail, 'id' | 'hostname' | 'status'>
 
 interface HostActionDialogsProps {
   host: ActionHost | null

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
+import { Skeleton } from '@/components/ui/skeleton'
 import { GroupSelect } from '@/features/groups/components/GroupSelect'
 import { useGroups } from '@/features/groups/hooks/useGroups'
 import { mapCollectorRuleError } from '@/features/devices/utils/collectorRule'
@@ -19,10 +20,12 @@ import type { ShrinkDetails } from '@/features/retention/types/retention.types'
 import { parseDetailDays, parseShrink } from '@/features/retention/utils/retention'
 import { ApiError } from '@/lib/api'
 import { renameHost, setHostGroup } from '../services/hosts.service'
-import type { GroupRef, HostDetail } from '../types/host.types'
+import { useHostDetail } from '../hooks/useHostDetail'
+import type { HostDetail } from '../types/host.types'
 
 interface EditHostDialogProps {
-  host: (Pick<HostDetail, 'id' | 'hostname'> & { group: GroupRef | null } & Partial<Pick<HostDetail, 'detail_retention_days' | 'effective_detail_days'>>) | null
+  /** Solo hace falta el id: el dialogo carga el detalle, asi se ve igual desde la tabla y desde el detalle. */
+  host: Pick<HostDetail, 'id'> | null
   onClose: () => void
   onSaved: () => void
 }
@@ -34,12 +37,19 @@ const ERRORS: Record<string, string> = {
 export function EditHostDialog({ host, onClose, onSaved }: EditHostDialogProps) {
   return (
     <Dialog open={host !== null} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>{host && <EditForm host={host} onClose={onClose} onSaved={onSaved} />}</DialogContent>
+      <DialogContent>{host && <EditLoader id={host.id} onClose={onClose} onSaved={onSaved} />}</DialogContent>
     </Dialog>
   )
 }
 
-function EditForm({ host, onClose, onSaved }: { host: NonNullable<EditHostDialogProps['host']> } & Omit<EditHostDialogProps, 'host'>) {
+function EditLoader({ id, onClose, onSaved }: { id: string } & Omit<EditHostDialogProps, 'host'>) {
+  const { data, error } = useHostDetail(id)
+  if (error && !data) return <InlineError>{error}</InlineError>
+  if (!data) return <Skeleton className="h-48 w-full" />
+  return <EditForm host={data.host} onClose={onClose} onSaved={onSaved} />
+}
+
+function EditForm({ host, onClose, onSaved }: { host: HostDetail } & Omit<EditHostDialogProps, 'host'>) {
   const [name, setName] = useState(host.hostname)
   const [groupId, setGroupId] = useState<string | null>(host.group?.id ?? null)
   const [retRaw, setRetRaw] = useState(String(host.detail_retention_days ?? host.effective_detail_days ?? ''))
@@ -50,8 +60,6 @@ function EditForm({ host, onClose, onSaved }: { host: NonNullable<EditHostDialog
   const [submitting, setSubmitting] = useState(false)
   const { groups } = useGroups()
 
-  // Solo se edita la retencion si el detalle la trae (host con agente).
-  const hasRetention = host.effective_detail_days !== undefined
 
   async function submit(confirmShrink: boolean) {
     const newName = name.trim()
@@ -59,7 +67,7 @@ function EditForm({ host, onClose, onSaved }: { host: NonNullable<EditHostDialog
     setError(null)
     setRetError(null)
     let retDays: number | null | undefined
-    if (hasRetention) {
+    {
       const parsed = retInherit ? null : parseDetailDays(retRaw)
       if (parsed && 'error' in parsed) return setRetError(parsed.error)
       const next = parsed ? parsed.days : null
@@ -102,22 +110,20 @@ function EditForm({ host, onClose, onSaved }: { host: NonNullable<EditHostDialog
         autoComplete="off"
         autoFocus
       />
-      <div className="grid gap-1.5">
+      <div className="grid gap-1">
         <label htmlFor="edit-group" className="text-sm font-medium text-text">
           Grupo
         </label>
         <GroupSelect id="edit-group" value={groupId} onChange={setGroupId} groups={groups?.items ?? []} />
       </div>
-      {hasRetention && (
-        <RetentionField
-          id="edit-retention"
-          value={retRaw}
-          inherit={retInherit}
-          error={retError}
-          onValue={setRetRaw}
-          onInherit={setRetInherit}
-        />
-      )}
+      <RetentionField
+        id="edit-retention"
+        value={retRaw}
+        inherit={retInherit}
+        error={retError}
+        onValue={setRetRaw}
+        onInherit={setRetInherit}
+      />
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
