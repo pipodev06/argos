@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -198,12 +197,8 @@ func (m Manager) finishInstall(s *mgr.Service, ca []byte, o InstallOptions) erro
 		!errors.Is(err, windows.ERROR_ALREADY_EXISTS) && !isRegistryKeyExists(err) {
 		return fmt.Errorf("registrando el origen de eventos: %w", err)
 	}
-	logger := o.Logger
-	if logger == nil {
-		logger = slog.New(slog.DiscardHandler)
-	}
-	st := state.NewForService(m.StateDir(), logger, m.StateAccount())
-	if err := st.Prepare(); err != nil {
+	st, err := prepareServiceState(m.StateDir(), m.StateAccount(), o.Logger)
+	if err != nil {
 		return err
 	}
 	if ca != nil {
@@ -423,6 +418,32 @@ func (m Manager) Uninstall(ctx context.Context, keepState bool, out io.Writer) e
 	}
 	printf(out, "\n")
 	return nil
+}
+
+// Upgrade reemplaza el binario instalado por este ejecutable y prepara el estado (incluido el
+// subdirectorio del buffer). No toca la definicion del servicio (cuenta, --privileged), la CA ni las
+// credenciales. Quien llama detiene el servicio antes y lo vuelve a arrancar despues.
+func (m Manager) Upgrade(_ context.Context, o InstallOptions) error {
+	if err := requireElevated(); err != nil {
+		return err
+	}
+	src, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("ubicando el ejecutable: %w", err)
+	}
+	dst, err := installExe()
+	if err != nil {
+		return err
+	}
+	// Corriendo el binario ya instalado no hay nada que copiar (y no se puede pisar un exe en uso).
+	if !strings.EqualFold(filepath.Clean(src), filepath.Clean(dst)) {
+		if err := copyExecutable(src, dst); err != nil {
+			return err
+		}
+		printf(o.Out, "binario actualizado en %s\n", dst)
+	}
+	_, err = prepareServiceState(m.StateDir(), m.StateAccount(), o.Logger)
+	return err
 }
 
 // RequirePrivileges exige una consola elevada (actualizar el binario escribe en Program Files).

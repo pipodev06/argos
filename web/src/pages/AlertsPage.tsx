@@ -45,9 +45,6 @@ export function AlertsPage() {
           values={filters}
           onChange={setFilters}
           onClear={clear}
-          itemLabel="alertas"
-          total={data?.total ?? null}
-          overall={null}
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {noAlerts && (

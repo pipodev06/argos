@@ -15,6 +15,8 @@ import (
 	"os"
 	"strings"
 	"unicode/utf16"
+
+	"argos/agent/internal/state"
 )
 
 const (
@@ -53,6 +55,22 @@ type InstallOptions struct {
 // Manager instala y controla el servicio del SO. Sus metodos (Install, Uninstall,
 // Start, Stop, Status, Installed, StateDir, StateAccount) se implementan por SO.
 type Manager struct{}
+
+// prepareServiceState deja listo el directorio de estado del servicio y su subdirectorio del buffer
+// offline (el unico donde escribe la cuenta del servicio). Se llama con privilegios (install).
+func prepareServiceState(dir, account string, logger *slog.Logger) (*state.Store, error) {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	st := state.NewForService(dir, logger, account)
+	if err := st.Prepare(); err != nil {
+		return nil, err
+	}
+	if err := st.Buffer().Prepare(); err != nil {
+		return nil, err
+	}
+	return st, nil
+}
 
 // LoadCA lee y valida una CA privada en PEM antes de copiarla: acotada en tamano y
 // con al menos un certificado valido (un archivo equivocado se rechaza al instalar,

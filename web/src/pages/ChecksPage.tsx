@@ -64,9 +64,6 @@ export function ChecksPage() {
           values={filters}
           onChange={setFilters}
           onClear={clear}
-          itemLabel="chequeos"
-          total={shown?.length ?? null}
-          overall={checks?.length ?? null}
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {toggle.error && <InlineError>{toggle.error}</InlineError>}

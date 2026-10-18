@@ -64,7 +64,7 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
                 </Cell>
                 <Cell>{e.actor_username ?? '—'}</Cell>
                 <Cell>
-                  <AuditTarget type={e.target_type} id={e.target_id} />
+                  <AuditTarget type={e.target_type} id={e.target_id} name={e.target_name} />
                 </Cell>
                 <Cell className="tabular-nums">{e.ip ?? '—'}</Cell>
               </Row>

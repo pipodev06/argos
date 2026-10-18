@@ -63,9 +63,6 @@ function AuditAdmin() {
           values={filters}
           onChange={setFilters}
           onClear={clear}
-          itemLabel="eventos"
-          total={data?.total ?? null}
-          overall={null}
         />
         {message && <TableError message={message} onRetry={() => void refresh()} />}
         {noEntries && <EmptyState Icon={HistoryIcon} title="Sin eventos" />}

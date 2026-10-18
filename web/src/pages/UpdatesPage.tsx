@@ -79,9 +79,6 @@ function FleetUpdates() {
             values={filters}
             onChange={setFilters}
             onClear={clear}
-            itemLabel="hosts"
-            total={data?.total ?? null}
-            overall={null}
           />
           {error && <TableError message={error} onRetry={() => void refresh()} />}
           {empty && (

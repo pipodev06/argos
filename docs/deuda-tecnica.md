@@ -21,7 +21,7 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - La purga (H2) no limpia respaldos (14 días) ni `audit_log`. El modelo de canales de notificación es global (solo admin): un cliente no puede tener sus propios canales; SMTP aplazado. Los topes de recursos (hosts, dispositivos, chequeos, reglas) son globales, no por cliente.
 
 ## Instalación de un paso (sin probar en SO real)
-- Agente: `install`/`update` e instaladores (`install.sh`/`install.ps1`) sin ejecutar en Windows/Linux/macOS reales (macOS sin equipo); `update` verifica solo el sha256 del manifiesto (sin firmas independientes); cambiar `--privileged`/`--ca-file` de un servicio ya instalado exige `uninstall --keep-state` + `install`; `--token` visible en `ps` durante la instalación; el manifiesto se verifica solo al arrancar el server.
+- Agente: `install` (también como actualización) e instaladores (`install.sh`/`install.ps1`) probados solo en Windows real (Linux/macOS sin ejecutar; macOS sin equipo); cambiar `--privileged`/`--ca-file` de un servicio ya instalado exige `uninstall --keep-state` + `install`; `--token` visible en `ps` durante la instalación; el manifiesto se verifica solo al arrancar el server.
 - Server: `install-server.sh` (apt/PGDG/Caddy/ufw/systemd) sin ejecutar en Linux; la URL de la BD viaja un instante por argv a `psql`; sin verificar huellas de las claves GPG; si el usuario elegido ya existe sin ser admin, `create-admin` falla al final.
 - Falta `systemd-analyze security` de ambas unidades, la lectura de `/sys/class/power_supply` con la unit endurecida y `dscl`/`launchctl` reales. Si `PrivateDevices=true` o `MemoryDenyWriteExecute=true` rompen una distro, quitar solo esa línea y anotarlo.
 

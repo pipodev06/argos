@@ -3,6 +3,7 @@
 package state
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,8 @@ const (
 	CAFileName = "ca.pem"
 	// maxFileBytes acota la lectura: el archivo real ocupa unos cientos de bytes.
 	maxFileBytes = 64 << 10
+	// BufferDir es el subdirectorio del buffer offline: el unico lugar donde la cuenta del servicio escribe.
+	BufferDir = "buffer"
 )
 
 // ErrNotEnrolled indica que no hay credenciales guardadas.
@@ -52,8 +55,12 @@ type Store struct {
 	// archivo; Windows: SID, con acceso de solo lectura). Vacio = uso normal: solo
 	// el usuario actual.
 	serviceAccount string
-	logger         *slog.Logger
-	prepared       bool
+	// writable: la cuenta del servicio tambien puede escribir (solo el subdirectorio del buffer).
+	writable bool
+	// parent es el directorio de estado cuando este Store es su subdirectorio del buffer.
+	parent   *Store
+	logger   *slog.Logger
+	prepared bool
 }
 
 // New crea un Store sobre dir (no toca el disco todavia) accesible solo por el usuario actual.
@@ -66,6 +73,12 @@ func New(dir string, logger *slog.Logger) *Store {
 // cuenta del servicio (ver Store.serviceAccount) y por nadie mas.
 func NewForService(dir string, logger *slog.Logger, serviceAccount string) *Store {
 	return &Store{dir: dir, logger: logger, serviceAccount: serviceAccount}
+}
+
+// Buffer devuelve el Store del subdirectorio del buffer offline. En modo servicio la cuenta del
+// servicio puede escribir ahi (y solo ahi): las credenciales siguen siendo de solo lectura pa ella.
+func (s *Store) Buffer() *Store {
+	return &Store{dir: filepath.Join(s.dir, BufferDir), serviceAccount: s.serviceAccount, writable: true, parent: s, logger: s.logger}
 }
 
 // Path es la ruta del archivo de estado.
@@ -81,11 +94,23 @@ func (s *Store) Prepare() error {
 	if s.prepared {
 		return nil
 	}
+	if s.parent != nil {
+		if err := s.parent.Prepare(); err != nil {
+			return err
+		}
+	}
+	_, statErr := os.Stat(s.dir)
+	existed := statErr == nil
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return fmt.Errorf("creando directorio de estado: %w", err)
 	}
-	if err := restrictDir(s.dir, s.serviceAccount); err != nil {
-		s.logger.Warn("no se pudieron restringir los permisos del directorio de estado; revisalos a mano",
+	if err := restrictDir(s.dir, s.serviceAccount, s.writable); err != nil {
+		// El servicio corre sin permiso pa cambiar la ACL de un directorio que ya preparo install: es lo esperado.
+		level := slog.LevelWarn
+		if existed && errors.Is(err, fs.ErrPermission) {
+			level = slog.LevelDebug
+		}
+		s.logger.Log(context.Background(), level, "no se pudieron restringir los permisos del directorio de estado; revisalos a mano",
 			"dir", s.dir, "err", err)
 	}
 	s.prepared = true

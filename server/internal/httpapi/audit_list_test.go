@@ -19,6 +19,7 @@ type auditPage struct {
 		Event         string          `json:"event"`
 		Outcome       string          `json:"outcome"`
 		ActorUsername *string         `json:"actor_username"`
+		TargetName    *string         `json:"target_name"`
 		IP            *string         `json:"ip"`
 		Detail        json.RawMessage `json:"detail"`
 	} `json:"items"`
@@ -82,12 +83,12 @@ func TestAuditListEndToEnd(t *testing.T) {
 			{"evento repetido OR", "event=zt_login_ok&event=zt_group_created", 3},
 			{"outcome", "outcome=denied&event=zt_authz_denied", 1},
 			{"outcome OR", "outcome=fail&outcome=denied&event=zt_login_fail&event=zt_authz_denied", 2},
-			{"actor subcadena sin mayusculas", "actor=ALICE", 2},
-			{"actor sin coincidencia", "actor=zzz", 0},
-			{"combinado", "event=zt_login_ok&actor=alice&outcome=ok", 2},
-			{"combinado sin coincidencia", "event=zt_login_fail&actor=alice", 0},
-			{"rango", "actor=carol&from=" + rfc(base.Add(-72*time.Hour)) + "&to=" + rfc(base.Add(-24*time.Hour)), 1},
-			{"rango excluye", "actor=carol&from=" + rfc(base.Add(-24*time.Hour)), 0},
+			{"actor subcadena sin mayusculas", "q=ALICE", 2},
+			{"actor sin coincidencia", "q=zzz", 0},
+			{"combinado", "event=zt_login_ok&q=alice&outcome=ok", 2},
+			{"combinado sin coincidencia", "event=zt_login_fail&q=alice", 0},
+			{"rango", "q=carol&from=" + rfc(base.Add(-72*time.Hour)) + "&to=" + rfc(base.Add(-24*time.Hour)), 1},
+			{"rango excluye", "q=carol&from=" + rfc(base.Add(-24*time.Hour)), 0},
 		}
 		for _, c := range cases {
 			p := e.auditList(admin, c.q)
@@ -110,9 +111,26 @@ func TestAuditListEndToEnd(t *testing.T) {
 		if it.ActorUsername != nil || it.IP == nil || *it.IP != "192.0.2.7" || !it.TS.Equal(base) {
 			t.Errorf("item = %+v", it)
 		}
-		p = e.auditList(admin, "actor=bob")
+		p = e.auditList(admin, "q=bob")
 		if string(p.Items[0].Detail) != `{}` {
 			t.Errorf("detail sin datos = %s, want {}", p.Items[0].Detail)
+		}
+	})
+
+	t.Run("busca por nombre e id del objetivo", func(t *testing.T) {
+		var id string
+		if err := testPool.QueryRow(context.Background(), `SELECT id::text FROM users WHERE username = 'viewer'`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := testPool.Exec(context.Background(),
+			`INSERT INTO audit_log (ts, event, outcome, target_type, target_id) VALUES (now(), 'zt_target', 'ok', 'user', $1)`, id); err != nil {
+			t.Fatal(err)
+		}
+		for _, q := range []string{"VIEW", id[:8]} {
+			p := e.auditList(admin, "event=zt_target&q="+q)
+			if p.Total != 1 || p.Items[0].TargetName == nil || *p.Items[0].TargetName != "viewer" {
+				t.Errorf("q=%s: total=%d items=%+v, want 1 con target_name=viewer", q, p.Total, p.Items)
+			}
 		}
 	})
 
@@ -159,7 +177,7 @@ func TestAuditListEndToEnd(t *testing.T) {
 			"outcome=raro", "from=ayer", "to=2026-01-01",
 			"from=" + rfc(now) + "&to=" + rfc(now.Add(-time.Hour)),
 			"from=" + rfc(now.Add(-400*24*time.Hour)) + "&to=" + rfc(now),
-			"actor=" + strings.Repeat("a", 129), "event=" + strings.Repeat("e", 65), "event=",
+			"q=" + strings.Repeat("a", 129), "event=" + strings.Repeat("e", 65), "event=",
 		} {
 			e.wantStatus(e.do("GET", "/api/v1/audit?"+q, "", withCookie(admin)), http.StatusBadRequest, "invalid_filter")
 		}

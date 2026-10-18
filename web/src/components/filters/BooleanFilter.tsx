@@ -16,10 +16,10 @@ export function BooleanFilter({ field, value, onChange }: BooleanFilterProps) {
       aria-pressed={value}
       title={field.label}
       onClick={() => onChange(!value)}
-      className={`${PILL} gap-1 px-3 text-left hover:bg-muted ${value ? 'bg-muted' : ''}`}
+      className={`${PILL} ${value ? 'border-solid bg-muted font-medium' : ''}`}
     >
-      <span className={`min-w-0 flex-1 truncate ${value ? 'font-medium' : ''}`}>{field.label}</span>
       {value && <CheckIcon className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />}
+      {field.label}
     </button>
   )
 }

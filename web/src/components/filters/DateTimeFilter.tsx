@@ -16,7 +16,7 @@ interface DateTimeFilterProps {
 export function DateTimeFilter({ field, value, onChange }: DateTimeFilterProps) {
   const id = useId()
   const [draft, setDraft] = useState('')
-  const summary = value ? `${field.label}: ${formatDateTimeSummary(value)}` : null
+  const summary = value ? formatDateTimeSummary(value) : null
 
   return (
     <FilterPill

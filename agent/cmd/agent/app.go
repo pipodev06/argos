@@ -45,6 +45,8 @@ const (
 // serviceManager es lo que la app necesita del servicio del SO (lo implementa service.Manager).
 type serviceManager interface {
 	Install(ctx context.Context, o service.InstallOptions) error
+	// Upgrade reemplaza el binario de un servicio ya instalado (sin tocar su definicion ni el estado).
+	Upgrade(ctx context.Context, o service.InstallOptions) error
 	Uninstall(ctx context.Context, keepState bool, out io.Writer) error
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -224,7 +226,9 @@ func (a *app) enroll(ctx context.Context, args []string) error {
 		return fmt.Errorf("el servidor enrolo el host %s pero no se pudo guardar el token (revoca ese host en el dashboard y enrola de nuevo): %w", res.HostID, err)
 	}
 	// Solo host_id y ruta: el token nunca sale por stdout ni por logs.
-	next := "argos-agent run"
+	// Fuera del directorio del servicio, `install` + `start` NO usan estas credenciales: el orden correcto como
+	// servicio es install -> enroll -> start (asi lo hacen install.sh/install.ps1).
+	next := "argos-agent run (primer plano). Para dejarlo como servicio: argos-agent install y luego enroll de nuevo, como administrador"
 	if filepath.Clean(cfg.StateDir) == filepath.Clean(a.svc.StateDir()) {
 		next = "argos-agent start (si el servicio ya estaba en ejecucion, retoma solo en ~30 s)"
 	}
@@ -383,7 +387,7 @@ func (a *app) runOnce(ctx context.Context) (token string, err error) {
 		HTTPClient: client,
 		Interval:   cfg.Interval,
 		OnChecks:   runner.Apply,
-		Store:      st,
+		Store:      st.Buffer(),
 		MaxAge:     maxReportAge,
 	})
 	if err != nil {
@@ -465,32 +469,84 @@ func (a *app) install(ctx context.Context, args []string) error {
 	}
 	wantsSettings := given["inventory"] || given["probe-allow"] || given["insecure"]
 
-	if a.svc.Installed() && wantsSettings {
-		// Reinstalar solo la config: la identidad (agent.json) y la definicion del servicio no se tocan.
+	if a.svc.Installed() {
+		// Ya instalado: actualiza el binario (y la config si se pasa) sin tocar la identidad (agent.json)
+		// ni la definicion del servicio.
 		if *privileged || given["ca-file"] {
 			return errors.New("install: el servicio ya esta instalado; --privileged y --ca-file solo se pueden cambiar con `argos-agent uninstall --keep-state` y un install nuevo (conserva el enrolamiento)")
 		}
-	} else {
-		err := a.svc.Install(ctx, service.InstallOptions{
-			CAFile:     firstNonEmpty(*caFile, a.getenv("ARGOS_CA_FILE")),
-			Privileged: *privileged,
-			Out:        a.stdout,
-			Logger:     a.logger,
+		return a.upgrade(ctx, func() error {
+			if wantsSettings {
+				return a.saveSettings(given, patch)
+			}
+			return nil
 		})
-		if err != nil {
-			return fmt.Errorf("install: %w", err)
-		}
+	}
+	err = a.svc.Install(ctx, service.InstallOptions{
+		CAFile:     firstNonEmpty(*caFile, a.getenv("ARGOS_CA_FILE")),
+		Privileged: *privileged,
+		Out:        a.stdout,
+		Logger:     a.logger,
+	})
+	if err != nil {
+		return fmt.Errorf("install: %w", err)
 	}
 	if wantsSettings {
 		if err := a.saveSettings(given, patch); err != nil {
 			return err
 		}
 	}
-	_, err = fmt.Fprintf(a.stdout, "siguiente paso: enrolar el agente y arrancar el servicio (si ya estaba en ejecucion, reinicialo con `argos-agent stop` y `argos-agent start` pa aplicar la config):\n  echo <enroll-token> | argos-agent enroll --server <URL> --token-stdin\n  argos-agent start\n")
-	if err != nil {
+	// Tras `uninstall --keep-state` el enrolamiento sigue: basta arrancar.
+	next := "enrolar el agente y arrancar el servicio:\n  echo <enroll-token> | argos-agent enroll --server <URL> --token-stdin\n  argos-agent start\n"
+	if _, err := state.NewForService(a.svc.StateDir(), a.logger, a.svc.StateAccount()).Load(); err == nil {
+		next = "arrancar el servicio (ya esta enrolado):\n  argos-agent start\n"
+	}
+	if _, err := fmt.Fprint(a.stdout, "siguiente paso: "+next); err != nil {
 		return fmt.Errorf("escribiendo salida: %w", err)
 	}
 	return nil
+}
+
+// upgrade actualiza un servicio ya instalado: lo detiene si corria, reemplaza el binario, aplica
+// lo que pase `between` (p. ej. la config) y lo vuelve a arrancar si corria antes.
+func (a *app) upgrade(ctx context.Context, between func() error) error {
+	status, err := a.svc.Status(ctx)
+	if err != nil {
+		return fmt.Errorf("install: %w", err)
+	}
+	running := serviceRunning(status)
+	if running {
+		if err := a.svc.Stop(ctx); err != nil {
+			return fmt.Errorf("install: %w", err)
+		}
+	}
+	if err := a.svc.Upgrade(ctx, service.InstallOptions{Out: a.stdout, Logger: a.logger}); err != nil {
+		return fmt.Errorf("install: %w", err)
+	}
+	if err := between(); err != nil {
+		return err
+	}
+	msg := "servicio actualizado (enrolamiento y definicion del servicio conservados); arrancalo con `argos-agent start`\n"
+	if running {
+		if err := a.svc.Start(ctx); err != nil {
+			return fmt.Errorf("install: binario actualizado pero el servicio no arranco: %w", err)
+		}
+		msg = "servicio actualizado y reiniciado (enrolamiento y definicion del servicio conservados)\n"
+	}
+	if _, err := fmt.Fprint(a.stdout, msg); err != nil {
+		return fmt.Errorf("escribiendo salida: %w", err)
+	}
+	return nil
+}
+
+// serviceRunning interpreta el texto de Status de cada SO (Windows, systemd, launchd).
+func serviceRunning(status string) bool {
+	for _, s := range []string{"estado: en ejecucion", "estado: active", "estado: running"} {
+		if strings.Contains(status, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // saveSettings mezcla en settings.json solo los campos que se pasaron como flag (el resto se conserva)

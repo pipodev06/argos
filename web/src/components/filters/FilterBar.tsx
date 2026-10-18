@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BooleanFilter } from './BooleanFilter'
 import { DateTimeFilter } from './DateTimeFilter'
@@ -15,99 +16,86 @@ interface FilterBarProps<F extends readonly FilterField[]> {
   values: FiltersOf<F>
   onChange: (patch: Partial<FiltersOf<F>>) => void
   onClear: () => void
-  /** Sustantivo del contador ("hosts"). */
-  itemLabel: string
-  /** Total con filtros; null = aún no se sabe. */
-  total: number | null
-  /** Total sin filtros (para "37 de 102"); null = aún no se sabe. */
-  overall: number | null
-  /** Controles extra al final de la fila (p. ej. "Columnas"). */
+  /** Controles extra al final de la fila, alineados a la derecha (p. ej. "Columnas"). */
   actions?: ReactNode
 }
 
 type Values = Record<string, FilterValue>
 
 /**
- * Barra de filtros dirigida por configuración: [Buscar][pastillas…][Más filtros][acciones] +
- * fila de filtros numéricos activos con "Limpiar" + contador (aria-live).
+ * Barra de filtros dirigida por configuración, en una fila (patrón de la tabla de shadcn):
+ * [Buscar][+ filtros…][Más filtros][activos de Más filtros][Limpiar] … [acciones].
+ * Sin contador: el total ya lo dice el pie de la tabla ("1–15 de 397").
  */
-/** "hosts" -> "host", "canales" -> "canal": basta pa las etiquetas de la app (todas regulares). */
-function singular(label: string): string {
-  return label.endsWith('les') ? label.slice(0, -2) : label.replace(/s$/, '')
-}
-
-export function FilterBar<F extends readonly FilterField[]>({
-  fields,
-  values,
-  onChange,
-  onClear,
-  itemLabel,
-  total,
-  overall,
-  actions,
-}: FilterBarProps<F>) {
+export function FilterBar<F extends readonly FilterField[]>({ fields, values, onChange, onClear, actions }: FilterBarProps<F>) {
   const [resetKey, setResetKey] = useState(0)
   // Los tipos por campo se resuelven en runtime por `kind`; aquí se trabaja con la forma suelta.
   const v = values as Values
   const change = onChange as (patch: Values) => void
   const active = hasActiveFilters(fields, values)
-  // "Más filtros": los numericos siempre, y los booleanos marcados `extra` (para no llenar la fila principal
-  // de pastillas de poco uso, p. ej. "Agente desactualizado" o "Reinicio pendiente").
+  // "Más filtros": los numéricos siempre, y los booleanos marcados `extra` (de poco uso).
   const extras = fields.filter((f): f is NumericField | BooleanField => f.kind === 'numeric' || (f.kind === 'boolean' && f.extra === true))
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        {fields.map((f) => {
-          switch (f.kind) {
-            case 'search':
-              return <SearchBox key={`${f.key}-${resetKey}`} field={f} value={v[f.key] as string} onCommit={(q) => change({ [f.key]: q })} />
-            case 'multi':
-              return <MultiFilter key={f.key} field={f} selected={v[f.key] as string[]} onChange={(next) => change({ [f.key]: next })} />
-            case 'boolean':
-              return f.extra ? null : <BooleanFilter key={f.key} field={f} value={v[f.key] as boolean} onChange={(next) => change({ [f.key]: next })} />
-            case 'datetime':
-              return <DateTimeFilter key={f.key} field={f} value={v[f.key] as string} onChange={(next) => change({ [f.key]: next })} />
-            default:
-              return null
-          }
-        })}
-        <MoreFilters fields={extras} onApply={(key, value) => change({ [key]: value })} />
-        {actions}
-      </div>
-      {active && (
-        <ul className="flex flex-wrap items-center gap-2" aria-label="Filtros de más filtros activos">
-          {extras.map((f) => {
-            if (f.kind === 'boolean') {
-              return v[f.key] ? <RemovableChip key={f.key} text={f.label} onRemove={() => change({ [f.key]: false })} /> : null
-            }
-            const value = v[f.key] as number | null
-            return value === null ? null : (
-              <RemovableChip key={f.key} text={numericChipText(f, value)} onRemove={() => change({ [f.key]: null })} />
+    <ul className="flex flex-wrap items-center gap-2" aria-label="Filtros">
+      {fields.map((f) => {
+        switch (f.kind) {
+          case 'search':
+            return (
+              <li key={`${f.key}-${resetKey}`} className="w-full sm:w-auto">
+                <SearchBox field={f} value={v[f.key] as string} onCommit={(q) => change({ [f.key]: q })} />
+              </li>
             )
-          })}
-          <li>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setResetKey((k) => k + 1)
-                onClear()
-              }}
-            >
-              Limpiar
-            </Button>
-          </li>
-        </ul>
+          case 'multi':
+            return (
+              <li key={f.key}>
+                <MultiFilter field={f} selected={v[f.key] as string[]} onChange={(next) => change({ [f.key]: next })} />
+              </li>
+            )
+          case 'boolean':
+            return f.extra ? null : (
+              <li key={f.key}>
+                <BooleanFilter field={f} value={v[f.key] as boolean} onChange={(next) => change({ [f.key]: next })} />
+              </li>
+            )
+          case 'datetime':
+            return (
+              <li key={f.key}>
+                <DateTimeFilter field={f} value={v[f.key] as string} onChange={(next) => change({ [f.key]: next })} />
+              </li>
+            )
+          default:
+            return null
+        }
+      })}
+      {extras.length > 0 && (
+        <li>
+          <MoreFilters fields={extras} onApply={(key, value) => change({ [key]: value })} />
+        </li>
       )}
-      <div className="flex items-center gap-2 text-xs text-text-muted" aria-live="polite">
-        {total !== null && (
-          <span className="tabular-nums">
-            {active && overall !== null ? `${total.toLocaleString('es-PE')} de ${overall.toLocaleString('es-PE')}` : total.toLocaleString('es-PE')}{' '}
-            {total === 1 && !(active && overall !== null) ? singular(itemLabel) : itemLabel}
-          </span>
-        )}
-      </div>
-    </div>
+      {extras.map((f) => {
+        if (f.kind === 'boolean') {
+          return v[f.key] ? <RemovableChip key={f.key} text={f.label} onRemove={() => change({ [f.key]: false })} /> : null
+        }
+        const value = v[f.key] as number | null
+        return value === null ? null : <RemovableChip key={f.key} text={numericChipText(f, value)} onRemove={() => change({ [f.key]: null })} />
+      })}
+      {active && (
+        <li>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setResetKey((k) => k + 1)
+              onClear()
+            }}
+          >
+            Limpiar
+            <XIcon strokeWidth={1.5} aria-hidden />
+          </Button>
+        </li>
+      )}
+      {actions && <li className="ml-auto flex items-center gap-2">{actions}</li>}
+    </ul>
   )
 }

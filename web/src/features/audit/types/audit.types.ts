@@ -9,6 +9,8 @@ export interface AuditEntry {
   actor_username: string | null
   target_type: string | null
   target_id: string | null
+  /** Nombre actual del objetivo (host, usuario, grupo…); null si no tiene o ya no existe. */
+  target_name: string | null
   ip: string | null
   /** Objeto ya saneado por el servidor (puede venir vacio). */
   detail: Record<string, unknown>

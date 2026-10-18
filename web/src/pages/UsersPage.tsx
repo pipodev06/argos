@@ -57,9 +57,6 @@ function UsersAdmin({ currentUserId }: { currentUserId: string }) {
           values={filters}
           onChange={setFilters}
           onClear={clear}
-          itemLabel="usuarios"
-          total={visible?.length ?? null}
-          overall={users?.length ?? null}
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {loading && !users && <Skeleton className="h-40 w-full" />}

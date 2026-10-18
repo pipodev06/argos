@@ -32,6 +32,7 @@ type auditItemDTO struct {
 	ActorUsername *string         `json:"actor_username"`
 	TargetType    *string         `json:"target_type"`
 	TargetID      *string         `json:"target_id"`
+	TargetName    *string         `json:"target_name"`
 	IP            *string         `json:"ip"`
 	Detail        json.RawMessage `json:"detail"`
 }
@@ -39,7 +40,7 @@ type auditItemDTO struct {
 func toAuditItemDTO(r store.AuditRow) auditItemDTO {
 	dto := auditItemDTO{
 		ID: r.ID, TS: r.TS.UTC(), Event: r.Event, Outcome: r.Outcome, ActorUserID: r.ActorUserID,
-		ActorUsername: r.ActorUsername, TargetType: r.TargetType, TargetID: r.TargetID, Detail: json.RawMessage(`{}`),
+		ActorUsername: r.ActorUsername, TargetType: r.TargetType, TargetID: r.TargetID, TargetName: r.TargetName, Detail: json.RawMessage(`{}`),
 	}
 	if r.IP != nil {
 		s := r.IP.String()
@@ -81,11 +82,12 @@ func parseAuditQuery(v url.Values) (auditQuery, error) {
 	}
 	slices.Sort(f.Outcomes)
 
-	actor := strings.TrimSpace(v.Get("actor"))
-	if utf8.RuneCountInString(actor) > maxActorUsernameLen || hasControl(actor) {
-		return auditQuery{}, invalidFilter("actor excede %d caracteres o tiene caracteres invalidos", maxActorUsernameLen)
+	// q busca en el actor, el id del objetivo y su nombre.
+	q := strings.TrimSpace(v.Get("q"))
+	if utf8.RuneCountInString(q) > maxActorUsernameLen || hasControl(q) {
+		return auditQuery{}, invalidFilter("q excede %d caracteres o tiene caracteres invalidos", maxActorUsernameLen)
 	}
-	f.Actor = actor
+	f.Query = q
 
 	if f.From, err = parseInstant(v, "from"); err != nil {
 		return auditQuery{}, err
@@ -147,7 +149,7 @@ func parseInstant(v url.Values, name string) (*time.Time, error) {
 
 // auditFingerprint resume los filtros (no el limite): un cursor solo vale pa la consulta que lo emitio.
 func auditFingerprint(f store.AuditFilter) string {
-	b, err := json.Marshal([]any{"audit", f.Events, f.Outcomes, strings.ToLower(f.Actor), f.From, f.To})
+	b, err := json.Marshal([]any{"audit", f.Events, f.Outcomes, strings.ToLower(f.Query), f.From, f.To})
 	if err != nil {
 		return "" // strings y fechas: no deberia ocurrir
 	}

@@ -69,9 +69,6 @@ export function DevicesPage() {
           values={filters}
           onChange={setFilters}
           onClear={clear}
-          itemLabel="dispositivos"
-          total={data?.total ?? null}
-          overall={null}
         />
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {enabling.error && <InlineError>{enabling.error}</InlineError>}

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,12 +87,8 @@ func (m Manager) Install(ctx context.Context, o InstallOptions) error {
 	}
 	printf(o.Out, "binario instalado en %s\n", exe)
 
-	logger := o.Logger
-	if logger == nil {
-		logger = slog.New(slog.DiscardHandler)
-	}
-	st := state.NewForService(linuxStateDir, logger, Name)
-	if err := st.Prepare(); err != nil {
+	st, err := prepareServiceState(linuxStateDir, Name, o.Logger)
+	if err != nil {
 		return err
 	}
 	if ca != nil {
@@ -265,3 +260,25 @@ func installSudoers(ctx context.Context, out io.Writer) bool {
 
 // ExePath es el binario instalado del servicio.
 func (Manager) ExePath() (string, error) { return filepath.Join(linuxInstallDir, Name), nil }
+
+// Upgrade reemplaza el binario instalado por este ejecutable y prepara el estado (incluido el
+// subdirectorio del buffer). No toca la definicion del servicio (cuenta, --privileged), la CA ni las
+// credenciales. Quien llama detiene el servicio antes y lo vuelve a arrancar despues.
+func (Manager) Upgrade(_ context.Context, o InstallOptions) error {
+	if err := requireRoot(); err != nil {
+		return err
+	}
+	src, err := sourceExecutable()
+	if err != nil {
+		return err
+	}
+	if src != filepath.Join(linuxInstallDir, Name) {
+		exe, err := installBinary(src, linuxInstallDir)
+		if err != nil {
+			return err
+		}
+		printf(o.Out, "binario actualizado en %s\n", exe)
+	}
+	_, err = prepareServiceState(linuxStateDir, Name, o.Logger)
+	return err
+}

@@ -32,6 +32,9 @@ func (Manager) Stop(context.Context) error { return ErrUnsupported }
 // Status no esta soportado en este SO.
 func (Manager) Status(context.Context) (string, error) { return "", ErrUnsupported }
 
+// Upgrade: sin soporte de servicio en este SO.
+func (Manager) Upgrade(context.Context, InstallOptions) error { return ErrUnsupported }
+
 // RequirePrivileges no esta soportado en este SO.
 func (Manager) RequirePrivileges() error { return ErrUnsupported }
 

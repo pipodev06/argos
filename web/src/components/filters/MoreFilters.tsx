@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowLeftIcon } from 'lucide-react'
+import { ArrowLeftIcon, SlidersHorizontalIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -67,11 +67,12 @@ export function MoreFilters({ fields, onApply }: MoreFiltersProps) {
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button type="button" className={`${PILL} justify-between px-3 hover:bg-muted`}>
-          <span className="truncate">Más filtros</span>
+        <button type="button" className={PILL}>
+          <SlidersHorizontalIcon className="size-4 text-text-muted" strokeWidth={1.5} aria-hidden />
+          Más filtros
         </button>
       </PopoverTrigger>
-      <PopoverContent aria-label="Más filtros" className={`max-h-80 overflow-y-auto ${def ? 'w-64' : 'w-40'}`}>
+      <PopoverContent aria-label="Más filtros" align="start" className={`max-h-80 overflow-y-auto ${def ? 'w-64' : 'w-48'}`}>
         <div ref={body} className="flex flex-col gap-1">
           {!def ? (
             <>

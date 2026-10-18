@@ -11,9 +11,9 @@ const OUTCOMES: readonly AuditOutcome[] = ['ok', 'fail', 'denied']
 export const FILTER_ERROR =
   'Filtros no válidos: "Desde" debe ser anterior a "Hasta" y el rango no puede superar 366 días.'
 
-/** Campos de filtro de Auditoría. Parámetros de URL/API: actor, event, outcome, from, to, limit. */
+/** Campos de filtro de Auditoría. Parámetros de URL/API: q, event, outcome, from, to, limit. */
 export const AUDIT_FIELDS = [
-  { kind: 'search', key: 'actor', label: 'Actor', ariaLabel: 'Buscar por actor', placeholder: 'Buscar actor', maxLength: 64 },
+  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar por actor u objetivo', placeholder: 'Actor, host o id', maxLength: 128 },
   { kind: 'multi', key: 'event', label: 'Evento', plural: 'eventos', useOptions: useAuditEventOptions, searchAbove: 8 },
   {
     kind: 'multi',

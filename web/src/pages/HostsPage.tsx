@@ -16,7 +16,6 @@ import { useColumnVisibility } from '@/features/hosts/hooks/useColumnVisibility'
 import { useHostList } from '@/features/hosts/hooks/useHostList'
 import { hostsCsvUrl } from '@/features/hosts/services/hosts.service'
 import { buildCsvQuery, defaultDir, HOST_FIELDS, isVolatileSort, type SortKey } from '@/features/hosts/utils/hostQuery'
-import { useSummary } from '@/features/summary/hooks/useSummary'
 import { useCursorPagination } from '@/hooks/useCursorPagination'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 import type { PageSize } from '@/lib/pagination'
@@ -34,7 +33,6 @@ export function HostsPage() {
     },
   })
   const { data, error, errorStatus, loading, refresh } = useHostList(filters, pagination.cursor)
-  const summary = useSummary()
   const columns = useColumnVisibility()
   const [addOpen, setAddOpen] = useState(false)
   const [tokensOpen, setTokensOpen] = useState(false)
@@ -74,12 +72,8 @@ export function HostsPage() {
   function afterBulk() {
     setSelected(new Set())
     void refresh()
-    void summary.refresh()
   }
 
-  const overall = summary.data
-    ? Object.values(summary.data.counts).reduce((a, b) => a + b, 0)
-    : null
   const active = hasActive
   const volatile = isVolatileSort(filters.sort)
   const noHosts = data !== null && data.total === 0 && !active
@@ -126,9 +120,6 @@ export function HostsPage() {
             values={filters}
             onChange={setFilters}
             onClear={clear}
-            itemLabel="hosts"
-            total={data?.total ?? null}
-            overall={overall}
             actions={<ColumnsMenu visible={columns.visible} onToggle={columns.toggle} />}
           />
         )}

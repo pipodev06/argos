@@ -61,7 +61,7 @@ export function InstructionsPage() {
         <Collapsible title="Agente">
           <Cmd title="Compilar el agente (windows/linux/macOS → dist/agent)" value="bash scripts/build-agent.sh 0.0.0-dev" />
           <Cmd title="Otro equipo de la LAN" value="Hosts → Agregar host → marcar insecure → copiar el comando" />
-          <SubHeading>Este mismo PC (consola como administrador, desde la raíz del repo; token de Hosts → Agregar host)</SubHeading>
+          <SubHeading>Este mismo PC (consola como administrador, desde la raíz del repo; orden: install → enroll → start)</SubHeading>
           <Tabs defaultValue="windows">
             <TabsList aria-label="Sistema operativo">
               <TabsTrigger value="windows">Windows (PowerShell)</TabsTrigger>
@@ -71,7 +71,7 @@ export function InstructionsPage() {
               <CopyBlock
                 label="Enrolar e instalar en Windows"
                 value={
-                  "$a = '.\\dist\\agent\\0.0.0-dev\\argos-agent_windows_amd64.exe'\n'<token>' | & $a enroll --server http://localhost:8080 --token-stdin\n& $a install\n& $a start"
+                  "$a = '.\\dist\\agent\\' + (Get-Content .\\dist\\agent\\latest) + '\\argos-agent_windows_amd64.exe'\n& $a install\n'<token>' | & $a enroll --server http://localhost:8080 --token-stdin\n& $a start"
                 }
               />
             </TabsContent>
@@ -79,7 +79,7 @@ export function InstructionsPage() {
               <CopyBlock
                 label="Enrolar e instalar en Linux o macOS"
                 value={
-                  "a=./dist/agent/0.0.0-dev/argos-agent_linux_amd64\necho '<token>' | sudo $a enroll --server http://localhost:8080 --token-stdin\nsudo $a install\nsudo $a start"
+                  "a=./dist/agent/$(cat dist/agent/latest)/argos-agent_linux_amd64\nsudo $a install\necho '<token>' | sudo $a enroll --server http://localhost:8080 --token-stdin\nsudo $a start"
                 }
               />
             </TabsContent>

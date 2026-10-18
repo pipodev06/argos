@@ -80,6 +80,23 @@ export function formatAuditDate(iso: string): string {
 }
 
 /** Id largo abreviado ("a1b2c3d4…"); los cortos van completos. */
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  host: 'Host',
+  device: 'Dispositivo',
+  agent: 'Agente',
+  user: 'Usuario',
+  group: 'Grupo',
+  enroll_token: 'Token',
+  alert: 'Alerta',
+  alert_rule: 'Regla',
+  channel: 'Canal',
+}
+
+/** Tipo de objetivo legible; tipos desconocidos se muestran tal cual. */
+export function targetTypeLabel(type: string): string {
+  return TARGET_TYPE_LABELS[type] ?? type
+}
+
 export function shortId(id: string): string {
   return id.length > 12 ? `${id.slice(0, 8)}…` : id
 }

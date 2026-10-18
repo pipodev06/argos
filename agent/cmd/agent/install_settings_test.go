@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"argos/agent/internal/config"
+	"argos/agent/internal/state"
 )
 
 func readSettings(t *testing.T, h *harness) config.Settings {
@@ -79,8 +80,8 @@ func TestReinstallMergesSettingsWithoutReinstallingService(t *testing.T) {
 	if got, want := readSettings(t, h), (config.Settings{Inventory: "services", ProbeAllow: "192.168.1.0/25"}); got != want {
 		t.Errorf("settings got %+v, want %+v (solo cambia lo indicado)", got, want)
 	}
-	if len(h.svc.calls) != 0 {
-		t.Errorf("con el servicio instalado solo se actualiza la config: %v", h.svc.calls)
+	if got := strings.Join(h.svc.calls, ","); got != "status,upgrade" {
+		t.Errorf("con el servicio instalado (detenido) solo se actualiza binario y config, sin reinstalar ni arrancar: %s", got)
 	}
 	// Vaciar explicitamente un campo.
 	if err := h.app.execute(ctx, []string{"install", "--probe-allow", ""}); err != nil {
@@ -122,4 +123,35 @@ func TestStatusShowsEffectiveSettings(t *testing.T) {
 		}
 	}
 	h.assertNoSecrets(t)
+}
+
+func TestInstallUpgradesRunningServiceAndRestartsIt(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.svc.installed = true
+	h.svc.status = "instalado; estado: en ejecucion"
+	if err := h.app.execute(context.Background(), []string{"install"}); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if got := strings.Join(h.svc.calls, ","); got != "status,stop,upgrade,start" {
+		t.Errorf("calls = %s, want status,stop,upgrade,start", got)
+	}
+	if !strings.Contains(h.stdout.String(), "actualizado y reiniciado") {
+		t.Errorf("stdout = %q", h.stdout.String())
+	}
+}
+
+func TestFreshInstallWhenAlreadyEnrolledOnlyAsksToStart(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	if err := state.New(h.svc.stateDir, h.app.logger).Save(state.Credentials{HostID: "h", AgentToken: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.app.execute(context.Background(), []string{"install"}); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	out := h.stdout.String()
+	if !strings.Contains(out, "ya esta enrolado") || strings.Contains(out, "enroll-token") {
+		t.Errorf("con agent.json no debe pedir enrolar: %q", out)
+	}
 }

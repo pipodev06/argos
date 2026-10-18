@@ -14,7 +14,8 @@ import (
 
 const idPath = "/usr/bin/id" // ruta absoluta: sin PATH; presente en Linux y macOS
 
-func restrictDir(dir, serviceAccount string) error {
+// restrictDir: en Unix la cuenta del servicio es duena del directorio, asi que siempre puede escribir (writable no aplica).
+func restrictDir(dir, serviceAccount string, _ bool) error {
 	// MkdirAll respeta el umask y no toca un directorio que ya existia.
 	if err := os.Chmod(dir, 0o700); err != nil { //nolint:gosec // 0700 es el minimo pa que el dueno entre al directorio
 		return fmt.Errorf("chmod 0700: %w", err)

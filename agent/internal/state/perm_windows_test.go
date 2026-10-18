@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/windows"
 )
 
 const testServiceSID = "S-1-5-80-1111111111-2222222222-3333333333-1444444444-555555555"
@@ -17,12 +19,20 @@ const testServiceSID = "S-1-5-80-1111111111-2222222222-3333333333-1444444444-555
 func TestDirSDDL(t *testing.T) {
 	t.Parallel()
 
-	if got, want := dirSDDL("S-1-5-21-1", ""), "D:P(A;OICI;FA;;;S-1-5-21-1)"; got != want {
+	if got, want := dirSDDL("S-1-5-21-1", "", false), "D:P(A;OICI;FA;;;S-1-5-21-1)"; got != want {
 		t.Errorf("modo usuario got %q, want %q", got, want)
 	}
-	svc := dirSDDL("", testServiceSID)
+	svc := dirSDDL("", testServiceSID, false)
 	if want := "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FR;;;" + testServiceSID + ")"; svc != want {
 		t.Errorf("modo servicio got %q, want %q", svc, want)
+	}
+	// Buffer offline: la cuenta del servicio puede modificar (no cambiar la ACL).
+	buf := dirSDDL("", testServiceSID, true)
+	if want := "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;" + testServiceSID + ")"; buf != want {
+		t.Errorf("buffer got %q, want %q", buf, want)
+	}
+	if _, err := windows.SecurityDescriptorFromString(buf); err != nil {
+		t.Errorf("SDDL del buffer invalido: %v", err)
 	}
 }
 
