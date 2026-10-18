@@ -95,7 +95,7 @@ func (a *API) executePurgeJob(ctx context.Context, job store.PurgeJob) {
 	defer cancel()
 	e := store.AuditEntry{
 		ActorUserID: job.RequestedBy, ActorUsername: job.RequestedByName, TargetID: job.TargetID,
-		TargetType: job.Kind, Outcome: store.OutcomeOK,
+		TargetType: job.Kind, TargetLabel: job.TargetName, Outcome: store.OutcomeOK,
 	}
 	switch job.Kind {
 	case store.PurgeKindHost:

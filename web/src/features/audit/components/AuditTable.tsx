@@ -4,7 +4,7 @@ import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCe
 import { rowNumber } from '@/lib/pagination'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import type { AuditEntry } from '../types/audit.types'
-import { eventLabel, formatAuditDate, formatDetailValue } from '../utils/labels'
+import { detailLabel, eventLabel, formatAuditDate, formatDetailValue, formatIp } from '../utils/labels'
 import { AuditTarget } from './AuditTarget'
 import { OutcomeBadge } from './OutcomeBadge'
 
@@ -38,7 +38,7 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
           const open = openId === e.id
           const panelId = `audit-detail-${e.id}`
           const Chevron = open ? ChevronDownIcon : ChevronRightIcon
-          const detail = Object.entries(e.detail ?? {})
+          const detail: [string, unknown][] = [...Object.entries(e.detail ?? {}), ...(e.target_id ? [['Id del objetivo', e.target_id] as [string, unknown]] : []), ...(e.ip ? [['IP', e.ip] as [string, unknown]] : [])]
           return (
             <Fragment key={e.id}>
               <Row>
@@ -64,9 +64,9 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
                 </Cell>
                 <Cell>{e.actor_username ?? '—'}</Cell>
                 <Cell>
-                  <AuditTarget type={e.target_type} id={e.target_id} name={e.target_name} />
+                  <AuditTarget type={e.target_type} id={e.target_id} name={e.target_name} exists={e.target_exists} />
                 </Cell>
-                <Cell className="tabular-nums">{e.ip ?? '—'}</Cell>
+                <Cell className="tabular-nums">{formatIp(e.ip)}</Cell>
               </Row>
               {open && (
                 <tr id={panelId} className="border-b border-border bg-muted/40 last:border-b-0">
@@ -77,7 +77,7 @@ export function AuditTable({ entries, page, pageSize }: AuditTableProps) {
                       <dl className="mx-auto grid w-fit max-w-full grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-left">
                         {detail.map(([k, v]) => (
                           <Fragment key={k}>
-                            <dt className="text-text-muted">{k}</dt>
+                            <dt className="text-text-muted">{detailLabel(k)}</dt>
                             <dd className="min-w-0 break-words">{formatDetailValue(v)}</dd>
                           </Fragment>
                         ))}

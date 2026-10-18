@@ -43,7 +43,8 @@ type AuditRow struct {
 	ActorUsername *string
 	TargetType    *string
 	TargetID      *string
-	TargetName    *string // nombre actual del objetivo (host, usuario, grupo...); nil si ya no existe
+	TargetName    *string // nombre del objetivo: el actual o, si se borro, el guardado; nil si no hay
+	TargetExists  bool    // el objetivo sigue existiendo (su nombre actual se resolvio)
 	IP            *netip.Addr
 	Detail        []byte // JSON o nil
 }
@@ -55,16 +56,13 @@ type AuditPage struct {
 	Total      int
 }
 
-// auditWithTarget agrega a audit_log el nombre actual del objetivo, pa mostrarlo y pa buscar por el.
-// Las tablas de objetivos son chicas (hosts, usuarios, grupos, reglas, canales): la subconsulta por fila es barata.
-const auditWithTarget = `(SELECT a.*, CASE a.target_type
-    WHEN 'host'       THEN (SELECT h.hostname FROM hosts h WHERE h.id::text = a.target_id)
-    WHEN 'device'     THEN (SELECT h.hostname FROM hosts h WHERE h.id::text = a.target_id)
-    WHEN 'user'       THEN (SELECT u.username FROM users u WHERE u.id::text = a.target_id)
-    WHEN 'group'      THEN (SELECT g.name FROM host_groups g WHERE g.id::text = a.target_id)
-    WHEN 'alert_rule' THEN (SELECT r.name FROM alert_rules r WHERE r.id::text = a.target_id)
-    WHEN 'channel'    THEN (SELECT c.name FROM notification_channels c WHERE c.id::text = a.target_id)
-  END AS target_name
+// auditWithTarget agrega a audit_log el nombre del objetivo (actual o, si se borro, el guardado al
+// registrar el evento) y si sigue existiendo, pa mostrarlo y pa buscar por el.
+var auditWithTarget = `(SELECT a.*,
+    CASE WHEN a.target_type IS NULL THEN NULL
+         ELSE COALESCE(` + targetCurrentNameSQL("a.target_type", "a.target_id") + `, a.target_label, ` +
+	targetStoredNameSQL("a.target_type", "a.target_id", "a.detail") + `) END AS target_name,
+    ` + targetCurrentNameSQL("a.target_type", "a.target_id") + ` IS NOT NULL AS target_exists
   FROM audit_log a) audit`
 
 // ListAudit devuelve una pagina de auditoria (solo lectura), de la mas reciente a la mas antigua.
@@ -104,7 +102,7 @@ func (s *Store) ListAudit(ctx context.Context, f AuditFilter) (AuditPage, error)
 
 	// Los fragmentos SQL son fijos; los valores del cliente van siempre como parametros.
 	query := fmt.Sprintf(`
-SELECT id, ts, event, outcome, actor_user_id::text, actor_username, target_type, target_id, target_name, ip, detail
+SELECT id, ts, event, outcome, actor_user_id::text, actor_username, target_type, target_id, target_name, target_exists, ip, detail
   FROM `+auditWithTarget+`
  WHERE %s
  ORDER BY ts DESC, id DESC
@@ -120,7 +118,7 @@ SELECT id, ts, event, outcome, actor_user_id::text, actor_username, target_type,
 	for rows.Next() {
 		var r AuditRow
 		if err := rows.Scan(&r.ID, &r.TS, &r.Event, &r.Outcome, &r.ActorUserID, &r.ActorUsername,
-			&r.TargetType, &r.TargetID, &r.TargetName, &r.IP, &r.Detail); err != nil {
+			&r.TargetType, &r.TargetID, &r.TargetName, &r.TargetExists, &r.IP, &r.Detail); err != nil {
 			return AuditPage{}, fmt.Errorf("leyendo evento de auditoria: %w", err)
 		}
 		page.Items = append(page.Items, r)

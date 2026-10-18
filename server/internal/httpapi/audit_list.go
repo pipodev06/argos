@@ -33,6 +33,7 @@ type auditItemDTO struct {
 	TargetType    *string         `json:"target_type"`
 	TargetID      *string         `json:"target_id"`
 	TargetName    *string         `json:"target_name"`
+	TargetExists  bool            `json:"target_exists"`
 	IP            *string         `json:"ip"`
 	Detail        json.RawMessage `json:"detail"`
 }
@@ -40,7 +41,7 @@ type auditItemDTO struct {
 func toAuditItemDTO(r store.AuditRow) auditItemDTO {
 	dto := auditItemDTO{
 		ID: r.ID, TS: r.TS.UTC(), Event: r.Event, Outcome: r.Outcome, ActorUserID: r.ActorUserID,
-		ActorUsername: r.ActorUsername, TargetType: r.TargetType, TargetID: r.TargetID, TargetName: r.TargetName, Detail: json.RawMessage(`{}`),
+		ActorUsername: r.ActorUsername, TargetType: r.TargetType, TargetID: r.TargetID, TargetName: r.TargetName, TargetExists: r.TargetExists, Detail: json.RawMessage(`{}`),
 	}
 	if r.IP != nil {
 		s := r.IP.String()

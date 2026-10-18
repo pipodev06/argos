@@ -221,9 +221,9 @@ func TestPurgeHostAPI(t *testing.T) {
 	}
 	// Repetir la purga es un 404 (idempotente en el efecto).
 	x.wantStatus(purge(x.hostA, `{"confirm_hostname":"host-a"}`), http.StatusNotFound, "not_found")
-	// Auditoria: con conteos y sin el nombre del host.
+	// Auditoria: con conteos y con el nombre del host guardado (constancia de la baja; decision del usuario 2026-10-18).
 	audit := x.do("GET", "/api/v1/audit?event=host_purged", "", withCookie(x.admin)).Body.String()
-	if !strings.Contains(audit, "host_purged") || strings.Contains(audit, "host-a") {
+	if !strings.Contains(audit, "host_purged") || !strings.Contains(audit, `"target_name":"host-a"`) || !strings.Contains(audit, `"target_exists":false`) {
 		t.Errorf("auditoria de la purga: %.400s", audit)
 	}
 

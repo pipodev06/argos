@@ -23,8 +23,37 @@ type AuditEntry struct {
 	Outcome       string
 	TargetType    string
 	TargetID      string
-	IP            *netip.Addr
-	Detail        []byte // JSON o nil
+	// TargetLabel es el nombre legible del objetivo (vacio = se resuelve al insertar: nombre actual,
+	// el del detalle o el ultimo guardado para ese objetivo). Queda guardado aunque el objeto se borre.
+	TargetLabel string
+	IP          *netip.Addr
+	Detail      []byte // JSON o nil
+}
+
+// targetCurrentNameSQL es el nombre ACTUAL del objetivo segun su tipo (NULL si ya no existe).
+// typ e id son expresiones SQL de texto. Las tablas de objetivos son chicas: la subconsulta es barata.
+func targetCurrentNameSQL(typ, id string) string {
+	return fmt.Sprintf(`(CASE %[1]s
+    WHEN 'host'          THEN (SELECT hostname FROM hosts WHERE id::text = %[2]s)
+    WHEN 'device'        THEN (SELECT hostname FROM hosts WHERE id::text = %[2]s)
+    WHEN 'user'          THEN (SELECT username FROM users WHERE id::text = %[2]s)
+    WHEN 'group'         THEN (SELECT name FROM host_groups WHERE id::text = %[2]s)
+    WHEN 'alert_rule'    THEN (SELECT name FROM alert_rules WHERE id::text = %[2]s)
+    WHEN 'channel'       THEN (SELECT name FROM notification_channels WHERE id::text = %[2]s)
+    WHEN 'maintenance'   THEN (SELECT name FROM maintenance_windows WHERE id::text = %[2]s)
+    WHEN 'service_check' THEN (SELECT name FROM service_check_defs WHERE id::text = %[2]s)
+    WHEN 'snmp_profile'  THEN (SELECT name FROM snmp_profiles WHERE id::text = %[2]s)
+  END)`, typ, id)
+}
+
+// targetStoredNameSQL es el nombre que el propio evento conoce aunque el objeto ya no exista: el
+// del detalle (name/hostname/username) o el ultimo guardado en un evento anterior del mismo objetivo
+// (indice audit_log_target_idx).
+func targetStoredNameSQL(typ, id, detail string) string {
+	return fmt.Sprintf(`COALESCE(%[3]s->>'name', %[3]s->>'hostname', %[3]s->>'username',
+    (SELECT p.target_label FROM audit_log p
+      WHERE p.target_type = %[1]s AND p.target_id = %[2]s AND p.target_label IS NOT NULL
+      ORDER BY p.id DESC LIMIT 1))`, typ, id, detail)
 }
 
 // InsertAudit registra un evento. Los campos vacios se guardan como NULL.
@@ -34,9 +63,11 @@ func (s *Store) InsertAudit(ctx context.Context, e AuditEntry) error {
 		detail = e.Detail
 	}
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO audit_log (actor_user_id, actor_username, event, outcome, target_type, target_id, ip, detail)
-		 VALUES (NULLIF($1, '')::uuid, NULLIF($2, ''), $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, $8)`,
-		e.ActorUserID, e.ActorUsername, e.Event, e.Outcome, e.TargetType, e.TargetID, e.IP, detail)
+		`INSERT INTO audit_log (actor_user_id, actor_username, event, outcome, target_type, target_id, ip, detail, target_label)
+		 VALUES (NULLIF($1, '')::uuid, NULLIF($2, ''), $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, $8::jsonb,
+		   CASE WHEN NULLIF($5, '') IS NULL THEN NULL ELSE left(COALESCE(NULLIF($9, ''), `+
+			targetCurrentNameSQL("$5::text", "$6::text")+`, `+targetStoredNameSQL("$5::text", "$6::text", "$8::jsonb")+`), 128) END)`,
+		e.ActorUserID, e.ActorUsername, e.Event, e.Outcome, e.TargetType, e.TargetID, e.IP, detail, e.TargetLabel)
 	if err != nil {
 		return fmt.Errorf("insertando evento de auditoria: %w", err)
 	}

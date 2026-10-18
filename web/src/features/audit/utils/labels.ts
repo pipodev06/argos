@@ -97,14 +97,40 @@ export function targetTypeLabel(type: string): string {
   return TARGET_TYPE_LABELS[type] ?? type
 }
 
-export function shortId(id: string): string {
-  return id.length > 12 ? `${id.slice(0, 8)}…` : id
+const DETAIL_LABELS: Record<string, string> = {
+  name: 'Nombre',
+  hostname: 'Hostname',
+  username: 'Usuario',
+  kind: 'Tipo',
+  scope: 'Alcance',
+  module: 'Módulo',
+  fields: 'Campos cambiados',
+  enabled: 'Activo',
+  severity: 'Severidad',
+  group_id: 'Grupo (id)',
+  count: 'Intentos',
+  metrics_rows: 'Filas de métricas borradas',
+  reason: 'Motivo',
+  route: 'Ruta',
+  role: 'Rol',
 }
 
-/** Valor de `detail` como texto plano (los objetos anidados, en JSON). */
+/** Clave de `detail` en español (las desconocidas se muestran tal cual). */
+export function detailLabel(key: string): string {
+  return DETAIL_LABELS[key] ?? key
+}
+
+/** Valor de `detail` como texto plano: booleanos en Sí/No, listas separadas por comas. */
 export function formatDetailValue(value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (typeof value === 'string') return value === '' ? '—' : value
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No'
+  if (Array.isArray(value)) return value.map((v) => formatDetailValue(v)).join(', ')
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
+}
+
+/** IP de loopback (el propio servidor) en palabras. */
+export function formatIp(ip: string | null): string {
+  if (!ip) return '—'
+  return ip === '::1' || ip.startsWith('127.') ? 'Este equipo' : ip
 }
