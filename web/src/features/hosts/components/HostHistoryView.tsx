@@ -4,17 +4,16 @@ import { Button } from '@/components/ui/button'
 import { DateTimeField } from '@/components/ui/date-time-picker'
 import { InlineError } from '@/components/ui/inline-error'
 import { ApiError } from '@/lib/api'
+import { useNow } from '@/hooks/useNow'
 import { useHostDetail } from '../hooks/useHostDetail'
 import { useHostHistory } from '../hooks/useHostHistory'
 import { downloadHostHistoryCsv } from '../services/hosts.service'
 import {
   DETAIL_RETENTION_DAYS,
   SHORTCUTS,
-  dayRange,
   historyView,
   parseLocalInput,
   shortcutRange,
-  toLocalDate,
   toLocalInput,
   validateRange,
   type DateRange,
@@ -43,32 +42,26 @@ export function HostHistoryView({ id }: { id: string }) {
   const [applied, setApplied] = useState<DateRange>(initial)
   const [from, setFrom] = useState(() => toLocalInput(initial.fromMs))
   const [to, setTo] = useState(() => toLocalInput(initial.toMs))
-  const [day, setDay] = useState(() => toLocalDate(initial.fromMs))
   const [formError, setFormError] = useState<string | null>(null)
   const [exporting, setExporting] = useState<HistorySeries | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
   const history = useHostHistory(id, applied)
+  // Tope de los calendarios: ahora (no hay datos futuros); un "Hasta" posterior se recorta solo.
+  const maxDate = new Date(useNow(30_000))
   const notFound = detail.errorStatus === 400 || detail.errorStatus === 404 || history.errorStatus === 404
   const hostname = detail.data?.host.hostname ?? history.data?.host.hostname ?? ''
 
-  function apply(range: DateRange) {
-    const err = validateRange(range, Date.now(), history.data?.detail_retention_days)
+  function apply(range: DateRange, now: number) {
+    const err = validateRange(range, now, history.data?.detail_retention_days)
     setFormError(err)
     setExportError(null)
     if (!err) setApplied(range)
   }
 
-  function applyPreset(range: DateRange) {
+  function applyPreset(range: DateRange, now: number) {
     setFrom(toLocalInput(range.fromMs))
     setTo(toLocalInput(range.toMs))
-    setDay(toLocalDate(range.fromMs))
-    apply(range)
-  }
-
-  function onDayChange(value: string) {
-    setDay(value)
-    const range = dayRange(value)
-    if (range) applyPreset(range)
+    apply(range, now)
   }
 
   async function exportCsv(series: HistorySeries) {
@@ -106,19 +99,16 @@ export function HostHistoryView({ id }: { id: string }) {
             className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4"
             onSubmit={(e) => {
               e.preventDefault()
-              apply({ fromMs: parseLocalInput(from), toMs: parseLocalInput(to) })
+              apply({ fromMs: parseLocalInput(from), toMs: parseLocalInput(to) }, Date.now())
             }}
             noValidate
           >
             <div className="flex flex-wrap items-end gap-2">
               <div className="w-60">
-                <DateTimeField id="history-from" label="Desde" value={from} onChange={setFrom} />
+                <DateTimeField id="history-from" label="Desde" value={from} onChange={setFrom} maxDate={maxDate} />
               </div>
               <div className="w-60">
-                <DateTimeField id="history-to" label="Hasta" value={to} onChange={setTo} />
-              </div>
-              <div className="w-48">
-                <DateTimeField id="history-day" label="Día" withTime={false} value={day} onChange={onDayChange} />
+                <DateTimeField id="history-to" label="Hasta" value={to} onChange={setTo} maxDate={maxDate} />
               </div>
               <Button type="submit">
                 Consultar
@@ -126,7 +116,10 @@ export function HostHistoryView({ id }: { id: string }) {
             </div>
             <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Atajos de fecha">
               {SHORTCUTS.map((s) => (
-                <Button key={s.id} type="button" variant="outline" size="sm" onClick={() => applyPreset(shortcutRange(s.id, Date.now()))}>
+                <Button key={s.id} type="button" variant="outline" size="sm" onClick={() => {
+                    const now = Date.now()
+                    applyPreset(shortcutRange(s.id, now), now)
+                  }}>
                   {s.label}
                 </Button>
               ))}

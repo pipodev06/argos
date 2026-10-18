@@ -148,8 +148,6 @@ type alertRuleDTO struct {
 	ChannelIDs      []string          `json:"channel_ids"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
-	// MutedUntil: null = sin silenciar; en el futuro = sin notificaciones nuevas (evaluacion sin cambios).
-	MutedUntil *time.Time `json:"muted_until"`
 	// EscalateAfterSeconds: null = sin escalamiento. EscalationChannelIDs siempre es un arreglo.
 	EscalateAfterSeconds *int     `json:"escalate_after_seconds"`
 	EscalationChannelIDs []string `json:"escalation_channel_ids"`
@@ -161,7 +159,7 @@ func toAlertRuleDTO(r store.AlertRule) alertRuleDTO {
 		DurationSeconds: r.DurationSeconds, DurationDays: r.DurationDays, ResolveSeconds: r.ResolveSeconds, IncludeOffline: r.IncludeOffline,
 		CheckID: r.CheckID, CheckName: r.CheckName, WarnOrDown: r.WarnOrDown, ExpectedPorts: toExpectedPortDTOs(r.ExpectedPorts),
 		Scope: toScopeDTO(r.Scope, r.GroupName, r.HostName), Severity: r.Severity, Enabled: r.Enabled, ActiveAlerts: r.ActiveAlerts, ChannelIDs: r.ChannelIDs,
-		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(), MutedUntil: utcPtr(r.MutedUntil),
+		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 		EscalateAfterSeconds: r.EscalateAfterSeconds, EscalationChannelIDs: r.EscalationChannelIDs,
 	}
 }
@@ -553,54 +551,6 @@ func (a *API) deleteAlertRule(w http.ResponseWriter, r *http.Request) error {
 	e.Event, e.Outcome, e.TargetType, e.TargetID = evAlertRuleDeleted, store.OutcomeOK, "alert_rule", id
 	a.audit(r, e, map[string]any{"name": name})
 	writeJSON(w, http.StatusOK, map[string]any{})
-	return nil
-}
-
-// validMuteMinutes son los unicos periodos admitidos (15 min / 1 h / 4 h / 24 h, los que ofrece el frontend).
-var validMuteMinutes = map[int]bool{15: true, 60: true, 240: true, 1440: true}
-
-type muteRuleReq struct {
-	Minutes int `json:"minutes"`
-}
-
-// muteAlertRule silencia las notificaciones nuevas de la regla por minutes (15, 60, 240 o 1440): la evaluacion
-// sigue igual, solo cambia si se encola `pending` o `suppressed` (ver alert_eval.go). No afecta `resolved`.
-func (a *API) muteAlertRule(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
-	if !isUUID(id) {
-		return badRequest("id invalido")
-	}
-	var req muteRuleReq
-	if err := decodeJSON(w, r, &req, maxSmallBodyBytes, true); err != nil {
-		return err
-	}
-	if !validMuteMinutes[req.Minutes] {
-		return badRequest("minutes debe ser 15, 60, 240 o 1440")
-	}
-	until := a.now().Add(time.Duration(req.Minutes) * time.Minute)
-	if err := a.store.MuteRule(r.Context(), id, &until); err != nil {
-		return err
-	}
-	e := actor(currentUser(r))
-	e.Event, e.Outcome, e.TargetType, e.TargetID = evAlertRuleUpdated, store.OutcomeOK, "alert_rule", id
-	a.audit(r, e, map[string]any{"action": "mute", "minutes": req.Minutes})
-	writeJSON(w, http.StatusOK, map[string]any{"muted_until": until.UTC().Format(time.RFC3339)})
-	return nil
-}
-
-// unmuteAlertRule quita el silencio (muted_until = NULL): las notificaciones nuevas vuelven a encolarse normal.
-func (a *API) unmuteAlertRule(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
-	if !isUUID(id) {
-		return badRequest("id invalido")
-	}
-	if err := a.store.MuteRule(r.Context(), id, nil); err != nil {
-		return err
-	}
-	e := actor(currentUser(r))
-	e.Event, e.Outcome, e.TargetType, e.TargetID = evAlertRuleUpdated, store.OutcomeOK, "alert_rule", id
-	a.audit(r, e, map[string]any{"action": "unmute"})
-	writeJSON(w, http.StatusOK, map[string]any{"muted_until": nil})
 	return nil
 }
 

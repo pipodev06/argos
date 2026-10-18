@@ -14,7 +14,7 @@ function FormField({ id, label, hint, error, ...inputProps }: FormFieldProps) {
   const hintId = hint ? `${id}-hint` : undefined
   const errorId = error ? `${id}-error` : undefined
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-1">
       <label htmlFor={id} className="text-sm font-medium text-text">
         {label}
       </label>

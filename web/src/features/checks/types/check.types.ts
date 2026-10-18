@@ -29,6 +29,8 @@ export interface ServiceCheck {
   has_secret: boolean
   scope: Scope
   enabled: boolean
+  /** Hosts con este chequeo hoy en `down` o `warn`. */
+  failing_hosts?: number
 }
 
 /** Cuerpo de crear/editar. Los null (donde el servidor los admite) quitan el valor; `secret` es solo de escritura. */

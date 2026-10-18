@@ -52,14 +52,3 @@ export interface ChangesPage {
   next_cursor: string | null
 }
 
-export interface ModuleSummary {
-  status: ModuleStatus
-  count: number
-  truncated: boolean
-  collected_at: string | null
-  updated_at: string | null
-}
-
-export interface InventorySummary {
-  modules: Record<InventoryModule, ModuleSummary>
-}

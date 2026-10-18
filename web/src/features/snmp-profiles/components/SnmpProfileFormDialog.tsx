@@ -2,8 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { TriangleAlertIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
+import { FormHelp, type HelpItem } from '@/components/ui/form-help'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
@@ -31,6 +32,12 @@ interface SnmpProfileFormDialogProps {
   onClose: () => void
   onSaved: () => void
 }
+
+const SNMP_HELP: readonly HelpItem[] = [
+  ['Perfil SNMP', 'Credenciales de solo lectura que el colector usa para consultar los dispositivos.'],
+  ['Versión', 'No se puede cambiar después: crea otro perfil si necesitas otra.'],
+  ['Contraseñas y comunidad', `De 8 a ${MAX_PASS} caracteres. Se guardan cifradas y no se vuelven a mostrar; al editar, vacío conserva lo guardado.`],
+]
 
 export function SnmpProfileFormDialog(props: SnmpProfileFormDialogProps) {
   // El formulario solo existe con el diálogo abierto: al cerrar, las contraseñas y la comunidad se descartan.
@@ -63,14 +70,11 @@ function ProfileForm({ profile, onClose, onSaved }: SnmpProfileFormDialogProps) 
     if (await run(() => (profile ? updateSnmpProfile(profile.id, input) : createSnmpProfile(input)), mapSnmpProfileError)) onSaved()
   }
 
-  const keepHint = 'Déjalo vacío para conservar el guardado. Nunca se muestra.'
-  const passHint = editing ? keepHint : `De 8 a ${MAX_PASS} caracteres. Se guarda cifrado y no se puede volver a ver.`
-
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate autoComplete="off">
-      <DialogHeader>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3" noValidate autoComplete="off">
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>{editing ? 'Editar perfil SNMP' : 'Nuevo perfil SNMP'}</DialogTitle>
-        <DialogDescription>Credenciales de solo lectura que el colector usa para consultar los dispositivos.</DialogDescription>
+        <FormHelp title="Perfil SNMP" items={SNMP_HELP} />
       </DialogHeader>
       <SelectField
         id="snmp-version"
@@ -79,7 +83,6 @@ function ProfileForm({ profile, onClose, onSaved }: SnmpProfileFormDialogProps) 
         onChange={(v) => set('version', v as ProfileDraft['version'])}
         options={VERSION_OPTIONS}
         disabled={editing}
-        hint={editing ? 'La versión no se puede cambiar; crea otro perfil si la necesitas distinta.' : undefined}
       />
       <FormField id="snmp-name" label="Nombre" maxLength={MAX_NAME} autoComplete="off" autoFocus {...text('name')} />
 
@@ -96,8 +99,7 @@ function ProfileForm({ profile, onClose, onSaved }: SnmpProfileFormDialogProps) 
             type="password"
             maxLength={MAX_PASS}
             autoComplete="new-password"
-            placeholder={editing ? 'Hay una contraseña guardada' : undefined}
-            hint={passHint}
+            placeholder={editing ? 'Sin cambios' : undefined}
             {...text('authPass')}
           />
           <FormField
@@ -106,8 +108,7 @@ function ProfileForm({ profile, onClose, onSaved }: SnmpProfileFormDialogProps) 
             type="password"
             maxLength={MAX_PASS}
             autoComplete="new-password"
-            placeholder={editing ? 'Hay una contraseña guardada' : undefined}
-            hint={passHint}
+            placeholder={editing ? 'Sin cambios' : undefined}
             {...text('privPass')}
           />
         </>
@@ -141,8 +142,7 @@ function ProfileForm({ profile, onClose, onSaved }: SnmpProfileFormDialogProps) 
             type="password"
             maxLength={MAX_COMMUNITY}
             autoComplete="new-password"
-            placeholder={editing ? 'Hay una comunidad guardada' : undefined}
-            hint={editing ? keepHint : 'Se guarda cifrada y no se puede volver a ver.'}
+            placeholder={editing ? 'Sin cambios' : undefined}
             {...text('community')}
           />
         </>

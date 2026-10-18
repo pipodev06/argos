@@ -11,7 +11,7 @@ interface SearchBoxProps {
   onCommit: (q: string) => void
 }
 
-/** Búsqueda (256px) con debounce. Atajo "/" para enfocarla. Para reiniciarla desde fuera, cambia su `key`. */
+/** Búsqueda (llena el ancho libre de la fila) con debounce. Atajo "/" para enfocarla. Para reiniciarla desde fuera, cambia su `key`. */
 export function SearchBox({ field, value, onCommit }: SearchBoxProps) {
   const [draft, setDraft] = useState(value)
   const input = useRef<HTMLInputElement>(null)
@@ -40,7 +40,7 @@ export function SearchBox({ field, value, onCommit }: SearchBoxProps) {
   }
 
   return (
-    <div className="relative w-full sm:w-64">
+    <div className="relative w-full">
       <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" strokeWidth={1.5} aria-hidden />
       <Input
         ref={input}

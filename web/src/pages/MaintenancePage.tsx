@@ -41,7 +41,7 @@ export function MaintenancePage() {
         title="Mantenimiento"
         actions={isAdmin && <Button size="sm" onClick={() => setForm({ window: null })}>Nueva ventana</Button>}
       />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         {error && <TableError message={error} onRetry={() => void refresh()} />}
         {loading && !windows && <Skeleton className="h-40 w-full" />}
         {windows && windows.length === 0 && (

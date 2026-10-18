@@ -18,7 +18,6 @@ const (
 	invStatusDisabled = "disabled" // el host reporta otros modulos pero nunca este: apagado en el agente
 	invAuditWindow    = 5 * time.Minute
 	invAuditModChange = "changes" // valor de detail.module al leer el historial
-	invAuditModAll    = "overview"
 )
 
 var (
@@ -86,18 +85,6 @@ func (a *API) auditInventoryRead(r *http.Request, u *sessionUser, hostID, module
 	e := actor(u)
 	e.Event, e.Outcome, e.TargetType, e.TargetID = evInventoryRead, store.OutcomeOK, "host", hostID
 	a.audit(r, e, map[string]any{"module": module})
-}
-
-// inventoryOverview resume los modulos del host: estado, conteos, frescura y truncado.
-func (a *API) inventoryOverview(w http.ResponseWriter, r *http.Request) error {
-	u, id := currentUser(r), strings.ToLower(r.PathValue("id"))
-	metas, err := a.store.InventoryOverview(r.Context(), u.Scope, id)
-	if err != nil {
-		return err
-	}
-	a.auditInventoryRead(r, u, id, invAuditModAll)
-	writeJSON(w, http.StatusOK, map[string]any{"modules": moduleStatuses(metas)})
-	return nil
 }
 
 // inventoryModule devuelve la lista completa (acotada por el ingest) de un modulo.

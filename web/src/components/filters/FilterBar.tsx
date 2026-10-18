@@ -1,8 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { BooleanFilter } from './BooleanFilter'
-import { DateTimeFilter } from './DateTimeFilter'
+import { DateRangeFilter } from './DateRangeFilter'
 import { RemovableChip } from './FilterPill'
 import { MoreFilters } from './MoreFilters'
 import { MultiFilter } from './MultiFilter'
@@ -24,7 +23,7 @@ type Values = Record<string, FilterValue>
 
 /**
  * Barra de filtros dirigida por configuración, en una fila (patrón de la tabla de shadcn):
- * [Buscar][+ filtros…][Más filtros][activos de Más filtros][Limpiar] … [acciones].
+ * [Buscar, crece][+ filtros…][Más filtros][activos][Limpiar][acciones].
  * Sin contador: el total ya lo dice el pie de la tabla ("1–15 de 397").
  */
 export function FilterBar<F extends readonly FilterField[]>({ fields, values, onChange, onClear, actions }: FilterBarProps<F>) {
@@ -33,8 +32,8 @@ export function FilterBar<F extends readonly FilterField[]>({ fields, values, on
   const v = values as Values
   const change = onChange as (patch: Values) => void
   const active = hasActiveFilters(fields, values)
-  // "Más filtros": los numéricos siempre, y los booleanos marcados `extra` (de poco uso).
-  const extras = fields.filter((f): f is NumericField | BooleanField => f.kind === 'numeric' || (f.kind === 'boolean' && f.extra === true))
+  // "Más filtros": numéricos y booleanos (de poco uso; no ocupan la fila principal).
+  const extras = fields.filter((f): f is NumericField | BooleanField => f.kind === 'numeric' || f.kind === 'boolean')
 
   return (
     <ul className="flex flex-wrap items-center gap-2" aria-label="Filtros">
@@ -42,7 +41,7 @@ export function FilterBar<F extends readonly FilterField[]>({ fields, values, on
         switch (f.kind) {
           case 'search':
             return (
-              <li key={`${f.key}-${resetKey}`} className="w-full sm:w-auto">
+              <li key={`${f.key}-${resetKey}`} className="min-w-48 flex-1">
                 <SearchBox field={f} value={v[f.key] as string} onCommit={(q) => change({ [f.key]: q })} />
               </li>
             )
@@ -52,18 +51,21 @@ export function FilterBar<F extends readonly FilterField[]>({ fields, values, on
                 <MultiFilter field={f} selected={v[f.key] as string[]} onChange={(next) => change({ [f.key]: next })} />
               </li>
             )
-          case 'boolean':
-            return f.extra ? null : (
-              <li key={f.key}>
-                <BooleanFilter field={f} value={v[f.key] as boolean} onChange={(next) => change({ [f.key]: next })} />
-              </li>
-            )
-          case 'datetime':
+          case 'datetime': {
+            // Un campo "hasta" se pinta dentro del filtro de rango de su "desde".
+            if (!f.rangeEnd) return null
+            const end = f.rangeEnd
             return (
               <li key={f.key}>
-                <DateTimeFilter field={f} value={v[f.key] as string} onChange={(next) => change({ [f.key]: next })} />
+                <DateRangeFilter
+                  label={f.label}
+                  from={v[f.key] as string}
+                  to={v[end] as string}
+                  onChange={(from, to) => change({ [f.key]: from, [end]: to })}
+                />
               </li>
             )
+          }
           default:
             return null
         }
@@ -95,7 +97,7 @@ export function FilterBar<F extends readonly FilterField[]>({ fields, values, on
           </Button>
         </li>
       )}
-      {actions && <li className="ml-auto flex items-center gap-2">{actions}</li>}
+      {actions && <li className="flex items-center gap-2">{actions}</li>}
     </ul>
   )
 }

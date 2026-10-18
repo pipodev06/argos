@@ -1,6 +1,6 @@
 import { PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
-import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsCell, ActionsHeadCell, ViewAction } from '@/components/data-table/RowActions'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { Button } from '@/components/ui/button'
 import { formatLastSeen } from '@/features/hosts/utils/format'
@@ -20,7 +20,7 @@ interface DeviceTableProps {
 }
 
 export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: DeviceTableProps) {
-  const colSpan = isAdmin ? 10 : 6
+  const colSpan = isAdmin ? 10 : 7
   return (
     <DataTable caption="Dispositivos" className="min-w-[48rem]">
       <TableHeader>
@@ -33,7 +33,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
           <HeadCell>Grupo</HeadCell>
           <HeadCell>Estado</HeadCell>
           <HeadCell>Visto</HeadCell>
-          {isAdmin && <HeadCell>Acciones</HeadCell>}
+          <ActionsHeadCell />
         </HeadRow>
       </TableHeader>
       <TableBody>
@@ -41,16 +41,11 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
           <SkeletonRows colSpan={colSpan} />
         ) : (
           devices.map((d, i) => (
-            <Row key={d.id} className="relative hover:bg-muted/50">
+            <Row key={d.id}>
               <RowNumberCell n={rowNumber(page, pageSize, i)} />
               <Cell className="relative max-w-64">
                 {d.status === 'down' && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-danger" />}
-                <Link
-                  to={`/hosts/${d.id}`}
-                  className="block truncate rounded-md font-semibold outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                >
-                  {d.name}
-                </Link>
+                <span className="block truncate font-semibold">{d.name}</span>
               </Cell>
               {isAdmin && <Cell className="tabular-nums">{d.address ?? '—'}</Cell>}
               {isAdmin && <Cell className="max-w-40 truncate">{d.collector?.name ?? '—'}</Cell>}
@@ -63,8 +58,10 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
                 </span>
               </Cell>
               <Cell className="text-sm text-text-muted tabular-nums">{formatLastSeen(d.last_seen_at)}</Cell>
-              {isAdmin && (
-                <Cell className="relative z-10">
+              <ActionsCell>
+                <ViewAction to={`/hosts/${d.id}`} label={d.name} />
+                {isAdmin && (
+                <>
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar dispositivo ${d.name}`} title="Editar" onClick={() => onAction('edit', d)}>
                     <PencilIcon strokeWidth={1.5} aria-hidden />
                   </Button>
@@ -80,8 +77,9 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
                   <Button variant="ghost" size="icon-sm" aria-label={`Eliminar dispositivo ${d.name}`} title="Eliminar" onClick={() => onAction('delete', d)}>
                     <Trash2Icon strokeWidth={1.5} aria-hidden />
                   </Button>
-                </Cell>
-              )}
+                </>
+                )}
+              </ActionsCell>
             </Row>
           ))
         )}

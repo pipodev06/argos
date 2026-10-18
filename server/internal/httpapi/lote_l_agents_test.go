@@ -1,13 +1,10 @@
 package httpapi
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -139,107 +136,6 @@ func TestOutdatedFilterWithoutDistCatalogIsEmpty(t *testing.T) {
 }
 
 // B10: tokens de enrolamiento pendientes.
-func TestPendingEnrollTokens(t *testing.T) {
-	x := newScopeEnv(t)
-	create := func(hostname, group string) (token string) {
-		t.Helper()
-		body := `{"hostname":"` + hostname + `"`
-		if group != "" {
-			body += `,"group_id":"` + group + `"`
-		}
-		rec := x.do("POST", "/api/v1/hosts/enroll-token", body+`}`, withCookie(x.admin))
-		x.wantStatus(rec, http.StatusCreated, "")
-		var d struct {
-			Token string `json:"enroll_token"`
-		}
-		x.dataAs(rec, &d)
-		return d.Token
-	}
-	// Vigentes: pend-1 (con grupo A) y pend-2. Usado: x.hostA..hostNo se enrolaron en la siembra. Expirado: exp.
-	tok1 := create("pend-1", x.groupA)
-	tok2 := create("pend-2", "")
-	create("expirado", "")
-	mustExec(t, `UPDATE enroll_tokens SET expires_at = now() - interval '1 minute' WHERE hostname = 'expirado'`)
-
-	type item struct {
-		ID        string  `json:"id"`
-		Hostname  string  `json:"hostname"`
-		CreatedBy *string `json:"created_by"`
-		CreatedAt string  `json:"created_at"`
-		ExpiresAt string  `json:"expires_at"`
-		Group     *struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"group"`
-	}
-	list := func(c *http.Cookie) (items []item, body string) {
-		t.Helper()
-		rec := x.do("GET", "/api/v1/hosts/enroll-tokens", "", withCookie(c))
-		x.wantStatus(rec, http.StatusOK, "")
-		var d struct {
-			Items []item `json:"items"`
-		}
-		x.dataAs(rec, &d)
-		return d.Items, rec.Body.String()
-	}
-	items, body := list(x.admin)
-	names := map[string]item{}
-	for _, it := range items {
-		names[it.Hostname] = it
-	}
-	if len(items) != 2 || names["pend-1"].ID == "" || names["pend-2"].ID == "" {
-		t.Fatalf("pendientes got %+v, want solo pend-1 y pend-2 (ni usados ni expirados)", items)
-	}
-	p1 := names["pend-1"]
-	if p1.Group == nil || p1.Group.ID != x.groupA || p1.Group.Name != "A" || p1.CreatedBy == nil || *p1.CreatedBy != "admin" || p1.CreatedAt == "" || p1.ExpiresAt == "" {
-		t.Errorf("pend-1 got %+v", p1)
-	}
-	if names["pend-2"].Group != nil {
-		t.Errorf("pend-2 no tiene grupo: got %+v", names["pend-2"].Group)
-	}
-	// Nunca el token ni su hash (ni completo ni el prefijo).
-	for _, tok := range []string{tok1, tok2} {
-		sum := sha256.Sum256([]byte(tok))
-		for _, leak := range []string{tok, hex.EncodeToString(sum[:]), hex.EncodeToString(sum[:])[:16]} {
-			if strings.Contains(body, leak) {
-				t.Errorf("la lista expone %q", leak)
-			}
-		}
-	}
-	if strings.Contains(body, "token") {
-		t.Errorf("la lista no debe tener campos con 'token': %s", body)
-	}
-
-	// Viewer (incluso restringido): 403 en listar y revocar.
-	x.wantStatus(x.do("GET", "/api/v1/hosts/enroll-tokens", "", withCookie(x.va)), http.StatusForbidden, "forbidden")
-	x.wantStatus(x.do("DELETE", "/api/v1/hosts/enroll-tokens/"+p1.ID, "", withCookie(x.va)), http.StatusForbidden, "forbidden")
-	x.wantStatus(x.do("DELETE", "/api/v1/hosts/enroll-tokens/no-uuid", "", withCookie(x.admin)), http.StatusBadRequest, "")
-
-	// Revocar: el token deja de servir, desaparece de la lista, queda auditado y no se puede revocar dos veces.
-	x.wantStatus(x.do("DELETE", "/api/v1/hosts/enroll-tokens/"+p1.ID, "", withCookie(x.admin)), http.StatusOK, "")
-	x.wantStatus(x.do("POST", "/api/v1/agent/enroll", `{"enroll_token":"`+tok1+`","os":"linux","arch":"amd64"}`), http.StatusUnauthorized, "invalid_token")
-	if items, _ := list(x.admin); len(items) != 1 || items[0].Hostname != "pend-2" {
-		t.Errorf("tras revocar got %+v, want solo pend-2", items)
-	}
-	x.wantStatus(x.do("DELETE", "/api/v1/hosts/enroll-tokens/"+p1.ID, "", withCookie(x.admin)), http.StatusNotFound, "not_found")
-	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'enroll_token_revoked' AND actor_username = 'admin' AND detail->>'hostname' = 'pend-1'`); n != 1 {
-		t.Errorf("auditoria enroll_token_revoked got %d filas, want 1", n)
-	}
-
-	// Un token ya canjeado o expirado no se revoca por aqui (404), aunque se conozca su id.
-	var usedID, expID string
-	if err := testPool.QueryRow(t.Context(), `SELECT id::text FROM enroll_tokens WHERE hostname = 'host-a'`).Scan(&usedID); err != nil {
-		t.Fatal(err)
-	}
-	if err := testPool.QueryRow(t.Context(), `SELECT id::text FROM enroll_tokens WHERE hostname = 'expirado'`).Scan(&expID); err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{usedID, expID} {
-		x.wantStatus(x.do("DELETE", "/api/v1/hosts/enroll-tokens/"+id, "", withCookie(x.admin)), http.StatusNotFound, "not_found")
-	}
-}
-
-// B11 (store): no se borra al ultimo admin activo ni a uno mismo.
 func TestStoreDeleteUserGuards(t *testing.T) {
 	x := newScopeEnv(t)
 	admin := x.newUser("otro-admin", pwAdmin, store.RoleAdmin, false)

@@ -57,8 +57,9 @@ export function ScopeFields({ id, value, onChange, error, ping = false, hostScop
   const { groups } = useGroups()
   const groupOptions = (groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))
 
+  // Alcance y su objetivo (grupo, host, dispositivo...) lado a lado: el objetivo no queda colgando debajo.
   return (
-    <div className="grid gap-3">
+    <div className="grid items-start gap-3 sm:grid-cols-2">
       <SelectField
         id={`${id}-scope`}
         label="Alcance"

@@ -80,7 +80,7 @@ describe('ServiceAttention', () => {
   it('solo aparece con warn/crit y enlaza a Configuración', async () => {
     mockApi({ 'GET /system/status': { data: status({ status: 'warn' }) } })
     renderWithRouter(<ServiceAttention />)
-    expect((await screen.findByRole('link', { name: /Ver estado del servicio/ })).getAttribute('href')).toBe('/configuracion')
+    expect((await screen.findByRole('link', { name: 'Ver estado' })).getAttribute('href')).toBe('/configuracion')
   })
 
   it('con ok no muestra nada', async () => {

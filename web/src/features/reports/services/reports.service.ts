@@ -5,7 +5,7 @@ import type { AvailabilityReport, ReportRange, ReportView, ServiceChecksReport }
 // objeto) para que las dependencias de los hooks sean primitivas: un objeto nuevo cada render dispararia el
 // fetch en bucle.
 function rangeParams(range: ReportRange, from?: string, to?: string): URLSearchParams {
-  if (range === 'custom' && from && to) return new URLSearchParams({ from, to })
+  if (from && to) return new URLSearchParams({ from, to })
   return new URLSearchParams({ range })
 }
 

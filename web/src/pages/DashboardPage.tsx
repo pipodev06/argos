@@ -13,7 +13,6 @@ import { GroupFormPage } from './GroupFormPage'
 import { GroupsPage } from './GroupsPage'
 import { HostEventsPage } from './HostEventsPage'
 import { HostsPage } from './HostsPage'
-import { InstructionsPage } from './InstructionsPage'
 import { InventoryPage } from './InventoryPage'
 import { MaintenancePage } from './MaintenancePage'
 import { NotFoundPage } from './NotFoundPage'
@@ -65,7 +64,6 @@ export function DashboardPage() {
         <Route path="usuarios" element={<UsersPage />} />
         <Route path="configuracion" element={<ConfigurationPage />} />
         <Route path="auditoria" element={<AuditPage />} />
-        <Route path="instrucciones" element={<InstructionsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

@@ -1,5 +1,5 @@
 import { CircleXIcon } from 'lucide-react'
-import { Link } from 'react-router'
+import { ViewAction } from '@/components/data-table/RowActions'
 import type { SummaryGroup } from '../types/summary.types'
 
 export function GroupBreakdown({ groups }: { groups: SummaryGroup[] }) {
@@ -15,11 +15,8 @@ export function GroupBreakdown({ groups }: { groups: SummaryGroup[] }) {
           {groups.map((g) => {
             const pct = g.total > 0 ? (g.up / g.total) * 100 : 0
             return (
-              <li key={g.group_id ?? 'none'} className="border-b border-border last:border-b-0">
-                <Link
-                  to={`/hosts?group=${g.group_id ?? 'none'}`}
-                  className="flex min-h-8 flex-col gap-1 px-2 py-1 text-sm outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                >
+              <li key={g.group_id ?? 'none'} className="flex items-center gap-2 border-b border-border px-2 py-1 text-sm last:border-b-0">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="flex flex-wrap items-baseline justify-between gap-x-3">
                     <span className="min-w-0 truncate font-semibold">{g.name}</span>
                     <span className="flex items-center gap-3 text-xs tabular-nums">
@@ -37,7 +34,8 @@ export function GroupBreakdown({ groups }: { groups: SummaryGroup[] }) {
                   <span aria-hidden className="h-1.5 w-full overflow-hidden rounded-md bg-border">
                     <span className="block h-full bg-ok" style={{ width: `${pct}%` }} />
                   </span>
-                </Link>
+                </div>
+                <ViewAction to={`/hosts?group=${g.group_id ?? 'none'}`} label={`hosts de ${g.name}`} />
               </li>
             )
           })}

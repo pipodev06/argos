@@ -50,7 +50,7 @@ export function ChannelsPage() {
         title="Canales de notificación"
         actions={isAdmin && <Button size="sm" onClick={() => setForm({ channel: null })}>Nuevo canal</Button>}
       />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         {forbidden && (
           <EmptyState
             Icon={LockIcon}

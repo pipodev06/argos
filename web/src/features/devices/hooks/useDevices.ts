@@ -7,7 +7,7 @@ const REFRESH_MS = 30_000
 /** Una pagina de dispositivos; `qs` (limit + cursor serializados) es la identidad de la consulta. */
 export function useDeviceList(qs: string) {
   const fetcher = useCallback((signal: AbortSignal) => listDevices(new URLSearchParams(qs), signal), [qs])
-  return usePolledFetch(fetcher, { intervalMs: REFRESH_MS })
+  return usePolledFetch(fetcher, { intervalMs: REFRESH_MS, stopOn: isClientError })
 }
 
 export function useDeviceDetail(id: string) {

@@ -330,3 +330,33 @@ func TestDevicesDisableAndEnableAPI(t *testing.T) {
 		t.Errorf("un viewer no debe poder deshabilitar: estado got %q", got)
 	}
 }
+
+func TestDevicesCollectorFilter(t *testing.T) {
+	x := newScopeEnv(t)
+	x.newDevice(fmt.Sprintf(`{"name":"d1","address":"10.0.0.1","collector_id":%q,"group_id":%q}`, x.hostA, x.groupA))
+	x.newDevice(fmt.Sprintf(`{"name":"d2","address":"10.0.0.2","collector_id":%q,"group_id":%q}`, x.hostB, x.groupB))
+	list := func(query string) (names []string) {
+		rec := x.do("GET", "/api/v1/devices"+query, "", withCookie(x.admin))
+		x.wantStatus(rec, http.StatusOK, "")
+		var page struct {
+			Items []deviceView `json:"items"`
+		}
+		x.dataAs(rec, &page)
+		for _, it := range page.Items {
+			names = append(names, it.Name)
+		}
+		return names
+	}
+	for query, want := range map[string]string{
+		"?collector=" + x.hostA:                           "d1",
+		"?collector=" + x.hostB:                           "d2",
+		"?collector=" + x.hostA + "," + x.hostB:           "d1,d2",
+		"?collector=" + x.hostA + "&collector=" + x.hostB: "d1,d2",
+		"?collector=" + x.hostNo:                          "",
+	} {
+		if got := strings.Join(list(query), ","); got != want {
+			t.Errorf("%s got %q, want %q", query, got, want)
+		}
+	}
+	x.wantStatus(x.do("GET", "/api/v1/devices?collector=nope", "", withCookie(x.admin)), http.StatusBadRequest, "invalid_filter")
+}

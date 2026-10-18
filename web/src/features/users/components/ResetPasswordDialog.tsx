@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -53,12 +52,9 @@ function ResetForm({ user, onClose, onSaved }: ResetPasswordDialogProps & { user
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
       <DialogHeader>
         <DialogTitle>Restablecer contraseña de {user.username}</DialogTitle>
-        <DialogDescription>
-          Se cerrarán todas sus sesiones y tendrá que cambiar esta contraseña temporal al entrar.
-        </DialogDescription>
       </DialogHeader>
       <PasswordField id="reset-password" label="Contraseña temporal" value={password} onChange={setPassword} error={passError} />
       {error && <InlineError>{error}</InlineError>}

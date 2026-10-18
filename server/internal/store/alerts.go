@@ -60,8 +60,11 @@ type AlertCursor struct {
 // AlertFilter son los filtros de ListAlerts: cada lista vacia = sin filtro (dentro de una lista es OR).
 type AlertFilter struct {
 	States, Severities, HostIDs, RuleIDs []string
-	After                                *AlertCursor
-	Limit                                int
+	// Q: subcadena del nombre del host (sin distinguir mayusculas). From/To: rango inclusivo de opened_at.
+	Q        string
+	From, To *time.Time
+	After    *AlertCursor
+	Limit    int
 }
 
 // AlertPage es una pagina de alertas; Total cuenta las que cumplen los filtros (sin cursor).
@@ -151,6 +154,15 @@ func alertWhere(scope Scope, f AlertFilter) (conds []string, args []any) {
 	}
 	if len(f.RuleIDs) > 0 {
 		add("a.rule_id = ANY($$::uuid[])", f.RuleIDs)
+	}
+	if f.Q != "" {
+		add("EXISTS (SELECT 1 FROM hosts hq WHERE hq.id = a.host_id AND strpos(lower(hq.hostname), lower($$)) > 0)", f.Q)
+	}
+	if f.From != nil {
+		add("a.opened_at >= $$", *f.From)
+	}
+	if f.To != nil {
+		add("a.opened_at <= $$", *f.To)
 	}
 	return conds, args
 }

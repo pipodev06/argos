@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"argos/server/internal/store"
 )
@@ -54,11 +56,15 @@ func TestReportFreeRange(t *testing.T) {
 		t.Fatalf("month got %d %+v (%s)", rec.Code, resp, rec.Body.String())
 	}
 
+	// "hasta" en el futuro se recorta a ahora en vez de rechazarse.
+	if rec, _ := x.availability(x.admin, "?from="+url.QueryEscape(time.Now().Add(-48*time.Hour).UTC().Format(time.RFC3339))+"&to=2099-01-01T00:00:00Z"); rec.Code != http.StatusOK {
+		t.Errorf("to futuro: got %d, want 200 (%s)", rec.Code, rec.Body.String())
+	}
+
 	for name, query := range map[string]string{
 		"from sin to":              "?from=2026-08-01T00:00:00Z",
 		"to sin from":              "?to=2026-08-08T00:00:00Z",
 		"from despues de to":       "?from=2026-08-08T00:00:00Z&to=2026-08-01T00:00:00Z",
-		"to futuro":                "?from=2026-08-01T00:00:00Z&to=2099-01-01T00:00:00Z",
 		"rango mayor a 91 dias":    "?from=2026-01-01T00:00:00Z&to=2026-08-01T00:00:00Z",
 		"month mas range":          "?month=2026-08&range=7d",
 		"month mas from":           "?month=2026-08&from=2026-08-01T00:00:00Z&to=2026-08-08T00:00:00Z",

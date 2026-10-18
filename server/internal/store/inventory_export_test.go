@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// El export de hosts corta en maxInventoryExportRows sin error (mismo criterio que el export de grupo) y ExportDevices
-// no mezcla agentes.
+// El export de hosts corta en maxInventoryExportRows sin error (mismo criterio que el export de grupo) y no mezcla dispositivos.
 func TestExportHostsCapAndKinds(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -30,8 +29,4 @@ func TestExportHostsCapAndKinds(t *testing.T) {
 		}
 	}
 
-	devs, err := s.ExportDevices(ctx, AllScope(), HostFilter{})
-	if err != nil || len(devs) != 1 || devs[0].Name != "router" {
-		t.Errorf("ExportDevices got (%+v, %v), want solo el router", devs, err)
-	}
 }

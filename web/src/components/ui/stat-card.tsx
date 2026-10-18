@@ -10,18 +10,23 @@ interface StatCardProps {
   iconClassName?: string
   /** Barra de 2px `danger` a la izquierda (mismo patron que la fila de host caido). */
   alert?: boolean
+  /** Accion arriba a la derecha (p. ej. el ojo para ir a la lista filtrada). */
+  action?: ReactNode
   children: ReactNode
 }
 
 /** Tarjeta de ultimo valor (sobre `Card` de shadcn): etiqueta con icono + contenido (uno o mas `StatValue`). */
-function StatCard({ label, Icon, iconClassName, alert = false, children }: StatCardProps) {
+function StatCard({ label, Icon, iconClassName, alert = false, action, children }: StatCardProps) {
   return (
     <Card role="region" aria-label={label} className="relative min-h-24 gap-2 px-4">
       {alert && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-danger" />}
-      <h3 className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
-        <Icon className={cn("size-4 shrink-0", iconClassName)} strokeWidth={1.5} aria-hidden />
-        {label}
-      </h3>
+      <div className="flex min-h-7 items-center justify-between gap-2">
+        <h3 className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+          <Icon className={cn("size-4 shrink-0", iconClassName)} strokeWidth={1.5} aria-hidden />
+          {label}
+        </h3>
+        {action}
+      </div>
       <div className="flex flex-col gap-1">{children}</div>
     </Card>
   )

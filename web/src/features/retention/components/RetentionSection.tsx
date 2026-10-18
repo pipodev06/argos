@@ -6,7 +6,7 @@ import { InlineError } from '@/components/ui/inline-error'
 import { useRetentionSave } from '../hooks/useRetentionSave'
 import { putRetention } from '../services/retention.service'
 import type { RetentionSettings } from '../types/retention.types'
-import { estimateWeight, formatBytes, MAX_DETAIL_DAYS, MIN_DETAIL_DAYS, parseDetailDays } from '../utils/retention'
+import { estimateWeight, formatBytes, parseDetailDays } from '../utils/retention'
 import { ShrinkConfirmDialog } from './ShrinkConfirmDialog'
 
 interface RetentionSectionProps {
@@ -43,7 +43,7 @@ export function RetentionSection({ settings, hostCount, onSaved }: RetentionSect
   }
 
   return (
-    <Card role="region" aria-labelledby="ret-title" className="gap-4 px-4">
+    <Card role="region" aria-labelledby="ret-title" className="gap-3 px-4">
       <h2 id="ret-title" className="text-sm font-semibold">Retención de datos</h2>
       <form onSubmit={handleSubmit} className="grid max-w-md gap-3">
         <FormField
@@ -57,7 +57,6 @@ export function RetentionSection({ settings, hostCount, onSaved }: RetentionSect
             setSaved(false)
           }}
           autoComplete="off"
-          hint={`Entre ${MIN_DETAIL_DAYS} y ${MAX_DETAIL_DAYS}. Después queda el resumen por hora.`}
           error={fieldError}
         />
         {weight && (

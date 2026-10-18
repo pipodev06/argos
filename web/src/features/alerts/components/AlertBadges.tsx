@@ -1,6 +1,5 @@
-import { OctagonAlertIcon, TriangleAlertIcon, BellMinusIcon, BellRingIcon, ArrowBigUpDashIcon, CircleCheckIcon, ClockArrowUpIcon, EyeIcon, InfoIcon, RepeatIcon, WrenchIcon, type LucideIcon as Icon } from 'lucide-react'
+import { OctagonAlertIcon, TriangleAlertIcon, BellRingIcon, ArrowBigUpDashIcon, CircleCheckIcon, ClockArrowUpIcon, EyeIcon, InfoIcon, RepeatIcon, WrenchIcon, type LucideIcon as Icon } from 'lucide-react'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
-import { formatClock } from '@/features/hosts/utils/format'
 import type { Alert, AlertSeverity } from '../types/alert.types'
 import { alertStateLabel, SEVERITY_LABELS } from '../utils/format'
 
@@ -56,9 +55,4 @@ export function EscalatedBadge({ escalatedAt }: { escalatedAt: string | null }) 
 export function EscalationBadge({ seconds }: { seconds: number | null }) {
   if (seconds === null) return null
   return <Badge Icon={ClockArrowUpIcon}>Escala a los {Math.round((seconds / 60) * 100) / 100} min</Badge>
-}
-
-/** Junto al estado de una regla silenciada: icono + "Silenciada hasta HH:mm" (nunca solo color). */
-export function MutedBadge({ mutedUntil }: { mutedUntil: string }) {
-  return <Badge Icon={BellMinusIcon}>Silenciada hasta {formatClock(new Date(mutedUntil).getTime())}</Badge>
 }

@@ -67,7 +67,7 @@ export function HostCharts({ view, metrics, error }: HostChartsProps) {
   const cardErrorMessage = 'No se pudieron cargar las métricas.'
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {error && <InlineError>{error}</InlineError>}
 
       <MetricChartCard

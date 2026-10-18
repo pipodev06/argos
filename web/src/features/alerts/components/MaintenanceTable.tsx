@@ -1,5 +1,6 @@
 import { CalendarClockIcon, CircleCheckIcon, WrenchIcon, PencilIcon, Trash2Icon, type LucideIcon as Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsHeadCell } from '@/components/data-table/RowActions'
 import { Badge, type BadgeTint } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatFullDate } from '@/features/hosts/utils/format'
@@ -41,7 +42,7 @@ export function MaintenanceTable({ windows, canAct, onAction }: MaintenanceTable
           <HeadCell>Inicio</HeadCell>
           <HeadCell>Fin</HeadCell>
           <HeadCell>Estado</HeadCell>
-          {canAct && <HeadCell>Acciones</HeadCell>}
+          {canAct && <ActionsHeadCell />}
         </HeadRow>
       </TableHeader>
       <TableBody>

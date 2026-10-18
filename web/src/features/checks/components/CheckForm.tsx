@@ -16,7 +16,6 @@ import {
   checkToDraft,
   HEADER_OPTIONS,
   MAX_EXPECT_TEXT,
-  MAX_IF_INDEX,
   MAX_NAME,
   MAX_SECRET,
   MAX_URL,
@@ -66,7 +65,7 @@ export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
   const hasSecret = check?.has_secret ?? false
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate autoComplete="off">
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid items-start gap-x-4 gap-y-3 xl:grid-cols-2" noValidate autoComplete="off">
       <FormField id="check-name" label="Nombre" maxLength={MAX_NAME} autoComplete="off" autoFocus {...text('name')} />
       <SelectField
         id="check-type"
@@ -75,7 +74,6 @@ export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
         onChange={changeType}
         options={CHECK_TYPE_OPTIONS}
         disabled={editing}
-        hint={editing ? 'El tipo no se puede cambiar; crea otro chequeo si lo necesitas distinto.' : undefined}
       />
 
       {(draft.type === 'tcp' || draft.type === 'tls_cert') && (
@@ -92,7 +90,6 @@ export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
             type="url"
             maxLength={MAX_URL}
             autoComplete="off"
-            hint="Sin usuario ni clave y sin tokens en la query: el token va en el campo secreto, nunca en la URL."
             {...text('url')}
           />
           {!errors.url && urlQueryLooksSecret(draft.url) && (
@@ -104,7 +101,6 @@ export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
               label="Estado esperado"
               placeholder="200-399"
               autoComplete="off"
-              hint="Un código o un rango. Vacío = 200-399."
               {...text('expectStatus')}
             />
             <FormField
@@ -112,7 +108,6 @@ export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
               label="Texto esperado"
               maxLength={MAX_EXPECT_TEXT}
               autoComplete="off"
-              hint="Opcional: debe aparecer en la respuesta."
               {...text('expectText')}
             />
           </div>
@@ -131,36 +126,32 @@ export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
           {draft.metric === 'if_oper' && (
             <FormField
               id="check-if-index"
-              label="Índice de interfaz (ifIndex)"
+              label="ifIndex"
               inputMode="numeric"
               autoComplete="off"
-              hint={`Entero de 1 a ${MAX_IF_INDEX}.`}
               {...text('ifIndex')}
             />
           )}
-          <p className="text-xs text-text-muted">
-            Un dispositivo sin perfil SNMP no recibe este chequeo: asígnale un perfil en su formulario. No lleva umbrales.
-          </p>
         </>
       )}
       {draft.type === 'service' && <FormField id="check-service" label="Nombre del servicio" autoComplete="off" {...text('serviceName')} />}
 
       {(draft.type === 'tcp' || draft.type === 'http' || draft.type === 'ping') && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <FormField id="check-warn-ms" label="Advertencia (ms)" inputMode="numeric" hint="Opcional." autoComplete="off" {...text('warnMs')} />
-          <FormField id="check-crit-ms" label="Crítico (ms)" inputMode="numeric" hint="Opcional." autoComplete="off" {...text('critMs')} />
+          <FormField id="check-warn-ms" label="Advertencia (ms)" inputMode="numeric" autoComplete="off" {...text('warnMs')} />
+          <FormField id="check-crit-ms" label="Crítico (ms)" inputMode="numeric" autoComplete="off" {...text('critMs')} />
         </div>
       )}
       {draft.type === 'tls_cert' && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <FormField id="check-warn-days" label="Advertencia (días restantes)" inputMode="numeric" autoComplete="off" {...text('warnDays')} />
-          <FormField id="check-crit-days" label="Crítico (días restantes)" inputMode="numeric" autoComplete="off" {...text('critDays')} />
+          <FormField id="check-warn-days" label="Advertencia (días)" inputMode="numeric" autoComplete="off" {...text('warnDays')} />
+          <FormField id="check-crit-days" label="Crítico (días)" inputMode="numeric" autoComplete="off" {...text('critDays')} />
         </div>
       )}
 
       {draft.type === 'http' && (
         <fieldset className="grid gap-3 rounded-md border border-border p-3">
-          <legend className="px-1 text-sm font-medium">Secreto de cabecera (opcional)</legend>
+          <legend className="px-1 text-sm font-medium">Secreto de cabecera</legend>
           <SelectField
             id="check-header"
             label="Cabecera"
@@ -188,28 +179,24 @@ export function CheckForm({ check, onCancel, onSaved }: CheckFormProps) {
             maxLength={MAX_SECRET}
             autoComplete="new-password"
             disabled={draft.removeSecret}
-            placeholder={hasSecret ? 'Hay un secreto guardado' : undefined}
-            hint={hasSecret ? 'Déjalo vacío para conservar el guardado. Nunca se muestra.' : 'Se guarda cifrado y no se puede volver a ver.'}
+            placeholder={hasSecret ? 'Sin cambios' : undefined}
             {...text('secret')}
           />
         </fieldset>
       )}
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <FormField id="check-interval" label="Intervalo (s)" inputMode="numeric" autoComplete="off" hint="30 a 86 400." {...text('interval')} />
-        <FormField id="check-timeout" label="Timeout (ms)" inputMode="numeric" autoComplete="off" hint="200 a 30 000." {...text('timeout')} />
-        <FormField id="check-retries" label="Reintentos" inputMode="numeric" autoComplete="off" hint="0 a 3." {...text('retries')} />
+        <FormField id="check-interval" label="Intervalo (s)" inputMode="numeric" autoComplete="off" {...text('interval')} />
+        <FormField id="check-timeout" label="Timeout (ms)" inputMode="numeric" autoComplete="off" {...text('timeout')} />
+        <FormField id="check-retries" label="Reintentos" inputMode="numeric" autoComplete="off" {...text('retries')} />
       </div>
       <ScopeFields id="check" ping={isDeviceCheck(draft.type)} hostScope={!isDeviceCheck(draft.type)} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
-      <label htmlFor="check-enabled" className="flex items-start gap-2 text-sm">
+      <label htmlFor="check-enabled" className="flex items-start gap-2 text-sm xl:col-span-2">
         <Checkbox id="check-enabled" className="mt-0.5" checked={draft.enabled} onCheckedChange={(v) => set('enabled', v === true)} />
-        <span>
-          Chequeo activo
-          <span className="block text-xs text-text-muted">Desactivado, el agente deja de ejecutarlo.</span>
-        </span>
+        <span>Chequeo activo</span>
       </label>
-      {error && <InlineError>{error}</InlineError>}
-      <div className="flex justify-end gap-2">
+      {error && <InlineError className="xl:col-span-2">{error}</InlineError>}
+      <div className="flex justify-end gap-2 xl:col-span-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>

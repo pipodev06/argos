@@ -71,7 +71,7 @@ function BulkForm({ mode, ids, onClose, onDone }: Omit<BulkDialogProps, 'mode'> 
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
       <DialogHeader>
         <DialogTitle>{TITLES[mode]}</DialogTitle>
         <DialogDescription>

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"argos/server/internal/store"
 )
@@ -244,11 +245,17 @@ func (a *API) listAlerts(w http.ResponseWriter, r *http.Request) error {
 	if f.RuleIDs, err = parseUUIDList(v, "rule_id"); err != nil {
 		return err
 	}
+	if f.Q, err = parseAlertQ(v); err != nil {
+		return err
+	}
+	if f.From, f.To, err = parseOpenedRange(v); err != nil {
+		return err
+	}
 	if f.Limit, err = parseLimit(v); err != nil {
 		return err
 	}
 	scope := currentUser(r).Scope
-	fp := fingerprintOf("alerts", f.States, f.Severities, f.HostIDs, f.RuleIDs, scope.Key())
+	fp := fingerprintOf("alerts", f.States, f.Severities, f.HostIDs, f.RuleIDs, strings.ToLower(f.Q), f.From, f.To, scope.Key())
 	if raw := v.Get("cursor"); raw != "" {
 		p, err := a.decodeKeyset(raw, fp)
 		if err != nil {
@@ -275,6 +282,29 @@ func (a *API) listAlerts(w http.ResponseWriter, r *http.Request) error {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": next, "total": page.Total})
 	return nil
+}
+
+// parseAlertQ lee q (subcadena del nombre del host): hasta maxQueryLen caracteres y sin caracteres de control.
+func parseAlertQ(v url.Values) (string, error) {
+	q := strings.TrimSpace(v.Get("q"))
+	if utf8.RuneCountInString(q) > maxQueryLen || hasControl(q) {
+		return "", invalidFilter("q excede %d caracteres o tiene caracteres invalidos", maxQueryLen)
+	}
+	return q, nil
+}
+
+// parseOpenedRange lee from/to (RFC 3339, fecha de apertura): from <= to y rango maximo maxAuditRange.
+func parseOpenedRange(v url.Values) (from, to *time.Time, err error) {
+	if from, err = parseInstant(v, "from"); err != nil {
+		return nil, nil, err
+	}
+	if to, err = parseInstant(v, "to"); err != nil {
+		return nil, nil, err
+	}
+	if from != nil && to != nil && (from.After(*to) || to.Sub(*from) > maxAuditRange) {
+		return nil, nil, invalidFilter("from debe ser <= to y el rango no puede pasar de 366 dias")
+	}
+	return from, to, nil
 }
 
 // getAlert devuelve una alerta con sus entregas (estado, sin contenido ni secretos) y los ultimos eventos del host.

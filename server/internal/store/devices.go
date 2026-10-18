@@ -135,8 +135,8 @@ type DevicePage struct {
 	Total      int
 }
 
-// deviceFilterWhere arma el WHERE de un HostFilter aplicado a dispositivos (nombre, estado y grupo o sin
-// grupo: mismos campos que GET /hosts). Lo comparten ListDevices y ExportDevices.
+// deviceFilterWhere arma el WHERE de un HostFilter aplicado a dispositivos (nombre, estado, colector y grupo o
+// sin grupo).
 func deviceFilterWhere(scope Scope, f HostFilter) (string, argList) {
 	var args argList
 	where := "h.kind = 'device' AND " + scope.groupCond("h.group_id", &args)
@@ -145,6 +145,9 @@ func deviceFilterWhere(scope Scope, f HostFilter) (string, argList) {
 	}
 	if len(f.Statuses) > 0 {
 		where += fmt.Sprintf(` AND h.status = ANY(%s::text[])`, args.add(f.Statuses))
+	}
+	if len(f.CollectorIDs) > 0 {
+		where += fmt.Sprintf(` AND h.collector_host_id = ANY(%s::uuid[])`, args.add(f.CollectorIDs))
 	}
 	var groupConds []string
 	if len(f.GroupIDs) > 0 {

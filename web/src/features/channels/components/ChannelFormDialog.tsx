@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
+import { FormHelp, type HelpItem } from '@/components/ui/form-help'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import type { AlertSeverity } from '@/features/alerts/types/alert.types'
@@ -25,6 +26,14 @@ interface ChannelFormDialogProps {
 const MAX_NAME = 80
 const SEVERITY_OPTIONS = (Object.keys(SEVERITY_LABELS) as AlertSeverity[]).map((s) => ({ value: s, label: SEVERITY_LABELS[s] }))
 
+const CHANNEL_HELP: readonly HelpItem[] = [
+  ['URL del webhook', 'Solo https y puerto 443; no se aceptan destinos internos. Se guarda cifrada y no se vuelve a mostrar.'],
+  ['Secreto HMAC', 'Opcional. Firma cada envío con HMAC-SHA256 para que el receptor verifique el origen. Al editar, vacío conserva el guardado.'],
+  ['Dueño', 'Un canal de un cliente solo se usa en reglas de ese cliente; uno Global sirve para cualquier regla.'],
+  ['Severidad mínima', 'Solo avisa alertas de esta severidad o mayor.'],
+  ['Canal activo', 'Desactivado no envía y descarta las entregas pendientes.'],
+]
+
 export function ChannelFormDialog(props: ChannelFormDialogProps) {
   // El formulario solo existe con el diálogo abierto: al cerrar, la URL y el secreto se descartan.
   return (
@@ -45,7 +54,7 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
   const [enabled, setEnabled] = useState(channel?.enabled ?? true)
   const [owner, setOwner] = useState(() => ownerValue(channel))
   const { groups } = useGroups()
-  const ownerOptions = [{ value: GLOBAL_OWNER, label: 'Global (todos los clientes)' }, ...(groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))]
+  const ownerOptions = [{ value: GLOBAL_OWNER, label: 'Global' }, ...(groups?.items ?? []).map((g) => ({ value: g.id, label: g.name }))]
   const [errors, setErrors] = useState<{ name?: string; url?: string }>({})
   const { error, busy, run } = useUserMutation()
 
@@ -86,10 +95,10 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
   const hasSecret = editing && channel.has_secret
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate autoComplete="off">
-      <DialogHeader>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3" noValidate autoComplete="off">
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>{editing ? 'Editar canal' : 'Nuevo canal'}</DialogTitle>
-        <DialogDescription>Solo https y puerto 443; no se aceptan destinos internos.</DialogDescription>
+        <FormHelp title="Canal" items={CHANNEL_HELP} />
       </DialogHeader>
       <FormField id="channel-name" label="Nombre" value={name} onChange={(e) => setName(e.target.value)} maxLength={MAX_NAME} autoFocus error={errors.name} />
       <FormField
@@ -101,22 +110,17 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
         placeholder="https://"
         autoComplete="off"
         spellCheck={false}
-        hint={editing ? 'URL guardada (no se puede ver). Déjalo vacío para conservarla.' : 'Se guarda cifrada y no se podrá volver a ver.'}
         error={errors.url}
       />
       <FormField
         id="channel-secret"
-        label={hasSecret ? 'Reemplazar secreto HMAC' : 'Secreto HMAC (opcional)'}
+        label={hasSecret ? 'Reemplazar secreto HMAC' : 'Secreto HMAC'}
         type="password"
         value={secret}
         onChange={(e) => setSecret(e.target.value)}
         disabled={removeSecret}
         autoComplete="new-password"
-        hint={
-          hasSecret
-            ? 'Secreto guardado (no se puede ver). Déjalo vacío para conservarlo.'
-            : 'Firma cada envío con HMAC-SHA256 para que el receptor verifique el origen.'
-        }
+        placeholder={hasSecret ? 'Sin cambios' : undefined}
       />
       {hasSecret && (
         <label htmlFor="channel-remove-secret" className="flex items-center gap-2 text-sm">
@@ -130,15 +134,11 @@ function ChannelForm({ channel, onClose, onSaved }: ChannelFormDialogProps) {
         value={owner}
         onChange={setOwner}
         options={ownerOptions}
-        hint="Un canal de un cliente solo puede usarse en reglas de ese cliente; uno Global sirve para cualquier regla."
       />
       <SelectField id="channel-severity" label="Severidad mínima" value={severity} onChange={(v) => setSeverity(v as AlertSeverity)} options={SEVERITY_OPTIONS} />
       <label htmlFor="channel-enabled" className="flex items-start gap-2 text-sm">
         <Checkbox id="channel-enabled" className="mt-0.5" checked={enabled} onCheckedChange={(v) => setEnabled(v === true)} />
-        <span>
-          Canal activo
-          <span className="block text-xs text-text-muted">Desactivado no envía y suprime las entregas pendientes.</span>
-        </span>
+        <span>Canal activo</span>
       </label>
       {error && <InlineError>{error}</InlineError>}
       <DialogFooter>

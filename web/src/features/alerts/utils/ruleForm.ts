@@ -1,3 +1,4 @@
+import type { HelpItem } from '@/components/ui/form-help'
 import type { AlertRule, ExpectedPort, AlertSeverity, RuleInput, RuleKind, RuleMetric, RuleOp } from '../types/alert.types'
 import { formatExpectedPorts, parseExpectedPorts } from './expectedPorts'
 import { isLoadMetric, isUpdatesKind, parseNumber } from './format'
@@ -16,7 +17,7 @@ export const MAX_ESCALATE_MIN = 10_080 // 7 días (tope del servidor: 604 800 s)
 export const KIND_OPTIONS: readonly { value: RuleKind; label: string }[] = [
   { value: 'metric', label: 'Métrica sobre umbral' },
   { value: 'host_status', label: 'Host caído' },
-  { value: 'no_data', label: 'Sin reportar (sin datos)' },
+  { value: 'no_data', label: 'Sin reportar' },
   { value: 'service_check', label: 'Chequeo de servicio' },
   { value: 'exposed_port', label: 'Puerto nuevo expuesto' },
   { value: 'pending_updates', label: 'Actualizaciones de seguridad pendientes' },
@@ -246,3 +247,16 @@ export function buildRuleInput(d: RuleDraft, editing: boolean): { input: RuleInp
   }
   return { input }
 }
+
+/** Ayuda del formulario de reglas (modal del icono junto al título). */
+export const RULE_HELP: readonly HelpItem[] = [
+  ['Umbral de recuperación', 'Opcional. Valor al que debe volver la métrica para resolver la alerta; evita que oscile.'],
+  ['Duración', 'Tiempo que debe mantenerse la condición antes de alertar. 0 = de inmediato.'],
+  ['Espera de resolución', 'Tiempo sano antes de resolver la alerta.'],
+  ['Alcance', 'Hosts a los que aplica: todos, un grupo, una etiqueta o uno solo.'],
+  ['Incluir equipos sin conexión', 'Los equipos apagados se evalúan con su último valor conocido.'],
+  ['Regla activa', 'Desactivada no genera alertas nuevas y resuelve las abiertas.'],
+  ['Escalar', 'Si nadie reconoce la alerta en ese plazo, sube la severidad un nivel y avisa a los canales de escalamiento.'],
+  ['Alertar también en advertencia', 'Solo chequeos: sin marcar, alerta únicamente cuando el chequeo está caído. El alcance es el del chequeo.'],
+  ['Puertos esperados', 'Solo puertos expuestos: los de la primera foto del host no alertan; lista aquí los nuevos que son normales (tcp/22, udp/53).'],
+]

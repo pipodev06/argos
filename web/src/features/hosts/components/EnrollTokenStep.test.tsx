@@ -27,7 +27,7 @@ describe('AddHostDialog — aviso de hostname_conflict', () => {
     await openTokenStep({ hostname_conflict: { host_id: 'h2', status: 'down' } })
     expect(screen.getByText(/Ya existe un host/)).toBeTruthy()
     expect(screen.getByText(/Caído/)).toBeTruthy()
-    const link = screen.getByRole('link', { name: /reactivarlo o re-enrolarlo/ })
+    const link = screen.getByRole('link', { name: /reactívalo o re-enrólalo/ })
     expect(link.getAttribute('href')).toBe('/hosts/h2')
   })
 

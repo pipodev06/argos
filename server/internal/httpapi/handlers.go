@@ -167,53 +167,6 @@ func (a *API) reEnrollHost(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// pendingEnrollTokenDTO es un enroll token vigente sin usar (o sin agotar, B16). Nunca lleva el
-// token ni su hash (id es un identificador aparte, solo pa revocarlo). Hostname es null en un token
-// de grupo (sin uno fijo); MaxUses/UsesCount dejan ver, p. ej., "3 de 50 usados".
-type pendingEnrollTokenDTO struct {
-	ID        string       `json:"id"`
-	Hostname  *string      `json:"hostname"`
-	Group     *groupRefDTO `json:"group"`
-	CreatedBy *string      `json:"created_by"`
-	CreatedAt time.Time    `json:"created_at"`
-	ExpiresAt time.Time    `json:"expires_at"`
-	MaxUses   int          `json:"max_uses"`
-	UsesCount int          `json:"uses_count"`
-}
-
-// listEnrollTokens lista los enroll tokens vigentes sin usar o sin agotar (solo admin).
-func (a *API) listEnrollTokens(w http.ResponseWriter, r *http.Request) error {
-	tokens, err := a.store.ListPendingEnrollTokens(r.Context())
-	if err != nil {
-		return err
-	}
-	items := make([]pendingEnrollTokenDTO, 0, len(tokens))
-	for _, t := range tokens {
-		items = append(items, pendingEnrollTokenDTO{ID: t.ID, Hostname: t.Hostname, Group: toGroupRefDTO(t.Group),
-			CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt.UTC(), ExpiresAt: t.ExpiresAt.UTC(),
-			MaxUses: t.MaxUses, UsesCount: t.UsesCount})
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
-	return nil
-}
-
-// revokeEnrollToken revoca un enroll token pendiente (solo admin). 404 si no existe, ya se agoto o expiro.
-func (a *API) revokeEnrollToken(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
-	if !isUUID(id) {
-		return badRequest("id invalido")
-	}
-	hostname, err := a.store.RevokeEnrollToken(r.Context(), id)
-	if err != nil {
-		return err
-	}
-	e := actor(currentUser(r))
-	e.Event, e.Outcome, e.TargetType, e.TargetID = evEnrollTokenRevoked, store.OutcomeOK, "enroll_token", id
-	a.audit(r, e, map[string]any{"hostname": hostname})
-	writeJSON(w, http.StatusOK, map[string]any{})
-	return nil
-}
-
 // --- agente: enroll ---
 
 type enrollReq struct {

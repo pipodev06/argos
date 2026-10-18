@@ -77,12 +77,6 @@ func TestInventoryCSVScopeInjectionAndFilters(t *testing.T) {
 		t.Errorf("hosts.csv?q=host-b got %d filas, want 1", len(frows))
 	}
 
-	// Dispositivos: sin dispositivos sembrados salen solo la cabecera, tambien para el viewer.
-	_, drows := csvBody(t, x.do("GET", "/api/v1/devices.csv", "", withCookie(x.va)), "inventario-dispositivos")
-	if len(drows) != 0 {
-		t.Errorf("devices.csv got %d filas, want 0", len(drows))
-	}
-
 	// Sin sesion: 401.
 	if rec := x.do("GET", "/api/v1/hosts.csv", ""); rec.Code != http.StatusUnauthorized {
 		t.Errorf("hosts.csv sin sesion got %d, want 401", rec.Code)

@@ -57,19 +57,6 @@ export interface EnrollCommands {
   linux?: string
 }
 
-/** Token de enrolamiento pendiente (GET /hosts/enroll-tokens); nunca incluye el secreto. */
-export interface PendingEnrollToken {
-  id: string
-  /** null en un token de alta masiva (sin hostname fijo: lo pone cada agente al enrolar). */
-  hostname: string | null
-  group: GroupRef | null
-  created_by: string
-  created_at: string
-  expires_at: string
-  max_uses: number
-  uses_count: number
-}
-
 /** Host `agent` existente cuyo hostname coincide con el que se intenta enrolar (alta normal). */
 export interface HostnameConflict {
   host_id: string

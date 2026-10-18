@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { SearchBox } from '@/components/filters/SearchBox'
 import { TriangleAlertIcon, ListIcon, RefreshCwIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -12,12 +13,13 @@ import { useNow } from '@/hooks/useNow'
 import { usePagedList } from '@/hooks/usePagedList'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 import { useInventoryChanges, useInventoryModule } from '../hooks/useInventory'
-import type { ModuleList } from '../types/inventory.types'
+import type { ModuleList, PortItem, ProcessItem, ServiceItem } from '../types/inventory.types'
 import {
   EMPTY_TEXT,
   emptyKind,
   INVENTORY_FIELDS,
   KIND_LABELS,
+  matchesInventory,
   MODULE_LABELS,
   SECTION_LABELS,
   SECTIONS,
@@ -110,12 +112,29 @@ const NOTE_PORTS = 'Lista truncada: el agente guarda como máximo 512 puertos.'
 const NOTE_SERVICES = 'Lista truncada: el agente guarda como máximo 1024 servicios.'
 const NOTE_PROCESSES = 'Solo los 100 procesos con más memoria'
 
-function PortsView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
-  const query = useInventoryModule(hostId, 'ports')
-  return <ModuleBody query={query} onDenied={onDenied} truncatedNote={NOTE_PORTS} render={(items) => <PagedList items={items} itemLabel="puertos" render={(rows, page, pageSize) => <PortsTable items={rows} page={page} pageSize={pageSize} />} />} />
+/** Aplica la búsqueda; sin coincidencias muestra "Sin resultados". `key` remonta la lista (vuelve a la página 1). */
+function Searched<T extends PortItem | ServiceItem | ProcessItem>({ items, q, children }: { items: T[]; q: string; children: (shown: T[]) => ReactNode }) {
+  const shown = items.filter((i) => matchesInventory(i, q))
+  return shown.length === 0 ? <EmptyState Icon={ListIcon} title="Sin resultados" /> : children(shown)
 }
 
-function ServicesView({ hostId, state, onDenied }: { hostId: string; state: string; onDenied: () => void }) {
+function PortsView({ hostId, q, onDenied }: { hostId: string; q: string; onDenied: () => void }) {
+  const query = useInventoryModule(hostId, 'ports')
+  return (
+    <ModuleBody
+      query={query}
+      onDenied={onDenied}
+      truncatedNote={NOTE_PORTS}
+      render={(items) => (
+        <Searched items={items} q={q}>
+          {(shown) => <PagedList key={q} items={shown} itemLabel="puertos" render={(rows, page, pageSize) => <PortsTable items={rows} page={page} pageSize={pageSize} />} />}
+        </Searched>
+      )}
+    />
+  )
+}
+
+function ServicesView({ hostId, state, q, onDenied }: { hostId: string; state: string; q: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'services')
   return (
     <ModuleBody
@@ -123,20 +142,31 @@ function ServicesView({ hostId, state, onDenied }: { hostId: string; state: stri
       onDenied={onDenied}
       truncatedNote={NOTE_SERVICES}
       render={(items) => {
-        const shown = state === 'all' ? items : items.filter((s) => s.state === state)
-        return shown.length === 0 ? (
-          <EmptyState Icon={ListIcon} title="Sin resultados" />
-        ) : (
-          <PagedList key={state} items={shown} itemLabel="servicios" render={(rows, page, pageSize) => <ServicesTable items={rows} page={page} pageSize={pageSize} />} />
+        const byState = state === 'all' ? items : items.filter((s) => s.state === state)
+        return (
+          <Searched items={byState} q={q}>
+            {(shown) => <PagedList key={`${state}-${q}`} items={shown} itemLabel="servicios" render={(rows, page, pageSize) => <ServicesTable items={rows} page={page} pageSize={pageSize} />} />}
+          </Searched>
         )
       }}
     />
   )
 }
 
-function ProcessesView({ hostId, onDenied }: { hostId: string; onDenied: () => void }) {
+function ProcessesView({ hostId, q, onDenied }: { hostId: string; q: string; onDenied: () => void }) {
   const query = useInventoryModule(hostId, 'processes')
-  return <ModuleBody query={query} onDenied={onDenied} truncatedNote={NOTE_PROCESSES} render={(items) => <PagedList items={items} itemLabel="procesos" render={(rows, page, pageSize) => <ProcessesTable items={rows} page={page} pageSize={pageSize} />} />} />
+  return (
+    <ModuleBody
+      query={query}
+      onDenied={onDenied}
+      truncatedNote={NOTE_PROCESSES}
+      render={(items) => (
+        <Searched items={items} q={q}>
+          {(shown) => <PagedList key={q} items={shown} itemLabel="procesos" render={(rows, page, pageSize) => <ProcessesTable items={rows} page={page} pageSize={pageSize} />} />}
+        </Searched>
+      )}
+    />
+  )
 }
 
 function ChangesView({
@@ -205,7 +235,12 @@ export function InventoryContent({ hostId, onDenied }: { hostId: string; onDenie
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <SegmentedControl aria-label="Sección de inventario" options={SECTION_OPTIONS} value={section} onChange={(v) => setFilters({ section: v })} />
+        <SegmentedControl aria-label="Sección de inventario" options={SECTION_OPTIONS} value={section} onChange={(v) => setFilters({ section: v, q: '' })} />
+        {section !== 'changes' && (
+          <div className="min-w-48 flex-1">
+            <SearchBox key={section} field={INVENTORY_FIELDS[4]} value={filters.q} onCommit={(q) => setFilters({ q })} />
+          </div>
+        )}
         {section === 'services' && (
           <SegmentedControl aria-label="Filtrar por estado" options={STATE_OPTIONS} value={filters.state} onChange={(v) => setFilters({ state: v })} />
         )}
@@ -216,9 +251,9 @@ export function InventoryContent({ hostId, onDenied }: { hostId: string; onDenie
           </>
         )}
       </div>
-      {section === 'ports' && <PortsView hostId={hostId} onDenied={onDenied} />}
-      {section === 'services' && <ServicesView hostId={hostId} state={filters.state} onDenied={onDenied} />}
-      {section === 'processes' && <ProcessesView hostId={hostId} onDenied={onDenied} />}
+      {section === 'ports' && <PortsView hostId={hostId} q={filters.q} onDenied={onDenied} />}
+      {section === 'services' && <ServicesView hostId={hostId} state={filters.state} q={filters.q} onDenied={onDenied} />}
+      {section === 'processes' && <ProcessesView hostId={hostId} q={filters.q} onDenied={onDenied} />}
       {section === 'changes' && (
         <ChangesView hostId={hostId} module={filters.module} kind={filters.kind} pagination={pagination} onDenied={onDenied} />
       )}

@@ -10,7 +10,6 @@ import {
 import type {
   BulkRequest,
   EnrollToken,
-  PendingEnrollToken,
   GroupRef,
   HostDetailResponse,
   HostListResponse,
@@ -49,15 +48,6 @@ export function reEnrollHost(id: string): Promise<EnrollToken> {
 /** Revoca el token de un host: pasa a `disabled`, deja de sondearse y sus alertas se resuelven. */
 export function revokeHost(id: string): Promise<unknown> {
   return apiRequest<unknown>(`/hosts/${encodeURIComponent(id)}/revoke`, { method: 'POST', noData: true })
-}
-
-export async function listEnrollTokens(signal?: AbortSignal): Promise<PendingEnrollToken[]> {
-  const data = await apiRequest<{ items: PendingEnrollToken[] }>('/hosts/enroll-tokens', { signal })
-  return data.items
-}
-
-export function revokeEnrollToken(id: string): Promise<unknown> {
-  return apiRequest<unknown>(`/hosts/enroll-tokens/${encodeURIComponent(id)}`, { method: 'DELETE', noData: true })
 }
 
 export function getHost(id: string, signal?: AbortSignal): Promise<HostDetailResponse> {

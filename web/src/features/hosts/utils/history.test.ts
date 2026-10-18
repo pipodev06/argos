@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   csvFilename,
-  dayRange,
   expectedResolution,
   filenameFromDisposition,
   parseLocalInput,
@@ -43,13 +42,6 @@ describe('atajos', () => {
       fromMs: new Date(2025, 11, 1).getTime(),
       toMs: new Date(2026, 0, 1).getTime(),
     })
-  })
-  it('dia concreto', () => {
-    expect(dayRange('2026-07-20')).toEqual({
-      fromMs: new Date(2026, 6, 20).getTime(),
-      toMs: new Date(2026, 6, 21).getTime(),
-    })
-    expect(dayRange('')).toBeNull()
   })
 })
 

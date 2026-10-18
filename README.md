@@ -45,6 +45,17 @@ bash scripts/build-agent.sh 0.0.0-dev            # binarios + manifest.json en d
 ```
 Enrólalo desde el dashboard: **Hosts → Agregar host** genera el comando. Los equipos de la LAN que hablen por `http://` necesitan `--insecure` (solo en desarrollo).
 
+A mano en este equipo (PowerShell como administrador, desde la raíz). El orden es **install → enroll → start**:
+```powershell
+$a = '.\dist\agent\' + (Get-Content .\dist\agent\latest) + '\argos-agent_windows_amd64.exe'
+& $a install
+'<token>' | & $a enroll --server http://localhost:8080 --token-stdin
+& $a start
+```
+Para actualizar un agente ya instalado basta `& $a install` con la versión nueva: detiene, reemplaza el binario y vuelve a arrancar, conservando el enrolamiento.
+
+Olvidaste la contraseña: `cd server && go run ./cmd/server reset-password <usuario>` (con las mismas variables que `create-admin`).
+
 ### Verificar antes de commitear
 ```bash
 export ARGOS_TEST_DATABASE_URL='postgres://argos:argos@localhost:5432/argos_test?sslmode=disable'

@@ -3,11 +3,12 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { FormHelp } from '@/components/ui/form-help'
+import { PERMISSIONS_HELP } from '../utils/help'
 import { InlineError } from '@/components/ui/inline-error'
 import { useUserMutation } from '../hooks/useUserMutation'
 import { updateUser } from '../services/users.service'
@@ -45,10 +46,10 @@ function PermissionsForm({ user, onClose, onSaved }: PermissionsDialogProps & { 
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
-      <DialogHeader>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>Permisos de {user.username}</DialogTitle>
-        <DialogDescription>El cambio se aplica en su próxima petición.</DialogDescription>
+        <FormHelp title="Permisos" items={PERMISSIONS_HELP} />
       </DialogHeader>
       <PermissionsFields idPrefix="perm" form={form} onChange={setForm} />
       {error && <InlineError>{error}</InlineError>}

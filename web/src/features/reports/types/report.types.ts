@@ -1,4 +1,5 @@
-export type ReportRange = '7d' | '30d' | '90d' | 'custom'
+/** `today` y `24h` se piden como from/to calculados en el cliente (el servidor solo conoce 7d/30d/90d). */
+export type ReportRange = 'today' | '24h' | '7d' | '30d' | '90d' | 'custom'
 export type ReportView = 'host' | 'group'
 
 export interface ReportFleet {

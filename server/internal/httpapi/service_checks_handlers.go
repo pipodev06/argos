@@ -400,15 +400,26 @@ func (a *API) secretsReady() error {
 
 // --- lecturas ---
 
+// serviceCheckListItemDTO es un item de GET /service-checks: la definicion y cuantos hosts del ambito del usuario
+// tienen hoy el chequeo en down o warn.
+type serviceCheckListItemDTO struct {
+	serviceCheckDTO
+	FailingHosts int `json:"failing_hosts"`
+}
+
 func (a *API) listServiceChecks(w http.ResponseWriter, r *http.Request) error {
 	defs, err := a.store.ListServiceChecks(r.Context(), currentUser(r).Scope)
 	if err != nil {
 		return err
 	}
+	failing, err := a.store.FailingHostsByCheck(r.Context(), currentUser(r).Scope)
+	if err != nil {
+		return err
+	}
 	u := currentUser(r)
-	items := make([]serviceCheckDTO, 0, len(defs))
+	items := make([]serviceCheckListItemDTO, 0, len(defs))
 	for _, d := range defs {
-		items = append(items, toServiceCheckDTO(u, d))
+		items = append(items, serviceCheckListItemDTO{serviceCheckDTO: toServiceCheckDTO(u, d), FailingHosts: failing[d.ID]})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 	return nil

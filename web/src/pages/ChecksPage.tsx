@@ -58,7 +58,7 @@ export function ChecksPage() {
           )
         }
       />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         <FilterBar
           fields={CHECK_FIELDS}
           values={filters}

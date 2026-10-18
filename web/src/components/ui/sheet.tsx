@@ -41,7 +41,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-50 flex h-full w-[280px] max-w-[calc(100%-2rem)] flex-col gap-4 border-border bg-surface text-sm text-text shadow-lg outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+          "fixed inset-y-0 z-50 flex h-full w-[280px] max-w-[calc(100%-2rem)] flex-col gap-3 border-border bg-surface text-sm text-text shadow-lg outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
           side === "left"
             ? "left-0 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left"
             : "right-0 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",

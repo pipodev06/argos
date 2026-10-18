@@ -41,7 +41,7 @@ func (x *invReadEnv) get(c *http.Cookie, path string) (int, string) {
 
 func TestInventoryReadPermissions(t *testing.T) {
 	x := newInvReadEnv(t)
-	for _, suffix := range []string{"", "/ports", "/services", "/processes", "/changes"} {
+	for _, suffix := range []string{"/ports", "/services", "/processes", "/changes"} {
 		p := "/inventory" + suffix
 		missing, missingBody := x.get(x.admin, missingID+p)
 		if missing != http.StatusNotFound {
@@ -62,8 +62,8 @@ func TestInventoryReadPermissions(t *testing.T) {
 		}
 	}
 	// El permiso denegado se audita como authz_denied (una vez por usuario y ruta en la ventana).
-	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'authz_denied' AND actor_username = 'vall'`); n != 5 {
-		t.Errorf("authz_denied de vall got %d, want 5 (una por ruta)", n)
+	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'authz_denied' AND actor_username = 'vall'`); n != 4 {
+		t.Errorf("authz_denied de vall got %d, want 4 (una por ruta)", n)
 	}
 	// Un host ajeno con permiso no genera authz_denied (no crear un oraculo).
 	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'authz_denied' AND actor_username = 'viewa'`); n != 0 {
@@ -84,25 +84,13 @@ type invListResp struct {
 func TestInventoryReadModulesAndStatus(t *testing.T) {
 	x := newInvReadEnv(t)
 
-	var ov struct {
-		Modules map[string]inventoryModuleDTO `json:"modules"`
-	}
-	x.dataAs(x.do("GET", "/api/v1/hosts/"+x.hostA+"/inventory", "", withCookie(x.admin)), &ov)
-	if got := ov.Modules["ports"]; got.Status != "ok" || got.Count != 1 || !got.Truncated || got.UpdatedAt == nil || got.CollectedAt == nil {
-		t.Errorf("ports got %+v", got)
-	}
-	if got := ov.Modules["services"].Status; got != "disabled" {
-		t.Errorf("services de un host que reporta ports got %q, want disabled", got)
-	}
-	// hostNo no reporto nada: sin datos aun.
-	x.dataAs(x.do("GET", "/api/v1/hosts/"+x.hostNo+"/inventory", "", withCookie(x.admin)), &ov)
-	if got := ov.Modules["ports"].Status; got != "no_data" {
-		t.Errorf("host sin inventario got %q, want no_data", got)
-	}
-
 	var l invListResp
+	x.dataAs(x.do("GET", "/api/v1/hosts/"+x.hostNo+"/inventory/ports", "", withCookie(x.admin)), &l)
+	if l.Status != "no_data" {
+		t.Errorf("host sin inventario got %q, want no_data", l.Status)
+	}
 	x.dataAs(x.do("GET", "/api/v1/hosts/"+x.hostA+"/inventory/ports", "", withCookie(x.admin)), &l)
-	if l.Status != "ok" || len(l.Items) != 1 || l.Items[0]["proc"] != "sshd" || !l.Truncated {
+	if l.Status != "ok" || l.Count != 1 || l.UpdatedAt == nil || l.CollectedAt == nil || len(l.Items) != 1 || l.Items[0]["proc"] != "sshd" || !l.Truncated {
 		t.Errorf("ports got %+v", l)
 	}
 	if _, leaked := l.Items[0]["cmdline"]; leaked {

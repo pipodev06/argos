@@ -1,5 +1,5 @@
-import { Link } from 'react-router'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsCell, ActionsHeadCell, ViewAction } from '@/components/data-table/RowActions'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { SortableHead, type SortDir } from '@/components/data-table/SortableHead'
 import { formatOs } from '@/features/hosts/utils/os'
@@ -39,22 +39,18 @@ export function FleetTable({ items, page, pageSize, sort, dir, onSort, now }: Fl
           <HeadCell className="hidden lg:table-cell">Última actualización</HeadCell>
           <SortableHead id="eol" label="Fin de vida" {...sp} />
           <SortableHead id="updated" label="Dato" {...sp} />
+          <ActionsHeadCell />
         </HeadRow>
       </TableHeader>
       <TableBody>
         {items === null ? (
-          <SkeletonRows colSpan={9} />
+          <SkeletonRows colSpan={10} />
         ) : (
           items.map((it, i) => (
-            <Row key={it.host.id} className="relative hover:bg-muted/50">
+            <Row key={it.host.id}>
               <RowNumberCell n={rowNumber(page, pageSize, i)} />
               <Cell className="max-w-64">
-                <Link
-                  to={`/hosts/${it.host.id}`}
-                  className="block min-w-0 truncate rounded-md font-semibold outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                >
-                  {it.host.hostname}
-                </Link>
+                <span className="block min-w-0 truncate font-semibold">{it.host.hostname}</span>
               </Cell>
               <Cell className="hidden md:table-cell">{formatOs(it.os, it.os_name, it.os_version)}</Cell>
               <Cell><Count n={it.pending_total} /></Cell>
@@ -65,6 +61,9 @@ export function FleetTable({ items, page, pageSize, sort, dir, onSort, now }: Fl
               </Cell>
               <Cell><EolText eol={it.eol} /></Cell>
               <Cell className="text-sm text-text-muted"><DataAgeText seconds={it.data_age_s} stale={it.stale} /></Cell>
+              <ActionsCell>
+                <ViewAction to={`/hosts/${it.host.id}`} label={it.host.hostname} />
+              </ActionsCell>
             </Row>
           ))
         )}

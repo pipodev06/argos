@@ -1,13 +1,14 @@
 import type { FilterField, FiltersOf } from '@/components/filters/types'
 import { serializeFilters } from '@/components/filters/urlState'
 import { useGroupOptions } from '@/features/hosts/hooks/useGroupOptions'
+import { useCollectorOptions } from '../hooks/useCollectorOptions'
 import { HOST_STATUS_LABELS } from '@/features/hosts/utils/status'
 import type { HostStatus } from '@/features/hosts/types/host.types'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/pagination'
 
 const DEVICE_STATUSES: readonly HostStatus[] = ['up', 'down', 'offline', 'pending', 'disabled']
 
-/** Filtros de Dispositivos (estado en la URL, igual que Hosts): q, status, group y limit. */
+/** Filtros de Dispositivos (estado en la URL, igual que Hosts): q, status, group, collector y limit. */
 export const DEVICE_FIELDS = [
   { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar dispositivos', placeholder: 'Buscar' },
   {
@@ -19,6 +20,7 @@ export const DEVICE_FIELDS = [
   },
   /** Ids de grupo o "none" (sin grupo). */
   { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions, contentClassName: 'w-64' },
+  { kind: 'multi', key: 'collector', label: 'Colector', plural: 'colectores', useOptions: useCollectorOptions, searchAbove: 8, contentClassName: 'w-64' },
   { kind: 'choice', key: 'limit', label: 'Tamaño de página', values: PAGE_SIZES, default: DEFAULT_PAGE_SIZE },
 ] as const satisfies readonly FilterField[]
 
@@ -32,7 +34,3 @@ export function buildDeviceQuery(f: DeviceFilters, cursor: string | null): strin
   return p.toString()
 }
 
-/** Query de GET /devices.csv: mismos filtros que la lista, sin paginacion. */
-export function buildDeviceCsvQuery(f: DeviceFilters): string {
-  return serializeFilters(DEVICE_FIELDS, f).toString()
-}

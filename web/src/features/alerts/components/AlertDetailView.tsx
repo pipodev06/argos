@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
-import { ArrowLeftIcon, BellOffIcon } from 'lucide-react'
-import { Link } from 'react-router'
+import { BellOffIcon } from 'lucide-react'
+import { BackLink } from '@/components/ui/back-link'
+import { ViewAction } from '@/components/data-table/RowActions'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
@@ -60,14 +61,8 @@ export function AlertDetailView({ id }: { id: string }) {
   const canResolve = canResolveAlerts(user)
 
   return (
-    <div className="flex flex-col gap-6" aria-busy={loading}>
-      <Link
-        to="/alertas"
-        className="flex w-fit items-center gap-1 rounded-md text-sm text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ArrowLeftIcon className="size-4" strokeWidth={1.5} aria-hidden />
-        Volver a alertas
-      </Link>
+    <div className="flex flex-col gap-3" aria-busy={loading}>
+      <BackLink to="/alertas">Alertas</BackLink>
 
       {notFound ? (
         <InlineError>Alerta no encontrada.</InlineError>
@@ -98,19 +93,18 @@ export function AlertDetailView({ id }: { id: string }) {
                   </span>
                 )}
               </div>
-              {a.escalated_at && <p className="text-sm text-text-muted">Escaló el {formatFullDate(a.escalated_at)}: sin reconocer, subió de severidad.</p>}
-              {a.flapping && <p className="text-sm text-text-muted">Se abrió 3 o más veces en 30 minutos. El aviso se retiene mientras oscila y se envía si sigue abierta pasados 30 minutos.</p>}
+              {a.escalated_at && <p className="text-sm text-text-muted">Escaló el {formatFullDate(a.escalated_at)}.</p>}
+              {a.flapping && <p className="text-sm text-text-muted">Oscilando: el aviso se retiene 30 min.</p>}
               {a.suppressed && a.state !== 'resolved' && (
-                <p className="text-sm text-text-muted">
-                  El host está en una ventana de mantenimiento: la alerta es visible pero no se notifica.
-                </p>
+                <p className="text-sm text-text-muted">En mantenimiento: no se notifica.</p>
               )}
 
-              <dl className="grid gap-4 rounded-md border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3">
+              <dl className="grid gap-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Item label="Host">
-                  <Link to={`/hosts/${a.host.id}`} className="font-semibold underline">
-                    {a.host.hostname}
-                  </Link>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="font-semibold">{a.host.hostname}</span>
+                    <ViewAction to={`/hosts/${a.host.id}`} label={a.host.hostname} />
+                  </span>
                 </Item>
                 <Item label="Regla al abrir">{ruleDescription(a)}</Item>
                 <Item label="Abierta">{formatFullDate(a.opened_at)}</Item>
@@ -121,7 +115,7 @@ export function AlertDetailView({ id }: { id: string }) {
                 ) : (
                   <>
                     <Item label="Valor al abrir">{formatMetricValue(a.kind, a.metric, a.trigger_value)}</Item>
-                    <Item label="Valor máximo (pico)">{formatMetricValue(a.kind, a.metric, a.peak_value)}</Item>
+                    <Item label="Pico">{formatMetricValue(a.kind, a.metric, a.peak_value)}</Item>
                   </>
                 )}
                 <Item label="Reconocida">

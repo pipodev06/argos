@@ -64,6 +64,8 @@ type HostFilter struct {
 	NoGroup  bool     // incluye los hosts sin grupo (OR con GroupIDs)
 	OSes     []string // vacio = cualquiera; varios con OR (sin distinguir mayusculas)
 	Kinds    []string // vacio = cualquiera; 'agent' | 'device' (varios con OR)
+	// CollectorIDs: solo lo aplica ListDevices (collector_host_id IN); vacio = cualquiera.
+	CollectorIDs []string
 
 	// Filtros de metricas (nil = sin filtro). Un host sin el dato no los cumple. Quien llama valida rangos.
 	CPUGt      *float64 // cpu_pct > x

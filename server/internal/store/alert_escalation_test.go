@@ -165,17 +165,6 @@ func TestEscalationWithoutChannelsOnlyRaisesSeverity(t *testing.T) {
 	}
 }
 
-func TestEscalationMutedRuleSuppressesDelivery(t *testing.T) {
-	s := newTestStore(t)
-	rule, _, escCh := escalationSetup(t, s, "warn", secs(300), "")
-	mustExec(t, `UPDATE alert_rules SET muted_until = now() + interval '1 hour' WHERE id = $1`, rule.ID)
-	ageAlert(t)
-	evalOnce(t, s)
-	if got := count(t, `SELECT count(*) FROM notification_deliveries WHERE event = 'escalation' AND channel_id = $1 AND status = 'suppressed'`, escCh); got != 1 {
-		t.Errorf("escalation suppressed got %d, want 1", got)
-	}
-}
-
 func TestResolvedOfEscalatedAlertReachesEscalationChannel(t *testing.T) {
 	s := newTestStore(t)
 	_, normalCh, escCh := escalationSetup(t, s, "warn", secs(300), "")

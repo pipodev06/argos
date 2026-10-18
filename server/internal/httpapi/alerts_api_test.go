@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -674,5 +675,71 @@ func TestAlertHandlersTranslateStoreErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestListAlertsQAndOpenedRangeFilters(t *testing.T) {
+	e := newAlertEnv(t)
+	for _, n := range []string{"web-lima", "db-cusco", "web-ica"} {
+		e.host(n, 95)
+	}
+	e.createRule(cpuRuleBody)
+	if r := e.eval(); r.Opened != 3 {
+		t.Fatalf("opened got %d, want 3", r.Opened)
+	}
+	// db-cusco abrio hace 3 dias; el resto ahora.
+	mustExec(e.t, `UPDATE alerts SET opened_at = now() - interval '3 days' WHERE host_id = (SELECT id FROM hosts WHERE hostname = 'db-cusco')`)
+
+	day := func(d time.Duration) string { return url.QueryEscape(time.Now().UTC().Add(d).Format(time.RFC3339)) }
+	tests := []struct {
+		name, query string
+		want        int
+	}{
+		{"q subcadena sin mayusculas", "?q=WEB", 2},
+		{"q sin coincidencia", "?q=zzz", 0},
+		{"q y host", "?q=cusco", 1},
+		{"from reciente", "?from=" + day(-24*time.Hour), 2},
+		{"to antiguo", "?to=" + day(-24*time.Hour), 1},
+		{"rango que cubre todo", "?from=" + day(-96*time.Hour) + "&to=" + day(time.Hour), 3},
+		{"q mas rango", "?q=web&to=" + day(-24*time.Hour), 0},
+	}
+	for _, tt := range tests {
+		if p := e.alerts(tt.query); p.Total != tt.want || len(p.Items) != tt.want {
+			t.Errorf("%s: total %d, items %d, want %d", tt.name, p.Total, len(p.Items), tt.want)
+		}
+	}
+
+	// Invalidos: 400 invalid_filter.
+	bad := map[string]string{
+		"from no RFC3339": "?from=ayer",
+		"to no RFC3339":   "?to=2026-13-45",
+		"from > to":       "?from=" + day(time.Hour) + "&to=" + day(-time.Hour),
+		"rango > 366 dias": "?from=" + url.QueryEscape(time.Now().UTC().AddDate(-2, 0, 0).Format(time.RFC3339)) +
+			"&to=" + day(0),
+		"q larga":   "?q=" + strings.Repeat("a", 129),
+		"q control": "?q=a%00b",
+	}
+	for name, path := range bad {
+		rec := e.do("GET", "/api/v1/alerts"+path, "", withCookie(e.viewer))
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_filter") {
+			t.Errorf("%s: got %d %s, want 400 invalid_filter", name, rec.Code, rec.Body.String())
+		}
+	}
+
+	// La huella incluye q/from/to: un cursor emitido con q no sirve sin q.
+	e.host("web-extra", 95)
+	if r := e.eval(); r.Opened != 1 {
+		t.Fatalf("opened got %d, want 1", r.Opened)
+	}
+	first := e.alerts("?q=web&limit=1")
+	if first.NextCursor == nil {
+		t.Fatal("con q=web y limit=1 debe haber siguiente pagina")
+	}
+	rec := e.do("GET", "/api/v1/alerts?limit=1&cursor="+*first.NextCursor, "", withCookie(e.viewer))
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_cursor") {
+		t.Errorf("cursor con q usado sin q: got %d %s, want 400 invalid_cursor", rec.Code, rec.Body.String())
+	}
+	if p := e.alerts("?q=web&limit=1&cursor=" + *first.NextCursor); len(p.Items) != 1 {
+		t.Errorf("cursor con la misma q got %d items, want 1", len(p.Items))
 	}
 }

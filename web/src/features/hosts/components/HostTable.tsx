@@ -1,8 +1,9 @@
 import { TriangleAlertIcon, BatteryIcon, BatteryChargingIcon } from 'lucide-react'
 import { cn } from 'cn'
-import { Link } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsCell, ActionsHeadCell, ViewAction } from '@/components/data-table/RowActions'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { SortableHead, type SortDir } from '@/components/data-table/SortableHead'
 import { rowNumber } from '@/lib/pagination'
@@ -10,8 +11,8 @@ import { usageLevel } from '@/lib/usage'
 import type { Host } from '../types/host.types'
 import { formatAgentVersion } from '../utils/agentVersion'
 import type { OptionalColumn } from '../utils/columns'
+import { hostActions, type HostActionId } from '../utils/hostActions'
 import { physicalDisksSummary } from '../utils/detail'
-import { DeviceKindBadge } from '@/features/devices/components/DeviceBadges'
 import { formatElapsed, formatLastSeen, formatNumber } from '../utils/format'
 import type { SortKey } from '../utils/hostQuery'
 import { formatOs } from '../utils/os'
@@ -29,6 +30,8 @@ interface HostTableProps {
   selected: ReadonlySet<string> | null
   onToggle: (id: string, on: boolean) => void
   onToggleAll: (on: boolean) => void
+  /** Acciones de admin (las mismas que en el detalle del host); "ver" va siempre. */
+  onAction?: (action: HostActionId, h: Host) => void
 }
 
 function Pct({ value }: { value: number | null }) {
@@ -42,14 +45,14 @@ function Pct({ value }: { value: number | null }) {
   )
 }
 
-export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, selected, onToggle, onToggleAll }: HostTableProps) {
+export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, selected, onToggle, onToggleAll, onAction }: HostTableProps) {
   const show = (c: OptionalColumn) => visible.includes(c)
   const sortProps = { sort, dir, onSort }
-  // Los dispositivos sin agente no se seleccionan: las acciones de lote son de hosts con agente.
-  const selectable = hosts?.filter((h) => h.kind === 'agent') ?? []
+  // La lista solo trae hosts con agente (kind=agent): todos se pueden seleccionar.
+  const selectable = hosts ?? []
   const allSelected = selected !== null && selectable.length > 0 && selectable.every((h) => selected.has(h.id))
   const someSelected = selected !== null && selectable.some((h) => selected.has(h.id))
-  const colSpan = 8 + visible.length + 3
+  const colSpan = 8 + visible.length + 4
 
   return (
     <DataTable caption="Hosts">
@@ -78,6 +81,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
             {show('battery') && <HeadCell className="hidden md:table-cell">Batería</HeadCell>}
             {show('physical_disk') && <HeadCell className="hidden md:table-cell">Disco físico</HeadCell>}
             <SortableHead id="last_seen" label="Visto" {...sortProps} />
+            <ActionsHeadCell />
           </HeadRow>
         </TableHeader>
         <TableBody>
@@ -86,16 +90,14 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
             : hosts.map((h, i) => {
                 const isSelected = selected?.has(h.id) ?? false
                 return (
-                  <Row key={h.id} className={cn('relative hover:bg-muted/50', isSelected && 'bg-muted')}>
+                  <Row key={h.id} className={cn(isSelected && 'bg-muted')}>
                     {selected && (
-                      <td className="relative z-10 hidden w-10 px-3 md:table-cell">
-                        {h.kind === 'agent' && (
-                          <Checkbox
-                            aria-label={`Seleccionar ${h.hostname}`}
-                            checked={isSelected}
-                            onCheckedChange={(v) => onToggle(h.id, v === true)}
-                          />
-                        )}
+                      <td className="hidden w-10 px-3 md:table-cell">
+                        <Checkbox
+                          aria-label={`Seleccionar ${h.hostname}`}
+                          checked={isSelected}
+                          onCheckedChange={(v) => onToggle(h.id, v === true)}
+                        />
                       </td>
                     )}
                     <RowNumberCell n={rowNumber(page, pageSize, i)} />
@@ -103,15 +105,7 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                       {h.status === 'down' && (
                         <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-danger" />
                       )}
-                      <span className="flex items-center justify-center gap-2">
-                        <Link
-                          to={`/hosts/${h.id}`}
-                          className="block min-w-0 truncate rounded-md font-semibold outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                        >
-                          {h.hostname}
-                        </Link>
-                        {h.kind === 'device' && <DeviceKindBadge />}
-                      </span>
+                      <span className="block min-w-0 truncate font-semibold">{h.hostname}</span>
                       <span className="block truncate text-xs text-text-muted md:hidden">
                         {[h.group?.name ?? 'Sin grupo', formatOs(h.os, h.os_name, h.os_version)].filter(Boolean).join(' · ')}
                       </span>
@@ -172,6 +166,15 @@ export function HostTable({ hosts, page, pageSize, visible, sort, dir, onSort, s
                     <Cell className="text-center text-sm text-text-muted tabular-nums">
                       {formatLastSeen(h.last_seen_at)}
                     </Cell>
+                    <ActionsCell>
+                      <ViewAction to={`/hosts/${h.id}`} label={h.hostname} />
+                      {onAction &&
+                        hostActions(h).map(({ id, label, Icon }) => (
+                          <Button key={id} variant="ghost" size="icon-sm" aria-label={`${label} ${h.hostname}`} title={label} onClick={() => onAction(id, h)}>
+                            <Icon strokeWidth={1.5} aria-hidden />
+                          </Button>
+                        ))}
+                    </ActionsCell>
                   </Row>
                 )
               })}

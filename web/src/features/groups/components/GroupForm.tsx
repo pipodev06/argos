@@ -136,7 +136,7 @@ export function GroupForm({ group, defaultDownAfter, onCancel, onSaved }: GroupF
   const globalMin = Math.round(defaultDownAfter / 60)
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
+    <form onSubmit={handleSubmit} className="grid items-start gap-x-4 gap-y-3 xl:grid-cols-2">
       <FormField
         id="group-name"
         label="Nombre"
@@ -160,7 +160,6 @@ export function GroupForm({ group, defaultDownAfter, onCancel, onSaved }: GroupF
             onChange={(e) => setAmount(e.target.value)}
             placeholder={String(globalMin)}
             aria-invalid={amountError ? true : undefined}
-            aria-describedby="group-threshold-hint"
           />
           <Select value={unit} onValueChange={(v) => setUnit(v as ThresholdUnit)}>
             <SelectTrigger aria-label="Unidad" className="w-28">
@@ -172,9 +171,6 @@ export function GroupForm({ group, defaultDownAfter, onCancel, onSaved }: GroupF
             </SelectContent>
           </Select>
         </div>
-        <p id="group-threshold-hint" className="text-xs text-text-muted">
-          Vacío = usa el valor global ({globalMin} min).
-        </p>
         {amountError && <InlineError>{amountError}</InlineError>}
       </div>
       <fieldset className="grid gap-2">
@@ -186,17 +182,11 @@ export function GroupForm({ group, defaultDownAfter, onCancel, onSaved }: GroupF
         >
           <label htmlFor="group-down" className="flex min-h-8 items-start gap-2 text-sm">
             <RadioGroupItem id="group-down" value="down" className="mt-0.5" />
-            <span>
-              Caído
-              <span className="block text-xs text-text-muted">Se espera que esté siempre encendido.</span>
-            </span>
+            <span>Caído</span>
           </label>
           <label htmlFor="group-offline" className="flex min-h-8 items-start gap-2 text-sm">
             <RadioGroupItem id="group-offline" value="offline" className="mt-0.5" />
-            <span>
-              Sin conexión
-              <span className="block text-xs text-text-muted">Apagarlo o perder red es normal.</span>
-            </span>
+            <span>Sin conexión</span>
           </label>
         </RadioGroup>
       </fieldset>
@@ -205,14 +195,12 @@ export function GroupForm({ group, defaultDownAfter, onCancel, onSaved }: GroupF
         value={retRaw}
         inherit={retInherit}
         error={retError}
-        inheritsFrom="la retención global"
         onValue={setRetRaw}
         onInherit={setRetInherit}
       />
       {group && (
         <fieldset className="grid gap-2">
           <legend className="mb-1 text-sm font-medium text-text">Cuotas del cliente</legend>
-          <p className="text-xs text-text-muted">Vacío = sin límite propio. No afecta lo que ya existe, solo lo nuevo.</p>
           <div className="grid grid-cols-2 gap-3">
             {QUOTA_FIELDS.map(({ key, label }) => (
               <FormField
@@ -229,8 +217,8 @@ export function GroupForm({ group, defaultDownAfter, onCancel, onSaved }: GroupF
           {quotaError && <InlineError>{quotaError}</InlineError>}
         </fieldset>
       )}
-      {error && <InlineError>{error}</InlineError>}
-      <div className="flex justify-end gap-2">
+      {error && <InlineError className="xl:col-span-2">{error}</InlineError>}
+      <div className="flex justify-end gap-2 xl:col-span-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>

@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 	"time"
 )
@@ -84,26 +83,5 @@ func TestFlapHeldNotReleasedByMaintenanceEnding(t *testing.T) {
 	evalOnce(t, s)
 	if flapDeliveries(t, "opened", "pending") != 0 {
 		t.Fatal("el fin de mantenimiento no debe liberar el opened de una alerta retenida por flapping")
-	}
-}
-
-func TestFlapReleaseWithMutedRuleHandsOverToMute(t *testing.T) {
-	s := newTestStore(t)
-	rule := flapHeldSetup(t, s)
-	until := time.Now().Add(time.Hour)
-	if err := s.MuteRule(context.Background(), rule.ID, &until); err != nil {
-		t.Fatalf("MuteRule: %v", err)
-	}
-	stabilize(t)
-	evalOnce(t, s)
-	if flapDeliveries(t, "opened", "pending") != 0 || count(t, `SELECT count(*) FROM alerts WHERE mute_held AND NOT flap_held`) != 1 {
-		t.Fatal("con la regla silenciada la retencion pasa a mute_held y no avisa aun")
-	}
-	endMute(t)
-	if r := evalOnce(t, s); r.MuteReleased != 1 {
-		t.Fatalf("MuteReleased got %d, want 1", r.MuteReleased)
-	}
-	if flapDeliveries(t, "opened", "pending") != 1 {
-		t.Fatal("al terminar el silencio debe avisar")
 	}
 }

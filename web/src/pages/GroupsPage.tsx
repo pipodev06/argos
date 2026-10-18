@@ -33,7 +33,7 @@ export function GroupsPage() {
           )
         }
       />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         {error && (
           <div className="flex flex-wrap items-center gap-3">
             <InlineError>{error}</InlineError>

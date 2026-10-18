@@ -41,6 +41,9 @@ describe('ReportsPage: rango personalizado (B12)', () => {
   })
 
   it('elegir Desde y Hasta en el calendario pasa de "elige fechas" a consultar el informe', async () => {
+    // Solo se falsea Date: los dias futuros estan deshabilitados y el test elige el 10 y el 20.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 25, 12, 0))
     mockApi(baseRoutes())
     renderWithRouter(<ReportsPage />, '/informes?type=availability&range=custom')
     await screen.findByText('Elige Desde y Hasta')
@@ -50,5 +53,6 @@ describe('ReportsPage: rango personalizado (B12)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     }
     await waitFor(() => expect(screen.queryByText('Elige Desde y Hasta')).toBeNull())
+    vi.useRealTimers()
   })
 })

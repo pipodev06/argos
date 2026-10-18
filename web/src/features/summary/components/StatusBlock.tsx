@@ -1,8 +1,7 @@
 import { CircleCheckIcon, CircleOffIcon, CircleXIcon, ClockIcon, UnplugIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusTile, TILE_LINK } from '@/components/ui/status-tile'
+import { StatusTile } from '@/components/ui/status-tile'
 import type { StatusCounts } from '../types/summary.types'
 
 interface StatusBlockProps {
@@ -33,19 +32,20 @@ export function StatusBlock({ id, title, counts, to, note }: StatusBlockProps) {
         {title}
       </h2>
       {note && <p className="-mt-2 text-xs text-text-muted">{note}</p>}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         {TILES.map((t) => {
           const span = t.status === 'disabled' ? ' col-span-2' : ''
           return counts ? (
-            <Link key={t.status} to={`${to}?status=${t.status}`} className={TILE_LINK + span}>
+            <div key={t.status} className={span}>
               <StatusTile
+                to={`${to}?status=${t.status}`}
                 label={t.label}
                 value={counts[t.status]}
                 Icon={t.Icon}
                 iconClassName={t.icon}
                 alert={t.status === 'down' && counts.down > 0}
               />
-            </Link>
+            </div>
           ) : (
             <Skeleton key={t.status} className={'h-24' + span} />
           )

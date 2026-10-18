@@ -5,7 +5,7 @@ import type { HostDetail } from '../types/host.types'
 
 interface RevokeHostDialogProps {
   /** El host a deshabilitar; null = cerrado. */
-  host: HostDetail | null
+  host: Pick<HostDetail, 'id' | 'hostname' | 'status'> | null
   onClose: () => void
   onDone: () => void
 }

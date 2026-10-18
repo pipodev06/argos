@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
+import { ViewAction } from '@/components/data-table/RowActions'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { HostChecksSection } from '@/features/checks/components/HostChecksSection'
@@ -68,9 +69,10 @@ export function DeviceDetailView({ id }: { id: string }) {
             {isAdmin && (
               <Item term="Colector">
                 {device.collector ? (
-                  <Link to={`/hosts/${device.collector.id}`} className="rounded-md text-brand outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="inline-flex items-center gap-1">
                     {device.collector.name}
-                  </Link>
+                    <ViewAction to={`/hosts/${device.collector.id}`} label={device.collector.name} />
+                  </span>
                 ) : null}
               </Item>
             )}

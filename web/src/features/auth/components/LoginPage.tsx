@@ -18,7 +18,7 @@ export function LoginPage() {
 
   return (
     <AuthCard title="Iniciar sesión">
-      <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
+      <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
         <FormField
           id="username"
           label="Usuario"

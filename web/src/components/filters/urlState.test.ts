@@ -6,8 +6,8 @@ const FIELDS = [
   { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar', placeholder: 'Buscar' },
   { kind: 'datetime', key: 'from', label: 'Desde' },
   { kind: 'multi', key: 'status', label: 'Estado', plural: 'estados', options: [{ id: 'up', name: 'Activo' }, { id: 'down', name: 'Caído' }] },
-  { kind: 'numeric', key: 'cpu_gt', label: 'CPU', extra: true, op: '>', max: 100, suffix: '%' },
-  { kind: 'numeric', key: 'seen', label: 'Visto', extra: true, op: '>', integer: true },
+  { kind: 'numeric', key: 'cpu_gt', label: 'CPU', op: '>', max: 100, suffix: '%' },
+  { kind: 'numeric', key: 'seen', label: 'Visto', op: '>', integer: true },
   { kind: 'choice', key: 'sort', label: 'Orden', values: ['name', 'cpu'], default: 'name' },
   { kind: 'choice', key: 'dir', label: 'Dir', values: ['asc', 'desc'], default: (v: Record<string, unknown>) => (v.sort === 'cpu' ? 'desc' : 'asc') },
   { kind: 'choice', key: 'limit', label: 'Límite', values: [25, 50], default: 25 },
@@ -76,7 +76,7 @@ describe('hasActiveFilters / clearedFilters', () => {
 describe('filtro booleano', () => {
   const B = [
     { kind: 'boolean', key: 'sec', label: 'Seguridad' },
-    { kind: 'numeric', key: 'eol', label: 'Fin de vida', extra: true, op: '≤', integer: true },
+    { kind: 'numeric', key: 'eol', label: 'Fin de vida', op: '≤', integer: true },
   ] as const satisfies readonly FilterField[]
   const parseB = (qs: string) => parseFilters(B, new URLSearchParams(qs))
   it('ausente o distinto de "true" es false; "true" es true', () => {

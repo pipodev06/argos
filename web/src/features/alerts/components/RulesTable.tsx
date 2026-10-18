@@ -1,11 +1,11 @@
-import { BellMinusIcon, BellRingIcon, CircleCheckIcon, CircleOffIcon, CopyIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
+import { CircleCheckIcon, CircleOffIcon, CopyIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsHeadCell } from '@/components/data-table/RowActions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import type { AlertRule } from '../types/alert.types'
-import { describeCondition, isMuted, KIND_LABELS, METRIC_LABELS, MUTE_OPTIONS, scopeLabel } from '../utils/format'
-import { EscalationBadge, MutedBadge, SeverityBadge } from './AlertBadges'
+import { describeCondition, KIND_LABELS, METRIC_LABELS, scopeLabel } from '../utils/format'
+import { EscalationBadge, SeverityBadge } from './AlertBadges'
 
 export type RuleAction = 'edit' | 'clone' | 'toggle' | 'delete'
 
@@ -15,8 +15,6 @@ interface RulesTableProps {
   canAct: boolean
   busy: boolean
   onAction: (action: RuleAction, rule: AlertRule) => void
-  onMute: (rule: AlertRule, minutes: number) => void
-  onUnmute: (rule: AlertRule) => void
 }
 
 export function RuleEnabledBadge({ enabled }: { enabled: boolean }) {
@@ -29,7 +27,7 @@ export function RuleEnabledBadge({ enabled }: { enabled: boolean }) {
   )
 }
 
-export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: RulesTableProps) {
+export function RulesTable({ rules, canAct, busy, onAction }: RulesTableProps) {
   return (
     <DataTable caption="Reglas de alerta" className="min-w-[60rem]">
       <TableHeader>
@@ -41,9 +39,8 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
           <HeadCell>Ámbito</HeadCell>
           <HeadCell>Severidad</HeadCell>
           <HeadCell>Estado</HeadCell>
-          <HeadCell>Canales</HeadCell>
           <HeadCell>Alertas abiertas</HeadCell>
-          {canAct && <HeadCell>Acciones</HeadCell>}
+          {canAct && <ActionsHeadCell />}
         </HeadRow>
       </TableHeader>
       <TableBody>
@@ -60,11 +57,9 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
             <Cell>
               <div className="flex flex-col items-center gap-1">
                 <RuleEnabledBadge enabled={r.enabled} />
-                {isMuted(r) && r.muted_until && <MutedBadge mutedUntil={r.muted_until} />}
                 <EscalationBadge seconds={r.escalate_after_seconds} />
               </div>
             </Cell>
-            <Cell className="tabular-nums">{r.channel_ids.length}</Cell>
             <Cell className="tabular-nums">{r.active_alerts}</Cell>
             {canAct && (
               <Cell>
@@ -105,33 +100,6 @@ export function RulesTable({ rules, canAct, busy, onAction, onMute, onUnmute }: 
                 >
                   <Trash2Icon strokeWidth={1.5} aria-hidden />
                 </Button>
-                {isMuted(r) ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Quitar silencio a la regla ${r.name}`}
-                    title="Quitar silencio"
-                    disabled={busy}
-                    onClick={() => onUnmute(r)}
-                  >
-                    <BellRingIcon strokeWidth={1.5} aria-hidden />
-                  </Button>
-                ) : (
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label={`Silenciar regla ${r.name}`} title="Silenciar" disabled={busy}>
-                        <BellMinusIcon strokeWidth={1.5} aria-hidden />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      {MUTE_OPTIONS.map((opt) => (
-                        <DropdownMenuItem key={opt.minutes} onSelect={() => onMute(r, opt.minutes)}>
-                          {opt.label}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
               </Cell>
             )}
           </Row>

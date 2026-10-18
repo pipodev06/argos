@@ -10,6 +10,7 @@ const SEVERITIES: readonly AlertSeverity[] = ['info', 'warn', 'critical']
 
 /** Campos de filtro de Alertas. Parámetros de URL/API: state, severity, rule_id, limit. */
 export const ALERT_FIELDS = [
+  { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar alertas por host', placeholder: 'Buscar host', maxLength: 128 },
   {
     kind: 'multi',
     key: 'state',
@@ -25,6 +26,8 @@ export const ALERT_FIELDS = [
     options: SEVERITIES.map((s) => ({ id: s, name: SEVERITY_LABELS[s] })),
   },
   { kind: 'multi', key: 'rules', param: 'rule_id', label: 'Regla', plural: 'reglas', useOptions: useRuleOptions },
+  { kind: 'datetime', key: 'from', label: 'Apertura', rangeEnd: 'to' },
+  { kind: 'datetime', key: 'to', label: 'Hasta' },
   { kind: 'choice', key: 'limit', label: 'Tamaño de página', values: PAGE_SIZES, default: DEFAULT_PAGE_SIZE },
 ] as const satisfies readonly FilterField[]
 

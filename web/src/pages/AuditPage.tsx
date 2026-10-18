@@ -3,6 +3,7 @@ import { HistoryIcon, LockIcon, RefreshCwIcon } from 'lucide-react'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { Button } from '@/components/ui/button'
+import { InlineError } from '@/components/ui/inline-error'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { Pagination } from '@/components/ui/pagination'
@@ -40,7 +41,8 @@ function AuditAdmin() {
     if (staleCursor) resetPagination()
   }, [staleCursor, resetPagination])
   // 400 sin cursor = filtros invalidos (rango de fechas).
-  const message = errorStatus === 400 && pagination.cursor === null ? FILTER_ERROR : error
+  const filterError = errorStatus === 400 && pagination.cursor === null
+  const message = filterError ? FILTER_ERROR : error
 
   const noEntries = data !== null && data.total === 0 && !hasActive
   const noMatch = data !== null && data.items.length === 0 && hasActive
@@ -57,14 +59,15 @@ function AuditAdmin() {
           </Button>
         }
       />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         <FilterBar
           fields={AUDIT_FIELDS}
           values={filters}
           onChange={setFilters}
           onClear={clear}
         />
-        {message && <TableError message={message} onRetry={() => void refresh()} />}
+        {/* Un 400 de filtros no se arregla reintentando: solo el mensaje. */}
+        {message && (filterError ? <InlineError>{message}</InlineError> : <TableError message={message} onRetry={() => void refresh()} />)}
         {noEntries && <EmptyState Icon={HistoryIcon} title="Sin eventos" />}
         {noMatch && <NoResultsState Icon={HistoryIcon} onClear={clear} />}
         {showTable && (

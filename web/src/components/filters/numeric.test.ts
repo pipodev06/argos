@@ -21,7 +21,7 @@ describe('formatWithUnits', () => {
 })
 
 describe('numericChipText', () => {
-  const base = { kind: 'numeric', key: 'k', label: 'CPU', extra: true, op: '>' } as const satisfies NumericField
+  const base = { kind: 'numeric', key: 'k', label: 'CPU', op: '>' } as const satisfies NumericField
   it('con sufijo, con unidades y sin nada', () => {
     expect(numericChipText({ ...base, suffix: '%' }, 80)).toBe('CPU > 80 %')
     expect(numericChipText({ ...base, label: 'Visto hace', units: UNITS, baseUnit: 's' }, 7200)).toBe('Visto hace > 2 horas')

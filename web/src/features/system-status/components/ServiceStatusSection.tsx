@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -65,7 +66,9 @@ export function ServiceStatusSection() {
                   ))}
                 </TableBody>
               </DataTable>
-              <Link to="/alertas/canales" className="text-sm text-brand underline">Ir a Canales</Link>
+              <Button asChild variant="outline" size="sm" className="w-fit">
+                <Link to="/alertas/canales">Ir a Canales</Link>
+              </Button>
             </div>
           )}
         </>

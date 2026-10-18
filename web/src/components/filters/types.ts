@@ -48,7 +48,6 @@ export interface NumericUnit {
 /** Numerico con operador; vive dentro de "Mas filtros". El valor de la URL/API va en la unidad base. */
 export interface NumericField extends FieldBase {
   kind: 'numeric'
-  extra: true
   op: '>' | '<' | '≤'
   /** Tope valido (sin tope si se omite). */
   max?: number
@@ -71,16 +70,16 @@ interface ChoiceField extends FieldBase {
   default: ChoiceValue | ((values: Record<string, unknown>) => ChoiceValue)
 }
 
-/** Instante (fecha y hora local elegida con el control nativo). El valor de la URL/API es RFC 3339 en UTC; vacio = sin filtro. */
+/** Instante (fecha y hora local elegida con `DateTimePicker`). El valor de la URL/API es RFC 3339 en UTC; vacio = sin filtro. */
 export interface DateTimeField extends FieldBase {
   kind: 'datetime'
+  /** En el campo "desde": clave del campo "hasta". La barra pinta ambos como un solo filtro de rango con atajos. */
+  rangeEnd?: string
 }
 
-/** Chip on/off; en la URL `param=true` (ausente = apagado). */
+/** On/off dentro de "Más filtros"; en la URL `param=true` (ausente = apagado). */
 export interface BooleanField extends FieldBase {
   kind: 'boolean'
-  /** true = vive dentro de "Más filtros" en vez de su propia pastilla en la fila principal. */
-  extra?: true
 }
 
 export type FilterField = SearchField | MultiField | NumericField | ChoiceField | DateTimeField | BooleanField

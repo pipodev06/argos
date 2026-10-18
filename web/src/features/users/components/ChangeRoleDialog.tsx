@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -44,10 +43,9 @@ function RoleForm({ user, onClose, onSaved }: ChangeRoleDialogProps & { user: Ma
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
       <DialogHeader>
         <DialogTitle>Cambiar rol de {user.username}</DialogTitle>
-        <DialogDescription>El cambio se aplica en su próxima petición.</DialogDescription>
       </DialogHeader>
       <RoleSelect id="change-role" label="Rol" value={role} onChange={setRole} />
       {error && <InlineError>{error}</InlineError>}

@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DateTimeField } from '@/components/ui/date-time-picker'
 import { FormField } from '@/components/ui/form-field'
+import { FormHelp, type HelpItem } from '@/components/ui/form-help'
 import { InlineError } from '@/components/ui/inline-error'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
 import { createMaintenance, updateMaintenance } from '../services/alerts.service'
@@ -24,6 +25,11 @@ interface MaintenanceFormDialogProps {
   onClose: () => void
   onSaved: () => void
 }
+
+const MAINTENANCE_HELP: readonly HelpItem[] = [
+  ['Ventana', 'Durante la ventana, las alertas de los hosts del alcance se muestran como "En mantenimiento" y no se notifican.'],
+  ['Desde / Hasta', 'Máximo 31 días; sobre todos los hosts, máximo 24 horas.'],
+]
 
 export function MaintenanceFormDialog(props: MaintenanceFormDialogProps) {
   return (
@@ -51,12 +57,10 @@ function MaintenanceForm({ window: win, onClose, onSaved }: MaintenanceFormDialo
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate>
-      <DialogHeader>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3" noValidate>
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>{win ? 'Editar ventana' : 'Nueva ventana de mantenimiento'}</DialogTitle>
-        <DialogDescription>
-          Durante la ventana las alertas de los hosts del alcance se muestran como "En mantenimiento" y no se notifican.
-        </DialogDescription>
+        <FormHelp title="Mantenimiento" items={MAINTENANCE_HELP} />
       </DialogHeader>
       <FormField
         id="maint-name"
@@ -71,7 +75,6 @@ function MaintenanceForm({ window: win, onClose, onSaved }: MaintenanceFormDialo
       <div className="grid gap-3 sm:grid-cols-2">
         <DateTimeField id="maint-start" label="Inicio" value={draft.startsAt} onChange={(v) => set('startsAt', v)} error={errors.startsAt} />
         <DateTimeField id="maint-end" label="Fin" value={draft.endsAt} onChange={(v) => set('endsAt', v)} error={errors.endsAt} />
-        <p className="text-xs text-text-muted sm:col-span-2">Máximo 31 días; sobre todos los hosts, máximo 24 horas.</p>
       </div>
       <ScopeFields id="maint" types={MAINTENANCE_SCOPE_TYPES} value={draft.scope} onChange={(s) => set('scope', s)} error={errors.scope} />
       {error && <InlineError>{error}</InlineError>}

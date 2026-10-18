@@ -2,7 +2,6 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { FormField } from '@/components/ui/form-field'
 import { InlineError } from '@/components/ui/inline-error'
-import { MIN_PASSWORD_LENGTH } from '../constants'
 import { useChangePassword } from '../hooks/useChangePassword'
 
 interface ChangePasswordFormProps {
@@ -23,7 +22,7 @@ export function ChangePasswordForm({ onSuccess, actions }: ChangePasswordFormPro
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
       <FormField
         id="current-password"
         label="Contraseña actual"
@@ -41,7 +40,6 @@ export function ChangePasswordForm({ onSuccess, actions }: ChangePasswordFormPro
         value={next}
         onChange={(e) => setNext(e.target.value)}
         autoComplete="new-password"
-        hint={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres. Puedes usar una frase.`}
         error={errors.next}
       />
       <FormField

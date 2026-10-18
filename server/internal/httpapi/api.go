@@ -29,8 +29,6 @@ type Store interface {
 	// Hosts y agentes.
 	CreateEnrollToken(ctx context.Context, p store.CreateEnrollTokenParams) error
 	HostConflictByHostname(ctx context.Context, hostname string) (id, status string, found bool, err error)
-	ListPendingEnrollTokens(ctx context.Context) ([]store.PendingEnrollToken, error)
-	RevokeEnrollToken(ctx context.Context, id string) (hostname *string, err error)
 	EnrollHost(ctx context.Context, enrollTokenHash, osName, arch, agentTokenHash, agentHostname string) (hostID string, reenroll bool, err error)
 	HostIDByTokenHash(ctx context.Context, tokenHash string) (hostID string, err error)
 	IngestMetrics(ctx context.Context, hostID string, s store.Sample) (store.IngestResult, error)
@@ -95,7 +93,6 @@ type Store interface {
 	CreateAlertRule(ctx context.Context, r store.AlertRule, createdBy string) (store.AlertRule, error)
 	UpdateAlertRule(ctx context.Context, id string, mutate func(*store.AlertRule) error) (store.AlertRule, error)
 	DeleteAlertRule(ctx context.Context, id string) (name string, err error)
-	MuteRule(ctx context.Context, id string, until *time.Time) error
 	AvailabilityReport(ctx context.Context, scope store.Scope, groupID *string, from, to time.Time) ([]store.HostAvailability, error)
 	GroupName(ctx context.Context, groupID string) (string, error)
 	ExportGroupHosts(ctx context.Context, groupID string) ([]store.GroupExportHost, error)
@@ -118,6 +115,7 @@ type Store interface {
 
 	// Chequeos de servicio (definiciones, estado por host y eventos).
 	ListServiceChecks(ctx context.Context, scope store.Scope) ([]store.ServiceCheckDef, error)
+	FailingHostsByCheck(ctx context.Context, scope store.Scope) (map[string]int, error)
 	ServiceCheckByID(ctx context.Context, scope store.Scope, id string) (store.ServiceCheckDef, error)
 	CreateServiceCheck(ctx context.Context, d store.ServiceCheckDef, createdBy string) (store.ServiceCheckDef, error)
 	UpdateServiceCheck(ctx context.Context, id string, mutate func(*store.ServiceCheckDef) error) (store.ServiceCheckDef, error)
@@ -128,7 +126,6 @@ type Store interface {
 
 	// Dispositivos sin agente (kind device).
 	ListDevices(ctx context.Context, scope store.Scope, f store.HostFilter, after *store.HostCursor, limit int) (store.DevicePage, error)
-	ExportDevices(ctx context.Context, scope store.Scope, f store.HostFilter) ([]store.Device, error)
 	DeviceByID(ctx context.Context, scope store.Scope, id string) (store.Device, error)
 	CreateDevice(ctx context.Context, name string, addr netip.Addr, collectorID string, groupID *string) (store.Device, error)
 	UpdateDevice(ctx context.Context, id string, ch store.DeviceChange) (store.Device, error)
@@ -173,7 +170,6 @@ type Store interface {
 	HostUpdatesHistory(ctx context.Context, scope store.Scope, hostID string, limit int) ([]store.UpdatesPoint, error)
 	HostOSEOL(ctx context.Context, scope store.Scope, hostID string) (store.OSEOL, bool, error)
 	ListUpdatesFleet(ctx context.Context, scope store.Scope, f store.UpdatesFleetFilter) (store.UpdatesFleetPage, error)
-	ExportUpdatesFleet(ctx context.Context, scope store.Scope, f store.UpdatesFleetFilter) ([]store.UpdatesFleetRow, error)
 	// Inventario del host (lectura, con ambito).
 	InventoryOverview(ctx context.Context, scope store.Scope, hostID string) ([]store.InventoryMeta, error)
 	InventoryItems(ctx context.Context, scope store.Scope, hostID, module string) ([]json.RawMessage, error)
@@ -363,8 +359,6 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/hosts/{id}/metrics", accessSession, a.hostMetrics)
 	a.route(mux, "GET /api/v1/hosts/{id}/history", accessSession, a.hostHistory)
 	a.route(mux, "POST /api/v1/hosts/enroll-token", accessAdmin, a.createEnrollToken)
-	a.route(mux, "GET /api/v1/hosts/enroll-tokens", accessAdmin, a.listEnrollTokens)
-	a.route(mux, "DELETE /api/v1/hosts/enroll-tokens/{id}", accessAdmin, a.revokeEnrollToken)
 	a.route(mux, "POST /api/v1/hosts/bulk", accessAdmin, a.bulkHosts)
 	a.route(mux, "POST /api/v1/hosts/{id}/revoke", accessAdmin, a.revokeHost)
 	a.route(mux, "POST /api/v1/hosts/{id}/re-enroll", accessAdmin, a.reEnrollHost)
@@ -375,18 +369,15 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "GET /api/v1/settings/retention", accessAdmin, a.getRetention)
 	a.route(mux, "PUT /api/v1/settings/retention", accessAdmin, a.putRetention)
 	a.route(mux, "GET /api/v1/hosts/{id}/events", accessSession, a.hostEvents)
-	a.route(mux, "GET /api/v1/hosts/{id}/inventory", accessSession, a.requireInventory(a.inventoryOverview))
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/ports", accessSession, a.requireInventory(a.inventoryModule(store.InventoryPorts)))
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/services", accessSession, a.requireInventory(a.inventoryModule(store.InventoryServices)))
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/processes", accessSession, a.requireInventory(a.inventoryModule(store.InventoryProcesses)))
 	a.route(mux, "GET /api/v1/hosts/{id}/inventory/changes", accessSession, a.requireInventory(a.inventoryChanges))
 	a.route(mux, "GET /api/v1/hosts/{id}/updates", accessSession, a.requireUpdates(a.hostUpdates))
 	a.route(mux, "GET /api/v1/updates", accessSession, a.requireUpdates(a.updatesFleet))
-	a.route(mux, "GET /api/v1/updates.csv", accessSession, a.requireUpdates(a.exportUpdatesCSV))
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks", accessSession, a.hostServiceChecks)
 	a.route(mux, "GET /api/v1/hosts/{id}/service-checks/{check_id}/events", accessSession, a.hostCheckEvents)
 	a.route(mux, "GET /api/v1/devices", accessSession, a.listDevices)
-	a.route(mux, "GET /api/v1/devices.csv", accessSession, a.exportDevicesCSV)
 	a.route(mux, "GET /api/v1/devices/{id}", accessSession, a.getDevice)
 	a.route(mux, "POST /api/v1/devices", accessAdmin, a.createDevice)
 	a.route(mux, "PATCH /api/v1/devices/{id}", accessAdmin, a.updateDevice)
@@ -423,8 +414,6 @@ func (a *API) Routes() http.Handler {
 	a.route(mux, "POST /api/v1/alert-rules", accessAdmin, a.createAlertRule)
 	a.route(mux, "PATCH /api/v1/alert-rules/{id}", accessAdmin, a.updateAlertRule)
 	a.route(mux, "DELETE /api/v1/alert-rules/{id}", accessAdmin, a.deleteAlertRule)
-	a.route(mux, "POST /api/v1/alert-rules/{id}/mute", accessAdmin, a.muteAlertRule)
-	a.route(mux, "POST /api/v1/alert-rules/{id}/unmute", accessAdmin, a.unmuteAlertRule)
 	a.route(mux, "PUT /api/v1/alert-rules/{id}/channels", accessAdmin, a.setRuleChannels)
 	a.route(mux, "PUT /api/v1/alert-rules/{id}/escalation-channels", accessAdmin, a.setRuleEscalationChannels)
 	a.route(mux, "GET /api/v1/channels", accessSession, a.requireFullScope(a.listChannels))

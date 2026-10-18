@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { ViewAction } from '@/components/data-table/RowActions'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { UsageBar } from '@/components/ui/usage-bar'
 import type { Summary, TopHost } from '../types/summary.types'
@@ -39,16 +39,12 @@ export function TopUsagePanel({ summary }: { summary: Summary }) {
         <ul className="flex flex-col overflow-hidden rounded-md border border-border bg-surface">
           {rows.map((h) => (
             <li key={h.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border px-3 py-2 last:border-b-0">
-              <Link
-                to={`/hosts/${h.id}`}
-                className="w-40 min-w-0 truncate rounded-md text-sm font-semibold outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {h.hostname}
-              </Link>
+              <span className="w-40 min-w-0 truncate text-sm font-semibold">{h.hostname}</span>
               {h.mount && <span className="text-sm text-text-muted">{h.mount}</span>}
               <div className="min-w-48 flex-1">
                 <UsageBar value={h.value} label={`Uso de ${NAMES[metric]} de ${h.hostname}`} />
               </div>
+              <ViewAction to={`/hosts/${h.id}`} label={h.hostname} />
             </li>
           ))}
         </ul>

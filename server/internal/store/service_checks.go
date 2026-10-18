@@ -136,6 +136,32 @@ func (s *Store) ListServiceChecks(ctx context.Context, scope Scope) ([]ServiceCh
 	return out, nil
 }
 
+// FailingHostsByCheck cuenta, por id de chequeo, los hosts del ambito cuyo estado actual es down o warn.
+// Los chequeos sin hosts fallando no aparecen en el mapa.
+func (s *Store) FailingHostsByCheck(ctx context.Context, scope Scope) (map[string]int, error) {
+	var args argList
+	rows, err := s.pool.Query(ctx,
+		`SELECT st.check_id::text, count(*)::int FROM service_check_state st
+		  WHERE st.status IN ('down', 'warn') AND `+scope.hostCond("st.host_id", &args)+` GROUP BY st.check_id`, []any(args)...)
+	if err != nil {
+		return nil, fmt.Errorf("contando hosts con chequeos fallando: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, fmt.Errorf("leyendo hosts con chequeos fallando: %w", err)
+		}
+		out[id] = n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterando hosts con chequeos fallando: %w", err)
+	}
+	return out, nil
+}
+
 // ServiceCheckByID devuelve un chequeo. ErrNotFound si no existe o queda fuera del ambito.
 func (s *Store) ServiceCheckByID(ctx context.Context, scope Scope, id string) (ServiceCheckDef, error) {
 	d, err := checkDefByID(ctx, s.pool, id, "")

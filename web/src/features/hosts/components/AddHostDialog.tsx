@@ -1,13 +1,21 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { CheckField } from '@/components/ui/check-field'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
+import { FormHelp, type HelpItem } from '@/components/ui/form-help'
 import { GroupSelect } from '@/features/groups/components/GroupSelect'
 import { useGroups } from '@/features/groups/hooks/useGroups'
 import { EnrollTokenStep } from './EnrollTokenStep'
 import { useEnrollHost } from '../hooks/useEnrollHost'
 import { MAX_BULK_ENROLL_USES, MIN_BULK_ENROLL_USES, parseBulkUses } from '../utils/enroll'
+
+const ADD_HOST_HELP: readonly HelpItem[] = [
+  ['Hostname', 'Nombre con el que aparecerá el host. El token generado sirve una sola vez y vence a los 15 minutos.'],
+  ['Alta masiva', 'Un solo token para varios equipos: cada uno se registra con su propio hostname hasta agotar los usos.'],
+  ['Grupo', 'Grupo al que entra el host. Obligatorio en alta masiva.'],
+  ['Cuántos equipos', `Usos del token en alta masiva: entre ${MIN_BULK_ENROLL_USES} y ${MAX_BULK_ENROLL_USES}.`],
+]
 
 interface AddHostDialogProps {
   open: boolean
@@ -49,15 +57,14 @@ function AddHostBody({ onClose }: { onClose: () => void }) {
   if (token) return <EnrollTokenStep token={token} title="Instala el agente" onClose={onClose} onAnother={reset} />
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
-      <DialogHeader>
+    <form onSubmit={handleSubmit} className="grid gap-3">
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>Agregar host</DialogTitle>
-        <DialogDescription>Genera un token para enrolar el agente en este host.</DialogDescription>
+        <FormHelp title="Agregar host" items={ADD_HOST_HELP} />
       </DialogHeader>
       <CheckField
         id="enroll-bulk"
-        label="Alta masiva: un token para varios equipos"
-        hint="Cada equipo usa su propio hostname al enrolar; el token sirve hasta agotar los usos."
+        label="Alta masiva"
         checked={bulk}
         onChange={setBulk}
       />
@@ -73,9 +80,9 @@ function AddHostBody({ onClose }: { onClose: () => void }) {
           error={error}
         />
       )}
-      <div className="grid gap-1.5">
+      <div className="grid gap-1">
         <label htmlFor="enroll-group" className="text-sm font-medium text-text">
-          Grupo{bulk && ' (obligatorio en alta masiva)'}
+          Grupo
         </label>
         <GroupSelect id="enroll-group" value={groupId} onChange={setGroupId} groups={groups?.items ?? []} />
       </div>
@@ -87,7 +94,6 @@ function AddHostBody({ onClose }: { onClose: () => void }) {
           className="w-28"
           value={bulkUsesRaw}
           onChange={(e) => setBulkUsesRaw(e.target.value)}
-          hint={`Entre ${MIN_BULK_ENROLL_USES} y ${MAX_BULK_ENROLL_USES}.`}
           error={bulkError ?? error}
         />
       )}

@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -90,10 +89,9 @@ function EditForm({ host, onClose, onSaved }: { host: NonNullable<EditHostDialog
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
+    <form onSubmit={handleSubmit} className="grid gap-3">
       <DialogHeader>
         <DialogTitle>Editar {host.hostname}</DialogTitle>
-        <DialogDescription>Cambia el nombre o el grupo del host.</DialogDescription>
       </DialogHeader>
       <FormField
         id="edit-name"
@@ -116,7 +114,6 @@ function EditForm({ host, onClose, onSaved }: { host: NonNullable<EditHostDialog
           value={retRaw}
           inherit={retInherit}
           error={retError}
-          inheritsFrom="la del grupo o, si no tiene, la global"
           onValue={setRetRaw}
           onInherit={setRetInherit}
         />

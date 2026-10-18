@@ -3,12 +3,13 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
+import { FormHelp } from '@/components/ui/form-help'
+import { USER_HELP } from '../utils/help'
 import { InlineError } from '@/components/ui/inline-error'
 import { MIN_PASSWORD_LENGTH } from '@/features/auth/constants'
 import type { Role } from '@/features/auth/types/auth.types'
@@ -65,12 +66,10 @@ function CreateUserForm({ onClose, onSaved }: Omit<CreateUserDialogProps, 'open'
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4">
-      <DialogHeader>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>Nuevo usuario</DialogTitle>
-        <DialogDescription>
-          La contraseña es temporal: el usuario deberá cambiarla al entrar por primera vez.
-        </DialogDescription>
+        <FormHelp title="Nuevo usuario" items={USER_HELP} />
       </DialogHeader>
       <FormField
         id="user-name"
@@ -80,7 +79,6 @@ function CreateUserForm({ onClose, onSaved }: Omit<CreateUserDialogProps, 'open'
         maxLength={64}
         autoComplete="off"
         autoFocus
-        hint="Letras, números y . _ @ + -"
         error={userError}
       />
       <PasswordField id="user-password" label="Contraseña inicial" value={password} onChange={setPassword} error={passError} />

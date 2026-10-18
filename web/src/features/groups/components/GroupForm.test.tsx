@@ -117,7 +117,7 @@ describe('GroupForm al crear', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Heredar/ }))
     fireEvent.change(screen.getByLabelText('Retención de detalle (días)'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
-    expect(await screen.findByText(/entre 8 y 730/i)).toBeTruthy()
+    expect(await screen.findByText(/de 8 a 730/i)).toBeTruthy()
     expect(calls).toHaveLength(0)
   })
 })

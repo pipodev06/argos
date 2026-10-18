@@ -1,4 +1,4 @@
-import { BellIcon, ShieldIcon, BookOpenIcon, ShieldCheckIcon, FoldersIcon, ActivityIcon, HistoryIcon, LayoutDashboardIcon, ListChecksIcon, SettingsIcon, FileChartColumnIcon, RouterIcon, ServerIcon, WrenchIcon, UsersIcon, WebhookIcon, type LucideIcon as Icon } from 'lucide-react'
+import { BellIcon, ShieldIcon, ShieldCheckIcon, FoldersIcon, ActivityIcon, HistoryIcon, LayoutDashboardIcon, ListChecksIcon, SettingsIcon, FileChartColumnIcon, RouterIcon, ServerIcon, WrenchIcon, UsersIcon, WebhookIcon, type LucideIcon as Icon } from 'lucide-react'
 import type { Role, User } from '@/features/auth/types/auth.types'
 
 export interface NavItem {
@@ -37,7 +37,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/usuarios', label: 'Usuarios', Icon: UsersIcon, section: 'Administración', roles: ['admin'] },
   { to: '/configuracion', label: 'Configuración', Icon: SettingsIcon, section: 'Administración', roles: ['admin'] },
   { to: '/auditoria', label: 'Auditoría', Icon: HistoryIcon, section: 'Administración', roles: ['admin'] },
-  { to: '/instrucciones', label: 'Instrucciones', Icon: BookOpenIcon, section: 'Administración', roles: ['admin'] },
 ]
 
 /** Agrupa por `section` conservando el orden de aparicion. */

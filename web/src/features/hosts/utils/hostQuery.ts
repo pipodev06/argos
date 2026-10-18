@@ -19,11 +19,6 @@ export function defaultDir(sort: SortKey): 'asc' | 'desc' {
   return DESC_BY_DEFAULT.includes(sort) ? 'desc' : 'asc'
 }
 
-/** Ordenar por una metrica volatil reordena filas a cada muestra: se congela el refresco automatico. */
-export function isVolatileSort(sort: SortKey): boolean {
-  return sort === 'cpu' || sort === 'mem' || sort === 'disk'
-}
-
 const SEEN_UNITS: readonly NumericUnit[] = [
   { id: 'min', label: 'Minutos', one: 'minuto', many: 'minutos', factor: 60 },
   { id: 'h', label: 'Horas', one: 'hora', many: 'horas', factor: 3600 },
@@ -53,16 +48,15 @@ export const HOST_FIELDS = [
     plural: 'sistemas',
     options: OS_VALUES.map((o) => ({ id: o, name: OS_LABELS[o] })),
   },
-  { kind: 'boolean', key: 'agent_outdated', label: 'Agente desactualizado', extra: true },
-  { kind: 'numeric', key: 'cpu_gt', label: 'CPU', extra: true, op: '>', max: 100, suffix: '%' },
-  { kind: 'numeric', key: 'mem_gt', label: 'Memoria', extra: true, op: '>', max: 100, suffix: '%' },
-  { kind: 'numeric', key: 'disk_gt', label: 'Disco', extra: true, op: '>', max: 100, suffix: '%' },
-  { kind: 'numeric', key: 'battery_lt', label: 'Batería', extra: true, op: '<', max: 100, suffix: '%' },
+  { kind: 'boolean', key: 'agent_outdated', label: 'Agente desactualizado' },
+  { kind: 'numeric', key: 'cpu_gt', label: 'CPU', op: '>', max: 100, suffix: '%' },
+  { kind: 'numeric', key: 'mem_gt', label: 'Memoria', op: '>', max: 100, suffix: '%' },
+  { kind: 'numeric', key: 'disk_gt', label: 'Disco', op: '>', max: 100, suffix: '%' },
+  { kind: 'numeric', key: 'battery_lt', label: 'Batería', op: '<', max: 100, suffix: '%' },
   {
     kind: 'numeric',
     key: 'seen_before',
     label: 'Visto hace',
-    extra: true,
     op: '>',
     integer: true,
     units: SEEN_UNITS,

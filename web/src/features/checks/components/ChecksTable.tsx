@@ -1,5 +1,6 @@
-import { KeyRoundIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
+import { PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsHeadCell } from '@/components/data-table/RowActions'
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
 import { formatSeconds } from '@/features/alerts/utils/format'
@@ -33,8 +34,7 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
           <HeadCell>Alcance</HeadCell>
           <HeadCell>Origen</HeadCell>
           <HeadCell>Activo</HeadCell>
-          <HeadCell>Secreto</HeadCell>
-          {canAct && <HeadCell>Acciones</HeadCell>}
+          {canAct && <ActionsHeadCell />}
         </HeadRow>
       </TableHeader>
       <TableBody>
@@ -53,16 +53,6 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
             </Cell>
             <Cell>
               <RuleEnabledBadge enabled={c.enabled} />
-            </Cell>
-            <Cell>
-              {c.has_secret ? (
-                <span className="inline-flex items-center gap-1 text-sm">
-                  <KeyRoundIcon className="size-4 shrink-0 text-text-muted" strokeWidth={1.5} aria-hidden />
-                  Sí
-                </span>
-              ) : (
-                <span className="text-text-muted">—</span>
-              )}
             </Cell>
             {canAct && (
               <Cell>

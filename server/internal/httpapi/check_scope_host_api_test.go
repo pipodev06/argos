@@ -69,3 +69,41 @@ func TestServiceCheckHostScopeAPI(t *testing.T) {
 		t.Errorf("scope all no debe llevar host_id: %.300s", rec.Body.String())
 	}
 }
+
+func TestServiceCheckListFailingHosts(t *testing.T) {
+	x := newScopeEnv(t)
+	rec := x.do("POST", "/api/v1/service-checks", `{"name":"web","type":"tcp","target_host":"localhost","target_port":22}`, withCookie(x.admin))
+	x.wantStatus(rec, http.StatusCreated, "")
+	var created struct {
+		Check struct {
+			ID string `json:"id"`
+		} `json:"check"`
+	}
+	x.dataAs(rec, &created)
+	id := created.Check.ID
+	for host, status := range map[string]string{x.hostA: "down", x.hostB: "warn", x.hostNo: "up"} {
+		mustExec(x.t, `INSERT INTO service_check_state (host_id, check_id, status, status_changed_at, ts, last_sample_at)
+			VALUES ($1, $2, $3, now(), now(), now())`, host, id, status)
+	}
+	failing := func(c *http.Cookie) int {
+		rec := x.do("GET", "/api/v1/service-checks", "", withCookie(c))
+		x.wantStatus(rec, http.StatusOK, "")
+		var page struct {
+			Items []struct {
+				ID           string `json:"id"`
+				FailingHosts int    `json:"failing_hosts"`
+			} `json:"items"`
+		}
+		x.dataAs(rec, &page)
+		if len(page.Items) != 1 || page.Items[0].ID != id {
+			t.Fatalf("items got %+v, want solo el chequeo", page.Items)
+		}
+		return page.Items[0].FailingHosts
+	}
+	if got := failing(x.admin); got != 2 {
+		t.Errorf("admin failing_hosts got %d, want 2 (down + warn; up no cuenta)", got)
+	}
+	if got := failing(x.va); got != 1 {
+		t.Errorf("viewer del grupo A failing_hosts got %d, want 1 (solo su ambito)", got)
+	}
+}

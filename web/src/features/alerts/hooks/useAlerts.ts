@@ -4,7 +4,7 @@ import { getAlert, getAlertSummary, listAlerts, listHostEvents, listHostEventsPa
 import { buildAlertQuery, type AlertFilters } from '../utils/alertQuery'
 
 const REFRESH_MS = 30_000
-const listOptions = { intervalMs: REFRESH_MS }
+const listOptions = { intervalMs: REFRESH_MS, stopOn: isClientError }
 const detailOptions = { intervalMs: REFRESH_MS, stopOn: isClientError }
 
 export function useAlertList(filters: AlertFilters, cursor: string | null) {

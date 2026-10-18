@@ -114,7 +114,6 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /":                                  {"public", fixed("/", "/hosts")},
 		"GET /api/v1/auth/me":                    {"own", fixed(api + "/auth/me")},
 		"GET /api/v1/users":                      {"admin", fixed(api + "/users")},
-		"GET /api/v1/hosts/enroll-tokens":        {"admin", fixed(api + "/hosts/enroll-tokens")},
 		"GET /api/v1/groups/{id}/export.zip":     {"admin", fixed(api + "/groups/" + x.groupA + "/export.zip")},
 		"GET /api/v1/audit":                      {"admin", fixed(api + "/audit")},
 		"GET /api/v1/audit/events":               {"admin", fixed(api + "/audit/events")},
@@ -129,7 +128,6 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/purge-jobs/{id}":            {"admin", fixed(api + "/purge-jobs/" + missingID)},
 		"GET /api/v1/snmp-profiles/{id}":         {"admin", fixed(api + "/snmp-profiles/" + missingID)},
 		"GET /api/v1/devices":                    {"scope", fixed(api + "/devices")},
-		"GET /api/v1/devices.csv":                {"scope", fixed(api + "/devices.csv")},
 		"GET /api/v1/devices/{id}":               {"scope", fixed(api+"/devices/"+devB, api+"/devices/"+x.hostB)},
 		"GET /api/v1/summary":                    {"scope", fixed(api + "/summary")},
 		"GET /api/v1/reports/availability":       {"scope", fixed(api+"/reports/availability", api+"/reports/availability?by=group&range=7d")},
@@ -163,14 +161,12 @@ func TestEnumerationGETRoutesRestrictedViewerLeaksNothing(t *testing.T) {
 		"GET /api/v1/hosts/{id}/events": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/events", api + "/hosts/" + x.hostNo + "/events"}
 		}},
-		"GET /api/v1/hosts/{id}/inventory":           invPaths("/inventory"),
 		"GET /api/v1/hosts/{id}/inventory/ports":     invPaths("/inventory/ports"),
 		"GET /api/v1/hosts/{id}/inventory/services":  invPaths("/inventory/services"),
 		"GET /api/v1/hosts/{id}/inventory/processes": invPaths("/inventory/processes"),
 		"GET /api/v1/hosts/{id}/inventory/changes":   invPaths("/inventory/changes"),
 		"GET /api/v1/hosts/{id}/updates":             updPaths("/updates"),
 		"GET /api/v1/updates":                        {"updates_fleet", fixed(api + "/updates")},
-		"GET /api/v1/updates.csv":                    {"updates_fleet", fixed(api + "/updates.csv")},
 		"GET /api/v1/hosts/{id}/service-checks": {"scope", func(x *alertScopeEnv, _ string) []string {
 			return []string{api + "/hosts/" + x.hostB + "/service-checks", api + "/hosts/" + x.hostNo + "/service-checks"}
 		}},

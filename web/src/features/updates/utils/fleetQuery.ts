@@ -19,9 +19,9 @@ export const FLEET_FIELDS = [
   { kind: 'search', key: 'q', label: 'Buscar', ariaLabel: 'Buscar hosts', placeholder: 'Buscar' },
   { kind: 'multi', key: 'group', label: 'Grupo', plural: 'grupos', useOptions: useGroupOptions, contentClassName: 'w-64' },
   { kind: 'multi', key: 'os', label: 'SO', plural: 'sistemas', options: OS_VALUES.map((o) => ({ id: o, name: OS_LABELS[o] })) },
-  { kind: 'boolean', key: 'security', label: 'Con seguridad pendiente', extra: true },
-  { kind: 'boolean', key: 'reboot', label: 'Reinicio pendiente', extra: true },
-  { kind: 'numeric', key: 'eol_days', label: 'Días al fin de vida', extra: true, op: '≤', max: 3650, integer: true, suffix: 'd' },
+  { kind: 'boolean', key: 'security', label: 'Con seguridad pendiente' },
+  { kind: 'boolean', key: 'reboot', label: 'Reinicio pendiente' },
+  { kind: 'numeric', key: 'eol_days', label: 'Días al fin de vida', op: '≤', max: 3650, integer: true, suffix: 'd' },
   { kind: 'choice', key: 'sort', label: 'Orden', values: SORT_KEYS, default: DEFAULT_SORT },
   { kind: 'choice', key: 'dir', label: 'Dirección', values: ['asc', 'desc'], default: (v) => defaultDir(v.sort as SortKey) },
   { kind: 'choice', key: 'limit', label: 'Tamaño de página', values: PAGE_SIZES, default: DEFAULT_PAGE_SIZE },
@@ -39,7 +39,3 @@ export function buildFleetQuery(f: FleetFilters, cursor: string | null): URLSear
   return p
 }
 
-/** Query de GET /updates.csv: mismos filtros que la lista, sin paginacion/orden. */
-export function buildFleetCsvQuery(f: FleetFilters): URLSearchParams {
-  return serializeFilters(FLEET_FIELDS, f)
-}

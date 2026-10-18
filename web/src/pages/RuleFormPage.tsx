@@ -4,6 +4,7 @@ import { FormPage } from '@/components/ui/form-page'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RuleForm } from '@/features/alerts/components/RuleForm'
 import { useAlertRules } from '@/features/alerts/hooks/useAlerts'
+import { RULE_HELP } from '@/features/alerts/utils/ruleForm'
 
 const BACK = { to: '/alertas/reglas', label: 'Reglas' }
 
@@ -18,7 +19,7 @@ export function RuleFormPage() {
 
   if (!sourceId) {
     return (
-      <FormPage title="Nueva regla" back={BACK}>
+      <FormPage title="Nueva regla" back={BACK} help={RULE_HELP}>
         <RuleForm rule={null} onCancel={done} onSaved={done} />
       </FormPage>
     )
@@ -26,7 +27,7 @@ export function RuleFormPage() {
   const rule = rules?.find((r) => r.id === sourceId)
   const title = id ? 'Editar regla' : 'Duplicar regla'
   return (
-    <FormPage title={title} back={BACK}>
+    <FormPage title={title} back={BACK} help={RULE_HELP}>
       {error ? (
         <TableError message={error} onRetry={() => void refresh()} />
       ) : !rules ? (

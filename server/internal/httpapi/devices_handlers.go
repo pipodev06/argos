@@ -96,7 +96,7 @@ func checkUUIDField(field, raw string) (string, error) {
 
 // deviceFilterKey resume los filtros de la lista: un cursor solo vale para la consulta que lo emitio.
 func deviceFilterKey(f store.HostFilter) string {
-	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup})
+	b, err := json.Marshal([]any{f.Q, f.Statuses, f.GroupIDs, f.NoGroup, f.CollectorIDs})
 	if err != nil {
 		return "" // solo strings, bools y listas: no deberia ocurrir
 	}
@@ -115,6 +115,9 @@ func (a *API) listDevices(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if err := parseGroupFilter(r.URL.Query()["group"], &f); err != nil {
+		return err
+	}
+	if f.CollectorIDs, err = parseUUIDList(r.URL.Query(), "collector"); err != nil {
 		return err
 	}
 	fp := "devices|" + u.Scope.Key() + "|" + deviceFilterKey(f)

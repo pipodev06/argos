@@ -53,7 +53,7 @@
 - [vigente] B12: informes por rango libre y mes calendario -> [b12-informes-rango-libre](decisiones/2026-09-27-b12-informes-rango-libre.md)
 - [vigente] B7: planes y cuotas por cliente (cliente = grupo) -> [b7-cuotas-por-cliente](decisiones/2026-09-27-b7-cuotas-por-cliente.md)
 - [vigente] B16/B17: alta masiva de hosts, exportar cliente antes de purgar -> [b16-b17-alta-masiva-exportar](decisiones/2026-09-27-b16-b17-alta-masiva-exportar.md)
-- [vigente] B19-B30 bajo: plantillas de reglas, export CSV de hosts/dispositivos/parches, silenciar una regla puntual -> [b19-b30-bajo-plantillas-export-silenciar](decisiones/2026-09-27-b19-b30-bajo-plantillas-export-silenciar.md)
+- [vigente] B19-B30 bajo: plantillas de reglas, export CSV de hosts/dispositivos/parches, silenciar una regla puntual -> [b19-b30-bajo-plantillas-export-silenciar](decisiones/2026-09-27-b19-b30-bajo-plantillas-export-silenciar.md) (2026-10-17: silenciar regla y CSV de dispositivos/parches eliminados, ver archivo.md; migración 00046)
 - [vigente] B19-B30 medio: `GET /metrics` con token, flapping de alertas, constancia de baja; escalamiento pendiente de decisión -> [b19-b30-medio-metrics-flapping-constancia](decisiones/2026-09-27-b19-b30-medio-metrics-flapping-constancia.md)
 - [vigente] Escalamiento de alertas (a+b), fix del borrado de dispositivos (500 por FK) y borrado de hosts por tandas de un día -> [escalamiento-y-borrado-por-tandas](decisiones/2026-09-27-escalamiento-y-borrado-por-tandas.md)
 - [vigente] O4: soak de 30 min repetida (sin fuga, cola de latencia no empeoro) -> [o4-soak-repetida](decisiones/2026-09-27-o4-soak-repetida.md)

@@ -66,11 +66,11 @@ func (a *API) parseReportParams(r *http.Request) (reportParams, error) {
 			return p, err
 		}
 		now := a.now().UTC()
+		if to.After(now) { // "hasta" en el futuro = hasta ahora (no hay datos futuros que pedir)
+			to = now.Truncate(time.Second)
+		}
 		if !from.Before(to) {
 			return p, invalidRange("from debe ser anterior a to")
-		}
-		if to.After(now.Add(time.Minute)) { // margen chico de reloj
-			return p, invalidRange("to no puede ser futuro")
 		}
 		if to.Sub(from) > maxReportRangeDays*24*time.Hour {
 			return p, invalidRange(fmt.Sprintf("el rango no puede pasar de %d dias", maxReportRangeDays))

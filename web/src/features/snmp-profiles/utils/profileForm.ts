@@ -9,7 +9,7 @@ export const MAX_COMMUNITY = 64
 const USER_RE = /^[A-Za-z0-9._@:-]+$/
 
 export const VERSION_OPTIONS = [
-  { value: '3', label: 'SNMPv3 (recomendado)' },
+  { value: '3', label: 'SNMPv3' },
   { value: '2', label: 'SNMPv2c (menos seguro)' },
 ] as const
 export const AUTH_OPTIONS = [

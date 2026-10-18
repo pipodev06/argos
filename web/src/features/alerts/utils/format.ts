@@ -120,19 +120,6 @@ export function describeCondition(
   return `${label} ${r.op === 'lt' ? '<' : '>'} ${formatMetricValue(r.kind, r.metric, r.threshold)}${during}`
 }
 
-/** Periodos de silencio ofrecidos (minutos): 15 min / 1 h / 4 h / 24 h (mismos que valida el servidor). */
-export const MUTE_OPTIONS: readonly { minutes: number; label: string }[] = [
-  { minutes: 15, label: '15 min' },
-  { minutes: 60, label: '1 h' },
-  { minutes: 240, label: '4 h' },
-  { minutes: 1440, label: '24 h' },
-]
-
-/** Una regla esta silenciada si `muted_until` es una fecha futura. */
-export function isMuted(rule: Pick<AlertRule, 'muted_until'>, now: number = Date.now()): boolean {
-  return rule.muted_until !== null && new Date(rule.muted_until).getTime() > now
-}
-
 export function scopeLabel(s: Scope): string {
   if (s.type === 'group') return `Grupo: ${s.group_name ?? 'eliminado'}`
   if (s.type === 'device') return `Dispositivo: ${s.device_name ?? 'eliminado'}`

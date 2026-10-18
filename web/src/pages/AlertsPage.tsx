@@ -39,7 +39,7 @@ export function AlertsPage() {
   return (
     <>
       <PageHeader title="Alertas" />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         <FilterBar
           fields={ALERT_FIELDS}
           values={filters}

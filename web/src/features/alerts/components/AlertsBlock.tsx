@@ -1,7 +1,6 @@
 import { OctagonAlertIcon, TriangleAlertIcon, InfoIcon } from 'lucide-react'
-import { Link } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusTile, TILE_LINK } from '@/components/ui/status-tile'
+import { StatusTile } from '@/components/ui/status-tile'
 import { useAlertSummary } from '../hooks/useAlerts'
 import type { AlertSeverity } from '../types/alert.types'
 import { openBySeverity, openCount } from '../utils/summary'
@@ -24,18 +23,18 @@ export function AlertsBlock() {
       <h2 id="summary-alerts" className="text-sm font-semibold">
         Alertas abiertas{data ? ` · ${openCount(data).toLocaleString('es-PE')}` : ''}
       </h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-1">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
         {TILES.map((t) =>
           data ? (
-            <Link key={t.severity} to={`/alertas?state=open&severity=${t.severity}`} className={TILE_LINK}>
-              <StatusTile
+            <StatusTile
+                key={t.severity}
+                to={`/alertas?state=open&severity=${t.severity}`}
                 label={t.label}
                 value={openBySeverity(data, t.severity)}
                 Icon={t.Icon}
                 iconClassName={t.icon}
                 alert={t.severity === 'critical' && openBySeverity(data, t.severity) > 0}
               />
-            </Link>
           ) : (
             <Skeleton key={t.severity} className="h-24" />
           ),

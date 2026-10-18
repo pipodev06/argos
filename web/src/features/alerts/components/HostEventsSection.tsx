@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Link } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { useHostEvents } from '../hooks/useAlerts'
 import { HostEventsList } from './HostEventsList'
 
@@ -18,9 +19,9 @@ function EventsContent({ hostId }: { hostId: string }) {
   return (
     <div className="flex flex-col gap-2">
       <HostEventsList events={data} />
-      <Link to={`/hosts/${encodeURIComponent(hostId)}/estados`} className="w-fit text-sm text-brand underline-offset-4 hover:underline">
-        Ver historial completo
-      </Link>
+      <Button asChild variant="outline" size="sm" className="w-fit">
+        <Link to={`/hosts/${encodeURIComponent(hostId)}/estados`}>Ver historial completo</Link>
+      </Button>
     </div>
   )
 }

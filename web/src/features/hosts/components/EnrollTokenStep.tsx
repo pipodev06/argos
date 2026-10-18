@@ -3,7 +3,8 @@ import { TriangleAlertIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { CopyBlock } from '@/components/ui/copy-block'
-import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { FormHelp, type HelpItem } from '@/components/ui/form-help'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useNow } from '@/hooks/useNow'
 import { AgentOptionsForm } from './AgentOptionsForm'
@@ -11,6 +12,15 @@ import type { EnrollToken, HostnameConflict } from '../types/host.types'
 import { applyAgentOptions, DEFAULT_AGENT_OPTIONS, enrollCommands, isHttpOrigin, minutesLeft, parseNets, type AgentOptions } from '../utils/enroll'
 import { formatExpiry } from '../utils/format'
 import { HOST_STATUS_LABELS } from '../utils/status'
+
+const ENROLL_HELP: readonly HelpItem[] = [
+  ['Comando', 'Cópialo y ejecútalo en el equipo como administrador (Windows) o root (Linux/macOS): instala, enrola y arranca el agente.'],
+  ['Token', 'Se muestra solo aquí. Trátalo como una contraseña: quien lo tenga puede registrar un equipo falso.'],
+  ['Inventario y Parches', 'Activan esos módulos del agente (puertos, servicios, procesos y actualizaciones pendientes).'],
+  ['Sondear dispositivos', 'El agente hace ping/SNMP a dispositivos de las redes permitidas (CIDR).'],
+  ['Modo privilegiado', 'Ve procesos, puertos y servicios de otros usuarios. La instalación requiere root o administrador.'],
+  ['Permitir http', 'Solo en LAN sin TLS: el agente habla sin cifrado con el servidor. No lo uses por internet.'],
+]
 
 interface EnrollTokenStepProps {
   token: EnrollToken
@@ -36,19 +46,13 @@ export function EnrollTokenStep({ token, title, onClose, onAnother }: EnrollToke
   const linux = applyAgentOptions(commands.linux, 'linux', effective)
 
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
-      <DialogHeader>
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>
-          {left > 0 ? (
-            <>
-              {token.max_uses > 1 ? `Sirve para ${token.max_uses} equipos (el mismo comando en cada uno) y expira` : 'Se usa una sola vez y expira'} a
-              las <span className="tabular-nums">{formatExpiry(token.expires_at)}</span> (en {left} min).
-            </>
-          ) : (
-            'El token expiró.'
-          )}
-        </DialogDescription>
+        <FormHelp title={title} items={ENROLL_HELP} />
+        <span className="ml-auto text-xs text-text-muted tabular-nums" title={`Expira a las ${formatExpiry(token.expires_at)}`}>
+          {left > 0 ? `${token.max_uses > 1 ? `${token.max_uses} equipos · ` : ''}expira en ${left} min` : 'Token expirado'}
+        </span>
       </DialogHeader>
 
       {token.hostname_conflict && <HostnameConflictNotice conflict={token.hostname_conflict} />}
@@ -72,16 +76,9 @@ export function EnrollTokenStep({ token, title, onClose, onAnother }: EnrollToke
             <p className="text-sm font-medium">Token</p>
             <CopyBlock value={token.enroll_token} label="Token de enrolamiento" />
           </div>
-          <p className="flex items-start gap-1.5 text-sm">
-            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
-            Trátalo como una contraseña: no lo pegues en chats, tickets ni correos. Quien lo tenga puede registrar un
-            equipo falso.
-          </p>
-          <p className="text-xs text-text-muted">Cierra este diálogo y no podrás volver a verlo.</p>
         </>
       ) : (
         <div className="flex flex-col items-start gap-2">
-          <p className="text-sm text-text-muted">Genera otro token para continuar.</p>
           <Button type="button" variant="outline" size="sm" onClick={onAnother}>
             Generar otro
           </Button>
@@ -102,15 +99,14 @@ function HostnameConflictNotice({ conflict }: { conflict: HostnameConflict }) {
     <p className="flex items-start gap-1.5 text-sm">
       <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warn" strokeWidth={1.5} aria-hidden />
       <span>
-        Ya existe un host con este nombre (estado: {HOST_STATUS_LABELS[conflict.status]}). Si es el mismo equipo,
-        considera{' '}
+        Ya existe un host con este nombre ({HOST_STATUS_LABELS[conflict.status]}). Si es el mismo equipo,{' '}
         <Link
           to={`/hosts/${encodeURIComponent(conflict.host_id)}`}
           className="rounded-md text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
         >
-          reactivarlo o re-enrolarlo
-        </Link>{' '}
-        en vez de crear uno nuevo.
+          reactívalo o re-enrólalo
+        </Link>
+        .
       </span>
     </p>
   )

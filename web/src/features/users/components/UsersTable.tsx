@@ -1,5 +1,6 @@
 import { KeyRoundIcon, LockKeyholeIcon, ShieldIcon, Trash2Icon, UserCheckIcon, UserXIcon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsHeadCell } from '@/components/data-table/RowActions'
 import { Button } from '@/components/ui/button'
 import { roleLabel } from '@/features/auth/utils/format'
 import { formatFullDate } from '@/features/hosts/utils/format'
@@ -26,8 +27,7 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
           <HeadCell>Acceso</HeadCell>
           <HeadCell>Estado</HeadCell>
           <HeadCell>Último acceso</HeadCell>
-          <HeadCell>Creado</HeadCell>
-          <HeadCell>Acciones</HeadCell>
+          <ActionsHeadCell />
         </HeadRow>
       </TableHeader>
       <TableBody>
@@ -46,7 +46,6 @@ export function UsersTable({ users, currentUserId, onAction }: UsersTableProps) 
                 <UserStatusBadge disabled={u.disabled} />
               </Cell>
               <Cell className="tabular-nums">{u.last_login_at ? formatFullDate(u.last_login_at) : 'Nunca'}</Cell>
-              <Cell className="tabular-nums">{formatFullDate(u.created_at)}</Cell>
               <Cell>
                 {u.role === 'viewer' && (
                   <Button

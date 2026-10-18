@@ -75,29 +75,23 @@ export function PermissionsFields({ idPrefix, form, onChange }: PermissionsField
               </label>
             ))}
           </div>
-          <p className="text-xs text-text-muted">
-            Los hosts sin grupo solo los ve un usuario con acceso a todos los grupos.
-          </p>
         </fieldset>
       )}
       <PermCheck
         id={id('inventory')}
         label="Ver procesos y servicios"
-        hint="Dato sensible. Solo aplica a los hosts que el usuario puede ver."
         checked={form.canInventory}
         onChange={(v) => onChange({ ...form, canInventory: v })}
       />
       <PermCheck
         id={id('updates')}
         label="Ver parches del SO"
-        hint="Dato sensible: revela la exposición de cada host (parches de seguridad pendientes, fin de vida). Solo aplica a los hosts que el usuario puede ver."
         checked={form.canUpdates}
         onChange={(v) => onChange({ ...form, canUpdates: v })}
       />
       <PermCheck
         id={id('ack')}
         label="Reconocer alertas"
-        hint="Puede marcar como reconocidas las alertas de los hosts que ve. Resolver sigue siendo solo de administradores."
         checked={form.canAck}
         onChange={(v) => onChange({ ...form, canAck: v })}
       />
@@ -105,16 +99,11 @@ export function PermissionsFields({ idPrefix, form, onChange }: PermissionsField
   )
 }
 
-function PermCheck({ id, label, hint, checked, onChange }: { id: string; label: string; hint: string; checked: boolean; onChange: (v: boolean) => void }) {
+function PermCheck({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="grid gap-1">
-      <label htmlFor={id} className="flex items-center gap-2 text-sm font-medium text-text">
-        <Checkbox id={id} aria-describedby={`${id}-hint`} checked={checked} onCheckedChange={(v) => onChange(v === true)} />
-        {label}
-      </label>
-      <p id={`${id}-hint`} className="text-xs text-text-muted">
-        {hint}
-      </p>
-    </div>
+    <label htmlFor={id} className="flex items-center gap-2 text-sm font-medium text-text">
+      <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} />
+      {label}
+    </label>
   )
 }

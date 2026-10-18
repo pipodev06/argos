@@ -94,11 +94,11 @@ ON CONFLICT DO NOTHING`
 	// sus entregas `suppressed`.
 	openAlertsSQL = `
 WITH new AS (
-  INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed, detail, flapping, mute_held, flap_held)
+  INSERT INTO alerts (rule_id, host_id, rule_name, rule_kind, metric, threshold, severity, trigger_value, peak_value, suppressed, detail, flapping, flap_held)
   SELECT r.id, c.host_id, r.name, r.kind, r.metric, r.threshold,
          CASE WHEN r.kind = 'os_eol' AND c.value <= 0 THEN 'critical' ELSE r.severity END,
          c.value, c.value, c.in_maintenance, c.detail,
-         f.flap, (r.muted_until IS NOT NULL AND r.muted_until > now()) AND NOT f.flap AND NOT c.in_maintenance, f.flap
+         f.flap, f.flap
     FROM alert_pending p
     JOIN alert_candidates c ON c.rule_id = p.rule_id AND c.host_id = p.host_id AND c.breach
     JOIN alert_rules r ON r.id = p.rule_id
@@ -113,7 +113,7 @@ WITH new AS (
 ), enq AS (
   INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
   SELECT new.id, ch.id, 'opened',
-         CASE WHEN new.suppressed OR new.flapping OR (r.muted_until IS NOT NULL AND r.muted_until > now()) OR ` + pendingCapSQL + `
+         CASE WHEN new.suppressed OR new.flapping OR ` + pendingCapSQL + `
               THEN 'suppressed' ELSE 'pending' END
     FROM new
     JOIN alert_rules r ON r.id = new.rule_id
@@ -163,47 +163,28 @@ WITH rel AS (
   UPDATE alerts a SET suppressed = false
     FROM alert_candidates c
    WHERE a.suppressed AND a.state <> 'resolved' AND c.rule_id = a.rule_id AND c.host_id = a.host_id AND NOT c.in_maintenance
-  RETURNING a.id, a.state, a.mute_held, a.flap_held
+  RETURNING a.id, a.state, a.flap_held
 ), up AS (
   UPDATE notification_deliveries d SET status = 'pending', next_attempt_at = now()
     FROM rel
-   WHERE rel.state = 'open' AND NOT rel.mute_held AND NOT rel.flap_held AND d.alert_id = rel.id AND d.event = 'opened' AND d.status = 'suppressed'
+   WHERE rel.state = 'open' AND NOT rel.flap_held AND d.alert_id = rel.id AND d.event = 'opened' AND d.status = 'suppressed'
 )
 SELECT count(*) FROM rel`
 
-	// 7b. Alertas abiertas con la regla silenciada cuyo silencio ya termino: igual que el mantenimiento, el `opened`
-	// retenido pasa a pending si sigue abierta. Si ademas esta en mantenimiento (suppressed) no se libera aqui: lo
-	// hace releaseSuppressedSQL al terminar la ventana.
-	releaseMutedSQL = `
-WITH rel AS (
-  UPDATE alerts a SET mute_held = false
-    FROM alert_rules r
-   WHERE a.mute_held AND r.id = a.rule_id AND (r.muted_until IS NULL OR r.muted_until <= now())
-  RETURNING a.id, a.state, a.suppressed
-), up AS (
-  UPDATE notification_deliveries d SET status = 'pending', next_attempt_at = now()
-    FROM rel
-   WHERE rel.state = 'open' AND NOT rel.suppressed AND d.alert_id = rel.id AND d.event = 'opened' AND d.status = 'suppressed'
-)
-SELECT count(*) FROM rel`
-
-	// 7c. Alertas intermitentes (flap_held): el `opened` retenido se libera cuando dejan de oscilar, es decir, si pasada
-	// FlapWindow siguen abiertas sin resolverse (una intermitente que termina caida no puede quedar muda). Si en ese
-	// momento la regla esta silenciada la retencion pasa a mute_held (la libera 7b al terminar el silencio); si esta en
+	// 7b. Alertas intermitentes (flap_held): el `opened` retenido se libera cuando dejan de oscilar, es decir, si pasada
+	// FlapWindow siguen abiertas sin resolverse (una intermitente que termina caida no puede quedar muda). Si esta en
 	// mantenimiento la libera 7 al terminar la ventana. Reconocidas o resueltas solo limpian la marca.
 	releaseFlapSQL = `
 WITH rel AS (
   UPDATE alerts a
-     SET flap_held = false,
-         mute_held = a.state = 'open' AND r.muted_until IS NOT NULL AND r.muted_until > now()
-    FROM alert_rules r
-   WHERE a.flap_held AND r.id = a.rule_id
+     SET flap_held = false
+   WHERE a.flap_held
      AND (a.state <> 'open' OR a.opened_at <= now() - make_interval(secs => ` + strconv.Itoa(FlapWindow) + `))
-  RETURNING a.id, a.state, a.suppressed, a.mute_held
+  RETURNING a.id, a.state, a.suppressed
 ), up AS (
   UPDATE notification_deliveries d SET status = 'pending', next_attempt_at = now()
     FROM rel
-   WHERE rel.state = 'open' AND NOT rel.suppressed AND NOT rel.mute_held
+   WHERE rel.state = 'open' AND NOT rel.suppressed
      AND d.alert_id = rel.id AND d.event = 'opened' AND d.status = 'suppressed'
 )
 SELECT count(*) FROM rel`
@@ -214,7 +195,7 @@ SELECT count(*) FROM rel`
 WITH ins AS (
 INSERT INTO notification_deliveries (alert_id, channel_id, event, seq, status)
 SELECT a.id, d.channel_id, 'reminder', k.n,
-       CASE WHEN c.in_maintenance OR (r.muted_until IS NOT NULL AND r.muted_until > now()) OR ` + pendingCapSQL + `
+       CASE WHEN c.in_maintenance OR ` + pendingCapSQL + `
             THEN 'suppressed' ELSE 'pending' END
   FROM alerts a
   JOIN alert_rules r ON r.id = a.rule_id
@@ -244,7 +225,7 @@ WITH esc AS (
 ), enq AS (
   INSERT INTO notification_deliveries (alert_id, channel_id, event, status)
   SELECT esc.id, ch.id, 'escalation',
-         CASE WHEN (r.muted_until IS NOT NULL AND r.muted_until > now()) OR ` + pendingCapSQL + `
+         CASE WHEN ` + pendingCapSQL + `
               THEN 'suppressed' ELSE 'pending' END
     FROM esc
     JOIN alert_rules r ON r.id = esc.rule_id
@@ -261,9 +242,9 @@ SELECT count(*) FROM esc`
 type EvalResult struct {
 	// Ran es false si otra instancia tenia el lock (ciclo saltado).
 	Ran bool
-	// Opened, Resolved (por recuperacion o por regla/host), Released (liberadas de mantenimiento), MuteReleased (liberadas al terminar el silencio de su regla), FlapReleased (intermitentes que dejaron de oscilar) y Reminders
+	// Opened, Resolved (por recuperacion o por regla/host), Released (liberadas de mantenimiento), FlapReleased (intermitentes que dejaron de oscilar) y Reminders
 	// (entregas de recordatorio encoladas) cuentan lo que cambio en el ciclo; Escalated son las alertas que subieron de severidad.
-	Opened, Resolved, Released, MuteReleased, FlapReleased, Reminders, Escalated int
+	Opened, Resolved, Released, FlapReleased, Reminders, Escalated int
 }
 
 // EvaluateAlerts corre un ciclo del motor de alertas en UNA transaccion bajo un lock advisory (con varias
@@ -296,7 +277,6 @@ func (s *Store) EvaluateAlerts(ctx context.Context) (EvalResult, error) {
 			{"actualizando alertas activas", touchAlertsSQL, nil},
 			{"resolviendo alertas recuperadas", resolveRecoveredSQL, &res.Resolved},
 			{"liberando alertas de mantenimiento", releaseSuppressedSQL, &res.Released},
-			{"liberando alertas de silencio", releaseMutedSQL, &res.MuteReleased},
 			{"liberando alertas intermitentes estabilizadas", releaseFlapSQL, &res.FlapReleased},
 			{"encolando recordatorios", remindersSQL, &res.Reminders},
 			{"escalando alertas sin reconocer", escalateSQL, &res.Escalated},

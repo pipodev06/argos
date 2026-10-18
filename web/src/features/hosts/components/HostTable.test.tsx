@@ -36,10 +36,11 @@ function table(hosts: Host[], visible: OptionalColumn[] = []) {
 }
 
 describe('HostTable', () => {
-  it('el nombre es un enlace al detalle (fila clicable)', () => {
+  it('el detalle se abre con el boton "Ver" de la columna Acciones', () => {
     table([host({}), host({ id: 'h2', hostname: 'db-01' })])
-    expect(screen.getByRole('link', { name: 'web-01' }).getAttribute('href')).toBe('/hosts/h1')
-    expect(screen.getByRole('link', { name: 'db-01' }).getAttribute('href')).toBe('/hosts/h2')
+    expect(screen.getByRole('columnheader', { name: 'Acciones' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Ver web-01' }).getAttribute('href')).toBe('/hosts/h1')
+    expect(screen.getByRole('link', { name: 'Ver db-01' }).getAttribute('href')).toBe('/hosts/h2')
     expect(screen.getAllByRole('row').length).toBe(3)
   })
 

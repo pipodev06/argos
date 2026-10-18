@@ -1,5 +1,6 @@
 import { PencilIcon, PauseIcon, PlayIcon, SendIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsHeadCell } from '@/components/data-table/RowActions'
 import { Button } from '@/components/ui/button'
 import { SeverityBadge } from '@/features/alerts/components/AlertBadges'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
@@ -32,13 +33,11 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
         <HeadRow>
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
-          <HeadCell>Tipo</HeadCell>
           <HeadCell>Dueño</HeadCell>
           {canAct && <HeadCell>Destino</HeadCell>}
-          <HeadCell>Firmado</HeadCell>
           <HeadCell>Severidad mínima</HeadCell>
           <HeadCell>Estado</HeadCell>
-          {canAct && <HeadCell>Acciones</HeadCell>}
+          {canAct && <ActionsHeadCell />}
         </HeadRow>
       </TableHeader>
       <TableBody>
@@ -46,10 +45,8 @@ export function ChannelsTable({ channels, canAct, busy, testingId, outcomes, onA
           <Row key={c.id}>
             <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
-            <Cell>Webhook</Cell>
             <Cell className="max-w-40 truncate">{ownerLabel(c)}</Cell>
             {canAct && <Cell className="max-w-56 truncate">{c.config?.host ?? '—'}</Cell>}
-            <Cell>{c.has_secret ? 'Sí' : 'No'}</Cell>
             <Cell>
               <SeverityBadge severity={c.min_severity} />
             </Cell>

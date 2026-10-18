@@ -129,7 +129,6 @@ export interface AlertRule {
   /** Solo exposed_port; otros tipos devuelven []. */
   expected_ports?: ExpectedPort[]
   /** RFC3339 o null: silencia notificaciones nuevas (no `resolved`) sin desactivar la regla. */
-  muted_until: string | null
 }
 
 export interface RuleInput {

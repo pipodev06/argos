@@ -7,7 +7,7 @@ import type { HostDetail } from '../types/host.types'
 
 interface ReEnrollHostDialogProps {
   /** El host a re-enrolar/reactivar; null = cerrado. */
-  host: HostDetail | null
+  host: Pick<HostDetail, 'id' | 'hostname' | 'status'> | null
   onClose: () => void
 }
 
@@ -20,7 +20,7 @@ export function ReEnrollHostDialog({ host, onClose }: ReEnrollHostDialogProps) {
   )
 }
 
-function ReEnrollBody({ host, onClose }: { host: HostDetail; onClose: () => void }) {
+function ReEnrollBody({ host, onClose }: { host: Pick<HostDetail, 'id' | 'hostname' | 'status'>; onClose: () => void }) {
   const { token, error, submitting, submit, reset } = useReEnrollHost(host.id)
   const isDisabled = host.status === 'disabled'
   const title = isDisabled ? 'Reactivar host' : 'Re-enrolar host'

@@ -83,8 +83,7 @@ export function BulkBar({ ids, onClear, onDone }: BulkBarProps) {
               Deshabilitar {ids.length} {ids.length === 1 ? 'host' : 'hosts'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Se revoca el token de cada agente y dejan de reportar. Esta acción es definitiva: para volver a
-              monitorearlos hay que enrolarlos de nuevo.
+              Dejan de reportar. Podrás reactivarlos más adelante con un token nuevo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && <InlineError>{error}</InlineError>}

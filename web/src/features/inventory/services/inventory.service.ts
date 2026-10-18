@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api'
-import type { ChangesPage, InventoryModule, InventorySummary, ModuleList, PortItem, ProcessItem, ServiceItem } from '../types/inventory.types'
+import type { ChangesPage, InventoryModule, ModuleList, PortItem, ProcessItem, ServiceItem } from '../types/inventory.types'
 
 const enc = encodeURIComponent
 
@@ -21,6 +21,3 @@ export function listInventoryChanges(hostId: string, query: URLSearchParams, sig
   return apiRequest<ChangesPage>(`/hosts/${enc(hostId)}/inventory/changes?${query.toString()}`, { signal })
 }
 
-export function getInventorySummary(hostId: string, signal?: AbortSignal): Promise<InventorySummary> {
-  return apiRequest<InventorySummary>(`/hosts/${enc(hostId)}/inventory`, { signal })
-}

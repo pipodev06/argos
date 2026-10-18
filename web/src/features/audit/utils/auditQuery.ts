@@ -22,7 +22,7 @@ export const AUDIT_FIELDS = [
     plural: 'resultados',
     options: OUTCOMES.map((o) => ({ id: o, name: OUTCOME_LABELS[o] })),
   },
-  { kind: 'datetime', key: 'from', label: 'Desde' },
+  { kind: 'datetime', key: 'from', label: 'Fecha', rangeEnd: 'to' },
   { kind: 'datetime', key: 'to', label: 'Hasta' },
   { kind: 'choice', key: 'limit', label: 'Tamaño de página', values: PAGE_SIZES, default: DEFAULT_PAGE_SIZE },
 ] as const satisfies readonly FilterField[]

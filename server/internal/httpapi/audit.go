@@ -33,7 +33,6 @@ const (
 	evUserPasswordReset      = "user_password_reset"
 	evUserPermissionsChanged = "user_permissions_changed"
 	evUserDeleted            = "user_deleted"
-	evEnrollTokenRevoked     = "enroll_token_revoked" //nolint:gosec // nombre de evento, no una credencial
 	evEnrollTokenCreated     = "enroll_token_created" //nolint:gosec // nombre de evento, no una credencial
 	evHostEnrolled           = "host_enrolled"
 	evHostRevoked            = "host_revoked"

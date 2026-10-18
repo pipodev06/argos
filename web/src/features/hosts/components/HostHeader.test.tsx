@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { checkA11y } from '@/test/utils'
 import { HostHeader } from './HostHeader'
 import type { HostDetail } from '../types/host.types'
@@ -26,7 +26,7 @@ function makeHost(overrides: Partial<HostDetail> = {}): HostDetail {
 
 describe('HostHeader', () => {
   it('host activo (agent): muestra "Deshabilitar" y "Re-enrolar"', () => {
-    render(<HostHeader host={makeHost()} ip={null} canEdit onEdit={() => {}} onRevoke={() => {}} onReEnroll={() => {}} />)
+    render(<HostHeader host={makeHost()} ip={null} onAction={() => {}} />)
     expect(screen.getByRole('button', { name: /Deshabilitar/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Re-enrolar/ })).toBeTruthy()
   })
@@ -35,11 +35,7 @@ describe('HostHeader', () => {
     render(
       <HostHeader
         host={makeHost({ status: 'disabled' })}
-        ip={null}
-        canEdit
-        onEdit={() => {}}
-        onRevoke={() => {}}
-        onReEnroll={() => {}}
+        ip={null} onAction={() => {}}
       />,
     )
     expect(screen.getByRole('button', { name: /Reactivar/ })).toBeTruthy()
@@ -50,11 +46,7 @@ describe('HostHeader', () => {
     render(
       <HostHeader
         host={makeHost({ kind: 'device' })}
-        ip={null}
-        canEdit
-        onEdit={() => {}}
-        onRevoke={() => {}}
-        onReEnroll={() => {}}
+        ip={null} onAction={() => {}}
       />,
     )
     expect(screen.queryByRole('button', { name: /Deshabilitar/ })).toBeNull()
@@ -62,13 +54,13 @@ describe('HostHeader', () => {
     expect(screen.queryByRole('button', { name: /Reactivar/ })).toBeNull()
   })
 
-  it('sin permiso de edicion: no muestra ninguna accion', () => {
-    render(<HostHeader host={makeHost()} ip={null} canEdit={false} onEdit={() => {}} onRevoke={vi.fn()} onReEnroll={vi.fn()} />)
+  it('sin onAction (no admin): no muestra ninguna accion', () => {
+    render(<HostHeader host={makeHost()} ip={null}  />)
     expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('sin violaciones de accesibilidad', async () => {
-    render(<HostHeader host={makeHost()} ip="10.0.0.1" canEdit onEdit={() => {}} onRevoke={() => {}} onReEnroll={() => {}} />)
+    render(<HostHeader host={makeHost()} ip="10.0.0.1" onAction={() => {}} />)
     expect(await checkA11y()).toHaveNoViolations()
   })
 })

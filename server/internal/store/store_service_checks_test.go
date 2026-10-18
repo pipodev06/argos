@@ -551,3 +551,26 @@ func TestMigrateDownToSixteenAndUpAgainWithCheckData(t *testing.T) {
 		t.Fatalf("up tras down: %v", err)
 	}
 }
+
+func TestFailingHostsByCheckCountsDownAndWarnWithinScope(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	g := mkGroup(t, s, "lima", false, nil)
+	seedHost(t, "a", "up", ago(time.Second))
+	seedHost(t, "b", "up", ago(time.Second))
+	seedHost(t, "c", "up", ago(time.Second))
+	setGroupOf(t, "a", g.ID)
+	c := mkPing(t, s, "ping", AlertScope{Type: ScopeAll})
+	setState(t, hostID(t, "a"), c.ID, "down", time.Second, time.Second)
+	setState(t, hostID(t, "b"), c.ID, "warn", time.Second, time.Second)
+	setState(t, hostID(t, "c"), c.ID, "up", time.Second, time.Second)
+
+	got, err := s.FailingHostsByCheck(ctx, AllScope())
+	if err != nil || got[c.ID] != 2 {
+		t.Errorf("ambito total got (%v, %v), want %s:2", got, err, c.ID)
+	}
+	got, err = s.FailingHostsByCheck(ctx, GroupScope([]string{g.ID}))
+	if err != nil || got[c.ID] != 1 {
+		t.Errorf("ambito del grupo got (%v, %v), want %s:1", got, err, c.ID)
+	}
+}

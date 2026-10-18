@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { DeviceDetailView } from '@/features/devices/components/DeviceDetailView'
@@ -7,21 +8,19 @@ import { HostEventsSection } from '@/features/alerts/components/HostEventsSectio
 import { HostChecksSection } from '@/features/checks/components/HostChecksSection'
 import { HostInventorySummary } from '@/features/inventory/components/HostInventorySummary'
 import { HostUpdatesSection } from '@/features/updates/components/HostUpdatesSection'
-import { PurgeHostDialog } from '@/features/purge/components/PurgeHostDialog'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useHostDetail } from '../hooks/useHostDetail'
 import { useHostMetrics } from '../hooks/useHostMetrics'
 import type { MetricRange } from '../types/host.types'
 import { RANGES, rangeView } from '../utils/chart'
 import { BackLink } from '@/components/ui/back-link'
-import { EditHostDialog } from './EditHostDialog'
+import { HostActionDialogs } from './HostActionDialogs'
 import { HostCharts } from './HostCharts'
 import { HostDisks } from './HostDisks'
 import { HostHeader } from './HostHeader'
 import { HostLatestCards } from './HostLatestCards'
 import { HostSystemInfo } from './HostSystemInfo'
-import { ReEnrollHostDialog } from './ReEnrollHostDialog'
-import { RevokeHostDialog } from './RevokeHostDialog'
+import type { HostActionId } from '../utils/hostActions'
 
 const RANGE_OPTIONS = RANGES.map(({ value, label, ariaLabel }) => ({ value, label, ariaLabel }))
 
@@ -44,10 +43,7 @@ export function HostDetailView({ id }: { id: string }) {
 function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof useHostDetail> }) {
   const { user } = useAuth()
   const [range, setRange] = useState<MetricRange>('1h')
-  const [editing, setEditing] = useState(false)
-  const [purging, setPurging] = useState(false)
-  const [revoking, setRevoking] = useState(false)
-  const [reEnrolling, setReEnrolling] = useState(false)
+  const [action, setAction] = useState<HostActionId | null>(null)
   const navigate = useNavigate()
   const metrics = useHostMetrics(id, range)
 
@@ -67,11 +63,7 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
             <HostHeader
               host={data.host}
               ip={data.info.ips[0] ?? null}
-              canEdit={user?.role === 'admin'}
-              onEdit={() => setEditing(true)}
-              onPurge={() => setPurging(true)}
-              onRevoke={() => setRevoking(true)}
-              onReEnroll={() => setReEnrolling(true)}
+              onAction={user?.role === 'admin' ? setAction : undefined}
             />
           ) : (
             detail.loading && <p className="text-sm text-text-muted">Cargando…</p>
@@ -97,16 +89,13 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
 
           <HostUpdatesSection hostId={id} />
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 <h2 className="text-sm font-semibold">Métricas</h2>
-                <Link
-                  to={`/hosts/${encodeURIComponent(id)}/historial`}
-                  className="text-sm text-brand underline-offset-4 hover:underline"
-                >
-                  Historial por fecha
-                </Link>
+                <Button asChild variant="outline" size="sm">
+                  <Link to={`/hosts/${encodeURIComponent(id)}/historial`}>Historial por fecha</Link>
+                </Button>
               </div>
               <SegmentedControl
                 aria-label="Rango de tiempo"
@@ -123,41 +112,14 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
           </div>
 
           {data && (
-            <PurgeHostDialog
-              host={purging ? data.host : null}
-              onClose={() => setPurging(false)}
-              onDone={() => void navigate('/hosts')}
-            />
-          )}
-
-          {data && (
-            <EditHostDialog
-              host={editing ? data.host : null}
-              onClose={() => setEditing(false)}
-              onSaved={() => {
-                setEditing(false)
-                void detail.refresh()
-              }}
-            />
-          )}
-
-          {data && (
-            <RevokeHostDialog
-              host={revoking ? data.host : null}
-              onClose={() => setRevoking(false)}
-              onDone={() => {
-                setRevoking(false)
-                void detail.refresh()
-              }}
-            />
-          )}
-
-          {data && (
-            <ReEnrollHostDialog
-              host={reEnrolling ? data.host : null}
-              onClose={() => {
-                setReEnrolling(false)
-                void detail.refresh()
+            <HostActionDialogs
+              host={action ? data.host : null}
+              action={action}
+              onClose={() => setAction(null)}
+              onDone={(done) => {
+                setAction(null)
+                if (done === 'delete') void navigate('/hosts')
+                else void detail.refresh()
               }}
             />
           )}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseFilters } from '@/components/filters/urlState'
-import { buildApiQuery, defaultDir, HOST_FIELDS, isVolatileSort, type SortKey } from './hostQuery'
+import { buildApiQuery, defaultDir, HOST_FIELDS } from './hostQuery'
 
 const parse = (qs: string) => parseFilters(HOST_FIELDS, new URLSearchParams(qs))
 
@@ -10,12 +10,6 @@ describe('hostQuery', () => {
     expect(defaultDir('severity')).toBe('asc')
     expect(defaultDir('cpu')).toBe('desc')
     expect(defaultDir('last_seen')).toBe('desc')
-  })
-  it('solo cpu/mem/disk son volátiles', () => {
-    const volatile: SortKey[] = ['cpu', 'mem', 'disk']
-    expect(volatile.every(isVolatileSort)).toBe(true)
-    expect(isVolatileSort('name')).toBe(false)
-    expect(isVolatileSort('last_seen')).toBe(false)
   })
   it('defaults de la URL', () => {
     expect(parse('')).toMatchObject({ sort: 'severity', dir: 'asc', limit: 15, status: [] })

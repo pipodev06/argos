@@ -36,6 +36,9 @@ interface RuleFormProps {
 const METRIC_OPTIONS = (Object.keys(METRIC_LABELS) as RuleMetric[]).map((m) => ({ value: m, label: METRIC_LABELS[m] }))
 const SEVERITY_OPTIONS = (Object.keys(SEVERITY_LABELS) as AlertSeverity[]).map((s) => ({ value: s, label: SEVERITY_LABELS[s] }))
 
+/** Fila completa de la grilla (2 columnas; 4 en pantallas anchas). Lo demás ocupa 1 o 2 columnas. */
+const FULL_ROW = 'sm:col-span-2 xl:col-span-4'
+
 const BLANK_TEMPLATE = 'blank'
 const TEMPLATE_OPTIONS = [{ value: BLANK_TEMPLATE, label: 'En blanco' }, ...RULE_TEMPLATES.map((t) => ({ value: t.id, label: t.label }))]
 
@@ -124,7 +127,7 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
   const thresholdLabel = THRESHOLD_LABELS[draft.kind] ?? (isLoadMetric(draft.metric) ? 'Umbral' : 'Umbral (%)')
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4 sm:grid-cols-2" noValidate>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid items-start gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-4" noValidate>
       {!editing && !clone && (
         <div className="sm:col-span-2">
           <SelectField
@@ -189,7 +192,6 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
             <CheckField
               id="rule-warn-or-down"
               label="Alertar también en advertencia"
-              hint="Sin marcar, solo alerta cuando el chequeo está caído. El alcance es el del chequeo."
               checked={draft.warnOrDown}
               onChange={(v) => set('warnOrDown', v)}
             />
@@ -205,7 +207,6 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
             onChange={(e) => set('expectedPorts', e.target.value)}
             placeholder="tcp/22, udp/53"
             autoComplete="off"
-            hint="Los puertos de la primera foto del host no alertan; aquí lista los puertos nuevos que sí son normales. Separa con comas o espacios."
             error={errors.ports}
           />
         </div>
@@ -227,7 +228,6 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
               inputMode="decimal"
               value={draft.clear}
               onChange={(e) => set('clear', e.target.value)}
-              hint="Opcional: evita que la alerta oscile."
               error={errors.clear}
             />
           )}
@@ -240,7 +240,6 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
           inputMode="numeric"
           value={draft.durationDays}
           onChange={(e) => set('durationDays', e.target.value)}
-          hint="Días que deben mantenerse los pendientes. 0 = de inmediato."
           error={errors.durationDays}
         />
       ) : (
@@ -251,7 +250,6 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
             inputMode="decimal"
             value={draft.durationMin}
             onChange={(e) => set('durationMin', e.target.value)}
-            hint="Tiempo que debe mantenerse la condición. 0 = de inmediato."
             error={errors.duration}
           />
         )
@@ -262,7 +260,6 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
         inputMode="decimal"
         value={draft.resolveMin}
         onChange={(e) => set('resolveMin', e.target.value)}
-        hint="Tiempo sano antes de resolverla."
         error={errors.resolve}
       />
       {!isCheck && (
@@ -277,12 +274,11 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
         onChange={(v) => set('severity', v as AlertSeverity)}
         options={SEVERITY_OPTIONS}
       />
-      <div className="grid content-start gap-3">
+      <div className="grid content-start gap-2">
         {!isCheck && (
           <CheckField
             id="rule-offline"
             label="Incluir equipos sin conexión"
-            hint="Se evalúan con el último valor conocido."
             checked={draft.includeOffline}
             onChange={(v) => set('includeOffline', v)}
           />
@@ -290,7 +286,6 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
         <CheckField
           id="rule-enabled"
           label="Regla activa"
-          hint="Desactivada no genera alertas nuevas y resuelve las abiertas."
           checked={draft.enabled}
           onChange={(v) => set('enabled', v)}
         />
@@ -305,21 +300,20 @@ export function RuleForm({ rule: source, clone = false, onCancel, onSaved }: Rul
           inputMode="numeric"
           value={draft.escalateMin}
           onChange={(e) => set('escalateMin', e.target.value)}
-          hint="Sube la severidad un nivel y avisa a los canales de escalamiento."
           error={errors.escalate}
         />
       </div>
       {draft.escalateMin.trim() !== '' && (
-        <div className="sm:col-span-2">
+        <div className={FULL_ROW}>
           <ChannelPicker selected={escChannelIds} onChange={setEscChannelIds} legend="Canales de escalamiento" idPrefix="rule-esc-channel" />
         </div>
       )}
       {error && (
-        <div className="sm:col-span-2">
+        <div className={FULL_ROW}>
           <InlineError>{error}</InlineError>
         </div>
       )}
-      <div className="flex justify-end gap-2 sm:col-span-2">
+      <div className={`flex justify-end gap-2 ${FULL_ROW}`}>
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>

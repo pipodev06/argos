@@ -56,14 +56,6 @@ export function toUtcIso(ms: number): string {
   return new Date(ms).toISOString()
 }
 
-/** Un dia local completo: 00:00 a 24:00 (usa el calendario, asi que respeta cambios de hora). */
-export function dayRange(dateValue: string): DateRange | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue)
-  if (!m) return null
-  const [y, mo, d] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])]
-  return { fromMs: new Date(y, mo, d).getTime(), toMs: new Date(y, mo, d + 1).getTime() }
-}
-
 export type ShortcutId = 'yesterday' | 'last7' | 'thisMonth' | 'lastMonth'
 
 export const SHORTCUTS: readonly { id: ShortcutId; label: string }[] = [

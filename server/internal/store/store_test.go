@@ -152,7 +152,7 @@ func count(t *testing.T, sql string, args ...any) int {
 }
 
 // latestMigration es la version de la ultima migracion embebida.
-const latestMigration = 45
+const latestMigration = 46
 
 func TestMigrateIsIdempotent(t *testing.T) {
 	if testPool == nil {
@@ -521,49 +521,6 @@ func TestCreateEnrollTokenBulkTargetConflict(t *testing.T) {
 	})
 	if !errors.Is(err, ErrBulkTargetConflict) {
 		t.Errorf("err got %v, want ErrBulkTargetConflict", err)
-	}
-}
-
-// TestListPendingEnrollTokensBulkHalfUsed cubre B16: un token de grupo a medio usar (canjeado, pero
-// sin llegar a MaxUses) sigue "pendiente" (lo lista ListPendingEnrollTokens con su avance
-// max_uses/uses_count, hostname nil) y sigue siendo revocable.
-func TestListPendingEnrollTokensBulkHalfUsed(t *testing.T) {
-	s := newTestStore(t)
-	ctx := context.Background()
-	admin := mkUser(t, s, "alice", RoleAdmin)
-	gid, err := s.CreateGroup(ctx, "clientes", nil, false, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.CreateEnrollToken(ctx, CreateEnrollTokenParams{
-		TokenHash: th("bulk-pend"), CreatedBy: admin, GroupID: &gid.ID, ExpiresAt: time.Now().Add(time.Hour), MaxUses: 5,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := s.EnrollHost(ctx, th("bulk-pend"), "linux", "amd64", th("agent-0"), "cliente-00"); err != nil {
-		t.Fatal(err)
-	}
-
-	tokens, err := s.ListPendingEnrollTokens(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tokens) != 1 {
-		t.Fatalf("pendientes got %d, want 1", len(tokens))
-	}
-	tok := tokens[0]
-	if tok.Hostname != nil {
-		t.Errorf("hostname got %v, want nil (token de grupo)", tok.Hostname)
-	}
-	if tok.MaxUses != 5 || tok.UsesCount != 1 {
-		t.Errorf("max_uses/uses_count got %d/%d, want 5/1", tok.MaxUses, tok.UsesCount)
-	}
-
-	if hostname, err := s.RevokeEnrollToken(ctx, tok.ID); err != nil || hostname != nil {
-		t.Errorf("revocar un token de grupo a medio usar: got (%v, %v), want (nil, nil)", hostname, err)
-	}
-	if _, _, err := s.EnrollHost(ctx, th("bulk-pend"), "linux", "amd64", th("agent-1"), "cliente-01"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("tras revocar, un canje debe fallar con ErrNotFound, got %v", err)
 	}
 }
 

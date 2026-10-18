@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
+import { FormHelp, type HelpItem } from '@/components/ui/form-help'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import { useGroups } from '@/features/groups/hooks/useGroups'
@@ -23,6 +24,13 @@ interface DeviceFormDialogProps {
 
 const NO_GROUP = '__none__'
 const NO_PROFILE = '__none__'
+
+const DEVICE_HELP: readonly HelpItem[] = [
+  ['Dispositivo', 'Equipo sin agente (impresora, switch, UPS…): un host con agente, el colector, le hace ping y su estado depende de las respuestas.'],
+  ['IP', 'IPv4 o IPv6, no un nombre. Debe estar en las redes permitidas del colector.'],
+  ['Colector', 'Host con agente que hace el ping.'],
+  ['Perfil SNMP', 'Opcional. Sin perfil no recibe chequeos SNMP. Los perfiles se crean en Configuración.'],
+]
 
 export function DeviceFormDialog(props: DeviceFormDialogProps) {
   // El formulario solo existe con el dialogo abierto: cada apertura empieza limpia y recarga colectores y grupos.
@@ -69,12 +77,10 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-4" noValidate autoComplete="off">
-      <DialogHeader>
+    <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3" noValidate autoComplete="off">
+      <DialogHeader className="flex-row items-center gap-1">
         <DialogTitle>{editing ? 'Editar dispositivo' : 'Nuevo dispositivo'}</DialogTitle>
-        <DialogDescription>
-          Un dispositivo no lleva agente: un host con agente (el colector) le hace ping y el estado depende de sus respuestas.
-        </DialogDescription>
+        <FormHelp title="Dispositivo" items={DEVICE_HELP} />
       </DialogHeader>
       <FormField
         id="device-name"
@@ -93,7 +99,6 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
         onChange={(e) => set('address', e.target.value)}
         placeholder="192.168.1.10"
         autoComplete="off"
-        hint="IPv4 o IPv6, no un nombre. Debe estar en la lista de permitidos (ARGOS_PROBE_ALLOW) del colector."
         error={errors.address}
       />
       <SelectField
@@ -103,7 +108,6 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
         onChange={(v) => set('collectorId', v)}
         options={collectorOptions}
         placeholder={collectors.data ? 'Elige un colector' : 'Cargando…'}
-        hint="Host con agente que hará el ping."
         error={errors.collectorId}
       />
       {noCollectors && (
@@ -125,7 +129,6 @@ function DeviceForm({ device, onClose, onSaved }: DeviceFormDialogProps) {
         value={draft.snmpProfileId || NO_PROFILE}
         onChange={(v) => set('snmpProfileId', v === NO_PROFILE ? '' : v)}
         options={profileOptions}
-        hint="Opcional. Sin perfil, los chequeos SNMP no se envían a este dispositivo. Los perfiles se crean en Configuración."
       />
       {profiles.error && <InlineError>{profiles.error}</InlineError>}
       {error && <InlineError>{error}</InlineError>}

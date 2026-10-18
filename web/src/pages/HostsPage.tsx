@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { DownloadIcon, RefreshCwIcon, ServerIcon } from 'lucide-react'
+import { DownloadIcon, ServerIcon } from 'lucide-react'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { NoResultsState, TableError } from '@/components/data-table/TableStates'
 import { Button } from '@/components/ui/button'
@@ -8,14 +8,16 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Pagination } from '@/components/ui/pagination'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { AddHostDialog } from '@/features/hosts/components/AddHostDialog'
+import { HostActionDialogs } from '@/features/hosts/components/HostActionDialogs'
 import { BulkBar } from '@/features/hosts/components/BulkBar'
 import { ColumnsMenu } from '@/features/hosts/components/ColumnsMenu'
-import { PendingTokensDialog } from '@/features/hosts/components/PendingTokensDialog'
 import { HostTable } from '@/features/hosts/components/HostTable'
 import { useColumnVisibility } from '@/features/hosts/hooks/useColumnVisibility'
 import { useHostList } from '@/features/hosts/hooks/useHostList'
+import type { Host } from '@/features/hosts/types/host.types'
+import type { HostActionId } from '@/features/hosts/utils/hostActions'
 import { hostsCsvUrl } from '@/features/hosts/services/hosts.service'
-import { buildCsvQuery, defaultDir, HOST_FIELDS, isVolatileSort, type SortKey } from '@/features/hosts/utils/hostQuery'
+import { buildCsvQuery, defaultDir, HOST_FIELDS, type SortKey } from '@/features/hosts/utils/hostQuery'
 import { useCursorPagination } from '@/hooks/useCursorPagination'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 import type { PageSize } from '@/lib/pagination'
@@ -35,7 +37,7 @@ export function HostsPage() {
   const { data, error, errorStatus, loading, refresh } = useHostList(filters, pagination.cursor)
   const columns = useColumnVisibility()
   const [addOpen, setAddOpen] = useState(false)
-  const [tokensOpen, setTokensOpen] = useState(false)
+  const [pending, setPending] = useState<{ action: HostActionId; host: Host } | null>(null)
 
   // El cursor es opaco y se invalida al reiniciar el servidor (400 invalid_cursor): se vuelve a la 1a pagina.
   const staleCursor = errorStatus === 400 && pagination.cursor !== null
@@ -64,7 +66,7 @@ export function HostsPage() {
   function toggleAll(on: boolean) {
     setSelected((prev) => {
       const next = new Set(prev)
-      data?.items.filter((h) => h.kind === 'agent').forEach((h) => (on ? next.add(h.id) : next.delete(h.id)))
+      data?.items.forEach((h) => (on ? next.add(h.id) : next.delete(h.id)))
       return next
     })
   }
@@ -75,7 +77,6 @@ export function HostsPage() {
   }
 
   const active = hasActive
-  const volatile = isVolatileSort(filters.sort)
   const noHosts = data !== null && data.total === 0 && !active
   const noMatch = data !== null && data.items.length === 0 && active
   const showTable = !noHosts && !noMatch && !(error && data === null)
@@ -86,23 +87,12 @@ export function HostsPage() {
         title="Hosts"
         actions={
           <>
-            {volatile && (
-              <Button variant="outline" size="sm" onClick={() => void refresh()}>
-                <RefreshCwIcon strokeWidth={1.5} aria-hidden />
-                Actualizar
-              </Button>
-            )}
             <Button asChild variant="outline" size="sm">
               <a href={hostsCsvUrl(buildCsvQuery(filters))} download>
                 <DownloadIcon strokeWidth={1.5} aria-hidden />
                 Exportar CSV
               </a>
             </Button>
-            {isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => setTokensOpen(true)}>
-                Tokens pendientes
-              </Button>
-            )}
             {isAdmin && (
               <Button size="sm" onClick={() => setAddOpen(true)}>
                 Agregar host
@@ -111,7 +101,7 @@ export function HostsPage() {
           </>
         }
       />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         {isAdmin && selected.size > 0 ? (
           <BulkBar ids={[...selected]} onClear={() => setSelected(new Set())} onDone={afterBulk} />
         ) : (
@@ -122,11 +112,6 @@ export function HostsPage() {
             onClear={clear}
             actions={<ColumnsMenu visible={columns.visible} onToggle={columns.toggle} />}
           />
-        )}
-        {volatile && (
-          <p className="text-xs text-text-muted">
-            Ordenado por una métrica que cambia: la lista no se reordena sola. Usa "Actualizar".
-          </p>
         )}
 
         {error && <TableError message={error} onRetry={() => void refresh()} />}
@@ -151,6 +136,7 @@ export function HostsPage() {
               selected={isAdmin ? selected : null}
               onToggle={toggle}
               onToggleAll={toggleAll}
+              onAction={isAdmin ? (action, host) => setPending({ action, host }) : undefined}
             />
             <Pagination
               page={pagination.page}
@@ -168,7 +154,15 @@ export function HostsPage() {
           </>
         )}
       </div>
-      {isAdmin && <PendingTokensDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />}
+      <HostActionDialogs
+        host={pending?.host ?? null}
+        action={pending?.action ?? null}
+        onClose={() => setPending(null)}
+        onDone={() => {
+          setPending(null)
+          void refresh()
+        }}
+      />
       {isAdmin && (
         <AddHostDialog
           open={addOpen}

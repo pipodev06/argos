@@ -30,9 +30,7 @@ export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProp
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Cambiar contraseña</DialogTitle>
-          <DialogDescription>
-            {done ? 'Tu contraseña se actualizó.' : 'Ingresa tu contraseña actual y la nueva.'}
-          </DialogDescription>
+          {done && <DialogDescription>Tu contraseña se actualizó.</DialogDescription>}
         </DialogHeader>
         {done ? (
           <>

@@ -51,7 +51,7 @@ function UsersAdmin({ currentUserId }: { currentUserId: string }) {
   return (
     <>
       <PageHeader title="Usuarios" actions={<Button size="sm" onClick={() => setCreating(true)}>Nuevo usuario</Button>} />
-      <div className="flex flex-col gap-4" aria-busy={loading}>
+      <div className="flex flex-col gap-3" aria-busy={loading}>
         <FilterBar
           fields={USER_FIELDS}
           values={filters}

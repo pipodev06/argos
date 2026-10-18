@@ -7,7 +7,7 @@ import (
 	"argos/server/internal/store"
 )
 
-// Exportar el inventario (hosts, dispositivos y flota de parches) como CSV: mismos filtros que la lista
+// Exportar el inventario (hosts) como CSV: mismos filtros que la lista
 // equivalente, sin paginar, topado en store.maxInventoryExportRows filas (corte silencioso, sin error).
 
 var hostsInventoryHeader = []string{"hostname", "ip", "os", "grupo", "estado", "version_agente",
@@ -52,76 +52,6 @@ func (a *API) exportHostsCSV(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	return a.finishInventoryExport(r, "inventario-hosts", ex, err)
-}
-
-var devicesInventoryHeader = []string{"nombre", "direccion", "colector", "perfil_snmp", "grupo", "estado", "visto"}
-
-func deviceInventoryRow(d store.Device) []string {
-	addr := d.Address.String()
-	var profile *string
-	if d.Profile != nil {
-		profile = &d.Profile.Name
-	}
-	return []string{csvSafe(d.Name), csvSafe(addr), csvSafe(d.CollectorName), csvStrPtr(profile),
-		csvStrPtr(groupName(d.Group)), csvSafe(d.Status), csvTime(d.LastSeenAt)}
-}
-
-// exportDevicesCSV: GET /api/v1/devices.csv, mismos filtros que GET /devices (nombre, estado y grupo).
-func (a *API) exportDevicesCSV(w http.ResponseWriter, r *http.Request) error {
-	var f store.HostFilter
-	if err := parseQAndStatus(r.URL.Query(), &f); err != nil {
-		return err
-	}
-	if err := parseGroupFilter(r.URL.Query()["group"], &f); err != nil {
-		return err
-	}
-	ex := newCSVExport(w, csvFilename("inventario-dispositivos", "", a.now()), devicesInventoryHeader)
-	devices, err := a.store.ExportDevices(r.Context(), currentUser(r).Scope, f)
-	if err == nil {
-		for _, d := range devices {
-			if err = ex.row(deviceInventoryRow(d)...); err != nil {
-				break
-			}
-		}
-	}
-	return a.finishInventoryExport(r, "inventario-dispositivos", ex, err)
-}
-
-var updatesInventoryHeader = []string{"hostname", "os", "pendientes_seguridad", "pendientes_total",
-	"reinicio_pendiente", "eol_dias"}
-
-// exportUpdatesCSV: GET /api/v1/updates.csv, mismos filtros que GET /updates salvo cursor/limit/sort/dir.
-func (a *API) exportUpdatesCSV(w http.ResponseWriter, r *http.Request) error {
-	q, err := parseFleetQuery(r.URL.Query(), currentUser(r).Scope)
-	if err != nil {
-		return err
-	}
-	ex := newCSVExport(w, csvFilename("parches", "", a.now()), updatesInventoryHeader)
-	rows, err := a.store.ExportUpdatesFleet(r.Context(), currentUser(r).Scope, q.filter)
-	if err == nil {
-		now := a.now()
-		for _, u := range rows {
-			reboot := ""
-			if u.Updates.RebootRequired != nil {
-				reboot = strconv.FormatBool(*u.Updates.RebootRequired)
-			}
-			eolDays := ""
-			if eol := toEOLDTO(u.EOL, now); eol != nil {
-				eolDays = strconv.Itoa(eol.DaysLeft)
-			}
-			pendingSecurity, pendingTotal := "", ""
-			if u.Updates.PendingSecurity != nil {
-				pendingSecurity = strconv.Itoa(*u.Updates.PendingSecurity)
-			}
-			if u.Updates.PendingTotal != nil {
-				pendingTotal = strconv.Itoa(*u.Updates.PendingTotal)
-			}
-			if err = ex.row(csvSafe(u.Hostname), csvSafe(u.OS), pendingSecurity, pendingTotal, reboot, eolDays); err != nil {
-				break
-			}
-		}
-	}
-	return a.finishInventoryExport(r, "parches", ex, err)
 }
 
 // auditInventoryExport registra la exportacion de inventario (tipo y filas escritas, nunca contenido); reusa el

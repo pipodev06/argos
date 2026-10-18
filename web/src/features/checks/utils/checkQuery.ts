@@ -18,6 +18,16 @@ export const CHECK_FIELDS = [
       { id: 'no', name: 'No' },
     ],
   },
+  {
+    kind: 'multi',
+    key: 'health',
+    label: 'Estado',
+    plural: 'estados',
+    options: [
+      { id: 'failing', name: 'Con falla' },
+      { id: 'ok', name: 'Sin falla' },
+    ],
+  },
 ] as const satisfies readonly FilterField[]
 
 export type CheckFilters = FiltersOf<typeof CHECK_FIELDS>
@@ -28,6 +38,7 @@ export function filterChecks(items: readonly ServiceCheck[], f: CheckFilters): S
     (c) =>
       (q === '' || c.name.toLowerCase().includes(q)) &&
       (f.type.length === 0 || f.type.includes(c.type)) &&
-      (f.enabled.length === 0 || f.enabled.includes(c.enabled ? 'yes' : 'no')),
+      (f.enabled.length === 0 || f.enabled.includes(c.enabled ? 'yes' : 'no')) &&
+      (f.health.length === 0 || f.health.includes((c.failing_hosts ?? 0) > 0 ? 'failing' : 'ok')),
   )
 }

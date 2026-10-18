@@ -69,21 +69,6 @@ export function deleteRule(id: string): Promise<unknown> {
   return apiRequest<unknown>(`/alert-rules/${enc(id)}`, { method: 'DELETE', noData: true })
 }
 
-/** Silencia las notificaciones nuevas de una regla por `minutes` (15, 60, 240 o 1440). */
-export async function muteRule(id: string, minutes: number): Promise<string | null> {
-  const data = await apiRequest<{ muted_until: string | null }>(`/alert-rules/${enc(id)}/mute`, {
-    method: 'POST',
-    body: { minutes },
-  })
-  return data.muted_until
-}
-
-/** Quita el silencio de una regla. */
-export async function unmuteRule(id: string): Promise<string | null> {
-  const data = await apiRequest<{ muted_until: string | null }>(`/alert-rules/${enc(id)}/unmute`, { method: 'POST' })
-  return data.muted_until
-}
-
 export async function listMaintenance(signal?: AbortSignal): Promise<MaintenanceWindow[]> {
   const data = await apiRequest<{ items: MaintenanceWindow[] }>('/maintenance', { signal })
   return data.items

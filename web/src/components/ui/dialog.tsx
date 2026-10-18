@@ -23,10 +23,12 @@ function DialogContent({
         data-slot="dialog-overlay"
         className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0"
       />
+      {/* Sin DialogDescription (texto de ayuda = ruido): aria-describedby vacio evita el aviso de radix. */}
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        aria-describedby={undefined}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border border-border bg-surface p-5 text-sm text-text shadow-lg outline-none sm:max-w-md data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-3 rounded-md border border-border bg-surface p-5 text-sm text-text shadow-lg outline-none sm:max-w-md data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
           className
         )}
         {...props}

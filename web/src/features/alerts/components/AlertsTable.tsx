@@ -1,6 +1,6 @@
-import { CheckIcon, EyeIcon } from 'lucide-react'
-import { Link } from 'react-router'
+import { CheckIcon, HandIcon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsCell, ActionsHeadCell, ViewAction } from '@/components/data-table/RowActions'
 import { SkeletonRows } from '@/components/data-table/SkeletonRows'
 import { Button } from '@/components/ui/button'
 import { rowNumber } from '@/lib/pagination'
@@ -24,8 +24,7 @@ interface AlertsTableProps {
 }
 
 export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, onAction }: AlertsTableProps) {
-  const canAct = canAck || canResolve
-  const cols = canAct ? 8 : 7
+  const cols = 8
   return (
     <DataTable caption="Alertas" className="min-w-[60rem]">
       <TableHeader>
@@ -37,7 +36,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
           <HeadCell>Estado</HeadCell>
           <HeadCell>Valor</HeadCell>
           <HeadCell>Abierta</HeadCell>
-          {canAct && <HeadCell>Acciones</HeadCell>}
+          <ActionsHeadCell />
         </HeadRow>
       </TableHeader>
       <TableBody>
@@ -49,21 +48,10 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
               <SeverityBadge severity={a.severity} />
             </Cell>
             <Cell className="max-w-56">
-              <Link
-                to={`/hosts/${a.host.id}`}
-                className="block truncate rounded-md font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-              >
-                {a.host.hostname}
-              </Link>
+              <span className="block truncate font-semibold">{a.host.hostname}</span>
             </Cell>
             <Cell className="max-w-64">
-              <Link
-                to={`/alertas/${a.id}`}
-                className="block truncate rounded-md underline outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                title="Ver detalle"
-              >
-                {a.rule_name}
-              </Link>
+              <span className="block truncate">{a.rule_name}</span>
             </Cell>
             <Cell>
               <span className="inline-flex flex-wrap items-center justify-center gap-1">
@@ -74,8 +62,8 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
             </Cell>
             <Cell className="tabular-nums">{a.kind === 'exposed_port' ? exposedPortsText(a) : formatAlertValue(a)}</Cell>
             <Cell className="tabular-nums">{formatLastSeen(a.opened_at, now)}</Cell>
-            {canAct && (
-              <Cell>
+            <ActionsCell>
+                <ViewAction to={`/alertas/${a.id}`} label={`alerta ${a.rule_name} en ${a.host.hostname}`} />
                 {canAck && a.state === 'open' && (
                   <Button
                     variant="ghost"
@@ -84,7 +72,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
                     title="Reconocer"
                     onClick={() => onAction('ack', a)}
                   >
-                    <EyeIcon strokeWidth={1.5} aria-hidden />
+                    <HandIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                 )}
                 {canResolve && a.state !== 'resolved' && (
@@ -98,8 +86,7 @@ export function AlertsTable({ alerts, page, pageSize, now, canAck, canResolve, o
                     <CheckIcon strokeWidth={1.5} aria-hidden />
                   </Button>
                 )}
-              </Cell>
-            )}
+            </ActionsCell>
           </Row>
         ))}
       </TableBody>

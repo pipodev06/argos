@@ -7,12 +7,13 @@ import { StatusBlock } from './StatusBlock'
 const COUNTS = { up: 12, down: 2, offline: 3, pending: 1, disabled: 0 }
 
 describe('StatusBlock', () => {
-  it('cinco tiles con cifra y enlace ?status= a la lista', () => {
+  it('cinco tiles con cifra y boton Ver a la lista ?status=', () => {
     renderWithRouter(<StatusBlock id="b" title="Hosts" counts={COUNTS} to="/hosts" />)
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(hrefs).toEqual(['/hosts?status=up', '/hosts?status=down', '/hosts?status=offline', '/hosts?status=pending', '/hosts?status=disabled'])
-    expect(screen.getByRole('link', { name: /Caídos/ }).textContent).toContain('2')
-    expect(screen.getByRole('link', { name: /Activos/ }).textContent).toContain('12')
+    expect(screen.getByRole('link', { name: 'Ver caídos' }).getAttribute('href')).toBe('/hosts?status=down')
+    expect(screen.getByRole('region', { name: 'Caídos' }).textContent).toContain('2')
+    expect(screen.getByRole('region', { name: 'Activos' }).textContent).toContain('12')
   })
 
   it('con caídos > 0 marca la alerta (barra danger); con 0 no', () => {

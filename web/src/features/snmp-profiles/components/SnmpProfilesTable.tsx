@@ -1,5 +1,6 @@
 import { KeyRoundIcon, LockIcon, LockOpenIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
+import { ActionsHeadCell } from '@/components/data-table/RowActions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatFullDate } from '@/features/hosts/utils/format'
@@ -32,7 +33,7 @@ export function SnmpProfilesTable({ profiles, onAction }: SnmpProfilesTableProps
           <HeadCell>Dispositivos</HeadCell>
           <HeadCell>Secreto</HeadCell>
           <HeadCell>Creado</HeadCell>
-          <HeadCell>Acciones</HeadCell>
+          <ActionsHeadCell />
         </HeadRow>
       </TableHeader>
       <TableBody>

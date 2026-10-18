@@ -26,7 +26,7 @@ export function mapScopeError(err: ApiError): string | null {
 export function mapChannelError(err: ApiError): string | null {
   const scope = mapScopeError(err)
   if (scope) return scope
-  if (err.code === 'secret_key_missing' || err.status === 503) {
+  if (err.code === 'secret_key_missing') {
     return 'El servidor no tiene ARGOS_SECRET_KEY configurada: pide al administrador del sistema que la defina.'
   }
   if (err.code === 'channel_exists') return 'Ya existe un canal con ese nombre.'

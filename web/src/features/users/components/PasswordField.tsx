@@ -1,6 +1,6 @@
 import { FormField } from '@/components/ui/form-field'
 import { MIN_PASSWORD_LENGTH } from '@/features/auth/constants'
-import { MAX_PASSWORD, passwordLength } from '../utils/userQuery'
+import { passwordLength } from '../utils/userQuery'
 
 interface PasswordFieldProps {
   id: string
@@ -21,7 +21,7 @@ export function PasswordField({ id, label, value, onChange, error }: PasswordFie
       value={value}
       onChange={(e) => onChange(e.target.value)}
       autoComplete="new-password"
-      hint={`${n} caracteres (mínimo ${MIN_PASSWORD_LENGTH}, máximo ${MAX_PASSWORD}). Puede ser una frase.`}
+      hint={`${n} caracteres (mínimo ${MIN_PASSWORD_LENGTH})`}
       error={error}
     />
   )

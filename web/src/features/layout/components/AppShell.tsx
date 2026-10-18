@@ -78,7 +78,7 @@ export function AppShell() {
             <PageBreadcrumb />
           </header>
           <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
-            <div className="w-full px-4 py-6 md:px-8">
+            <div className="w-full px-4 py-4 md:px-6">
               <Suspense
                 fallback={
                   <div role="status" aria-label="Cargando">

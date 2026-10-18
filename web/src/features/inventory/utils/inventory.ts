@@ -1,7 +1,6 @@
 import type { FilterField } from '@/components/filters/types'
 import type { User } from '@/features/auth/types/auth.types'
-import { formatElapsed } from '@/features/hosts/utils/format'
-import type { ChangeKind, ModuleStatus, ModuleSummary, ServiceStart, ServiceState } from '../types/inventory.types'
+import type { ChangeKind, ModuleStatus, PortItem, ProcessItem, ServiceItem, ServiceStart, ServiceState } from '../types/inventory.types'
 
 export const SECTIONS = ['ports', 'services', 'processes', 'changes'] as const
 export type Section = (typeof SECTIONS)[number]
@@ -22,6 +21,7 @@ export const INVENTORY_FIELDS = [
   { kind: 'choice', key: 'module', param: 'inv_module', label: 'Módulo', values: MODULE_FILTERS, default: 'all' },
   { kind: 'choice', key: 'kind', param: 'inv_kind', label: 'Tipo', values: KIND_FILTERS, default: 'all' },
   { kind: 'choice', key: 'state', param: 'inv_state', label: 'Estado', values: STATE_FILTERS, default: 'all' },
+  { kind: 'search', key: 'q', param: 'inv_q', label: 'Buscar', ariaLabel: 'Buscar en el inventario', placeholder: 'Buscar nombre o puerto', maxLength: 128 },
 ] as const satisfies readonly FilterField[]
 
 export const MODULE_LABELS: Record<string, string> = { all: 'Todos', ports: 'Puertos', services: 'Servicios' }
@@ -115,9 +115,10 @@ export function inventoryPath(hostId: string): string {
   return `/hosts/${encodeURIComponent(hostId)}/inventario`
 }
 
-/** Valor de una tarjeta-resumen: conteo (`ok`), "Desactivado" o sin dato (null), y "hace X" si hay `updated_at`. */
-export function summaryValue(mod: ModuleSummary | undefined, now: number): { text: string | number | null; detail?: string } {
-  if (!mod || mod.status === 'no_data') return { text: null }
-  if (mod.status === 'disabled') return { text: 'Desactivado' }
-  return { text: mod.count, detail: mod.updated_at ? `hace ${formatElapsed(mod.updated_at, now)}` : undefined }
+/** Búsqueda en el inventario (sin distinguir mayúsculas): puerto, proceso o bind; nombre de servicio o proceso. */
+export function matchesInventory(item: PortItem | ServiceItem | ProcessItem, q: string): boolean {
+  const t = q.trim().toLowerCase()
+  if (!t) return true
+  const fields = 'port' in item ? [String(item.port), item.proc, item.bind] : 'display' in item ? [item.name, item.display] : [item.name]
+  return fields.some((f) => f.toLowerCase().includes(t))
 }

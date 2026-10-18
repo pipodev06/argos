@@ -32,6 +32,8 @@ interface DateTimePickerProps {
   withTime?: boolean
   placeholder?: string
   disabled?: boolean
+  /** Ultimo dia elegible (p. ej. hoy, para no pedir datos futuros). */
+  maxDate?: Date
   className?: string
   "aria-label"?: string
   "aria-invalid"?: boolean
@@ -46,6 +48,7 @@ function DateTimePicker({
   withTime = true,
   placeholder = "Elegir fecha",
   disabled,
+  maxDate,
   className,
   ...aria
 }: DateTimePickerProps) {
@@ -53,8 +56,13 @@ function DateTimePicker({
   const selected = parseLocal(value)
   const time = selected ? timeText(selected) : "00:00"
 
+  // Con `maxDate`, una hora posterior (p. ej. hoy a las 23:00) se recorta al tope: nunca se emite futuro.
   function emit(day: Date, hhmm: string) {
-    onChange(withTime ? `${dateText(day)}T${hhmm}` : dateText(day))
+    if (!withTime) return onChange(dateText(day))
+    const [h, m] = hhmm.split(":").map(Number)
+    let d = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m)
+    if (maxDate && d > maxDate) d = maxDate
+    onChange(`${dateText(d)}T${timeText(d)}`)
   }
 
   return (
@@ -82,13 +90,16 @@ function DateTimePicker({
           locale={es}
           selected={selected}
           defaultMonth={selected}
+          disabled={maxDate ? { after: maxDate } : undefined}
+          endMonth={maxDate}
           onSelect={(day) => {
             if (!day) return
             emit(day, time)
             if (!withTime) setOpen(false)
           }}
         />
-        <div className="flex items-center gap-2 border-t border-border p-2">
+        {/* Pie en 2 columnas: no ensancha el popup mas alla del calendario. */}
+        <div className="grid grid-cols-2 gap-2 border-t border-border p-2">
           {withTime && (
             <Input
               type="time"
@@ -96,14 +107,18 @@ function DateTimePicker({
               value={time}
               disabled={!selected}
               onChange={(e) => selected && e.target.value && emit(selected, e.target.value)}
-              className="h-8 w-28 appearance-none tabular-nums [&::-webkit-calendar-picker-indicator]:hidden"
+              className="h-8 w-full appearance-none tabular-nums [&::-webkit-calendar-picker-indicator]:hidden"
             />
+          )}
+          {withTime && (
+            <Button type="button" variant="outline" size="sm" onClick={() => emit(new Date(), timeText(new Date()))}>
+              Ahora
+            </Button>
           )}
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="ml-auto"
             disabled={!selected}
             onClick={() => {
               onChange("")
@@ -133,7 +148,7 @@ interface DateTimeFieldProps extends Omit<DateTimePickerProps, "id" | "aria-inva
 function DateTimeField({ id, label, error, ...picker }: DateTimeFieldProps) {
   const errorId = error ? `${id}-error` : undefined
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-1">
       <label htmlFor={id} className="text-sm font-medium text-text">
         {label}
       </label>

@@ -9,7 +9,7 @@ export function HostDetailPage() {
 
   if (!id || !isHostId(id)) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <BackLink to="/hosts">Hosts</BackLink>
         <InlineError>Id de host inválido.</InlineError>
       </div>

@@ -517,6 +517,9 @@ func TestListDevicesFilters(t *testing.T) {
 		{"por estado", HostFilter{Statuses: []string{"down"}}, 1},
 		{"por grupo", HostFilter{GroupIDs: []string{g}}, 1},
 		{"sin grupo", HostFilter{NoGroup: true}, 1},
+		{"por colector", HostFilter{CollectorIDs: []string{hostID(t, "col-lima")}}, 1},
+		{"por varios colectores", HostFilter{CollectorIDs: []string{hostID(t, "col-lima"), hostID(t, "col")}}, 2},
+		{"colector sin dispositivos", HostFilter{CollectorIDs: []string{"00000000-0000-0000-0000-000000000000"}}, 0},
 		{"estado y grupo sin coincidencia", HostFilter{Statuses: []string{"up"}, GroupIDs: []string{g}}, 0},
 	}
 	for _, tt := range tests {
