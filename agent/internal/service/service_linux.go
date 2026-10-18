@@ -86,6 +86,7 @@ func (m Manager) Install(ctx context.Context, o InstallOptions) error {
 		return err
 	}
 	printf(o.Out, "binario instalado en %s\n", exe)
+	linkCommand(binLink, exe, o.Out)
 
 	st, err := prepareServiceState(linuxStateDir, Name, o.Logger)
 	if err != nil {
@@ -160,6 +161,7 @@ func (m Manager) Uninstall(ctx context.Context, keepState bool, out io.Writer) e
 			}
 		}()
 	}
+	unlinkCommand(binLink, filepath.Join(linuxInstallDir, Name), out)
 	errs = append(errs, removeIfExists(linuxUnitPath), removeIfExists(linuxInstallDir),
 		removeIfExists(filepath.Join(linuxSudoersDir, SudoersName)))
 	if !keepState {
@@ -279,6 +281,7 @@ func (Manager) Upgrade(_ context.Context, o InstallOptions) error {
 		}
 		printf(o.Out, "binario actualizado en %s\n", exe)
 	}
+	linkCommand(binLink, filepath.Join(linuxInstallDir, Name), o.Out)
 	_, err = prepareServiceState(linuxStateDir, Name, o.Logger)
 	return err
 }

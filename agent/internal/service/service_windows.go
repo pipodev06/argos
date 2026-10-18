@@ -12,8 +12,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
@@ -32,6 +34,13 @@ const (
 	systemAccount = "LocalSystem"
 
 	stopTimeout = 30 * time.Second
+
+	// machineEnvKey guarda las variables de entorno de maquina (incluido Path).
+	machineEnvKey = `SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
+
+	hwndBroadcast   = 0xffff
+	wmSettingChange = 0x001A
+	smtoAbortIfHung = 0x0002
 )
 
 // knownFolder resuelve una carpeta conocida (Program Files, ProgramData) sin depender de variables de entorno.
@@ -167,6 +176,7 @@ func (m Manager) Install(_ context.Context, o InstallOptions) error {
 		return err
 	}
 	printf(o.Out, "binario instalado en %s\n", dst)
+	addToPath(filepath.Dir(dst), o.Out)
 
 	s, err := scm.CreateService(Name, dst, serviceConfig(o.Privileged))
 	if err != nil {
@@ -399,6 +409,7 @@ func (m Manager) Uninstall(ctx context.Context, keepState bool, out io.Writer) e
 		printf(out, "aviso: no se pudo quitar el origen de eventos: %v\n", err) // puede no existir
 	}
 	if exe, err := installExe(); err == nil {
+		removeFromPath(filepath.Dir(exe), out)
 		if err := os.RemoveAll(filepath.Dir(exe)); err != nil {
 			// Ocurre si se ejecuto uninstall desde el propio binario instalado: Windows no deja borrar un .exe en uso.
 			printf(out, "aviso: no se pudo borrar %s (borralo a mano): %v\n", filepath.Dir(exe), err)
@@ -442,6 +453,7 @@ func (m Manager) Upgrade(_ context.Context, o InstallOptions) error {
 		}
 		printf(o.Out, "binario actualizado en %s\n", dst)
 	}
+	addToPath(filepath.Dir(dst), o.Out)
 	_, err = prepareServiceState(m.StateDir(), m.StateAccount(), o.Logger)
 	return err
 }
@@ -451,3 +463,58 @@ func (Manager) RequirePrivileges() error { return requireElevated() }
 
 // ExePath es el binario instalado del servicio.
 func (Manager) ExePath() (string, error) { return installExe() }
+
+// addToPath agrega dir al Path de maquina si no esta y avisa al sistema. Un fallo solo avisa:
+// el servicio funciona igual, solo habria que escribir la ruta completa del binario.
+func addToPath(dir string, out io.Writer) {
+	changed, err := editMachinePath(func(p string) (string, bool) { return addPathEntry(p, dir) })
+	if err != nil {
+		printf(out, "aviso: no se pudo agregar %s al PATH: %v\n", dir, err)
+		return
+	}
+	if changed {
+		printf(out, "argos-agent agregado al PATH (abre una consola nueva)\n")
+	}
+}
+
+// removeFromPath quita dir del Path de maquina (mismo criterio de avisos que addToPath).
+func removeFromPath(dir string, out io.Writer) {
+	if _, err := editMachinePath(func(p string) (string, bool) { return removePathEntry(p, dir) }); err != nil {
+		printf(out, "aviso: no se pudo quitar %s del PATH: %v\n", dir, err)
+	}
+}
+
+// editMachinePath aplica edit al valor Path de maquina (REG_EXPAND_SZ); si cambia, lo guarda y
+// notifica WM_SETTINGCHANGE pa que las consolas nuevas lo vean.
+func editMachinePath(edit func(string) (string, bool)) (bool, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, machineEnvKey, registry.QUERY_VALUE|registry.SET_VALUE)
+	if err != nil {
+		return false, fmt.Errorf("abriendo el registro: %w", err)
+	}
+	defer func() { _ = k.Close() }() // cierre del handle
+	cur, _, err := k.GetStringValue("Path")
+	if err != nil && !errors.Is(err, registry.ErrNotExist) {
+		return false, fmt.Errorf("leyendo Path: %w", err)
+	}
+	next, changed := edit(cur)
+	if !changed {
+		return false, nil
+	}
+	if err := k.SetExpandStringValue("Path", next); err != nil {
+		return false, fmt.Errorf("guardando Path: %w", err)
+	}
+	broadcastEnvChange()
+	return true, nil
+}
+
+// broadcastEnvChange avisa a las ventanas de nivel superior que cambio el entorno (best-effort).
+func broadcastEnvChange() {
+	env, err := windows.UTF16PtrFromString("Environment")
+	if err != nil {
+		return
+	}
+	proc := windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageTimeoutW")
+	var result uintptr
+	_, _, _ = proc.Call(hwndBroadcast, wmSettingChange, 0, uintptr(unsafe.Pointer(env)), //nolint:gosec // puntero a cadena UTF-16 valido durante la llamada
+		smtoAbortIfHung, 5000, uintptr(unsafe.Pointer(&result))) //nolint:gosec // puntero de salida valido durante la llamada
+}

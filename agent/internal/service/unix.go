@@ -14,7 +14,12 @@ import (
 	"time"
 )
 
-const toolTimeout = 60 * time.Second
+const (
+	toolTimeout = 60 * time.Second
+
+	// binLink es el enlace que deja `argos-agent` en el PATH de cualquier usuario.
+	binLink = "/usr/local/bin/" + Name
+)
 
 // requireRoot exige root: instalar un servicio escribe en directorios del sistema.
 func requireRoot() error {
@@ -145,3 +150,49 @@ func removeIfExists(path string) error {
 
 // RequirePrivileges exige root (actualizar el binario del servicio escribe en directorios del sistema).
 func (Manager) RequirePrivileges() error { return requireRoot() }
+
+// linkCommand crea (o reemplaza) el symlink link -> target pa que `argos-agent` funcione desde
+// cualquier carpeta. Solo toca algo que no exista o que ya sea un symlink; un archivo ajeno se
+// respeta. Un fallo solo avisa: el servicio funciona igual.
+func linkCommand(link, target string, out io.Writer) {
+	if fi, err := os.Lstat(link); err == nil {
+		if fi.Mode()&os.ModeSymlink == 0 {
+			printf(out, "aviso: %s ya existe y no es un enlace; no se toca (usa %s)\n", link, target)
+			return
+		}
+		if cur, err := os.Readlink(link); err == nil && cur == target {
+			return
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		printf(out, "aviso: no se pudo revisar %s: %v\n", link, err)
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil { //nolint:gosec // directorio estandar del sistema
+		printf(out, "aviso: no se pudo crear %s: %v\n", filepath.Dir(link), err)
+		return
+	}
+	// Enlace temporal + rename: reemplazo atomico sin ventana en que falte el comando.
+	tmp := link + ".new"
+	_ = os.Remove(tmp) // resto de un intento previo; si no existe no pasa nada
+	if err := os.Symlink(target, tmp); err != nil {
+		printf(out, "aviso: no se pudo crear el enlace %s: %v\n", link, err)
+		return
+	}
+	if err := os.Rename(tmp, link); err != nil {
+		_ = os.Remove(tmp) // best-effort: el error real ya se avisa
+		printf(out, "aviso: no se pudo crear el enlace %s: %v\n", link, err)
+		return
+	}
+	printf(out, "comando %s disponible en el PATH (%s -> %s)\n", Name, link, target)
+}
+
+// unlinkCommand borra link solo si es un symlink que apunta a target.
+func unlinkCommand(link, target string, out io.Writer) {
+	cur, err := os.Readlink(link)
+	if err != nil || cur != target {
+		return // no existe, no es symlink o apunta a otra cosa: no es nuestro
+	}
+	if err := os.Remove(link); err != nil {
+		printf(out, "aviso: no se pudo borrar %s: %v\n", link, err)
+	}
+}

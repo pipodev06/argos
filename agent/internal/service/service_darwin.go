@@ -68,6 +68,7 @@ func (m Manager) Install(ctx context.Context, o InstallOptions) error {
 		return err
 	}
 	printf(o.Out, "binario instalado en %s\n", exe)
+	linkCommand(binLink, exe, o.Out)
 
 	st, err := prepareServiceState(macStateDir, macUser, o.Logger)
 	if err != nil {
@@ -244,6 +245,7 @@ func (m Manager) Uninstall(ctx context.Context, keepState bool, out io.Writer) e
 	if macLoaded(ctx) {
 		errs = append(errs, runTool(ctx, launchctlPath, "bootout", "system/"+launchdLabel))
 	}
+	unlinkCommand(binLink, filepath.Join(macInstallDir, Name), out)
 	errs = append(errs, removeIfExists(macPlistPath), removeIfExists(macInstallDir), removeIfExists(macLogPath))
 	if !keepState {
 		errs = append(errs, removeIfExists(macStateDir), deleteMacUser(ctx, out))
@@ -280,6 +282,7 @@ func (Manager) Upgrade(_ context.Context, o InstallOptions) error {
 		}
 		printf(o.Out, "binario actualizado en %s\n", exe)
 	}
+	linkCommand(binLink, filepath.Join(macInstallDir, Name), o.Out)
 	_, err = prepareServiceState(macStateDir, macUser, o.Logger)
 	return err
 }

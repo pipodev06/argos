@@ -61,7 +61,7 @@ Se pasan a `install` y quedan en `settings.json` del estado. Sobre un agente ya 
 & $a install --probe-allow 192.168.100.0/24      # puede sondear (ping/SNMP) dispositivos de esas redes (CIDR, /24 o más chicas, separadas por comas)
 & $a install --insecure                          # acepta un servidor http fuera de localhost (solo LAN de desarrollo)
 & $a install --inventory all --probe-allow 192.168.100.0/24   # se combinan; un flag vacío lo apaga: --probe-allow ""
-& "C:\Program Files\argos-agent\argos-agent.exe" status       # servicio, enrolamiento y opciones activas
+argos-agent status                               # servicio, enrolamiento y opciones activas (desde cualquier consola nueva)
 ```
 Modo privilegiado (ve procesos, puertos y servicios de otros usuarios; en Windows el servicio corre como LocalSystem) y `--ca-file` cambian la definición del servicio: hay que reinstalar conservando el enrolamiento (sin `--keep-state` se borran las credenciales):
 ```powershell
@@ -70,6 +70,8 @@ Modo privilegiado (ve procesos, puertos y servicios de otros usuarios; en Window
 & $a install --privileged                        # para volver al modo normal: lo mismo sin --privileged
 & $a start
 ```
+Tras instalar, `argos-agent` queda en el PATH: en Windows se agrega la carpeta del binario al PATH de máquina (funciona en consolas **nuevas**; en la actual usa `& $a …`); en Linux/macOS se crea el enlace `/usr/local/bin/argos-agent`. `uninstall` lo quita.
+
 Un dispositivo (ping/SNMP) pasa de "Pendiente" a activo cuando hay un chequeo **Ping** que lo alcanza, su colector tiene `--probe-allow` para su red y ambos están en el mismo grupo.
 
 En Linux/macOS son los mismos subcomandos con `sudo ./argos-agent …`.
