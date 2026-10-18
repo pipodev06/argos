@@ -5,7 +5,6 @@ import { DateTimeField } from '@/components/ui/date-time-picker'
 import { InlineError } from '@/components/ui/inline-error'
 import { ApiError } from '@/lib/api'
 import { useNow } from '@/hooks/useNow'
-import { useHostDetail } from '../hooks/useHostDetail'
 import { useHostHistory } from '../hooks/useHostHistory'
 import { downloadHostHistoryCsv } from '../services/hosts.service'
 import {
@@ -20,7 +19,6 @@ import {
   type HistorySeries,
 } from '../utils/history'
 import { formatFullDate } from '../utils/format'
-import { BackLink } from '@/components/ui/back-link'
 import { HostCharts } from './HostCharts'
 
 function exportErrorMessage(err: unknown): string {
@@ -35,9 +33,8 @@ function exportErrorMessage(err: unknown): string {
   return 'No se pudo exportar el CSV.'
 }
 
-/** Historial por fecha: gráficas de un rango elegido (no relativo a "ahora") y exportación CSV. */
-export function HostHistoryView({ id }: { id: string }) {
-  const detail = useHostDetail(id)
+/** Rango personalizado de la pestaña Métricas: gráficas de un rango elegido (no relativo a "ahora") y exportación CSV. */
+export function HostHistoryPanel({ id, hostname }: { id: string; hostname: string }) {
   const [initial] = useState(() => shortcutRange('yesterday', Date.now()))
   const [applied, setApplied] = useState<DateRange>(initial)
   const [from, setFrom] = useState(() => toLocalInput(initial.fromMs))
@@ -48,8 +45,7 @@ export function HostHistoryView({ id }: { id: string }) {
   const history = useHostHistory(id, applied)
   // Tope de los calendarios: ahora (no hay datos futuros); un "Hasta" posterior se recorta solo.
   const maxDate = new Date(useNow(30_000))
-  const notFound = detail.errorStatus === 400 || detail.errorStatus === 404 || history.errorStatus === 404
-  const hostname = detail.data?.host.hostname ?? history.data?.host.hostname ?? ''
+  const notFound = history.errorStatus === 404
 
   function apply(range: DateRange, now: number) {
     const err = validateRange(range, now, history.data?.detail_retention_days)
@@ -85,16 +81,11 @@ export function HostHistoryView({ id }: { id: string }) {
   const startsBeforeData = data && availableFrom !== null && availableFrom > applied.fromMs + data.step_seconds * 1000
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink to={`/hosts/${encodeURIComponent(id)}`}>Volver al host</BackLink>
+    <div className="flex flex-col gap-3">
       {notFound ? (
         <InlineError>Host no encontrado.</InlineError>
       ) : (
         <>
-          <h1 className="min-w-0 truncate text-lg font-semibold">
-            Historial por fecha{hostname ? ` · ${hostname}` : ''}
-          </h1>
-
           <form
             className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4"
             onSubmit={(e) => {

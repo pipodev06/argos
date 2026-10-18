@@ -1,4 +1,4 @@
-import { useAlertSummary } from '../hooks/useAlerts'
+import { useAlertSummary } from '../hooks/alertSummaryContext'
 import { openCount } from '../utils/summary'
 
 /** Contador de alertas abiertas (sin reconocer) junto al ítem del sidebar; no se muestra en 0 ni sin datos. */

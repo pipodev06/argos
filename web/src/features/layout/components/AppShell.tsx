@@ -1,4 +1,4 @@
-import { Suspense, type MouseEvent } from 'react'
+import { Fragment, Suspense, useMemo, useState, type MouseEvent } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 import {
   Breadcrumb,
@@ -12,16 +12,19 @@ import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AlertSummaryProvider } from '@/features/alerts/components/AlertSummaryProvider'
+import { BreadcrumbContext, type Crumb } from '../hooks/breadcrumbContext'
 import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed'
 import { navItemForPath } from '../nav-items'
 import { AppSidebar } from './Sidebar'
 
-/** Migas de la barra superior: seccion › pagina (› "Detalle" en rutas hijas de la pagina). */
-function PageBreadcrumb() {
+/** Migas de la barra superior: seccion › pagina › entidad › subpagina ("Hosts › laptop-local › Métricas"). */
+function PageBreadcrumb({ trail }: { trail: Crumb[] | null }) {
   const { pathname } = useLocation()
   const item = navItemForPath(pathname)
   if (!item) return null
   const nested = pathname !== item.to
+  const tail: Crumb[] = nested ? (trail ?? [{ label: 'Detalle' }]) : []
   return (
     <Breadcrumb>
       <BreadcrumbList>
@@ -36,14 +39,20 @@ function PageBreadcrumb() {
             <BreadcrumbPage>{item.label}</BreadcrumbPage>
           )}
         </BreadcrumbItem>
-        {nested && (
-          <>
+        {tail.map((crumb, i) => (
+          <Fragment key={`${i}-${crumb.label}`}>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>Detalle</BreadcrumbPage>
+              {crumb.to && i < tail.length - 1 ? (
+                <BreadcrumbLink asChild>
+                  <Link to={crumb.to}>{crumb.label}</Link>
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+              )}
             </BreadcrumbItem>
-          </>
-        )}
+          </Fragment>
+        ))}
       </BreadcrumbList>
     </Breadcrumb>
   )
@@ -53,6 +62,8 @@ function PageBreadcrumb() {
 // El login y el cambio forzado de clave NO usan el shell.
 export function AppShell() {
   const { collapsed, setCollapsed } = useSidebarCollapsed()
+  const [trail, setTrail] = useState<Crumb[] | null>(null)
+  const breadcrumb = useMemo(() => ({ setTrail }), [])
 
   // El ancla "#main" ensuciaria la URL de react-router; se enfoca el <main> directamente.
   function skipToContent(event: MouseEvent<HTMLAnchorElement>) {
@@ -62,6 +73,8 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
+      <AlertSummaryProvider>
+      <BreadcrumbContext.Provider value={breadcrumb}>
       <SidebarProvider open={!collapsed} onOpenChange={(open) => setCollapsed(!open)}>
         <a
           href="#main"
@@ -75,7 +88,7 @@ export function AppShell() {
           <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-bg px-4">
             <SidebarTrigger className="-ml-1" aria-label="Mostrar u ocultar el menú" />
             <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-            <PageBreadcrumb />
+            <PageBreadcrumb trail={trail} />
           </header>
           <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
             <div className="w-full px-4 py-4 md:px-6">
@@ -92,6 +105,8 @@ export function AppShell() {
           </main>
         </SidebarInset>
       </SidebarProvider>
+      </BreadcrumbContext.Provider>
+      </AlertSummaryProvider>
     </TooltipProvider>
   )
 }

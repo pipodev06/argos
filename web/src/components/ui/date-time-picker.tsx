@@ -1,12 +1,14 @@
-import { useState } from "react"
+import { lazy, Suspense, useState } from "react"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "cn"
-import { es } from "react-day-picker/locale"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Skeleton } from "@/components/ui/skeleton"
+
+// react-day-picker y su locale se descargan al abrir el primer popover, no con el bundle principal.
+const DateCalendar = lazy(() => import("./date-calendar").then((m) => ({ default: m.DateCalendar })))
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -85,19 +87,16 @@ function DateTimePicker({
       {/* Solo se cierra con clic fuera, Escape o "Listo": si la página se re-renderiza al elegir (p. ej. carga el
           informe) y el foco cae al body, Radix lo tomaría como "foco fuera" y cerraría antes de ajustar la hora. */}
       <PopoverContent className="w-auto p-0" align="start" onFocusOutside={(e) => e.preventDefault()}>
-        <Calendar
-          mode="single"
-          locale={es}
-          selected={selected}
-          defaultMonth={selected}
-          disabled={maxDate ? { after: maxDate } : undefined}
-          endMonth={maxDate}
-          onSelect={(day) => {
-            if (!day) return
-            emit(day, time)
-            if (!withTime) setOpen(false)
-          }}
-        />
+        <Suspense fallback={<Skeleton className="m-2 h-[17rem] w-64" />}>
+          <DateCalendar
+            selected={selected}
+            maxDate={maxDate}
+            onSelect={(day) => {
+              emit(day, time)
+              if (!withTime) setOpen(false)
+            }}
+          />
+        </Suspense>
         {/* Pie (no ensancha el popup): hora; debajo "Ahora"; debajo Limpiar y Listo en la misma fila. */}
         <div className="grid grid-cols-2 gap-2 border-t border-border p-2">
           {withTime && (

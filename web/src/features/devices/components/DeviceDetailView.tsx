@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { HostChecksSection } from '@/features/checks/components/HostChecksSection'
 import { useAuth } from '@/features/auth/hooks/useAuth'
+import { useBreadcrumbTrail } from '@/features/layout/hooks/breadcrumbContext'
 import { BackLink } from '@/components/ui/back-link'
 import { Item } from '@/features/hosts/components/HostSystemInfo'
 import { formatFullDate, formatLastSeen } from '@/features/hosts/utils/format'
@@ -28,6 +29,7 @@ export function DeviceDetailView({ id }: { id: string }) {
   const [deleting, setDeleting] = useState(false)
   const device = detail.data
   const override = device ? deviceStateOverride(device) : null
+  useBreadcrumbTrail(device ? [{ label: device.name }] : null)
 
   return (
     <div className="flex flex-col gap-6">
@@ -59,6 +61,12 @@ export function DeviceDetailView({ id }: { id: string }) {
                 </div>
               )}
             </div>
+            {isAdmin && device.collector && (
+              <p className="inline-flex items-center gap-1 text-sm text-text-muted">
+                Sondeado por: <span className="text-text">{device.collector.name}</span>
+                <ViewAction to={`/hosts/${device.collector.id}`} label={device.collector.name} />
+              </p>
+            )}
             {isAdmin && device.collector_group_mismatch && <p className="text-sm"><CollectorMismatchNotice /></p>}
             {override && <p className="text-sm">{override.reason}: no se está evaluando su estado.</p>}
             {enabling.error && <InlineError>{enabling.error}</InlineError>}
@@ -66,16 +74,6 @@ export function DeviceDetailView({ id }: { id: string }) {
           </div>
           <dl className="grid gap-x-6 gap-y-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2">
             {isAdmin && <Item term="Dirección">{device.address}</Item>}
-            {isAdmin && (
-              <Item term="Colector">
-                {device.collector ? (
-                  <span className="inline-flex items-center gap-1">
-                    {device.collector.name}
-                    <ViewAction to={`/hosts/${device.collector.id}`} label={device.collector.name} />
-                  </span>
-                ) : null}
-              </Item>
-            )}
             {isAdmin && (
               <Item term="Perfil SNMP">
                 {device.snmp_profile ? `${device.snmp_profile.name} (${versionLabel(device.snmp_profile.version)})` : 'Sin perfil'}

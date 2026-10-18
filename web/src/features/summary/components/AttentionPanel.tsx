@@ -2,10 +2,12 @@ import { CircleCheckIcon, CircleXIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { ViewAction } from '@/components/data-table/RowActions'
 import { Button } from '@/components/ui/button'
+import { useNow } from '@/hooks/useNow'
 import { formatElapsed } from '@/features/hosts/utils/format'
 import type { RecentDown } from '../types/summary.types'
 
-export function AttentionPanel({ items, now }: { items: RecentDown[]; now: number }) {
+export function AttentionPanel({ items }: { items: RecentDown[] }) {
+  const now = useNow(30_000)
   return (
     <section aria-labelledby="attention-title" className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">

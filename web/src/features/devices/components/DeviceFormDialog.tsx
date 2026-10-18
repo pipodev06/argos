@@ -30,7 +30,7 @@ const DEVICE_HELP: readonly HelpItem[] = [
   ['Dispositivo', 'Equipo sin agente (impresora, switch, UPS…): un host con agente, el colector, le hace ping y su estado depende de las respuestas.'],
   ['IP', 'IPv4 o IPv6, no un nombre. Debe estar en las redes permitidas del colector.'],
   ['Colector', 'Host con agente que hace el ping.'],
-  ['Perfil SNMP', 'Opcional. Sin perfil no recibe chequeos SNMP. Los perfiles se crean en Configuración.'],
+  ['Perfil SNMP', 'Opcional. Sin perfil no recibe chequeos SNMP. Los perfiles se crean en Perfiles SNMP.'],
   ...SNMP_HOWTO,
 ]
 

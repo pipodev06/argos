@@ -1,13 +1,14 @@
-import { PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
+import { CircleCheckIcon, CircleXIcon, PencilIcon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { ActionsHeadCell } from '@/components/data-table/RowActions'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RuleEnabledBadge } from '@/features/alerts/components/RulesTable'
 import { formatSeconds } from '@/features/alerts/utils/format'
 import type { Device } from '@/features/devices/types/device.types'
 import type { ServiceCheck } from '../types/check.types'
-import { checkScopeLabel, checkTarget, checkTypeLabel } from '../utils/format'
-import { checkOrigin } from '../utils/origin'
+import { checkProbeTarget, checkTypeLabel } from '../utils/format'
+import { checkRunsOn } from '../utils/origin'
 
 export type CheckAction = 'edit' | 'toggle' | 'delete'
 
@@ -21,6 +22,20 @@ interface ChecksTableProps {
   onAction: (action: CheckAction, check: ServiceCheck) => void
 }
 
+/** OK / "N fallando" según los hosts que hoy fallan el chequeo; sin dato o desactivado, guion. */
+function ChecksStatus({ failingHosts, enabled }: { failingHosts: number | undefined; enabled: boolean }) {
+  if (failingHosts === undefined || !enabled) return <span className="text-text-muted">—</span>
+  return failingHosts > 0 ? (
+    <Badge Icon={CircleXIcon} tint="danger">
+      {failingHosts} fallando
+    </Badge>
+  ) : (
+    <Badge Icon={CircleCheckIcon} tint="ok">
+      OK
+    </Badge>
+  )
+}
+
 export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksTableProps) {
   return (
     <DataTable caption="Chequeos de servicios" className="min-w-[68rem]">
@@ -29,10 +44,10 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
           <RowNumberHeadCell />
           <HeadCell>Nombre</HeadCell>
           <HeadCell>Tipo</HeadCell>
-          <HeadCell>Destino</HeadCell>
+          <HeadCell>Prueba a</HeadCell>
+          <HeadCell>Se ejecuta en</HeadCell>
           <HeadCell>Intervalo</HeadCell>
-          <HeadCell>Alcance</HeadCell>
-          <HeadCell>Origen</HeadCell>
+          <HeadCell>Estado</HeadCell>
           <HeadCell>Activo</HeadCell>
           {canAct && <ActionsHeadCell />}
         </HeadRow>
@@ -43,13 +58,15 @@ export function ChecksTable({ checks, canAct, busy, devices, onAction }: ChecksT
             <RowNumberCell n={i + 1} />
             <Cell className="max-w-56 truncate font-semibold">{c.name}</Cell>
             <Cell className="max-w-56 truncate">{checkTypeLabel(c)}</Cell>
-            <Cell className="max-w-64 truncate tabular-nums" title={checkTarget(c)}>
-              {checkTarget(c)}
+            <Cell className="max-w-64 truncate tabular-nums" title={checkProbeTarget(c)}>
+              {checkProbeTarget(c)}
+            </Cell>
+            <Cell className="max-w-48 truncate" title={checkRunsOn(c, devices)}>
+              {checkRunsOn(c, devices)}
             </Cell>
             <Cell className="tabular-nums">{formatSeconds(c.interval_seconds)}</Cell>
-            <Cell className="max-w-48 truncate">{checkScopeLabel(c)}</Cell>
-            <Cell className="max-w-48 truncate" title={checkOrigin(c, devices)}>
-              {checkOrigin(c, devices)}
+            <Cell>
+              <ChecksStatus failingHosts={c.failing_hosts} enabled={c.enabled} />
             </Cell>
             <Cell>
               <RuleEnabledBadge enabled={c.enabled} />

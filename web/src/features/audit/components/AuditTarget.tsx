@@ -23,7 +23,7 @@ export function AuditTarget({ type, id, name, exists }: AuditTargetProps) {
       {type && <span className="text-text-muted">{targetTypeLabel(type)}</span>}
       {name && <span className="font-semibold">{name}</span>}
       {deleted && <span className="text-text-muted">(eliminado)</span>}
-      {linkable && <ViewAction to={`/hosts/${id}`} label={name ?? 'host'} />}
+      {linkable && <ViewAction to={`/${type === 'device' ? 'dispositivos' : 'hosts'}/${id}`} label={name ?? (type === 'device' ? 'dispositivo' : 'host')} />}
     </span>
   )
 }

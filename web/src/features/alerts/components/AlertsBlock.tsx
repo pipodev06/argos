@@ -1,7 +1,7 @@
 import { OctagonAlertIcon, TriangleAlertIcon, InfoIcon } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusTile } from '@/components/ui/status-tile'
-import { useAlertSummary } from '../hooks/useAlerts'
+import { useAlertSummary } from '../hooks/alertSummaryContext'
 import type { AlertSeverity } from '../types/alert.types'
 import { openBySeverity, openCount } from '../utils/summary'
 

@@ -1,17 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { CircleCheckIcon, Clock4Icon, ExternalLinkIcon, RotateCwIcon, ShieldAlertIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react'
 import { Cell, DataTable, HeadCell, HeadRow, Row, RowNumberCell, RowNumberHeadCell, TableBody, TableHeader } from '@/components/data-table/DataTable'
 import { ActionsCell, ActionsHeadCell } from '@/components/data-table/RowActions'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard, StatValue } from '@/components/ui/stat-card'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useNow } from '@/hooks/useNow'
 import { useHostUpdates } from '../hooks/useUpdates'
 import type { UpdatesPoint } from '../types/updates.types'
 import { advisoryUrl, canViewUpdates, countText, formatDataAge, lastInstalledText, SOURCE_LABELS } from '../utils/updates'
-import { PatchHistoryChart } from './PatchHistoryChart'
 import { EolText, RebootText } from './UpdatesBadges'
+
+// La grafica usa Recharts: se descarga solo si hay evolucion que mostrar (fuera del bundle principal).
+const PatchHistoryChart = lazy(() => import('./PatchHistoryChart').then((m) => ({ default: m.PatchHistoryChart })))
 
 /** Icono de la tarjeta: ok en verde si no hay nada, aviso si hay algo; sin dato, el icono neutro. */
 function tone(n: number | null | undefined): string | undefined {
@@ -114,7 +117,9 @@ function Content({ hostId, onDenied }: { hostId: string; onDenied: () => void })
           <h3 id="host-patch-history-title" className="text-sm font-semibold">
             Evolución
           </h3>
-          <PatchHistoryChart history={data?.history} />
+          <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+            <PatchHistoryChart history={data?.history} />
+          </Suspense>
         </section>
       )}
     </div>

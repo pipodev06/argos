@@ -1,9 +1,10 @@
 import { useParams } from 'react-router'
 import { InlineError } from '@/components/ui/inline-error'
 import { BackLink } from '@/components/ui/back-link'
-import { HostDetailView } from '@/features/hosts/components/HostDetailView'
+import { HostLayout } from '@/features/hosts/components/HostLayout'
 import { isHostId } from '@/features/hosts/utils/id'
 
+/** Layout de `/hosts/:id`: sus sub-rutas se declaran en DashboardPage. */
 export function HostDetailPage() {
   const { id } = useParams()
 
@@ -15,6 +16,6 @@ export function HostDetailPage() {
       </div>
     )
   }
-  // key: al cambiar de host se reinicia el estado (rango) del detalle.
-  return <HostDetailView key={id} id={id} />
+  // key: al cambiar de host se reinicia el estado del detalle.
+  return <HostLayout key={id} id={id} />
 }

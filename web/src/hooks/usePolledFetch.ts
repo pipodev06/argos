@@ -28,10 +28,15 @@ export function isClientError(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 400 || err.status === 404)
 }
 
+/** Intervalo ±15 % aleatorio. */
+function jittered(ms: number): number {
+  return Math.round(ms * (0.85 + Math.random() * 0.3))
+}
+
 /**
  * Consulta periodica con AbortController. `fetcher` debe ser estable (useCallback): cuando cambia
  * (otro host o rango) se descartan los datos anteriores y se vuelve a cargar. Se pausa mientras la
- * pestana esta oculta (y refresca al volver) y se detiene ante 401 o `stopOn`.
+ * pestana esta oculta (y refresca al volver), con jitter de ±15 % en el intervalo y se detiene ante 401 o `stopOn`.
  */
 export function usePolledFetch<T>(
   fetcher: (signal: AbortSignal) => Promise<T>,
@@ -43,10 +48,10 @@ export function usePolledFetch<T>(
 
   useEffect(() => {
     let controller: AbortController | null = null
-    let timer: ReturnType<typeof setInterval> | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
 
     const stop = () => {
-      if (timer !== null) clearInterval(timer)
+      if (timer !== null) clearTimeout(timer)
       timer = null
       document.removeEventListener('visibilitychange', onVisibility)
     }
@@ -76,6 +81,14 @@ export function usePolledFetch<T>(
       }
     }
 
+    // Intervalo con jitter para que varias pantallas no consulten en el mismo instante.
+    function schedule() {
+      timer = setTimeout(() => {
+        if (!document.hidden) void run()
+        schedule()
+      }, jittered(intervalMs))
+    }
+
     function onVisibility() {
       if (!document.hidden) void run()
     }
@@ -85,9 +98,7 @@ export function usePolledFetch<T>(
     // oxlint-disable-next-line react/set-state-in-effect
     void run()
     if (!paused) {
-      timer = setInterval(() => {
-        if (!document.hidden) void run()
-      }, intervalMs)
+      schedule()
       document.addEventListener('visibilitychange', onVisibility)
     }
 

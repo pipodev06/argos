@@ -9,7 +9,7 @@ import { useSystemStatus } from '../hooks/useSystemStatus'
 import { checkLabel, formatDuration } from '../utils/systemStatus'
 import { LevelBadge } from './LevelBadge'
 
-/** Sección "Estado del servicio" de Configuración (solo admin). */
+/** Sección "Estado del servicio" de Sistema (solo admin). */
 export function ServiceStatusSection() {
   const { data, error, loading } = useSystemStatus()
   return (

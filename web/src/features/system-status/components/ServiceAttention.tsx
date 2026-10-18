@@ -10,7 +10,7 @@ export function ServiceAttention() {
     <p className="-mt-1 mb-3 flex items-center gap-2 text-xs">
       Servicio: atención requerida.
       <Button asChild variant="outline" size="sm">
-        <Link to="/configuracion">Ver estado</Link>
+        <Link to="/sistema">Ver estado</Link>
       </Button>
     </p>
   )

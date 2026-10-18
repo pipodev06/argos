@@ -91,11 +91,6 @@ export function deleteMaintenance(id: string): Promise<unknown> {
   return apiRequest<unknown>(`/maintenance/${enc(id)}`, { method: 'DELETE', noData: true })
 }
 
-export async function listHostEvents(hostId: string, signal?: AbortSignal, limit = 50): Promise<HostEvent[]> {
-  const data = await apiRequest<{ items: HostEvent[] }>(`/hosts/${enc(hostId)}/events?limit=${limit}`, { signal })
-  return data.items
-}
-
 export interface HostEventsPage {
   items: HostEvent[]
   next_cursor: string | null

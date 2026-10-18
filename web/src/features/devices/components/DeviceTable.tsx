@@ -48,7 +48,18 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
                 <span className="block truncate font-semibold">{d.name}</span>
               </Cell>
               {isAdmin && <Cell className="tabular-nums">{d.address ?? '—'}</Cell>}
-              {isAdmin && <Cell className="max-w-40 truncate">{d.collector?.name ?? '—'}</Cell>}
+              {isAdmin && (
+                <Cell className="max-w-48">
+                  {d.collector ? (
+                    <span className="inline-flex max-w-full items-center gap-1">
+                      <span className="truncate">{d.collector.name}</span>
+                      <ViewAction to={`/hosts/${d.collector.id}`} label={`colector ${d.collector.name}`} />
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </Cell>
+              )}
               {isAdmin && <Cell className="max-w-40 truncate">{d.snmp_profile?.name ?? <span className="text-text-muted">—</span>}</Cell>}
               <Cell className="max-w-40 truncate">{d.group?.name ?? <span className="text-text-muted">Sin grupo</span>}</Cell>
               <Cell>
@@ -59,7 +70,7 @@ export function DeviceTable({ devices, page, pageSize, isAdmin, onAction }: Devi
               </Cell>
               <Cell className="text-sm text-text-muted tabular-nums">{formatLastSeen(d.last_seen_at)}</Cell>
               <ActionsCell>
-                <ViewAction to={`/hosts/${d.id}`} label={d.name} />
+                <ViewAction to={`/dispositivos/${d.id}`} label={d.name} />
                 {isAdmin && (
                 <>
                   <Button variant="ghost" size="icon-sm" aria-label={`Editar dispositivo ${d.name}`} title="Editar" onClick={() => onAction('edit', d)}>

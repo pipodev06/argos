@@ -51,6 +51,11 @@ export function checkTarget(c: ServiceCheck): string {
   return c.target_host && c.target_port ? `${c.target_host}:${c.target_port}` : '—'
 }
 
+/** "Prueba a": los dispositivos del alcance (ping/snmp) o el destino host:puerto / URL / servicio. */
+export function checkProbeTarget(c: ServiceCheck): string {
+  return isDeviceCheck(c.type) ? checkScopeLabel(c) : checkTarget(c)
+}
+
 /** Latencia (ms) o días restantes (tls_cert) del último resultado. */
 function checkValue(type: CheckType, s: CheckState | null): string {
   if (!s) return '—'

@@ -62,7 +62,7 @@ export function FleetTable({ items, page, pageSize, sort, dir, onSort, now }: Fl
               <Cell><EolText eol={it.eol} /></Cell>
               <Cell className="text-sm text-text-muted"><DataAgeText seconds={it.data_age_s} stale={it.stale} /></Cell>
               <ActionsCell>
-                <ViewAction to={`/hosts/${it.host.id}?tab=parches`} label={`parches de ${it.host.hostname}`} />
+                <ViewAction to={`/hosts/${it.host.id}/parches`} label={`parches de ${it.host.hostname}`} />
               </ActionsCell>
             </Row>
           ))

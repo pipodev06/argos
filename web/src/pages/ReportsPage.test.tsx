@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { checkA11y, mockApi, renderWithRouter } from '@/test/utils'
 import { ReportsPage } from './ReportsPage'
+
+// El calendario es lazy (carga al abrir el popover): se precarga el modulo para no medir su transformacion en el test.
+beforeAll(async () => {
+  await import('@/components/ui/date-calendar')
+}, 60_000)
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -49,10 +54,10 @@ describe('ReportsPage: rango personalizado (B12)', () => {
     await screen.findByText('Elige Desde y Hasta')
     for (const [label, day] of [['Desde', '10'], ['Hasta', '20']] as const) {
       fireEvent.click(screen.getByRole('button', { name: label }))
-      fireEvent.click(within(await screen.findByRole('grid')).getByText(day))
+      fireEvent.click(within(await screen.findByRole('grid', {}, { timeout: 4000 })).getByText(day))
       fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     }
     await waitFor(() => expect(screen.queryByText('Elige Desde y Hasta')).toBeNull())
     vi.useRealTimers()
-  })
+  }, 30_000)
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Device } from '@/features/devices/types/device.types'
-import { checkOrigin } from './origin'
+import { checkProbeTarget } from './format'
+import { checkOrigin, checkRunsOn } from './origin'
 
 const dev = (id: string, collector: string | undefined, group: string | null = null): Device => ({
   id, name: id, kind: 'device', address: '10.0.0.1', collector: collector ? { id: `c-${collector}`, name: collector } : undefined,
@@ -33,5 +34,21 @@ describe('checkOrigin', () => {
   it('otros tipos: los propios hosts del alcance', () => {
     expect(checkOrigin(chk('tcp', { type: 'all' }), devices)).toBe('Cada host con agente')
     expect(checkOrigin(chk('http', { type: 'group', group_id: 'g1' }), devices)).toBe('Hosts del grupo')
+  })
+})
+
+describe('checkRunsOn / checkProbeTarget', () => {
+  const devices = [dev('r1', 'pc-a', 'g1')]
+  const full = (type: string, scope: object, extra: object = {}) =>
+    ({ type, scope: { group_id: null, group_name: null, ...scope }, target_host: 'srv', target_port: 443, ...extra }) as never
+  it('ping: corre en el colector y prueba a los dispositivos del alcance', () => {
+    const c = full('ping', { type: 'device', device_id: 'r1', device_name: 'Router' })
+    expect(checkRunsOn(c, devices)).toBe('pc-a')
+    expect(checkProbeTarget(c)).toBe('Dispositivo: Router')
+  })
+  it('tcp: corre en los hosts del alcance y prueba a host:puerto', () => {
+    const c = full('tcp', { type: 'all' })
+    expect(checkRunsOn(c, devices)).toBe('Todos los hosts')
+    expect(checkProbeTarget(c)).toBe('srv:443')
   })
 })

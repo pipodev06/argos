@@ -31,7 +31,7 @@ export function CollectorDevices({ hostId }: { hostId: string }) {
             <span className="tabular-nums text-text-muted">{d.address ?? '—'}</span>
             <DeviceStatusBadge device={d} />
             <span className="ml-auto text-text-muted tabular-nums">{formatLastSeen(d.last_seen_at)}</span>
-            <ViewAction to={`/hosts/${d.id}`} label={d.name} />
+            <ViewAction to={`/dispositivos/${d.id}`} label={d.name} />
           </li>
         ))}
       </ul>

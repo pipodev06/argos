@@ -26,6 +26,11 @@ function ago(from: number, now: number): string {
   return `${Math.floor(seconds / 60)} min`
 }
 
+/** Tiempo transcurrido desde `from`; el reloj de 5 s vive aqui para no re-renderizar todo el resumen. */
+function Ago({ from }: { from: number }) {
+  return <>{ago(from, useNow(5_000))}</>
+}
+
 function total(counts: Summary['counts']): number {
   return counts.up + counts.down + counts.offline + counts.pending + counts.disabled
 }
@@ -33,7 +38,6 @@ function total(counts: Summary['counts']): number {
 export function SummaryView({ onAddHost }: SummaryViewProps) {
   const { user } = useAuth()
   const { data, error, loading, updatedAt, refresh } = useSummary()
-  const now = useNow(5_000)
   const isAdmin = user?.role === 'admin'
 
   const title = (
@@ -42,7 +46,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
         title="Resumen"
         actions={
           updatedAt !== null && (
-            <span className="text-xs text-text-muted tabular-nums">Actualizado hace {ago(updatedAt, now)}</span>
+            <span className="text-xs text-text-muted tabular-nums">Actualizado hace <Ago from={updatedAt} /></span>
           )
         }
       />
@@ -74,7 +78,12 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
           <div className="flex flex-wrap items-center gap-3">
             <InlineError>
               {error}
-              {updatedAt !== null && ` Datos de hace ${ago(updatedAt, now)}.`}
+              {updatedAt !== null && (
+                <>
+                  {' '}
+                  Datos de hace <Ago from={updatedAt} />.
+                </>
+              )}
             </InlineError>
             <Button variant="outline" size="sm" onClick={() => void refresh()}>
               Reintentar
@@ -91,7 +100,7 @@ export function SummaryView({ onAddHost }: SummaryViewProps) {
 
         {data ? (
           <div className="grid gap-3 lg:grid-cols-2">
-            <AttentionPanel items={data.recently_down} now={now} />
+            <AttentionPanel items={data.recently_down} />
             <GroupBreakdown groups={data.by_group} />
             <div className="lg:col-span-2">
               <TopUsagePanel summary={data} />

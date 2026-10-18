@@ -7,6 +7,7 @@ import { SNMP_HOWTO } from '@/features/snmp-profiles/utils/howto'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckForm } from '@/features/checks/components/CheckForm'
 import { useServiceChecks } from '@/features/checks/hooks/useChecks'
+import { useBreadcrumbTrail } from '@/features/layout/hooks/breadcrumbContext'
 
 const CHECK_HELP: readonly HelpItem[] = [
   ['Tipo', 'No se puede cambiar después: crea otro chequeo si lo necesitas distinto.'],
@@ -29,6 +30,8 @@ export function CheckFormPage() {
   const navigate = useNavigate()
   const { data: checks, error, refresh } = useServiceChecks()
   const done = () => navigate(BACK.to)
+  const check = id ? checks?.find((c) => c.id === id) : undefined
+  useBreadcrumbTrail(!id ? [{ label: 'Nuevo' }] : check ? [{ label: check.name }] : null)
 
   if (!id) {
     return (
@@ -37,7 +40,6 @@ export function CheckFormPage() {
       </FormPage>
     )
   }
-  const check = checks?.find((c) => c.id === id)
   return (
     <FormPage title="Editar chequeo" back={BACK} help={CHECK_HELP}>
       {error ? (

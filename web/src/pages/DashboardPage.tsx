@@ -1,5 +1,5 @@
 import { lazy, useEffect } from 'react'
-import { Route, Routes, useLocation } from 'react-router'
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router'
 import { AppShell } from '@/features/layout/components/AppShell'
 import { AlertDetailPage } from './AlertDetailPage'
 import { AlertsPage } from './AlertsPage'
@@ -7,13 +7,12 @@ import { AuditPage } from './AuditPage'
 import { ChannelsPage } from './ChannelsPage'
 import { CheckFormPage } from './CheckFormPage'
 import { ChecksPage } from './ChecksPage'
-import { ConfigurationPage } from './ConfigurationPage'
 import { DevicesPage } from './DevicesPage'
 import { GroupFormPage } from './GroupFormPage'
 import { GroupsPage } from './GroupsPage'
-import { HostEventsPage } from './HostEventsPage'
+import { DeviceDetailPage } from './DeviceDetailPage'
+import { HostDetailPage } from './HostDetailPage'
 import { HostsPage } from './HostsPage'
-import { InventoryPage } from './InventoryPage'
 import { MaintenancePage } from './MaintenancePage'
 import { NotFoundPage } from './NotFoundPage'
 import { ReportsPage } from './ReportsPage'
@@ -21,12 +20,27 @@ import { RuleFormPage } from './RuleFormPage'
 import { RulesPage } from './RulesPage'
 import { SummaryPage } from './SummaryPage'
 import { UpdatesPage } from './UpdatesPage'
+import { SnmpProfilesPage } from './SnmpProfilesPage'
+import { SystemPage } from './SystemPage'
 import { UsersPage } from './UsersPage'
+import {
+  HostChecksTab,
+  HostDevicesTab,
+  HostEventsTab,
+  HostInventoryTab,
+  HostSummaryTab,
+  HostUpdatesTab,
+} from '@/features/hosts/components/HostSections'
 
-// Pantallas livianas en el bundle principal (navegar no espera descargas). Solo las que usan gráficas (Recharts,
-// ~350 KB) se cargan aparte; el Suspense vive en AppShell, alrededor del Outlet.
-const HostDetailPage = lazy(() => import('./HostDetailPage').then((m) => ({ default: m.HostDetailPage })))
-const HostHistoryPage = lazy(() => import('./HostHistoryPage').then((m) => ({ default: m.HostHistoryPage })))
+// Todo es estatico en el bundle principal salvo la ruta Métricas del host: es la unica que usa gráficas (Recharts,
+// ~350 KB). El Suspense vive en HostLayout, alrededor de su Outlet.
+const HostMetricsTab = lazy(() => import('@/features/hosts/components/HostMetricsTab').then((m) => ({ default: m.HostMetricsTab })))
+
+/** `/hosts/:id/estados` (URL vieja) ahora es la pestaña Historial. */
+function LegacyHostEvents() {
+  const { id = '' } = useParams()
+  return <Navigate to={`/hosts/${encodeURIComponent(id)}/historial`} replace />
+}
 
 export function DashboardPage() {
   const { pathname } = useLocation()
@@ -41,12 +55,19 @@ export function DashboardPage() {
       <Route element={<AppShell />}>
         <Route index element={<SummaryPage />} />
         <Route path="hosts" element={<HostsPage />} />
-        <Route path="hosts/:id" element={<HostDetailPage />} />
-        <Route path="hosts/:id/inventario" element={<InventoryPage />} />
-        <Route path="hosts/:id/estados" element={<HostEventsPage />} />
-        <Route path="hosts/:id/historial" element={<HostHistoryPage />} />
+        <Route path="hosts/:id" element={<HostDetailPage />}>
+          <Route index element={<HostSummaryTab />} />
+          <Route path="metricas" element={<HostMetricsTab />} />
+          <Route path="chequeos" element={<HostChecksTab />} />
+          <Route path="dispositivos" element={<HostDevicesTab />} />
+          <Route path="parches" element={<HostUpdatesTab />} />
+          <Route path="inventario" element={<HostInventoryTab />} />
+          <Route path="historial" element={<HostEventsTab />} />
+          <Route path="estados" element={<LegacyHostEvents />} />
+        </Route>
         <Route path="parches" element={<UpdatesPage />} />
         <Route path="dispositivos" element={<DevicesPage />} />
+        <Route path="dispositivos/:id" element={<DeviceDetailPage />} />
         <Route path="grupos" element={<GroupsPage />} />
         <Route path="grupos/nuevo" element={<GroupFormPage />} />
         <Route path="grupos/:id" element={<GroupFormPage />} />
@@ -62,7 +83,9 @@ export function DashboardPage() {
         <Route path="alertas/canales" element={<ChannelsPage />} />
         <Route path="alertas/:id" element={<AlertDetailPage />} />
         <Route path="usuarios" element={<UsersPage />} />
-        <Route path="configuracion" element={<ConfigurationPage />} />
+        <Route path="sistema" element={<SystemPage />} />
+        <Route path="configuracion" element={<Navigate to="/sistema" replace />} />
+        <Route path="perfiles-snmp" element={<SnmpProfilesPage />} />
         <Route path="auditoria" element={<AuditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
