@@ -448,7 +448,7 @@ func TestInstallScriptsAgentOptions(t *testing.T) {
 	}
 	for _, want := range []string{
 		`[string]$Inventory`, `[string]$ProbeAllow`, `[switch]$Privileged`, `[switch]$Insecure`, `[switch]$Update`,
-		`'--inventory', $Inventory`, `'--probe-allow', $ProbeAllow`, `'--privileged'`, `'--insecure'`, `@('update')`,
+		`'--inventory', $Inventory`, `'--probe-allow', $ProbeAllow`, `'--privileged'`, `'--insecure'`,
 	} {
 		if !strings.Contains(ps, want) {
 			t.Errorf("install.ps1 no maneja %q", want)
@@ -477,11 +477,19 @@ func TestInstallScriptsAgentOptions(t *testing.T) {
 			t.Errorf("install.sh: curl sin verificar TLS: %q", line)
 		}
 	}
-	// --update no pide token y usa el subcomando del agente instalado.
-	if !strings.Contains(sh, `"$exe" update`) || !strings.Contains(sh, `--update no se combina con otras opciones`) {
-		t.Error("install.sh --update debe ejecutar `argos-agent update` y no combinarse con otras opciones")
+	// --update exige --server, no pide token y ejecuta `install` del binario descargado (el subcomando
+	// `update` del agente ya no existe).
+	if !strings.Contains(sh, `--update exige --server`) || !strings.Contains(sh, `"$tmp/agent" install`) {
+		t.Error("install.sh --update debe exigir --server y ejecutar `install` del binario descargado")
 	}
-	if !strings.Contains(ps, `Invoke-Agent $exe @('update')`) || !strings.Contains(ps, `-Update no se combina con otras opciones`) {
-		t.Error("install.ps1 -Update debe ejecutar `argos-agent update` y no combinarse con otras opciones")
+	if !strings.Contains(ps, `-Update exige -Server`) || !strings.Contains(ps, `Invoke-Agent $download @('install')`) {
+		t.Error("install.ps1 -Update debe exigir -Server y ejecutar `install` del binario descargado")
+	}
+	for name, body := range map[string]string{"install.sh": sh, "install.ps1": ps} {
+		for _, bad := range []string{"argos-agent update", `" update`, `'update'`, "update_agent"} {
+			if strings.Contains(body, bad) {
+				t.Errorf("%s referencia el subcomando eliminado %q", name, bad)
+			}
+		}
 	}
 }

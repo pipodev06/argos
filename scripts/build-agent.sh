@@ -50,6 +50,23 @@ for t in "${targets[@]}"; do
 	entries+=("{\"name\":\"$name\",\"os\":\"$goos\",\"arch\":\"$goarch\",\"sha256\":\"$(sha256_of "$dir/$name")\",\"size\":$(size_of "$dir/$name")}")
 done
 
+# Paquetes .deb de linux (opcional: solo si nfpm esta instalado y la version empieza por digito, como exige Debian).
+# El server los publica si estan en el manifiesto; el .deb solo deja el binario, no enrola.
+if command -v nfpm >/dev/null 2>&1 && [[ "$version" =~ ^[0-9][0-9A-Za-z.+-]*$ ]]; then
+	for arch in amd64 arm64; do
+		deb="argos-agent_${version}_${arch}.deb"
+		echo "empaquetando $deb"
+		# nfpm no expande variables en contents.src ni en scripts: se arma la config con los valores ya puestos.
+		cfg="$(mktemp)"
+		sed -e "s|\${ARGOS_DEB_ARCH}|$arch|g" -e "s|\${ARGOS_DEB_VERSION}|$version|g" \
+			-e "s|\${ARGOS_DEB_SRC}|$dir/argos-agent_linux_${arch}|g" -e "s|\${ARGOS_DEB_SCRIPTS}|$root/deploy/nfpm|g" \
+			"$root/deploy/nfpm/nfpm.yaml" >"$cfg"
+		nfpm package --config "$cfg" --packager deb --target "$dir/$deb"
+		rm -f "$cfg"
+		entries+=("{\"name\":\"$deb\",\"os\":\"linux\",\"arch\":\"$arch\",\"sha256\":\"$(sha256_of "$dir/$deb")\",\"size\":$(size_of "$dir/$deb")}")
+	done
+fi
+
 {
 	printf '{\n"version":"%s",\n"files":[\n' "$version"
 	last=$((${#entries[@]} - 1))

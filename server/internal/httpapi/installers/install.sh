@@ -3,7 +3,7 @@
 #
 # Uso (como root):
 #   curl --proto '=https' --tlsv1.2 -fsSL <URL>/install.sh | sh -s -- --server <URL> --token <TOKEN>
-#   curl --proto '=https' --tlsv1.2 -fsSL <URL>/install.sh | sh -s -- --update      (host ya enrolado)
+#   curl --proto '=https' --tlsv1.2 -fsSL <URL>/install.sh | sh -s -- --update --server <URL>   (host ya enrolado)
 #
 # Opciones:
 #   --server <URL>   origen del server (https://, o http://localhost en desarrollo)
@@ -14,7 +14,8 @@
 #   --probe-allow <redes>  IPs o CIDRs (/24 o mas chicos, separados por comas) que el colector ping puede sondear.
 #   --privileged     modo privilegiado del agente (ve procesos y puertos de otros usuarios).
 #   --insecure       permite un server http:// remoto (token y metricas viajan SIN CIFRAR: usa https).
-#   --update         actualiza el agente ya instalado a la ultima version (sin --token ni otras opciones).
+#   --update         actualiza el agente ya instalado: descarga la ultima version y ejecuta `install` (conserva el
+#                    enrolamiento). Exige --server; admite --ca e --insecure; no admite --token ni otras opciones.
 #
 # Descarga el binario, verifica su SHA-256 contra el manifiesto y ABORTA si no coincide. El token llega al
 # agente por entrada estandar (enroll --token-stdin): no se escribe en disco ni en logs.
@@ -37,24 +38,6 @@ sha256_of() {
 	fi
 }
 
-# update_agent actualiza el agente instalado con su propio subcomando `update` (descarga, verifica el SHA-256
-# del manifiesto, reemplaza el binario del servicio conservando estado y config, y lo reinicia).
-update_agent() {
-	case "$(uname -s)" in
-	Linux) exe=/opt/argos-agent/argos-agent ;;
-	Darwin) exe=/usr/local/libexec/argos-agent/argos-agent ;;
-	*) die "sistema no soportado: $(uname -s)" ;;
-	esac
-	[ -x "$exe" ] || die "el agente no esta instalado en este equipo (no existe $exe): instalalo con --server y --token"
-	"$exe" update
-	# Deja la copia de /usr/local/bin igual que el binario del servicio (si no, su `update` creeria estar vieja).
-	if [ -e /usr/local/bin/argos-agent ]; then
-		install -m 0755 "$exe" /usr/local/bin/argos-agent.new
-		chown 0:0 /usr/local/bin/argos-agent.new
-		mv -f /usr/local/bin/argos-agent.new /usr/local/bin/argos-agent
-	fi
-}
-
 main() {
 	server="" token="${ARGOS_ENROLL_TOKEN:-}" ca="" inventory="" probe_allow="" privileged=0 insecure=0 update=0 other=0
 	while [ $# -gt 0 ]; do
@@ -68,7 +51,7 @@ main() {
 			--inventory) inventory=$2 ;;
 			--probe-allow) probe_allow=$2 ;;
 			esac
-			other=1
+			case "$1" in --server | --ca) ;; *) other=1 ;; esac
 			shift 2
 			;;
 		--privileged)
@@ -78,7 +61,6 @@ main() {
 			;;
 		--insecure)
 			insecure=1
-			other=1
 			shift
 			;;
 		--update)
@@ -91,10 +73,10 @@ main() {
 
 	[ "$(id -u)" -eq 0 ] || die "ejecutalo como root (sudo)"
 	if [ "$update" -eq 1 ]; then
-		[ "$other" -eq 0 ] || die "--update no se combina con otras opciones"
-		update_agent
-		printf 'argos install: actualizacion terminada\n'
-		return 0
+		# Solo --server, --ca e --insecure; el token del entorno no se usa al actualizar.
+		[ "$other" -eq 0 ] || die "--update solo admite --server, --ca e --insecure (no se combina con --token ni otras opciones)"
+		[ -n "$server" ] || die "--update exige --server <URL>"
+		token=""
 	fi
 	# Lista blanca de caracteres: los valores llegan al agente como argumentos, pero se rechaza todo lo raro.
 	case "$inventory" in
@@ -118,7 +100,7 @@ main() {
 	[ -z "$ca" ] || [ -r "$ca" ] || die "no se puede leer la CA: $ca"
 	command -v curl >/dev/null 2>&1 || die "hace falta curl"
 
-	if [ -z "$token" ]; then
+	if [ "$update" -eq 0 ] && [ -z "$token" ]; then
 		[ -r /dev/tty ] || die "sin token: usa --token, ARGOS_ENROLL_TOKEN o una terminal interactiva"
 		printf 'Enroll token: ' >/dev/tty
 		stty -echo </dev/tty
@@ -126,7 +108,7 @@ main() {
 		stty echo </dev/tty
 		printf '\n' >/dev/tty
 	fi
-	[ -n "$token" ] || die "el enroll token esta vacio"
+	[ "$update" -eq 1 ] || [ -n "$token" ] || die "el enroll token esta vacio"
 
 	case "$(uname -s)" in
 	Linux) os=linux ;;
@@ -161,6 +143,16 @@ main() {
 	fetch "$server/dl/$version/$name" "$tmp/agent" || die "no se pudo descargar el binario"
 	got=$(sha256_of "$tmp/agent")
 	[ "$got" = "$want" ] || die "SHA-256 del binario no coincide con el manifiesto: abortando"
+
+	if [ "$update" -eq 1 ]; then
+		# El binario descargado se instala a si mismo: detiene el servicio, reemplaza el binario y lo rearranca
+		# conservando enrolamiento y definicion del servicio.
+		chmod 0700 "$tmp/agent"
+		"$tmp/agent" install
+		printf 'argos install: agente %s actualizado
+' "$version"
+		return 0
+	fi
 
 	dest=/usr/local/bin
 	mkdir -p "$dest"

@@ -1,0 +1,12 @@
+.git
+.dev-bin
+dist
+**/node_modules
+web/dist
+**/.env
+**/.env.*
+!**/.env.example
+deploy/.env
+deploy/backups
+docs
+*.exe

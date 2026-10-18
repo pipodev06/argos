@@ -6,7 +6,11 @@ Monitoreo de hosts, dispositivos y servicios (tipo Zabbix/PRTG), pensado para ho
 - **Servidor** (`server/`, Go + PostgreSQL 18): API, ingesta, detección de caídas, alertas con webhooks (Slack, Discord, receptor propio), informes y retención por cliente.
 - **Dashboard** (`web/`, React + Vite + Tailwind v4 + shadcn/ui): servido por el propio servidor.
 
-Documentación interna: `docs/estado-del-proyecto.md` (resumen) y `docs/decisiones.md` (índice de decisiones). Por ahora el repo solo trae lo necesario para desarrollo; la instalación en producción se retomará antes del primer cliente (está en el historial de git).
+Documentación interna: `docs/estado-del-proyecto.md` (resumen) y `docs/decisiones.md` (índice de decisiones). La instalación en producción está en `deploy/`.
+
+## Producción
+
+Docker Compose con PostgreSQL 18, el servidor, HTTPS automático (Caddy + Let's Encrypt), respaldo diario y descarga de agentes (Windows, Linux `.deb`/binario, macOS). Guía paso a paso para Ubuntu: [`deploy/README.md`](deploy/README.md).
 
 ## Desarrollo
 

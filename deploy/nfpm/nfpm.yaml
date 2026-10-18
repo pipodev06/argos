@@ -1,0 +1,20 @@
+# Paquete .deb del agente (lo arma scripts/build-agent.sh con nfpm; variables de entorno ARGOS_DEB_*).
+# Solo deja el binario: NO enrola ni arranca nada (el token se pone a mano; ver postinstall.sh).
+name: argos-agent
+arch: ${ARGOS_DEB_ARCH}
+platform: linux
+version: ${ARGOS_DEB_VERSION}
+section: admin
+priority: optional
+maintainer: argos <root@localhost>
+description: |
+  Agente de monitoreo argos.
+  Instala el binario en /usr/local/bin/argos-agent; el enrolamiento es manual.
+license: Proprietary
+contents:
+  - src: ${ARGOS_DEB_SRC}
+    dst: /usr/local/bin/argos-agent
+    file_info:
+      mode: 0755
+scripts:
+  postinstall: ${ARGOS_DEB_SCRIPTS}/postinstall.sh

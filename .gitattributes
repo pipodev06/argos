@@ -2,3 +2,5 @@
 *.sh text eol=lf
 # unidades, env y Caddyfile de deploy/ se copian a Linux: siempre LF
 deploy/* text eol=lf
+deploy/** text eol=lf
+.dockerignore text eol=lf

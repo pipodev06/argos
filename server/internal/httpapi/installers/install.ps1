@@ -10,7 +10,8 @@
 #   -ProbeAllow <r>  IPs o CIDRs (/24 o mas chicos, separados por comas) que el colector ping puede sondear.
 #   -Privileged      modo privilegiado del agente (el servicio corre como LocalSystem).
 #   -Insecure        permite un server http:// remoto (token y metricas viajan SIN CIFRAR: usa https).
-#   -Update          actualiza el agente ya instalado a la ultima version (sin -Token ni otras opciones).
+#   -Update          actualiza el agente ya instalado: descarga la ultima version y ejecuta `install` (conserva el
+#                    enrolamiento). Exige -Server; admite -Ca e -Insecure; no admite -Token ni otras opciones.
 #
 # Descarga el binario, verifica su SHA-256 contra el manifiesto y ABORTA si no coincide. No se auto-eleva.
 # El token llega al agente por entrada estandar (enroll --token-stdin): no se escribe en disco ni en logs.
@@ -47,18 +48,11 @@ function Main([string]$Server, [string]$Token, [string]$Ca, [string]$Inventory, 
     }
 
     if ($Update) {
-        # El agente instalado se actualiza a si mismo (descarga, verifica el SHA-256 del manifiesto, reemplaza
-        # su binario conservando estado y config, y reinicia el servicio).
-        if ($Server -or $Token -or $Ca -or $Inventory -or $ProbeAllow -or $Privileged -or $Insecure) {
-            Fail '-Update no se combina con otras opciones'
+        # Solo -Server, -Ca e -Insecure; el token del entorno no se usa al actualizar.
+        if ($Token -or $Inventory -or $ProbeAllow -or $Privileged) {
+            Fail '-Update solo admite -Server, -Ca e -Insecure (no se combina con -Token ni otras opciones)'
         }
-        $exe = Join-Path (Join-Path $env:ProgramFiles 'argos-agent') 'argos-agent.exe'
-        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
-            Fail "el agente no esta instalado en este equipo (no existe $exe): instalalo con -Server y -Token"
-        }
-        Invoke-Agent $exe @('update')
-        Write-Host 'argos install: actualizacion terminada'
-        return
+        if (-not $Server) { Fail '-Update exige -Server <URL>' }
     }
 
     # Lista blanca de caracteres: los valores llegan al agente como argumentos separados, pero se rechaza todo lo raro.
@@ -78,12 +72,12 @@ function Main([string]$Server, [string]$Token, [string]$Ca, [string]$Inventory, 
     }
     if ($Ca -and -not (Test-Path -LiteralPath $Ca -PathType Leaf)) { Fail "no se puede leer la CA: $Ca" }
 
-    if (-not $Token) { $Token = $env:ARGOS_ENROLL_TOKEN }
-    if (-not $Token) {
+    if (-not $Update -and -not $Token) { $Token = $env:ARGOS_ENROLL_TOKEN }
+    if (-not $Update -and -not $Token) {
         $secure = Read-Host -AsSecureString 'Enroll token'
         $Token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
     }
-    if (-not $Token) { Fail 'el enroll token esta vacio' }
+    if (-not $Update -and -not $Token) { Fail 'el enroll token esta vacio' }
 
     $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
     switch ($arch) {
@@ -107,6 +101,14 @@ function Main([string]$Server, [string]$Token, [string]$Ca, [string]$Inventory, 
         Invoke-WebRequest -UseBasicParsing -Uri "$Server/dl/$version/$name" -OutFile $download
         $got = (Get-FileHash -Algorithm SHA256 -LiteralPath $download).Hash.ToLowerInvariant()
         if ($got -ne [string]$entry.sha256) { Fail 'SHA-256 del binario no coincide con el manifiesto: abortando' }
+
+        if ($Update) {
+            # El binario descargado se instala a si mismo: detiene el servicio, reemplaza el binario y lo rearranca
+            # conservando enrolamiento y definicion del servicio.
+            Invoke-Agent $download @('install')
+            Write-Host "argos install: agente $version actualizado"
+            return
+        }
 
         $dir = Join-Path $env:ProgramFiles 'argos-agent'
         New-Item -ItemType Directory -Force -Path $dir | Out-Null

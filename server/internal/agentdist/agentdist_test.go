@@ -150,3 +150,46 @@ func TestOpenDetectsChangeAfterLoad(t *testing.T) {
 		t.Errorf("Open got ok=%v err=%v, want ok y error por tamaño distinto", ok, err)
 	}
 }
+
+func TestLoadWithDeb(t *testing.T) {
+	t.Parallel()
+	root := writeDist(t, "1.0.0")
+	dir := filepath.Join(root, "1.0.0")
+	body := []byte("paquete deb")
+	name := "argos-agent_1.0.0_amd64.deb"
+	if err := os.WriteFile(filepath.Join(dir, name), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(body)
+	mp := filepath.Join(dir, manifestFile)
+	b, err := os.ReadFile(mp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := fmt.Sprintf(`,{"name":%q,"os":"linux","arch":"amd64","sha256":%q,"size":%d}]`, name, hex.EncodeToString(sum[:]), len(body))
+	m := strings.Replace(string(b), "]}", extra+"}", 1)
+	if err := os.WriteFile(mp, []byte(m), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(root)
+	if err != nil {
+		t.Fatalf("Load con .deb: %v", err)
+	}
+	f, _, ok, err := c.Open(name)
+	if err != nil || !ok {
+		t.Fatalf("Open(.deb) ok=%v err=%v", ok, err)
+	}
+	_ = f.Close()
+	if !strings.Contains(string(c.Manifest()), name) {
+		t.Fatal("el manifiesto canonico no incluye el .deb")
+	}
+
+	// Nombre no permitido en el manifiesto: se rechaza.
+	bad := strings.Replace(m, name, "evil.sh", 1)
+	if err := os.WriteFile(mp, []byte(bad), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(root); err == nil {
+		t.Fatal("Load acepto un archivo extra no permitido")
+	}
+}

@@ -5,6 +5,7 @@
 //	<dir>/latest             texto: version publicada (una linea)
 //	<dir>/<version>/manifest.json
 //	<dir>/<version>/argos-agent_<os>_<arch>[.exe]   (los 6 objetivos)
+//	<dir>/<version>/argos-agent_<version>_<arch>.deb (opcional: paquetes .deb de linux, si estan en el manifiesto)
 //
 // Load verifica al arrancar que el manifiesto sea valido y que cada binario coincida en tamaño y SHA-256.
 // El resultado es un mapa cerrado en memoria: nada de lo que llega por HTTP se usa pa construir rutas.
@@ -21,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -32,6 +34,9 @@ const (
 
 // versionRe limita la version a un nombre de directorio seguro (sin separadores ni "..").
 var versionRe = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$`)
+
+// extraRe son los archivos opcionales ademas de los 6 binarios: paquetes .deb del agente.
+var extraRe = regexp.MustCompile(`^argos-agent_[0-9A-Za-z][0-9A-Za-z.+-]{0,63}_(amd64|arm64)\.deb$`)
 
 var sha256Re = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
@@ -110,6 +115,15 @@ func Load(root string) (*Catalog, error) {
 		}
 		c.files[name] = f
 	}
+	for name, f := range byName {
+		if _, isTarget := c.files[name]; isTarget {
+			continue
+		}
+		if err := verifyFile(filepath.Join(dir, name), f); err != nil {
+			return nil, fmt.Errorf("verificando %s: %w", name, err)
+		}
+		c.files[name] = f
+	}
 
 	c.manifest = canon
 	return c, nil
@@ -135,8 +149,18 @@ func canonicalizeManifest(raw []byte) (version string, byName map[string]File, c
 		}
 		byName[f.Name] = f
 	}
-	if len(byName) != len(targets) {
-		return "", nil, nil, fmt.Errorf("manifiesto: se esperaban %d binarios, hay %d", len(targets), len(byName))
+	isTarget := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		isTarget[FileName(t.os, t.arch)] = true
+	}
+	for name, f := range byName {
+		if isTarget[name] {
+			continue
+		}
+		if !extraRe.MatchString(name) || f.OS != "linux" || !strings.HasSuffix(name, "_"+f.Arch+".deb") ||
+			!sha256Re.MatchString(f.SHA256) || f.Size <= 0 {
+			return "", nil, nil, fmt.Errorf("manifiesto: archivo inesperado o invalido %q", name)
+		}
 	}
 	for _, t := range targets {
 		name := FileName(t.os, t.arch)
@@ -174,20 +198,36 @@ func (c *Catalog) Open(name string) (f *os.File, meta File, ok bool, err error) 
 }
 
 func canonicalManifest(version string, files []File) []byte {
+	// Primero los 6 objetivos en orden fijo, luego los extras por nombre.
+	var ordered []File
+	isTarget := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		name := FileName(t.os, t.arch)
+		isTarget[name] = true
+		for _, f := range files {
+			if f.Name == name {
+				ordered = append(ordered, f)
+			}
+		}
+	}
+	var extras []File
+	for _, f := range files {
+		if !isTarget[f.Name] {
+			extras = append(extras, f)
+		}
+	}
+	sort.Slice(extras, func(i, j int) bool { return extras[i].Name < extras[j].Name })
+	ordered = append(ordered, extras...)
+
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "{\n\"version\":%q,\n\"files\":[\n", version)
-	for i, t := range targets {
-		for _, f := range files {
-			if f.Name != FileName(t.os, t.arch) {
-				continue
-			}
-			line, _ := json.Marshal(f) // struct simple: no puede fallar
-			b.Write(line)
-			if i < len(targets)-1 {
-				b.WriteByte(',')
-			}
-			b.WriteByte('\n')
+	for i, f := range ordered {
+		line, _ := json.Marshal(f) // struct simple: no puede fallar
+		b.Write(line)
+		if i < len(ordered)-1 {
+			b.WriteByte(',')
 		}
+		b.WriteByte('\n')
 	}
 	b.WriteString("]\n}\n")
 	return b.Bytes()

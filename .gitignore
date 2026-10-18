@@ -26,3 +26,6 @@ dist/
 
 # binarios y logs del server local de desarrollo
 .dev-bin/
+
+# Respaldos de produccion (pg_dump del servicio backup)
+/deploy/backups/

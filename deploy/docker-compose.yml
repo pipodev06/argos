@@ -1,0 +1,94 @@
+# Produccion: PostgreSQL 18 + argos-server + Caddy (HTTPS) + respaldo diario.
+# Uso: cd deploy && cp .env.example .env && (editar) && docker compose up -d --build
+name: argos
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: argos
+      POSTGRES_DB: argos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+    volumes:
+      # PostgreSQL 18+: el volumen va en /var/lib/postgresql (PGDATA versionado), no en .../data
+      - db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argos -d argos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  argos-server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        ARGOS_VERSION: ${ARGOS_VERSION:-0.1.0}
+    image: argos-server:${ARGOS_VERSION:-0.1.0}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # La clave va aparte (PGPASSWORD, que el driver lee solo), nunca dentro de la URL.
+      DATABASE_URL: postgres://argos@db:5432/argos?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      ARGOS_SECRET_KEY: ${ARGOS_SECRET_KEY:?define ARGOS_SECRET_KEY en .env}
+      ARGOS_PUBLIC_URL: https://${DOMAIN:?define DOMAIN en .env}
+      ARGOS_LISTEN_ADDR: 0.0.0.0:8080
+      # Solo Caddy (red "edge", subred fija) es proxy de confianza: de ahi se lee X-Forwarded-For.
+      ARGOS_TRUSTED_PROXIES: 172.28.0.0/24
+      ARGOS_LOG_LEVEL: ${ARGOS_LOG_LEVEL:-info}
+    # Sin ports: solo Caddy lo alcanza por la red interna.
+    networks: [internal, edge]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [argos-server]
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?define ACME_EMAIL en .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+
+  backup:
+    image: postgres:18
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    environment:
+      PGHOST: db
+      PGUSER: argos
+      PGDATABASE: argos
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_HOUR: ${BACKUP_HOUR:-3}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - ./backups:/backups
+    networks: [internal]
+
+networks:
+  internal:
+    internal: true
+  edge:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:
