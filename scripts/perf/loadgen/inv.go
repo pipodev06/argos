@@ -44,13 +44,13 @@ type invOptions struct {
 func (o invOptions) modules() []invModule {
 	var ms []invModule
 	if o.ports {
-		ms = append(ms, invModule{"ports", time.Minute, 6 * time.Hour, 5 * time.Second, 0, 0.01})
+		ms = append(ms, invModule{"ports", time.Minute, 6 * time.Hour, 5 * time.Minute, 0, 0.01})
 	}
 	if o.services {
-		ms = append(ms, invModule{"services", 10 * time.Minute, 6 * time.Hour, 5 * time.Second, 0, 0.01})
+		ms = append(ms, invModule{"services", 10 * time.Minute, 6 * time.Hour, 5 * time.Minute, 0, 0.01})
 	}
 	if o.processes {
-		ms = append(ms, invModule{"processes", 5 * time.Minute, 30 * time.Minute, 5 * time.Second, 0, 0.30})
+		ms = append(ms, invModule{"processes", 5 * time.Minute, 30 * time.Minute, 5 * time.Minute, 0, 0.30})
 	}
 	if o.updates {
 		ms = append(ms, invModule{"updates", 6 * time.Hour, 24 * time.Hour, 10 * time.Minute, 0.2, 0.05})

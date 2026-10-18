@@ -31,7 +31,7 @@ const (
 	// startJitter reparte el primer envio completo de puertos, servicios y procesos: sin esto una flota que
 	// arranca junta (reinicio del servidor o despliegue) manda todos los inventarios a la vez. No retrasa las
 	// metricas: van por otro camino (agent.Run) y el host aparece de inmediato.
-	startJitter = 60 * time.Second
+	startJitter = 5 * time.Minute
 	// periodSpread es la fraccion (+-) de jitter sobre el periodo de recoleccion de esos tres modulos.
 	periodSpread = 0.1
 

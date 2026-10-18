@@ -273,13 +273,13 @@ func TestStartJitterSpreadsFirstFullSend(t *testing.T) {
 		if !ok {
 			t.Fatalf("modulo %s no disponible", name)
 		}
-		if m.start != 60*time.Second {
-			t.Errorf("%s: start = %s, want 1m0s", name, m.start)
+		if m.start != startJitter {
+			t.Errorf("%s: start = %s, want %s", name, m.start, startJitter)
 		}
 		var asked time.Duration
 		w := &worker{mod: m, rnd: func(d time.Duration) time.Duration { asked = d; return d / 2 }}
-		if got := w.jitter(w.mod.start); got != 30*time.Second || asked != 60*time.Second {
-			t.Errorf("%s: jitter(start) = %s (pidio %s), want 30s (pidio 1m0s)", name, got, asked)
+		if got := w.jitter(w.mod.start); got != startJitter/2 || asked != startJitter {
+			t.Errorf("%s: jitter(start) = %s (pidio %s), want %s (pidio %s)", name, got, asked, startJitter/2, startJitter)
 		}
 	}
 }

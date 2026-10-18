@@ -136,7 +136,7 @@ WITH base AS (
   SELECT h.id, h.hostname, h.status, g.id AS group_id, g.name AS group_name, COALESCE(h.os, '') AS os,
          hi.os_name, hi.os_version,
          u.rev, u.pending_total, u.pending_security, u.reboot_required, u.reboot_since, u.security_pending_since,
-         u.last_installed, u.source, u.cache_age_s, u.advisories, u.advisories_truncated, u.collected_at, u.received_at,
+         u.last_installed, u.source, u.cache_age_s, u.collected_at, u.received_at,
          eo.family, eo.cycle, eo.label, eo.eol_date, eo.lts, eo.eol_source,
          CASE WHEN (%[1]s) IS NULL THEN 1 ELSE 0 END AS nf,
          COALESCE((%[1]s)::%[2]s, %[3]s::%[2]s) AS sk,
@@ -146,21 +146,24 @@ WITH base AS (
     JOIN hosts h ON h.id = u.host_id
     LEFT JOIN host_groups g ON g.id = h.group_id
     LEFT JOIN host_info hi ON hi.host_id = h.id
-    LEFT JOIN LATERAL (
-      SELECT e.family, e.cycle, e.label, e.eol_date, e.lts, e.source AS eol_source
-        FROM os_eol_key(h.os, hi.os_name, hi.os_version) k
-        JOIN os_eol e ON e.family = k.family AND e.cycle = k.cycle) eo ON true
+    LEFT JOIN (SELECT family, cycle, label, eol_date, lts, source AS eol_source FROM os_eol) eo
+           ON eo.family = h.eol_family AND eo.cycle = h.eol_cycle
    WHERE %[4]s
+), page AS (
+  SELECT * FROM base
+   WHERE %[5]s
+   ORDER BY nf, sk %[6]s, ln, id
+   LIMIT %[7]d
 )
-SELECT id, hostname, status, group_id, group_name, os, os_name, os_version,
-       rev, pending_total, pending_security, reboot_required, reboot_since, security_pending_since,
-       last_installed, source, cache_age_s, advisories, advisories_truncated, collected_at, received_at,
-       family, cycle, label, eol_date, lts, eol_source,
-       nf, sk::text AS sk_text, ln, total
-  FROM base
- WHERE %[5]s
- ORDER BY nf, sk %[6]s, ln, id
- LIMIT %[7]d`,
+-- Los avisos (jsonb grande) se leen solo para las filas de la pagina.
+SELECT p.id, p.hostname, p.status, p.group_id, p.group_name, p.os, p.os_name, p.os_version,
+       p.rev, p.pending_total, p.pending_security, p.reboot_required, p.reboot_since, p.security_pending_since,
+       p.last_installed, p.source, p.cache_age_s, u2.advisories, u2.advisories_truncated, p.collected_at, p.received_at,
+       p.family, p.cycle, p.label, p.eol_date, p.lts, p.eol_source,
+       p.nf, p.sk::text AS sk_text, p.ln, p.total
+  FROM page p
+  JOIN updates_current u2 ON u2.host_id = p.id
+ ORDER BY p.nf, p.sk %[6]s, p.ln, p.id`,
 		sortSpec.expr, sortSpec.cast, sortSpec.neutral, whereSQL, cursorSQL, dir, limit+1)
 
 	rows, err := s.pool.Query(ctx, query, []any(args)...)

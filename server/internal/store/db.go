@@ -5,6 +5,8 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,8 +25,13 @@ func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parseando DATABASE_URL: %w", err)
 	}
-	cfg.MaxConns = 10
-	cfg.MinConns = 1
+	// Tamano del pool: el de DATABASE_URL (?pool_max_conns=N) si viene; si no, 4 por nucleo entre 10 y 50.
+	// Con 10 fijas, 5000 agentes reportando a la vez hacian fila por una conexion (medido 2026-10-18:
+	// p95 de 6 s y tiempos agotados en el ingest).
+	if !strings.Contains(databaseURL, "pool_max_conns") {
+		cfg.MaxConns = int32(min(max(4*runtime.NumCPU(), 10), 50)) //nolint:gosec // acotado a 10..50
+	}
+	cfg.MinConns = 2
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 30 * time.Minute
 	cfg.HealthCheckPeriod = time.Minute

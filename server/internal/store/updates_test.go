@@ -215,7 +215,7 @@ func TestUpdatesReadIsScoped(t *testing.T) {
 }
 
 func TestOSEOLKeyResolution(t *testing.T) {
-	newTestStore(t)
+	st := newTestStore(t)
 	tests := []struct {
 		name, os, osName, version string
 		family, cycle             string // vacio = sin coincidencia
@@ -243,7 +243,7 @@ func TestOSEOLKeyResolution(t *testing.T) {
 		{"distro desconocida", "linux", "arch", "rolling", "", ""},
 		{"sin datos", "", "", "", "", ""},
 	}
-	for _, tc := range tests {
+	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var fam, cyc string
 			err := testPool.QueryRow(context.Background(),
@@ -254,6 +254,18 @@ func TestOSEOLKeyResolution(t *testing.T) {
 			}
 			if fam != tc.family || cyc != tc.cycle {
 				t.Errorf("got (%q, %q), want (%q, %q)", fam, cyc, tc.family, tc.cycle)
+			}
+			// La clave precomputada por trigger (host nuevo + host_info) es identica a la de la funcion.
+			id := enrolled(t, st, th(fmt.Sprintf("eolkey-%d", i)))
+			mustExec(t, `UPDATE hosts SET os = NULLIF($2, '') WHERE id = $1`, id, tc.os)
+			mustExec(t, `INSERT INTO host_info (host_id, os_name, os_version) VALUES ($1, $2, $3)`, id, tc.osName, tc.version)
+			var pf, pc string
+			if err := testPool.QueryRow(context.Background(),
+				`SELECT coalesce(eol_family, ''), coalesce(eol_cycle, '') FROM hosts WHERE id = $1`, id).Scan(&pf, &pc); err != nil {
+				t.Fatal(err)
+			}
+			if pf != tc.family || pc != tc.cycle {
+				t.Errorf("clave precomputada got (%q, %q), want (%q, %q)", pf, pc, tc.family, tc.cycle)
 			}
 		})
 	}
@@ -281,8 +293,21 @@ func TestOSEOLSeedAndHostResolution(t *testing.T) {
 	}
 	// Una version que no esta en la tabla no es un error: sin dato de fin de vida.
 	mustExec(t, `UPDATE host_info SET os_version = '19.10' WHERE host_id = $1`, id)
+	if n := count(t, `SELECT count(*) FROM hosts WHERE id = '`+id+`' AND eol_family = 'ubuntu' AND eol_cycle = '19.10'`); n != 1 {
+		t.Errorf("el trigger no actualizo la clave al cambiar os_version")
+	}
 	if _, found, err := s.HostOSEOL(ctx, AllScope(), id); err != nil || found {
 		t.Errorf("version fuera de tabla got (found=%v, err=%v), want no encontrado sin error", found, err)
+	}
+	// Cambiar hosts.os y borrar host_info tambien recalculan.
+	mustExec(t, `DELETE FROM host_info WHERE host_id = $1`, id)
+	if n := count(t, `SELECT count(*) FROM hosts WHERE id = '`+id+`' AND eol_family IS NULL`); n != 1 {
+		t.Errorf("el trigger no limpio la clave al borrar host_info")
+	}
+	mustExec(t, `UPDATE hosts SET os = 'darwin' WHERE id = $1`, id)
+	mustExec(t, `INSERT INTO host_info (host_id, os_name, os_version) VALUES ($1, 'macOS', '14.5')`, id)
+	if got, found, err := s.HostOSEOL(ctx, AllScope(), id); err != nil || !found || got.Family != "macos" {
+		t.Errorf("tras cambiar hosts.os got (%+v, found=%v, err=%v), want macos", got, found, err)
 	}
 	// Un host sin host_info tampoco falla.
 	id2 := enrolled(t, s, th("eol-host-2"))

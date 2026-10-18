@@ -21,6 +21,7 @@ import { RulesPage } from './RulesPage'
 import { SummaryPage } from './SummaryPage'
 import { UpdatesPage } from './UpdatesPage'
 import { SnmpProfilesPage } from './SnmpProfilesPage'
+import { AgentDownloadsPage } from './AgentDownloadsPage'
 import { SystemPage } from './SystemPage'
 import { UsersPage } from './UsersPage'
 import {
@@ -86,6 +87,7 @@ export function DashboardPage() {
         <Route path="sistema" element={<SystemPage />} />
         <Route path="configuracion" element={<Navigate to="/sistema" replace />} />
         <Route path="perfiles-snmp" element={<SnmpProfilesPage />} />
+        <Route path="descargas" element={<AgentDownloadsPage />} />
         <Route path="auditoria" element={<AuditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

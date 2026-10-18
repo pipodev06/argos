@@ -216,7 +216,7 @@ type OSEOL struct {
 	Estimated            bool // la fecha es una estimacion, no publicada por el proveedor
 }
 
-// HostOSEOL resuelve el fin de vida del SO del host con os_eol_key sobre hosts.os y host_info. ErrNotFound si el
+// HostOSEOL resuelve el fin de vida del SO del host con la clave hosts.eol_family/eol_cycle (derivada de hosts.os y host_info por trigger). ErrNotFound si el
 // host no existe o esta fuera del ambito; found=false si el SO no se reconoce o no esta en la tabla (no es un error:
 // "sin dato de fin de vida").
 func (s *Store) HostOSEOL(ctx context.Context, scope Scope, hostID string) (OSEOL, bool, error) {
@@ -228,9 +228,7 @@ func (s *Store) HostOSEOL(ctx context.Context, scope Scope, hostID string) (OSEO
 	err := s.pool.QueryRow(ctx,
 		`SELECT e.family, e.cycle, e.label, e.eol_date, e.lts, e.source
 		   FROM hosts h
-		   LEFT JOIN host_info i ON i.host_id = h.id
-		   CROSS JOIN LATERAL os_eol_key(h.os, i.os_name, i.os_version) k
-		   JOIN os_eol e ON e.family = k.family AND e.cycle = k.cycle
+		   JOIN os_eol e ON e.family = h.eol_family AND e.cycle = h.eol_cycle
 		  WHERE h.id = $1`, hostID).Scan(&e.Family, &e.Cycle, &e.Label, &e.EOLDate, &e.LTS, &source)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OSEOL{}, false, nil
