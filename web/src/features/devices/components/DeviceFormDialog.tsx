@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { FormHelp, type HelpItem } from '@/components/ui/form-help'
+import { SNMP_HOWTO } from '@/features/snmp-profiles/utils/howto'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import { useGroups } from '@/features/groups/hooks/useGroups'
@@ -30,6 +31,7 @@ const DEVICE_HELP: readonly HelpItem[] = [
   ['IP', 'IPv4 o IPv6, no un nombre. Debe estar en las redes permitidas del colector.'],
   ['Colector', 'Host con agente que hace el ping.'],
   ['Perfil SNMP', 'Opcional. Sin perfil no recibe chequeos SNMP. Los perfiles se crean en Configuración.'],
+  ...SNMP_HOWTO,
 ]
 
 export function DeviceFormDialog(props: DeviceFormDialogProps) {

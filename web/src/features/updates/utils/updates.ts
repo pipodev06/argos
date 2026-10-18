@@ -54,3 +54,24 @@ export function formatDataAge(seconds: number): string {
 export function lastInstalledText(d: string | null): string {
   return d ?? 'Desconocido'
 }
+
+/** Origen de los datos de parches que reporta el agente. */
+export const SOURCE_LABELS: Record<string, string> = {
+  wua: 'Windows Update',
+  apt: 'apt',
+  dnf: 'dnf',
+  yum: 'yum',
+  zypper: 'zypper',
+  softwareupdate: 'softwareupdate (macOS)',
+}
+
+/** Pagina oficial de un aviso de seguridad (KB de Microsoft, CVE, USN, RHSA, DSA); null si no se reconoce. */
+export function advisoryUrl(id: string): string | null {
+  const a = id.trim()
+  if (/^KB\d{4,8}$/i.test(a)) return `https://www.catalog.update.microsoft.com/Search.aspx?q=${encodeURIComponent(a)}`
+  if (/^CVE-\d{4}-\d{4,7}$/i.test(a)) return `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(a.toUpperCase())}`
+  if (/^USN-\d+-\d+$/i.test(a)) return `https://ubuntu.com/security/notices/${encodeURIComponent(a.toUpperCase())}`
+  if (/^RH[SBE]A-\d{4}:\d+$/i.test(a)) return `https://access.redhat.com/errata/${encodeURIComponent(a.toUpperCase())}`
+  if (/^DSA-\d+(-\d+)?$/i.test(a)) return `https://security-tracker.debian.org/tracker/${encodeURIComponent(a.toUpperCase())}`
+  return null
+}

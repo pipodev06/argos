@@ -16,6 +16,7 @@ import { HostCharts } from './HostCharts'
 import { HostDisks } from './HostDisks'
 import { HostHeader } from './HostHeader'
 import { HostLatestCards } from './HostLatestCards'
+import { HostOpenAlerts } from './HostOpenAlerts'
 import { HostSystemInfo } from './HostSystemInfo'
 import type { HostActionId } from '../utils/hostActions'
 
@@ -28,7 +29,7 @@ export function HostDetailView({ id }: { id: string }) {
   // Hasta conocer el tipo no se monta la vista de agente (pediria metricas que un dispositivo no tiene).
   if (detail.loading) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         <BackLink to="/hosts">Hosts</BackLink>
         <p className="text-sm text-text-muted">Cargando…</p>
       </div>
@@ -49,7 +50,7 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
   const data = detail.data
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <BackLink to="/hosts">Hosts</BackLink>
 
       {notFound ? (
@@ -67,19 +68,21 @@ function AgentHostDetail({ id, detail }: { id: string; detail: ReturnType<typeof
           )}
           {detail.error && <InlineError>{detail.error}</InlineError>}
 
-          {data && <HostSystemInfo host={data.host} info={data.info} />}
-
-          <HostLatestCards
-            latest={data?.latest ?? null}
-            info={data?.info ?? null}
-            status={data?.host.status ?? null}
-            pending={detail.loading}
-          />
-
-          {data && <HostDisks disks={data.disks} physical={data.info.physical_disks} />}
-
           <HostTabs
             hostId={id}
+            summary={
+              <div className="flex flex-col gap-3">
+                <HostLatestCards
+                  latest={data?.latest ?? null}
+                  info={data?.info ?? null}
+                  status={data?.host.status ?? null}
+                  pending={detail.loading}
+                />
+                <HostOpenAlerts hostId={id} />
+                {data && <HostSystemInfo host={data.host} info={data.info} />}
+                {data && <HostDisks disks={data.disks} physical={data.info.physical_disks} />}
+              </div>
+            }
             metrics={
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">

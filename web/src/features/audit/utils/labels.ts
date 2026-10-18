@@ -90,6 +90,10 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   alert: 'Alerta',
   alert_rule: 'Regla',
   channel: 'Canal',
+  service_check: 'Chequeo',
+  maintenance: 'Mantenimiento',
+  snmp_profile: 'Perfil SNMP',
+  fleet: 'Flota',
 }
 
 /** Tipo de objetivo legible; tipos desconocidos se muestran tal cual. */

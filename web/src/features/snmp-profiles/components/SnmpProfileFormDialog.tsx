@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { FormHelp, type HelpItem } from '@/components/ui/form-help'
+import { SNMP_HOWTO } from '../utils/howto'
 import { InlineError } from '@/components/ui/inline-error'
 import { SelectField } from '@/components/ui/select-field'
 import { useUserMutation } from '@/features/users/hooks/useUserMutation'
@@ -37,6 +38,7 @@ const SNMP_HELP: readonly HelpItem[] = [
   ['Perfil SNMP', 'Credenciales de solo lectura que el colector usa para consultar los dispositivos.'],
   ['Versión', 'No se puede cambiar después: crea otro perfil si necesitas otra.'],
   ['Contraseñas y comunidad', `De 8 a ${MAX_PASS} caracteres. Se guardan cifradas y no se vuelven a mostrar; al editar, vacío conserva lo guardado.`],
+  ...SNMP_HOWTO,
 ]
 
 export function SnmpProfileFormDialog(props: SnmpProfileFormDialogProps) {

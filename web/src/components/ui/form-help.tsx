@@ -24,7 +24,7 @@ export function FormHelp({ title, items }: FormHelpProps) {
         <CircleHelpIcon className="text-text-muted" strokeWidth={1.5} aria-hidden />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Ayuda: {title}</DialogTitle>
           </DialogHeader>

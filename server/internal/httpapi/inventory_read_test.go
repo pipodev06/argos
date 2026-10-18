@@ -178,13 +178,13 @@ func TestInventoryChangesCursorPagination(t *testing.T) {
 
 func TestInventoryReadAudit(t *testing.T) {
 	x := newInvReadEnv(t)
-	for range 3 { // refrescos del frontend: un solo evento por (usuario, host, modulo)
+	for range 3 { // refrescos del frontend y cambio de modulo: un solo evento por (usuario, host)
 		x.get(x.va, x.hostA+"/inventory/ports")
 	}
 	x.get(x.va, x.hostA+"/inventory/services")
 	x.get(x.admin, x.hostA+"/inventory/ports")
-	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'inventory_read' AND actor_username = 'viewa' AND target_id = $1`, x.hostA); n != 2 {
-		t.Errorf("eventos de viewa got %d, want 2 (ports y services, deduplicados)", n)
+	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'inventory_read' AND actor_username = 'viewa' AND target_id = $1`, x.hostA); n != 1 {
+		t.Errorf("eventos de viewa got %d, want 1 (ports y services del mismo host, deduplicados)", n)
 	}
 	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'inventory_read' AND actor_username = 'admin'`); n != 1 {
 		t.Errorf("eventos de admin got %d, want 1", n)
@@ -193,7 +193,12 @@ func TestInventoryReadAudit(t *testing.T) {
 		t.Errorf("el detalle debe llevar solo el modulo, sin contenido (%d filas distintas)", n)
 	}
 	// Pasada la ventana se vuelve a registrar.
-	x.clock.Advance(invAuditWindow + time.Second)
+	// La ventana (1 h) supera la inactividad de sesion (30 min): se avanza en tramos con una peticion
+	// que no audita (/auth/me) pa mantener viva la sesion.
+	for range 3 {
+		x.clock.Advance(invAuditWindow/3 + time.Second)
+		x.do("GET", "/api/v1/auth/me", "", withCookie(x.admin))
+	}
 	x.get(x.admin, x.hostA+"/inventory/ports")
 	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'inventory_read' AND actor_username = 'admin'`); n != 2 {
 		t.Errorf("tras la ventana got %d, want 2", n)

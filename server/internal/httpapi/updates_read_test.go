@@ -274,7 +274,14 @@ func TestUpdatesReadAuditDedup(t *testing.T) {
 	if n := x.count(`SELECT count(*) FROM audit_log WHERE event = 'updates_read' AND detail::text NOT IN ('{"scope": "host", "module": "updates"}', '{"scope": "fleet", "module": "updates"}')`); n != 0 {
 		t.Errorf("el detalle debe llevar solo module y scope, sin contenido (%d filas distintas)", n)
 	}
-	x.clock.Advance(invAuditWindow + time.Second)
+	// La ventana (1 h) supera la inactividad de sesion (30 min): se avanza en tramos con una peticion
+	// que no audita (/auth/me) pa mantener viva la sesion.
+	for range 3 {
+		x.clock.Advance(invAuditWindow/3 + time.Second)
+		for _, c := range []*http.Cookie{x.admin, x.va, x.vall} {
+			x.do("GET", "/api/v1/auth/me", "", withCookie(c))
+		}
+	}
 	x.get(x.admin, "/hosts/"+x.hostA+"/updates")
 	if n := x.count(q, "admin"); n != 2 {
 		t.Errorf("tras la ventana got %d, want 2", n)

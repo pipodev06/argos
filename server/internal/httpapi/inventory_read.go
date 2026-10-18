@@ -16,7 +16,7 @@ const (
 	invStatusOK       = "ok"       // hay foto
 	invStatusNoData   = "no_data"  // el host aun no ha reportado inventario alguno
 	invStatusDisabled = "disabled" // el host reporta otros modulos pero nunca este: apagado en el agente
-	invAuditWindow    = 5 * time.Minute
+	invAuditWindow    = time.Hour
 	invAuditModChange = "changes" // valor de detail.module al leer el historial
 )
 
@@ -76,10 +76,11 @@ func moduleStatuses(metas []store.InventoryMeta) map[string]inventoryModuleDTO {
 	return out
 }
 
-// auditInventoryRead registra la lectura (actor, host y modulo; nunca contenido), una vez por
-// (usuario, host, modulo) cada invAuditWindow pa que un refresco del frontend no inunde audit_log.
+// auditInventoryRead registra la lectura (actor, host y el primer modulo visto; nunca contenido), una vez
+// por (usuario, host) cada invAuditWindow: alcanza pa saber quien vio datos sensibles de que host sin que
+// recorrer pestanas o el refresco del frontend inunden audit_log (decision del usuario 2026-10-18).
 func (a *API) auditInventoryRead(r *http.Request, u *sessionUser, hostID, module string) {
-	if ok, _ := a.inventoryReadDedup.allow(u.ID+"|"+hostID+"|"+module, a.now()); !ok {
+	if ok, _ := a.inventoryReadDedup.allow(u.ID+"|"+hostID, a.now()); !ok {
 		return
 	}
 	e := actor(u)

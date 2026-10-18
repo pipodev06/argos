@@ -3,6 +3,7 @@ import { TableError } from '@/components/data-table/TableStates'
 import { FormPage } from '@/components/ui/form-page'
 import type { HelpItem } from '@/components/ui/form-help'
 import { MAX_IF_INDEX } from '@/features/checks/utils/checkForm'
+import { SNMP_HOWTO } from '@/features/snmp-profiles/utils/howto'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckForm } from '@/features/checks/components/CheckForm'
 import { useServiceChecks } from '@/features/checks/hooks/useChecks'
@@ -17,6 +18,7 @@ const CHECK_HELP: readonly HelpItem[] = [
   ['SNMP', `El dispositivo necesita un perfil SNMP (en su formulario). Sin umbrales. ifIndex: entero de 1 a ${MAX_IF_INDEX}.`],
   ['Intervalo, Timeout, Reintentos', '30 a 86 400 s; 200 a 30 000 ms; 0 a 3.'],
   ['Chequeo activo', 'Desactivado, el agente deja de ejecutarlo.'],
+  ...SNMP_HOWTO,
 ]
 
 const BACK = { to: '/chequeos', label: 'Chequeos' }
