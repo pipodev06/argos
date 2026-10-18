@@ -16,8 +16,20 @@ export function useUrlFilters<F extends readonly FilterField[]>(fields: F, { onC
   const [params, setParams] = useSearchParams()
   const filters = useMemo(() => parseFilters(fields, params), [fields, params])
 
+  // Conserva los parametros ajenos a estos filtros (p. ej. `?tab=` del detalle del host): solo reescribe los suyos.
   function write(next: FiltersOf<F>, replace: boolean) {
-    setParams(serializeFilters(fields, next), { replace })
+    setParams(
+      (prev) => {
+        const own = new Set(fields.map((f) => f.param ?? f.key))
+        const out = new URLSearchParams()
+        prev.forEach((v, k) => {
+          if (!own.has(k)) out.append(k, v)
+        })
+        serializeFilters(fields, next).forEach((v, k) => out.append(k, v))
+        return out
+      },
+      { replace },
+    )
     onChange?.()
   }
 

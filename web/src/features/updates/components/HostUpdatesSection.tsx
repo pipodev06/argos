@@ -92,7 +92,7 @@ export function HostUpdatesSection({ hostId }: { hostId: string }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="host-updates-title">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="host-updates-title" className="text-sm font-semibold">
+        <h2 id="host-updates-title" className="sr-only">
           Parches
         </h2>
         <Button asChild variant="outline" size="sm">

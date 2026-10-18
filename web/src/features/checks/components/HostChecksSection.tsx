@@ -152,10 +152,10 @@ function ChecksContent({ hostId, targetFallback }: { hostId: string; targetFallb
 }
 
 /** Sección "Chequeos" del detalle de host: estado actual por chequeo y transiciones bajo demanda. */
-export function HostChecksSection({ hostId, targetFallback }: { hostId: string; targetFallback?: string }) {
+export function HostChecksSection({ hostId, targetFallback, title = true }: { hostId: string; targetFallback?: string; title?: boolean }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="host-checks-title">
-      <h2 id="host-checks-title" className="text-sm font-semibold">
+      <h2 id="host-checks-title" className={title ? 'text-sm font-semibold' : 'sr-only'}>
         Chequeos
       </h2>
       <ChecksContent hostId={hostId} targetFallback={targetFallback} />
