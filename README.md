@@ -8,6 +8,8 @@ Monitoreo de hosts, dispositivos y servicios (tipo Zabbix/PRTG), pensado para ho
 
 Documentación interna: `docs/estado-del-proyecto.md` (resumen) y `docs/decisiones.md` (índice de decisiones). La instalación en producción está en `deploy/`.
 
+**Guías:** producción en un servidor y prueba en tu red local con Docker → [`deploy/README.md`](deploy/README.md) (secciones 12 y 13: LAN y cambio de servidor del agente); desarrollo y opciones del agente → abajo.
+
 ## Producción
 
 Docker Compose con PostgreSQL 18, el servidor, HTTPS automático (Caddy + Let's Encrypt), respaldo diario y descarga de agentes (Windows, Linux `.deb`/binario, macOS). Guía paso a paso para Ubuntu: [`deploy/README.md`](deploy/README.md).
@@ -64,6 +66,7 @@ Se pasan a `install` y quedan en `settings.json` del estado. Sobre un agente ya 
 & $a install --inventory all                     # puertos, servicios, procesos y parches (o una lista: ports,services,processes,updates)
 & $a install --probe-allow 192.168.100.0/24      # puede sondear (ping/SNMP) dispositivos de esas redes (CIDR, /24 o más chicas, separadas por comas)
 & $a install --insecure                          # acepta un servidor http fuera de localhost (solo LAN de desarrollo)
+& $a install --server https://argos.tudominio.com            # mismo server con otra URL (dominio/IP): conserva el enrolamiento
 & $a install --inventory all --probe-allow 192.168.100.0/24   # se combinan; un flag vacío lo apaga: --probe-allow ""
 argos-agent status                               # servicio, enrolamiento y opciones activas (desde cualquier consola nueva)
 ```

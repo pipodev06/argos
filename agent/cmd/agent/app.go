@@ -29,7 +29,7 @@ import (
 
 const (
 	httpTimeout = 10 * time.Second
-	usage       = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] [--privileged] [--inventory <modulos|all>] [--probe-allow <cidr,...>] [--insecure] | uninstall [--keep-state] | start | stop | status"
+	usage       = "uso: argos-agent [run [--service]] | enroll --server <URL> (--token-stdin | --token <token>) [--force] | install [--ca-file <ca.pem>] [--privileged] [--inventory <modulos|all>] [--probe-allow <cidr,...>] [--insecure] [--server <URL>] | uninstall [--keep-state] | start | stop | status"
 
 	// maxTokenBytes acota lo que se lee del token por stdin (un enroll token real ocupa ~50 bytes).
 	maxTokenBytes = 4096
@@ -454,6 +454,7 @@ func (a *app) install(ctx context.Context, args []string) error {
 	inv := fs.String("inventory", "", "modulos de inventario a activar: ports,services,processes,updates o all (vacio = apagado)")
 	probeAllow := fs.String("probe-allow", "", "IPs o CIDRs (/24 o mas chicos) que el colector ping puede sondear, separados por comas")
 	insecure := fs.Bool("insecure", false, "permite http hacia un servidor remoto (el token y las metricas viajan SIN CIFRAR)")
+	server := fs.String("server", "", "re-apunta un agente ya enrolado a otra URL del mismo servidor (cambio de dominio/IP), sin re-enrolar")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("argumentos de install: %w", err)
 	}
@@ -468,6 +469,12 @@ func (a *app) install(ctx context.Context, args []string) error {
 		return fmt.Errorf("install: %w", err)
 	}
 	wantsSettings := given["inventory"] || given["probe-allow"] || given["insecure"]
+	var applyServer func() error // valida ANTES de tocar el sistema
+	if given["server"] {
+		if applyServer, err = a.prepareServerChange(*server, given, patch); err != nil {
+			return err
+		}
+	}
 
 	if a.svc.Installed() {
 		// Ya instalado: actualiza el binario (y la config si se pasa) sin tocar la identidad (agent.json)
@@ -476,10 +483,7 @@ func (a *app) install(ctx context.Context, args []string) error {
 			return errors.New("install: el servicio ya esta instalado; --privileged y --ca-file solo se pueden cambiar con `argos-agent uninstall --keep-state` y un install nuevo (conserva el enrolamiento)")
 		}
 		return a.upgrade(ctx, func() error {
-			if wantsSettings {
-				return a.saveSettings(given, patch)
-			}
-			return nil
+			return a.applyInstallOptions(wantsSettings, given, patch, applyServer)
 		})
 	}
 	err = a.svc.Install(ctx, service.InstallOptions{
@@ -491,10 +495,8 @@ func (a *app) install(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("install: %w", err)
 	}
-	if wantsSettings {
-		if err := a.saveSettings(given, patch); err != nil {
-			return err
-		}
+	if err := a.applyInstallOptions(wantsSettings, given, patch, applyServer); err != nil {
+		return err
 	}
 	// Tras `uninstall --keep-state` el enrolamiento sigue: basta arrancar.
 	next := "enrolar el agente y arrancar el servicio:\n  echo <enroll-token> | argos-agent enroll --server <URL> --token-stdin\n  argos-agent start\n"
@@ -505,6 +507,60 @@ func (a *app) install(ctx context.Context, args []string) error {
 		return fmt.Errorf("escribiendo salida: %w", err)
 	}
 	return nil
+}
+
+// applyInstallOptions guarda la config y/o la URL del servidor que pidio `install`.
+func (a *app) applyInstallOptions(wantsSettings bool, given map[string]bool, patch config.Settings, applyServer func() error) error {
+	if wantsSettings {
+		if err := a.saveSettings(given, patch); err != nil {
+			return err
+		}
+	}
+	if applyServer != nil {
+		return applyServer()
+	}
+	return nil
+}
+
+// prepareServerChange valida la URL (respetando --insecure o el valor ya guardado) y comprueba que haya
+// credenciales; devuelve la funcion que reescribe SOLO ServerURL conservando host_id y token.
+func (a *app) prepareServerChange(rawURL string, given map[string]bool, patch config.Settings) (func() error, error) {
+	newURL := strings.TrimSpace(rawURL)
+	if newURL == "" {
+		return nil, errors.New("install: --server requiere una URL")
+	}
+	insecure := patch.Insecure
+	if !given["insecure"] {
+		cur, err := config.LoadSettings(a.svc.StateDir())
+		if err != nil {
+			return nil, fmt.Errorf("install: %w", err)
+		}
+		insecure = cur.Insecure
+	}
+	if _, err := config.ValidateServerURL(newURL, insecure); err != nil {
+		return nil, fmt.Errorf("install: servidor %q: %w", newURL, err)
+	}
+	st := state.NewForService(a.svc.StateDir(), a.logger, a.svc.StateAccount())
+	creds, err := st.Load()
+	if errors.Is(err, state.ErrNotEnrolled) {
+		return nil, errors.New("install: no está enrolado: usa enroll --server ... --token-stdin")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("install: %w", err)
+	}
+	return func() error {
+		if creds.ServerURL == newURL {
+			return nil
+		}
+		creds.ServerURL = newURL
+		if err := st.Save(creds); err != nil {
+			return fmt.Errorf("install: guardando servidor: %w", err)
+		}
+		if _, err := fmt.Fprintf(a.stdout, "servidor actualizado: %s\n", newURL); err != nil {
+			return fmt.Errorf("escribiendo salida: %w", err)
+		}
+		return nil
+	}, nil
 }
 
 // upgrade actualiza un servicio ya instalado: lo detiene si corria, reemplaza el binario, aplica
@@ -635,6 +691,9 @@ func (a *app) status(ctx context.Context, args []string) error {
 	switch creds, err := st.Load(); {
 	case err == nil:
 		enrolled = "enrolado (host_id " + creds.HostID + ")"
+		if creds.ServerURL != "" {
+			enrolled += "\nservidor: " + creds.ServerURL
+		}
 	case errors.Is(err, state.ErrNotEnrolled):
 	default:
 		enrolled = "no se pudo leer el estado (¿faltan privilegios?)"

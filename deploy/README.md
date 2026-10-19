@@ -91,6 +91,33 @@ docker compose down                              # detiene; los volúmenes se co
 ```
 **Nunca** uses `docker compose down -v` en producción: borra la base y los certificados.
 
+## 12. Probar en tu red local (antes del servidor)
+Mismo compose, en tu PC, con la IP de la LAN en vez del dominio. Caddy crea un certificado propio para esa IP (no Let's Encrypt).
+```bash
+cd deploy && cp .env.example .env    # DOMAIN=192.168.1.50 (IP de tu PC); ACME_EMAIL no se usa
+docker compose up -d --build
+docker compose exec argos-server /app/argos-server create-admin admin
+docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt > ca.pem   # CA de Caddy para los agentes
+```
+- Dashboard: `https://192.168.1.50` (el navegador avisa del certificado: es normal en LAN). Sin puerto: Caddy atiende en 443 y el 80 redirige; el 8080 es solo del modo desarrollo.
+- En el otro equipo copia `ca.pem` y el agente y, como administrador: `install --ca-file ca.pem` → `enroll --server https://192.168.1.50 --token-stdin` → `start`.
+- Abre los puertos 80/443 en el firewall de tu PC si el otro equipo no conecta.
+- Al terminar: `docker compose down -v` (borra la base de prueba).
+
+Alternativa sin Docker: `bash scripts/run-local.sh start` (http en `:8080`) y en el otro equipo `install --insecure` + `enroll --server http://192.168.1.50:8080`. Por http el dashboard solo inicia sesión desde `localhost`.
+
+## 13. Cambiar el servidor de un agente
+- **Mismo servidor, otra URL** (cambias de dominio o de IP; la base es la misma): el agente conserva su identidad.
+  ```bash
+  sudo argos-agent install --server https://nuevo.tudominio.com      # Windows: argos-agent install --server ... (admin)
+  ```
+  Guarda la URL nueva y reinicia el servicio. Si el nuevo usa otra CA, agrega `--ca-file` (requiere `uninstall --keep-state` antes, ver README raíz).
+- **Otro servidor** (de la prueba en LAN a producción): es otra base y no conoce al host, así que se enrola de nuevo con un token del server nuevo, sin reinstalar:
+  ```bash
+  echo '<TOKEN>' | sudo argos-agent enroll --server https://argos.tudominio.com --token-stdin --force
+  sudo argos-agent stop && sudo argos-agent start
+  ```
+
 ## Notas
 - Caddy es el único proxy de confianza (`ARGOS_TRUSTED_PROXIES=172.28.0.0/24`, subred fija de la red `edge`); de ahí se lee la IP real para el límite de intentos y la auditoría. Si cambias esa subred, cámbiala en las dos partes del compose.
 - La base solo está en la red interna `internal` (sin salida a internet ni puerto publicado).

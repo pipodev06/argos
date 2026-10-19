@@ -155,3 +155,104 @@ func TestFreshInstallWhenAlreadyEnrolledOnlyAsksToStart(t *testing.T) {
 		t.Errorf("con agent.json no debe pedir enrolar: %q", out)
 	}
 }
+
+func seedCreds(t *testing.T, h *harness, serverURL string) *state.Store {
+	t.Helper()
+	st := state.New(h.svc.stateDir, h.app.logger)
+	if err := st.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Save(state.Credentials{HostID: "host-1", AgentToken: "tok-secreto-123", ServerURL: serverURL}); err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+func TestInstallServerRewritesOnlyServerURL(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	st := seedCreds(t, h, "https://viejo.example.com")
+	h.svc.installed = true
+
+	if err := h.app.execute(context.Background(), []string{"install", "--server", "https://nuevo.example.com", "--inventory", "ports"}); err != nil {
+		t.Fatalf("install --server: %v", err)
+	}
+	got, err := st.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := state.Credentials{HostID: "host-1", AgentToken: "tok-secreto-123", ServerURL: "https://nuevo.example.com"}
+	if got != want {
+		t.Errorf("credenciales got %+v, want %+v", got, want)
+	}
+	if !strings.Contains(h.stdout.String(), "servidor actualizado: https://nuevo.example.com") {
+		t.Errorf("falta el mensaje: %q", h.stdout)
+	}
+	if readSettings(t, h).Inventory != "ports" {
+		t.Error("debe combinarse con las demas opciones")
+	}
+}
+
+func TestInstallServerSameURLDoesNothingExtra(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	seedCreds(t, h, "https://mismo.example.com")
+	h.svc.installed = true
+	if err := h.app.execute(context.Background(), []string{"install", "--server", "https://mismo.example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(h.stdout.String(), "servidor actualizado") {
+		t.Errorf("misma URL no debe anunciar cambio: %q", h.stdout)
+	}
+}
+
+func TestInstallServerRejectsBeforeTouchingSystem(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		seed  bool
+		args  []string
+		wantE string
+	}{
+		{"url invalida", true, []string{"--server", "ftp//x"}, "servidor"},
+		{"vacia", true, []string{"--server", ""}, "requiere"},
+		{"http remoto sin insecure", true, []string{"--server", "http://192.0.2.10:8080"}, "servidor"},
+		{"sin credenciales", false, []string{"--server", "https://nuevo.example.com"}, "no está enrolado"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			if tc.seed {
+				seedCreds(t, h, "https://viejo.example.com")
+			}
+			h.svc.installed = true
+			err := h.app.execute(context.Background(), append([]string{"install"}, tc.args...))
+			if err == nil || !strings.Contains(err.Error(), tc.wantE) {
+				t.Fatalf("got %v, want error con %q", err, tc.wantE)
+			}
+			if len(h.svc.calls) != 0 {
+				t.Errorf("no debe tocar el servicio: %v", h.svc.calls)
+			}
+			if tc.seed {
+				c, loadErr := state.New(h.svc.stateDir, h.app.logger).Load()
+				if loadErr != nil || c.ServerURL != "https://viejo.example.com" {
+					t.Errorf("credenciales no deben cambiar: %+v %v", c, loadErr)
+				}
+			}
+		})
+	}
+}
+
+func TestInstallServerHTTPAllowedWithInsecure(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	st := seedCreds(t, h, "https://viejo.example.com")
+	h.svc.installed = true
+	if err := h.app.execute(context.Background(), []string{"install", "--insecure", "--server", "http://192.0.2.10:8080"}); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := st.Load(); err != nil || c.ServerURL != "http://192.0.2.10:8080" {
+		t.Errorf("got %+v %v", c, err)
+	}
+}

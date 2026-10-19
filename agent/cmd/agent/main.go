@@ -4,7 +4,7 @@
 //
 //	argos-agent [run]                                   reporta metricas en primer plano (subcomando por defecto)
 //	argos-agent enroll --server <URL> --token-stdin     enrola el agente y guarda su token (el token llega por stdin)
-//	argos-agent install [--ca-file ca.pem] [--privileged] [--inventory <modulos|all>] [--probe-allow <cidr,...>] [--insecure]
+//	argos-agent install [--ca-file ca.pem] [--privileged] [--inventory <modulos|all>] [--probe-allow <cidr,...>] [--insecure] [--server <URL>]
 //	                                                    instala el servicio del SO (requiere administrador/root) y guarda la config local en settings.json;
 //	                                                    --privileged: modo con mas visibilidad (opt-in)
 //	argos-agent uninstall [--keep-state]                elimina el servicio y, por defecto, sus credenciales
