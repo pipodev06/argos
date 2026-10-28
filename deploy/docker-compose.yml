@@ -38,8 +38,10 @@ services:
       ARGOS_SECRET_KEY: ${ARGOS_SECRET_KEY:?define ARGOS_SECRET_KEY en .env}
       ARGOS_PUBLIC_URL: https://${DOMAIN:?define DOMAIN en .env}
       ARGOS_LISTEN_ADDR: 0.0.0.0:8080
-      # Solo Caddy (red "edge", subred fija) es proxy de confianza: de ahi se lee X-Forwarded-For.
-      ARGOS_TRUSTED_PROXIES: 172.28.0.0/24
+      # Por defecto, solo Caddy (red "edge", subred fija) es proxy de confianza: de ahi se lee X-Forwarded-For.
+      # Con un proxy propio delante (nginx, etc.; ver docker-compose.external-proxy.yml), sobreescribe esto
+      # en .env con la red/IP real desde la que ese proxy le habla al contenedor.
+      ARGOS_TRUSTED_PROXIES: ${ARGOS_TRUSTED_PROXIES:-172.28.0.0/24}
       ARGOS_LOG_LEVEL: ${ARGOS_LOG_LEVEL:-info}
     # Sin ports: solo Caddy lo alcanza por la red interna.
     networks: [internal, edge]

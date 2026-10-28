@@ -1,0 +1,9 @@
+# Capa adicional pa cuando YA tienes tu propio proxy inverso delante (nginx, Cloudflare Tunnel, etc.) en vez
+# de dejar que Caddy maneje el HTTPS. No reemplaza docker-compose.yml, se suma con -f; Caddy se queda definido
+# pero nunca arranca porque no se le nombra en el `up` (ver deploy/README.md, seccion "Detras de tu propio proxy").
+#
+# Uso: docker compose -f docker-compose.yml -f docker-compose.external-proxy.yml up -d --build db argos-server backup
+services:
+  argos-server:
+    ports:
+      - "${ARGOS_HOST_PORT:-8000}:8080"

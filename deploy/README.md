@@ -118,7 +118,49 @@ Alternativa sin Docker: `bash scripts/run-local.sh start` (http en `:8080`) y en
   sudo argos-agent stop && sudo argos-agent start
   ```
 
+## 14. Detrás de tu propio proxy (nginx, Cloudflare Tunnel, etc.)
+Si ya tienes nginx (u otro reverse proxy) manejando el tráfico — por ejemplo con Cloudflare Tunnel terminando
+HTTPS antes de llegar a tu servidor — no uses Caddy: publica `argos-server` en un puerto del host y apunta tu
+proxy ahí. No hace falta tocar código, solo configuración.
+
+**1. Arranca sin Caddy, con el puerto publicado** (`docker-compose.external-proxy.yml` se suma al compose base,
+no lo reemplaza):
+```bash
+cd deploy
+docker compose -f docker-compose.yml -f docker-compose.external-proxy.yml up -d --build db argos-server backup
+```
+Caddy sigue definido en `docker-compose.yml` pero nunca arranca porque no se le nombra en el `up`.
+
+**2. En `deploy/.env`**: `DOMAIN` sigue siendo tu dominio real (de ahí sale `ARGOS_PUBLIC_URL=https://...`, que
+es lo que controla la cookie seguro y HSTS — no depende de que el tramo interno sea http). Agrega:
+```
+ARGOS_TRUSTED_PROXIES=<ver paso 4>
+ARGOS_HOST_PORT=8000   # opcional, 8000 es el valor por defecto
+```
+`ACME_EMAIL` ya no hace falta (Caddy no corre), pero el compose igual lo exige si usas el `.env.example` tal
+cual: déjalo con cualquier valor o coméntalo si tu `.env` no lo necesita.
+
+**3. En tu nginx**, el bloque para argos:
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8000;   # o la IP/nombre de tu Docker host
+    proxy_set_header Host $host;        # obligatorio: sin esto el server responde 403 (Host no permitido)
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+**4. Encuentra la IP/red real desde la que tu nginx le habla al contenedor** (varía según tu Docker; no la
+adivines, verifícala):
+```bash
+docker network inspect argos_edge --format '{{(index .IPAM.Config 0).Gateway}}'
+```
+Pon ese valor (o el `/24` completo de esa red) en `ARGOS_TRUSTED_PROXIES` del `.env` y reinicia
+(`docker compose restart argos-server`). Haz una petición real desde afuera y confirma en
+`docker compose logs argos-server` que la IP que registra es la del cliente real, no la de nginx — si ves la
+de nginx, el CIDR está mal y hay que ajustarlo.
+
 ## Notas
-- Caddy es el único proxy de confianza (`ARGOS_TRUSTED_PROXIES=172.28.0.0/24`, subred fija de la red `edge`); de ahí se lee la IP real para el límite de intentos y la auditoría. Si cambias esa subred, cámbiala en las dos partes del compose.
+- Por defecto Caddy es el único proxy de confianza (`ARGOS_TRUSTED_PROXIES=172.28.0.0/24`, subred fija de la red `edge`); de ahí se lee la IP real para el límite de intentos y la auditoría. Con tu propio proxy delante, sobreescribe `ARGOS_TRUSTED_PROXIES` en `.env` (sección 14) en vez de tocar el compose.
 - La base solo está en la red interna `internal` (sin salida a internet ni puerto publicado).
 - Más variables opcionales del server (retenciones, webhooks): `server/.env.example`; se añaden en `environment:` de `argos-server`.
