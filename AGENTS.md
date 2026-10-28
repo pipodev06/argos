@@ -73,3 +73,11 @@ Software de monitoreo (tipo Zabbix/PRTG/Nagios) — agente en host + servidor ce
 ## Stack
 
 Vite + Tailwind v4 (`@tailwindcss/vite`) + shadcn/ui (radix) + **lucide-react** (desde el 2026-10-17, pedido del usuario; reemplaza a Tabler): nombres con sufijo `Icon` (`CalendarIcon`) para no chocar con componentes, `strokeWidth={1.5}`, tipo `LucideIcon`; sin otras librerías de iconos. Gestor de paquetes: **pnpm**. Gráficas: shadcn chart (Recharts) para MVP; evaluar uPlot si el volumen de puntos por host lo exige.
+
+## Datos técnicos para agentes (movidos desde `~/.claude/agents/` el 2026-10-27)
+
+- **Verificación:** Go = `bash scripts/check-go.sh <server|agent> --fast [--pkg ./ruta]` mientras trabajas y completo al cerrar (gofmt, vet y golangci-lint también con `GOOS=linux`/`darwin`, tests, govulncheck; log completo en `.check/`). Web = `bash scripts/check-web.sh`. Tests de BD: definir `ARGOS_TEST_DATABASE_URL` (BD que termine en `_test`; la local está en `docs/deuda-tecnica.md`, sección Operación); sin ella se saltan en silencio.
+- **Esquema real:** `grep -n "CREATE TABLE\|ALTER TABLE" server/internal/store/migrations/*.sql` (ej.: `host_events` existe desde la 00014).
+- **Límites:** `maxSmallBodyBytes` = 4 KiB (no caben 200 UUID). Porcentajes de informes en 0–100.
+- **Componentes web que ya existen:** `StatCard`/`StatusTile`, `DataTable`, `SegmentedControl` (elección de UNA opción), `Pagination`, `EmptyState`/`NoResultsState`, `InlineError`, `FormHelp`, `CopyBlock`, `DateTimePicker`, `RowActions`.
+- **Greps antes de cerrar web:** `grep -rn "font-mono" web/src` solo debe dar `copy-block.tsx`; sin `text-right`/`text-left` en celdas; sin colores de estado (`text-danger`, `text-ok`…) en texto.
