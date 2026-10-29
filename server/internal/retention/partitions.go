@@ -118,9 +118,10 @@ func partitionName(table string, day time.Time) string {
 	return table + "_p" + day.UTC().Format("20060102")
 }
 
-// createPartitions asegura las particiones de hoy a hoy+createAheadDays (UTC) en cada tabla.
-// Es idempotente: los dias ya cubiertos (incluido por la particion legacy) se saltan. Un fallo
-// en un dia no impide intentar los demas.
+// createPartitions asegura las particiones de hoy-createBehindDays a hoy+createAheadDays (UTC) en
+// cada tabla. Es idempotente: los dias ya cubiertos (incluido por la particion legacy) se saltan.
+// El tramo hacia atras repone huecos de un server que estuvo apagado (ver createBehindDays); un
+// fallo en un dia no impide intentar los demas.
 func (m *Maintainer) createPartitions(ctx context.Context, conn *pgx.Conn, now time.Time) error {
 	var errs []error
 	today := utcDay(now)
@@ -130,7 +131,7 @@ func (m *Maintainer) createPartitions(ctx context.Context, conn *pgx.Conn, now t
 			errs = append(errs, err)
 			continue
 		}
-		for i := 0; i <= createAheadDays; i++ {
+		for i := -createBehindDays; i <= createAheadDays; i++ {
 			day := today.AddDate(0, 0, i)
 			next := day.AddDate(0, 0, 1)
 			if covers(existing, day, next) {

@@ -110,15 +110,17 @@ func TestCreatePartitionsIsIdempotentAndCorrect(t *testing.T) {
 			}
 		})
 	}
+	// Nuevas: hoy-createBehindDays..hoy+createAheadDays (ninguna existia con la fecha lejana de now).
+	wantNew := createBehindDays + createAheadDays + 1
 	create()
 	for _, table := range partitionedTables {
 		names := partNames(t, table)
-		if got := len(names); got != base[table]+8 {
-			t.Errorf("%s: particiones got %d, want %d", table, got, base[table]+8)
+		if got := len(names); got != base[table]+wantNew {
+			t.Errorf("%s: particiones got %d, want %d", table, got, base[table]+wantNew)
 		}
-		for i := 0; i <= createAheadDays; i++ {
+		for i := -createBehindDays; i <= createAheadDays; i++ {
 			if !hasPartition(t, table, today.AddDate(0, 0, i)) {
-				t.Errorf("%s: falta la particion de hoy+%d", table, i)
+				t.Errorf("%s: falta la particion de hoy%+d", table, i)
 			}
 		}
 	}
@@ -129,8 +131,8 @@ func TestCreatePartitionsIsIdempotentAndCorrect(t *testing.T) {
 		t.Errorf("la segunda ejecucion logueo algo: %s", s)
 	}
 	for _, table := range partitionedTables {
-		if got := len(partNames(t, table)); got != base[table]+8 {
-			t.Errorf("%s: particiones tras la segunda ejecucion got %d, want %d", table, got, base[table]+8)
+		if got := len(partNames(t, table)); got != base[table]+wantNew {
+			t.Errorf("%s: particiones tras la segunda ejecucion got %d, want %d", table, got, base[table]+wantNew)
 		}
 	}
 
@@ -205,6 +207,40 @@ func TestCreatePartitionsRecreatesMissingDay(t *testing.T) {
 	}
 }
 
+// Reproduce el bug real: el server estuvo apagado y al volver tiene un hueco en un dia PASADO
+// (dentro de la ventana createBehindDays) porque antes createPartitions solo miraba hacia
+// adelante. El ciclo de mantenimiento debe reponerlo solo, igual que repone un hueco futuro.
+func TestCreatePartitionsRecreatesMissingPastDay(t *testing.T) {
+	fresh(t)
+	ctx := context.Background()
+	now := farNow()
+	today := utcDay(now)
+	m, _ := newMaint(t, testCfg, now)
+
+	withConn(t, func(conn *pgx.Conn) {
+		if err := m.createPartitions(ctx, conn, now); err != nil {
+			t.Fatal(err)
+		}
+	})
+	// Se pierde el dia hoy-3 (p. ej. el server estuvo apagado y el ciclo nunca corrio pa ese dia).
+	mustExec(t, `DROP TABLE `+partitionName(tableMetrics, today.AddDate(0, 0, -3)))
+	if hasPartition(t, tableMetrics, today.AddDate(0, 0, -3)) {
+		t.Fatal("la particion sigue existiendo tras el DROP")
+	}
+	withConn(t, func(conn *pgx.Conn) {
+		if err := m.createPartitions(ctx, conn, now); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !hasPartition(t, tableMetrics, today.AddDate(0, 0, -3)) {
+		t.Errorf("no se repuso la particion de hoy-3")
+	}
+
+	// Una muestra atrasada (dentro de los 7 dias que acepta el ingest) ya puede insertarse sin 23514.
+	h := mkHost(t, "srv-part-behind")
+	mustExec(t, `INSERT INTO metrics (host_id, ts) VALUES ($1, $2)`, h, today.AddDate(0, 0, -3).Add(6*time.Hour))
+}
+
 // Las cotas de las particiones son absolutas (offset +00): no dependen del timezone de la sesion
 // del pool ni del que use pg_get_expr al listarlas.
 func TestPartitionsAreIndependentOfSessionTimezone(t *testing.T) {
@@ -243,7 +279,7 @@ func TestPartitionsAreIndependentOfSessionTimezone(t *testing.T) {
 	}
 	found := 0
 	for _, p := range parts {
-		for i := 0; i <= createAheadDays; i++ {
+		for i := -createBehindDays; i <= createAheadDays; i++ {
 			day := today.AddDate(0, 0, i)
 			if p.name == partitionName(tableMetrics, day) {
 				found++
@@ -253,7 +289,7 @@ func TestPartitionsAreIndependentOfSessionTimezone(t *testing.T) {
 			}
 		}
 	}
-	if found != createAheadDays+1 {
-		t.Errorf("particiones diarias encontradas got %d, want %d", found, createAheadDays+1)
+	if want := createBehindDays + createAheadDays + 1; found != want {
+		t.Errorf("particiones diarias encontradas got %d, want %d", found, want)
 	}
 }

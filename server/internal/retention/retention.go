@@ -7,7 +7,7 @@
 // lock_timeout, asi ninguna DDL espera indefinidamente a una consulta larga. Los pasos
 // van en este orden y un fallo en uno se loguea sin frenar a los demas:
 //
-//  1. crear las particiones de hoy a hoy+7 dias;
+//  1. crear las particiones de hoy-7 a hoy+7 dias (repone huecos si el server estuvo apagado);
 //  2. resumir por hora las metricas crudas (marca de agua metrics_rollup_through);
 //  3. borrar las particiones vencidas (las de `metrics` solo si ya estan resumidas y empaquetadas: antes de
 //     borrarlas se guarda cada host-dia en `metrics_chunks`, ver pack.go; las de `disk_samples` se empaquetan
@@ -38,6 +38,13 @@ const (
 
 	// createAheadDays: se mantienen particiones hasta hoy+7 dias (UTC).
 	createAheadDays = 7
+
+	// createBehindDays: se reponen hacia atras hasta hoy-7 dias (UTC). Iguala la tolerancia de atraso
+	// que acepta el ingest (maxTimestampAge en internal/httpapi/handlers.go; paquetes distintos, sin
+	// que uno dependa del otro, de ahi que el numero se duplique con este comentario). Si el server
+	// estuvo apagado y vuelve, el primer ciclo repone cualquier hueco dentro de esa ventana sin
+	// intervencion manual; mas atras no sirve, porque el ingest ya rechaza muestras mas viejas.
+	createBehindDays = 7
 
 	// unlockTimeout acota la liberacion del lock y del lock_timeout al terminar (el ctx del ciclo puede estar cancelado).
 	unlockTimeout = 5 * time.Second

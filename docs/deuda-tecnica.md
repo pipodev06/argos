@@ -13,7 +13,7 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Monitorear el propio servicio: un `DETACH`/empaquetado que falla se ve en "Estado del servicio" y en el aviso del Resumen (admin), pero no llega por webhook; fuera del dashboard, vigilar `GET /metrics` (`argos_task_last_ok_age_seconds`) o `/health` con un monitor externo -> [Operación](#operación)
 ### Baja
 - Límites de colectores (batería, discos, `host_info`, red virtual), Linux solo systemd, macOS sin rotación de log, Windows con estado de solo lectura -> [Agente](#agente-y-servicio)
-- Series: primer tramo sin tasa, datos tardíos >3 h no se reprocesan, partición ausente tras una parada larga -> [Datos](#datos-y-api)
+- Series: primer tramo sin tasa, datos tardíos >3 h no se reprocesan -> [Datos](#datos-y-api)
 - Sin test de `main`/SIGTERM real; tests de BD se SALTAN en silencio sin `ARGOS_TEST_DATABASE_URL` -> [Operación](#operación)
 
 ## Servicio hospedado
@@ -42,7 +42,6 @@ Las TAREAS con "hecho cuando" viven en `plan-tareas.md`; aquí solo los límites
 - Con `ARGOS_METRICS_MAINTENANCE_INTERVAL` muy bajo (solo pruebas) el check `maintenance` de B6 puede dar falso crit durante un backfill grande (el umbral se calcula sobre el intervalo configurado); con el valor de produccion (5 min) no pasa.
 - Sin benchmark de tiempo automatizado para `alert_candidates` (solo medición manual con `EXPLAIN`); un gate de rendimiento en CI necesitaría decidir margen y máquina de referencia. Entregas `dead` de antes de la migración 00035 llevan `dead_at = created_at` (backfill sin fecha real).
 - **`metrics_chunks`** (`decisiones/2026-09-26-detalle-comprimido-retencion.md`; probado con volumen real el 2026-09-27, ver `decisiones/2026-09-27-e3-volumen-disk-chunks.md`; `disk_samples` ya tiene su propio chunk, `disk_chunks`, con retención solo global): un chunk que falle siempre deja la partición sin borrar y loguea ERROR cada ciclo; validaciones aceptan 730 d aunque `HOT_DAYS` sea mayor que 8; la lista de hosts no muestra la retención propia.
-- Si el server/mantenimiento estuvo parado varios días no se crean particiones pasadas: una muestra con `ts` en ese hueco da 503 hasta caer fuera de la ventana de 7 días del ingest (sin backfill).
 - Datos tardíos de más de 3 h no se reprocesan en `metrics_hourly`; el promedio de buckets de 3 h/12 h pondera tasas ya promediadas (error <2 % en test). `MetricSeries*` no lee la muestra previa al rango (el primer tramo no tiene tasa). El CSV crudo del historial usa hueco fijo de 10 min y el JSON la mediana. `disks` del detalle mira 7 días. `summary.by_group` rotula "Sin grupo" en español.
 - Un `DETACH ... CONCURRENTLY` espera a todas las transacciones anteriores (una consulta larga aplaza el borrado; con `lock_timeout` 5 s falla con ERROR y reintenta cada ciclo, sin alerta propia). Con varias instancias cada una tiene su propia gracia de arranque del detector (el UPDATE es idempotente).
 - `host_events`: el pasado no se reconstruye; una caída se subcuenta hasta `down_after_seconds`; editar una ventana de mantenimiento cambia el % de disponibilidad pasado.
