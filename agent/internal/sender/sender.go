@@ -286,17 +286,38 @@ func (c *Client) Buffered() int { return c.q.len() }
 // Close libera el archivo del buffer offline. Lo pendiente queda en disco pa el proximo arranque.
 func (c *Client) Close() { c.q.close() }
 
-// Send encola el reporte y trata de vaciar el buffer en orden (el mas viejo primero),
-// con una pausa DrainPace entre envios pa no superar el limite del server.
-// Devuelve nil si no hubo error (el buffer puede quedar con reportes si se
-// alcanzo el tope de envios por Send: salen en el proximo). Si falla por causa
-// transitoria (red, 5xx, 429, 408) los reportes quedan en el buffer pa el proximo
-// Send; si el servidor rechaza un reporte de forma definitiva (otro 4xx) ese
-// reporte se descarta y se devuelve el error. Un 401 devuelve ErrTokenRejected
-// sin descartar nada: el llamador debe detenerse.
+// Send envia el reporte y trata de vaciar el buffer. Con el buffer vacio, encola y envia (como siempre).
+// Con pendientes, el reporte en vivo sale PRIMERO (directo, sin pasar por la cola) y despues se drena el
+// historico del mas viejo al mas nuevo: asi un corte largo no deja el estado actual (CPU, RAM, resultados
+// de chequeos) detras de miles de reportes viejos. El server tolera el desorden (los estados solo
+// avanzan con un ts mas nuevo y las metricas se indexan por ts). Entre envios hay una pausa DrainPace pa
+// no superar el limite del server, y el envio en vivo cuenta pa el tope de envios por Send.
+// Devuelve nil si no hubo error (el buffer puede quedar con reportes si se alcanzo el tope: salen en
+// el proximo Send). Si falla por causa transitoria (red, 5xx, 429, 408) los reportes (el vivo incluido,
+// al final de la cola) quedan en el buffer pa el proximo Send; si el servidor rechaza un reporte de
+// forma definitiva (otro 4xx) ese reporte se descarta y se devuelve el error. Un 401 devuelve
+// ErrTokenRejected sin descartar nada: el llamador debe detenerse.
 func (c *Client) Send(ctx context.Context, r Report) error {
-	c.q.push(r)
-	return c.flush(ctx)
+	c.dropExpired()
+	if c.q.len() == 0 {
+		c.q.push(r)
+		return c.flush(ctx, 0, nil)
+	}
+	if err := c.waitTurn(ctx); err != nil {
+		c.q.push(r)
+		return err
+	}
+	var dropped error
+	switch err := c.sendWithRetry(ctx, r); {
+	case err == nil:
+	case errors.Is(err, ErrTokenRejected), retryable(err), ctx.Err() != nil:
+		c.q.push(r)
+		return err
+	default:
+		c.logger.Error("el servidor rechazo el reporte, se descarta", "err", err)
+		dropped = err
+	}
+	return c.flush(ctx, 1, dropped)
 }
 
 // dropExpired descarta los reportes del frente mas viejos que MaxAge: el server los rechazaria
@@ -316,9 +337,10 @@ func (c *Client) dropExpired() {
 	}
 }
 
-func (c *Client) flush(ctx context.Context) error {
-	var dropped error
-	for processed := 0; ; processed++ {
+// flush drena la cola del mas viejo al mas nuevo. processed son los envios ya hechos en este Send
+// (cuentan pa el tope) y dropped el rechazo permanente previo que hay que devolver al final.
+func (c *Client) flush(ctx context.Context, processed int, dropped error) error {
+	for ; ; processed++ {
 		c.dropExpired()
 		if c.q.len() == 0 {
 			break

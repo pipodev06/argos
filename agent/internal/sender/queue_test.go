@@ -91,7 +91,7 @@ func TestJournalSurvivesRestartAndDrainsOldestFirst(t *testing.T) {
 	if err := c2.Send(context.Background(), report(4)); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
-	if got, want := srv.delivered(), []int64{1, 2, 3, 4}; !slices.Equal(got, want) {
+	if got, want := srv.delivered(), []int64{4, 1, 2, 3}; !slices.Equal(got, want) { // el vivo primero, luego el historico oldest-first
 		t.Errorf("orden de reenvio got %v, want %v", got, want)
 	}
 	c2.Close()
@@ -123,7 +123,7 @@ func TestJournalCapByCountKeepsNewest(t *testing.T) {
 	if err := c2.Send(context.Background(), report(6)); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := srv.delivered(), []int64{4, 5, 6}; !slices.Equal(got, want) {
+	if got, want := srv.delivered(), []int64{6, 3, 4, 5}; !slices.Equal(got, want) {
 		t.Errorf("entregados got %v, want %v (tope 3: los mas nuevos)", got, want)
 	}
 	c2.Close()
@@ -217,7 +217,7 @@ func TestExpiredReportsAreDroppedWithoutSending(t *testing.T) {
 	if err := c2.Send(context.Background(), report(now.Unix())); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := srv.delivered(), []int64{fresh, now.Unix()}; !slices.Equal(got, want) {
+	if got, want := srv.delivered(), []int64{now.Unix(), fresh}; !slices.Equal(got, want) {
 		t.Errorf("entregados got %v, want %v (el vencido no se envia)", got, want)
 	}
 	c2.Close()

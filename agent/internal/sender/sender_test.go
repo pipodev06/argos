@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -199,7 +200,7 @@ func TestNetworkDownBuffersAndDrainsInOrder(t *testing.T) {
 	if err := c.Send(context.Background(), report(4)); err != nil {
 		t.Fatalf("Send tras recuperar la red: %v", err)
 	}
-	want := []int64{1, 2, 3, 4}
+	want := []int64{4, 1, 2, 3} // el vivo primero, luego el historico oldest-first
 	if len(delivered) != len(want) {
 		t.Fatalf("delivered got %v, want %v", delivered, want)
 	}
@@ -245,8 +246,8 @@ func TestBufferIsBoundedDroppingOldest(t *testing.T) {
 	if err := c.Send(context.Background(), report(6)); err != nil {
 		t.Fatal(err)
 	}
-	want := []int64{4, 5, 6}
-	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+	want := []int64{6, 3, 4, 5} // el vivo primero; el tope descarto 1 y 2
+	if !slices.Equal(got, want) {
 		t.Errorf("entregados got %v, want %v (los mas viejos se descartan)", got, want)
 	}
 }

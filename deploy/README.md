@@ -72,7 +72,7 @@ Los agentes se actualizan en cada equipo descargando la versión nueva (página 
 El servicio `backup` escribe `deploy/backups/argos-AAAA-MM-DD.dump` cada día a `BACKUP_HOUR` y borra los de más de `BACKUP_KEEP_DAYS`. Copia esa carpeta fuera del servidor (rsync/rclone).
 ```bash
 # respaldo manual
-docker compose exec backup sh -c 'pg_dump -Fc > /backups/argos-manual-$(date +%F).dump'
+docker compose exec backup sh -c 'umask 077; pg_dump -Fc > /backups/argos-manual-$(date +%F).dump'
 
 # restaurar (se pierden los datos actuales)
 docker compose stop argos-server

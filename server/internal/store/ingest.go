@@ -27,7 +27,8 @@ type DiskSample struct {
 }
 
 // HostInfoUpdate es la info estatica que reporta el agente. Un texto vacio o un puntero nil es
-// "sin dato" y se guarda NULL. Solo se escribe si algo cambio respecto de lo guardado.
+// "sin dato" y se guarda NULL. Un reporte mas viejo que el ultimo aplicado se ignora; updated_at solo
+// avanza si algo cambio respecto de lo guardado.
 type HostInfoUpdate struct {
 	BootTime      *time.Time
 	CPUModel      string
@@ -121,22 +122,28 @@ ON CONFLICT (host_id) DO UPDATE SET
   disk_ts = COALESCE(EXCLUDED.disk_ts, l.disk_ts)
 WHERE l.ts < EXCLUDED.ts`
 
-	// host_info: no escribe si nada cambio (boot_time con tolerancia de 60 s: el agente lo deriva de uptime).
+	// host_info: la guarda reported_at solo deja pasar un reporte mas nuevo que el ultimo aplicado (el agente envia
+	// primero el vivo y despues drena el buffer, asi que llegan fuera de orden). Un reporte mas nuevo siempre avanza
+	// reported_at, aunque nada haya cambiado: si no, uno viejo con datos distintos podria pisar a uno mas nuevo ya
+	// confirmado. updated_at solo se mueve si algo cambio (boot_time con tolerancia de 60 s: el agente lo deriva de uptime).
 	upsertInfoSQL = `
 INSERT INTO host_info AS i (host_id, boot_time, cpu_cores, cpu_threads, cpu_model, os_name, os_version,
-                            kernel_version, agent_version, ips, privilege, physical_disks)
-VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), $10, NULLIF($11, ''), $12::jsonb)
+                            kernel_version, agent_version, ips, privilege, physical_disks, reported_at)
+VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), $10, NULLIF($11, ''), $12::jsonb, $13)
 ON CONFLICT (host_id) DO UPDATE SET
   boot_time = EXCLUDED.boot_time, cpu_cores = EXCLUDED.cpu_cores, cpu_threads = EXCLUDED.cpu_threads,
   cpu_model = EXCLUDED.cpu_model, os_name = EXCLUDED.os_name, os_version = EXCLUDED.os_version,
   kernel_version = EXCLUDED.kernel_version, agent_version = EXCLUDED.agent_version, ips = EXCLUDED.ips,
-  privilege = EXCLUDED.privilege, physical_disks = EXCLUDED.physical_disks, updated_at = now()
-WHERE (i.cpu_cores, i.cpu_threads, i.cpu_model, i.os_name, i.os_version, i.kernel_version, i.agent_version, i.ips, i.privilege, i.physical_disks)
+  privilege = EXCLUDED.privilege, physical_disks = EXCLUDED.physical_disks, reported_at = EXCLUDED.reported_at,
+  updated_at = CASE WHEN
+      (i.cpu_cores, i.cpu_threads, i.cpu_model, i.os_name, i.os_version, i.kernel_version, i.agent_version, i.ips, i.privilege, i.physical_disks)
       IS DISTINCT FROM
       (EXCLUDED.cpu_cores, EXCLUDED.cpu_threads, EXCLUDED.cpu_model, EXCLUDED.os_name, EXCLUDED.os_version,
        EXCLUDED.kernel_version, EXCLUDED.agent_version, EXCLUDED.ips, EXCLUDED.privilege, EXCLUDED.physical_disks)
    OR (i.boot_time IS NULL) <> (EXCLUDED.boot_time IS NULL)
-   OR abs(extract(epoch FROM i.boot_time - EXCLUDED.boot_time)) > 60`
+   OR abs(extract(epoch FROM i.boot_time - EXCLUDED.boot_time)) > 60
+   THEN now() ELSE i.updated_at END
+WHERE i.reported_at IS NULL OR i.reported_at < EXCLUDED.reported_at`
 
 	// ingestHostSQL marca el host como up y devuelve su hostname y el status previo. Bloquea
 	// la fila (FOR UPDATE) pa que el status previo sea el real aunque el detector corra a la
@@ -205,7 +212,7 @@ func (s *Store) IngestMetrics(ctx context.Context, hostID string, smp Sample) (I
 				return err
 			}
 			b.Queue(upsertInfoSQL, hostID, info.BootTime, info.CPUCores, info.CPUThreads, info.CPUModel,
-				info.OSName, info.OSVersion, info.KernelVersion, info.AgentVersion, info.IPs, info.Privilege, disksJSON)
+				info.OSName, info.OSVersion, info.KernelVersion, info.AgentVersion, info.IPs, info.Privilege, disksJSON, smp.Timestamp)
 		}
 		diskPct, diskMount, diskTS := worstDisk(smp.Disks, smp.Timestamp)
 		b.Queue(upsertLatestSQL, hostID, smp.Timestamp, smp.CPUPct, smp.MemUsedMB, smp.MemTotalMB,

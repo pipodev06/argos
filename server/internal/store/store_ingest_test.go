@@ -148,6 +148,57 @@ func TestIngestLatestIgnoresLateReports(t *testing.T) {
 	}
 }
 
+// El agente envia primero el reporte en vivo y despues drena el buffer: un reporte con host_info mas viejo que el
+// ultimo aplicado nunca pisa la info, aunque el ultimo aplicado no haya cambiado nada.
+func TestIngestHostInfoOutOfOrder(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedHost(t, "h", "up", ago(time.Second))
+	id := hostID(t, "h")
+	base := time.Now().Truncate(time.Second).Add(-time.Hour)
+	send := func(offset time.Duration, version string) {
+		t.Helper()
+		info := &HostInfoUpdate{CPUModel: "X", AgentVersion: version}
+		if _, err := s.IngestMetrics(ctx, id, Sample{Timestamp: base.Add(offset), Info: info}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	version := func() string {
+		var v string
+		if err := testPool.QueryRow(ctx, `SELECT agent_version FROM host_info WHERE host_id = $1`, id).Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+
+	type step struct {
+		offset  time.Duration
+		version string
+	}
+	tests := []struct {
+		name  string
+		steps []step
+		want  string
+	}{
+		{"viejo y luego nuevo: queda el nuevo", []step{{0, "1"}, {time.Minute, "2"}}, "2"},
+		{"nuevo y luego viejo: queda el nuevo", []step{{time.Minute, "2"}, {0, "1"}}, "2"},
+		{"el reporte sin cambios avanza la guarda", []step{{0, "1"}, {3 * time.Minute, "1"}, {time.Minute, "2"}}, "1"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := testPool.Exec(ctx, `DELETE FROM host_info WHERE host_id = $1`, id); err != nil {
+				t.Fatal(err)
+			}
+			for _, st := range tc.steps {
+				send(st.offset, st.version)
+			}
+			if got := version(); got != tc.want {
+				t.Errorf("agent_version got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // host_info solo se reescribe si cambia (boot_time con tolerancia de 60 s).
 func TestIngestHostInfoWritesOnlyOnChange(t *testing.T) {
 	s := newTestStore(t)
